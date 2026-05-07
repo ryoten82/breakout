@@ -436,6 +436,7 @@ let streakWrapDelay = 0;
 let stageTime = 0;
 let rings = [];
 let paddleGlow = 0;
+let paddleFreezeTimer = 0;
 let freezeTimer = 0;
 let screenShake = 0;
 let streakBarGlow = 0;
@@ -578,6 +579,7 @@ function resetBallAndPaddle() {
   pierceZoneWidth = 1;
   livesBarHidden = false;
   paddleHidden = false;
+  paddleFreezeTimer = 0;
   items = [];
   activeEffects = {};
 }
@@ -627,14 +629,14 @@ reset();
 // ---- Input ----
 document.addEventListener('keydown', e => {
   keys[e.code] = true;
-  if (e.code === 'KeyQ') {
+  if (e.code === 'Digit1') {
     if (state === 'play') { blocks.forEach(b => b.alive = false); return; }
     if (state === 'boss' && boss && boss.phase !== 'dying') {
       boss.hp = 0; boss.phase = 'dying'; boss.dyingPhase = 'freeze'; boss.dyingTimer = 25;
       playSound(SE.death); stopBGM(); return;
     }
   }
-  if (e.code === 'KeyE') {
+  if (e.code === 'Digit2') {
     debugPierceExpanded = !debugPierceExpanded;
     return;
   }
@@ -666,6 +668,7 @@ canvas.addEventListener('mousemove', e => {
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
 
 function movePaddle() {
+  if (paddleFreezeTimer > 0) { paddleFreezeTimer--; return; }
   const speed = 14 * (activeEffects['speed_up'] ? 1.5 : 1);
   if (keys['ArrowLeft']  || keys['KeyA']) paddle.x -= speed;
   if (keys['ArrowRight'] || keys['KeyD']) paddle.x += speed;
@@ -971,12 +974,31 @@ function drawPaddle() {
     paddleGlow = Math.max(0, paddleGlow - 0.017); // 約60fpsで1秒かけて減衰
   }
 
+  // フリーズ中: 青紫点滅グロー
+  if (paddleFreezeTimer > 0) {
+    const t = 180 - paddleFreezeTimer; // 経過フレーム（0→180）
+    const phase = 0.08 * t + t * t / 900; // 周波数が線形に増加する位相
+    const pulse = 0.5 + 0.5 * Math.sin(phase);
+    ctx.save();
+    ctx.shadowColor = '#aa44ff';
+    ctx.shadowBlur = 40 * pulse;
+    ctx.strokeStyle = `rgba(180, 100, 255, ${0.6 + 0.4 * pulse})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(paddle.x, paddle.y, paddle.w, paddle.h, 10);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   const grad = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x, paddle.y + paddle.h);
   if (boss && boss.phase === 'dying') {
     grad.addColorStop(0, '#ffffff');
     grad.addColorStop(1, '#ccddff');
     ctx.shadowColor = '#ffffff';
     ctx.shadowBlur = 30;
+  } else if (paddleFreezeTimer > 0) {
+    grad.addColorStop(0, '#cc88ff');
+    grad.addColorStop(1, '#7722cc');
   } else if (paddleGlow > 0) {
     grad.addColorStop(0, `rgba(180, 240, 255, 1)`);
     grad.addColorStop(1, `rgba(80, 180, 255, 1)`);
@@ -1030,12 +1052,8 @@ function updateItems() {
         item.y + 16 >= paddle.y && item.y - 16 <= paddle.y + paddle.h &&
         item.x >= paddle.x      && item.x <= paddle.x + paddle.w
       ) {
-        lives--;
-        emitBarDebris();
-        playMiss();
+        paddleFreezeTimer = 180; // 約3秒停止
         spawnBombExplosion(item.x, item.y);
-        if (lives <= 0) { state = 'over'; stopBGM(); }
-        else { state = 'dead'; }
       } else if (item.y - 16 <= H) {
         next.push(item);
       }
@@ -1198,7 +1216,7 @@ function drawHUD() {
 
 const ITEM_DESCRIPTIONS = {
   star:          ['パドル幅 ×2',       'パドルが広がる  (7秒)'],
-  meteor:        ['危険！ 爆弾',        '触れるとライフ -1'],
+  meteor:        ['危険！ 爆弾',        '爆発に触れると一定時間動けなくなる'],
   life_up:       ['ライフ +1',         '最大9まで回復'],
   speed_up:      ['パドル速度 ×1.5',   '重複可  (7秒)'],
   ball_double:   ['ボール ×2',         'ボール数を倍に  上限8個'],
