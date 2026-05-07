@@ -640,8 +640,8 @@ function drawBlock(b) {
   ctx.fillRect(b.x + 4, b.y + 3, b.w - 8, 5);
   // アイテムブロック: 白アウトライン
   if (b.isItem) {
-    ctx.strokeStyle = b.itemDef.outlineColor;
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3.5;
     ctx.globalAlpha = 0.85;
     ctx.beginPath();
     ctx.roundRect(b.x + 2, b.y + 2, b.w - 4, b.h - 4, 3);
@@ -907,7 +907,7 @@ function updateBoss() {
     boss.chargeTimer--;
     if (boss.chargeTimer <= 0) {
       boss.phase = 'laser';
-      boss.laserTimer = 120;
+      boss.laserTimer = 90;
       playLaser();
     }
   } else if (boss.phase === 'laser') {
