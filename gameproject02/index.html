@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>SCRAP BLITZ - Phase 1 Prototype</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: 'Courier New', monospace;
+      color: #00ddff;
+    }
+    canvas { display: block; }
+
+    #hud {
+      position: absolute;
+      top: 12px; left: 12px;
+      padding: 8px 14px;
+      background: rgba(0, 20, 40, 0.55);
+      border-left: 3px solid #00ddff;
+      font-size: 12px;
+      letter-spacing: 1px;
+      pointer-events: none;
+    }
+    #hud .title {
+      color: #ff00aa;
+      font-weight: bold;
+      letter-spacing: 2px;
+      margin-bottom: 4px;
+    }
+    #hud .small { color: #88aacc; font-size: 10px; }
+
+    #debug {
+      position: absolute;
+      bottom: 12px; left: 12px;
+      padding: 6px 10px;
+      background: rgba(0, 0, 0, 0.5);
+      font-size: 11px;
+      color: #88ff88;
+      pointer-events: none;
+    }
+
+    #phase {
+      position: absolute;
+      top: 12px; right: 12px;
+      padding: 6px 12px;
+      background: rgba(40, 0, 40, 0.55);
+      border-right: 3px solid #ff00aa;
+      font-size: 11px;
+      color: #ff88cc;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <div class="title">SCRAP BLITZ</div>
+    <div>WASD / 矢印キー: 移動</div>
+    <div>SPACE: ジャンプ</div>
+    <div>Z: 攻撃（連打で3段コンボ）</div>
+    <div>ヒット中SPACE: キャンセルジャンプ</div>
+    <div class="small">Phase 2.1 - 戦闘骨格</div>
+  </div>
+
+  <div id="debug">x: 0  z: 0  y: 0</div>
+  <div id="phase">PHASE 2.1: COMBAT CORE</div>
+
+  <div id="combo" style="
+    position: absolute;
+    top: 50%; right: 60px;
+    transform: translateY(-50%);
+    font-family: 'Courier New', monospace;
+    font-size: 36px;
+    color: #ffff44;
+    text-shadow: 0 0 12px #ff8800, 2px 2px 0 #000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    text-align: right;
+  ">
+    <div id="combo-num" style="font-size: 64px; line-height: 1;">0</div>
+    <div id="combo-label" style="font-size: 18px; color: #ffaa44;">COMBO</div>
+  </div>
+
+  <div id="dummy-hp" style="
+    position: absolute;
+    bottom: 60px; right: 60px;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    color: #ff8888;
+    background: rgba(40, 0, 0, 0.5);
+    padding: 6px 12px;
+    border-right: 3px solid #ff4444;
+    pointer-events: none;
+  ">DUMMY HP: <span id="dummy-hp-num">100</span></div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+
+    // ============================================================
+    //  SCENE / CAMERA / RENDERER
+    // ============================================================
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a1f);
+    scene.fog = new THREE.Fog(0x0a0a1f, 1400, 3500);
+
+    const camera = new THREE.PerspectiveCamera(
+      45,
+      window.innerWidth / window.innerHeight,
+      1,
+      5000
+    );
+    // Plan: (0, 800, 600) → (0, 0, 0) を見る
+    camera.position.set(0, 800, 600);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.appendChild(renderer.domElement);
+
+    // ============================================================
+    //  LIGHTING (key + fill + rim accent)
+    // ============================================================
+    const ambient = new THREE.AmbientLight(0x4455aa, 0.4);
+    scene.add(ambient);
+
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
+    keyLight.position.set(500, 1200, 400);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(2048, 2048);
+    keyLight.shadow.camera.left   = -1500;
+    keyLight.shadow.camera.right  =  1500;
+    keyLight.shadow.camera.top    =  1500;
+    keyLight.shadow.camera.bottom = -1500;
+    keyLight.shadow.camera.near = 100;
+    keyLight.shadow.camera.far  = 3500;
+    scene.add(keyLight);
+
+    // Rim light でメカに紫の差し色
+    const rimLight = new THREE.DirectionalLight(0xff44aa, 0.55);
+    rimLight.position.set(-500, 400, -500);
+    scene.add(rimLight);
+
+    // 弱フィル（青）
+    const fillLight = new THREE.DirectionalLight(0x4488ff, 0.3);
+    fillLight.position.set(0, 200, 800);
+    scene.add(fillLight);
+
+    // ============================================================
+    //  PROCEDURAL GRID TEXTURE (ピクセル風)
+    // ============================================================
+    function makeGridTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+
+      // ベース
+      ctx.fillStyle = '#161628';
+      ctx.fillRect(0, 0, 64, 64);
+
+      // 格子線
+      ctx.strokeStyle = '#26264a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(0, 0, 64, 64);
+
+      // ピクセルアクセント（中央に小ブロック）
+      ctx.fillStyle = '#3a3a72';
+      ctx.fillRect(28, 28, 8, 8);
+
+      // コーナーノイズ
+      ctx.fillStyle = '#1f1f3a';
+      ctx.fillRect(2, 2, 4, 4);
+      ctx.fillRect(58, 58, 4, 4);
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.magFilter = THREE.NearestFilter; // ピクセル感維持
+      tex.minFilter = THREE.NearestFilter;
+      tex.repeat.set(80, 30);
+      return tex;
+    }
+
+    // ============================================================
+    //  GROUND PLANE
+    // ============================================================
+    const groundGeom = new THREE.PlaneGeometry(12000, 2400);
+    const groundMat = new THREE.MeshToonMaterial({
+      map:   makeGridTexture(),
+      color: 0xaaaadd,
+    });
+    const ground = new THREE.Mesh(groundGeom, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = 0;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // ============================================================
+    //  BACKGROUND PILLARS (奥行き演出・チープ感回避)
+    // ============================================================
+    function buildBackgroundElements() {
+      const group = new THREE.Group();
+      const pillarMat = new THREE.MeshToonMaterial({ color: 0x1a1a35 });
+
+      for (let i = -5000; i <= 5000; i += 800) {
+        const h = 600 + Math.random() * 800;
+        const w = 200 + Math.random() * 200;
+        const pillar = new THREE.Mesh(
+          new THREE.BoxGeometry(w, h, 200),
+          pillarMat
+        );
+        pillar.position.set(i + (Math.random() - 0.5) * 200, h / 2, -1100);
+        group.add(pillar);
+
+        // ネオンアクセント（小さな箱）
+        const neon = new THREE.Mesh(
+          new THREE.BoxGeometry(w * 0.3, 30, 10),
+          new THREE.MeshBasicMaterial({
+            color: Math.random() > 0.5 ? 0x00ddff : 0xff00aa
+          })
+        );
+        neon.position.set(pillar.position.x, h * 0.7, -1000);
+        group.add(neon);
+      }
+
+      return group;
+    }
+    scene.add(buildBackgroundElements());
+
+    // ============================================================
+    //  ASSET ABSTRACTION LAYER (将来 GLTF 差し替え対応)
+    //  Plan §技術スタック §アセット抽象化レイヤー
+    // ============================================================
+    function buildPlayerMesh() {
+      const group = new THREE.Group();
+
+      const bodyMat   = new THREE.MeshToonMaterial({ color: 0x00ccff });
+      const accentMat = new THREE.MeshToonMaterial({ color: 0xff2288 });
+      const dimMat    = new THREE.MeshToonMaterial({ color: 0x335577 });
+
+      // 胴体
+      const torso = new THREE.Mesh(
+        new THREE.BoxGeometry(70, 90, 55),
+        bodyMat
+      );
+      torso.position.y = 100;
+      torso.castShadow = true;
+      group.add(torso);
+
+      // 胸プレート（差し色）
+      const chest = new THREE.Mesh(
+        new THREE.BoxGeometry(50, 30, 5),
+        accentMat
+      );
+      chest.position.set(0, 110, 28);
+      group.add(chest);
+
+      // 頭部
+      const head = new THREE.Mesh(
+        new THREE.BoxGeometry(45, 40, 42),
+        dimMat
+      );
+      head.position.y = 165;
+      head.castShadow = true;
+      group.add(head);
+
+      // バイザー
+      const visor = new THREE.Mesh(
+        new THREE.BoxGeometry(38, 8, 5),
+        new THREE.MeshBasicMaterial({ color: 0x00ffff })
+      );
+      visor.position.set(0, 168, 21);
+      group.add(visor);
+
+      // 肩
+      const shoulderGeom = new THREE.BoxGeometry(28, 28, 28);
+      const shoulderL = new THREE.Mesh(shoulderGeom, accentMat);
+      shoulderL.position.set(-50, 130, 0);
+      shoulderL.castShadow = true;
+      group.add(shoulderL);
+      const shoulderR = shoulderL.clone();
+      shoulderR.position.x = 50;
+      group.add(shoulderR);
+
+      // 腕（円柱）
+      const armGeom = new THREE.CylinderGeometry(13, 15, 75, 8);
+      const armL = new THREE.Mesh(armGeom, bodyMat);
+      armL.position.set(-50, 90, 0);
+      armL.castShadow = true;
+      group.add(armL);
+      const armR = armL.clone();
+      armR.position.x = 50;
+      group.add(armR);
+
+      // 拳
+      const fistGeom = new THREE.BoxGeometry(22, 22, 22);
+      const fistL = new THREE.Mesh(fistGeom, dimMat);
+      fistL.position.set(-50, 50, 0);
+      fistL.castShadow = true;
+      group.add(fistL);
+      const fistR = fistL.clone();
+      fistR.position.x = 50;
+      group.add(fistR);
+
+      // 脚
+      const legGeom = new THREE.CylinderGeometry(16, 22, 65, 8);
+      const legL = new THREE.Mesh(legGeom, bodyMat);
+      legL.position.set(-22, 35, 0);
+      legL.castShadow = true;
+      group.add(legL);
+      const legR = legL.clone();
+      legR.position.x = 22;
+      group.add(legR);
+
+      // 足
+      const footGeom = new THREE.BoxGeometry(28, 12, 38);
+      const footL = new THREE.Mesh(footGeom, dimMat);
+      footL.position.set(-22, 6, 5);
+      footL.castShadow = true;
+      group.add(footL);
+      const footR = footL.clone();
+      footR.position.x = 22;
+      group.add(footR);
+
+      // ブースター噴射（足元の下に伸びる円錐）
+      const thrusterMat = new THREE.MeshBasicMaterial({
+        color: 0x00ddff,
+        transparent: true,
+        opacity: 0.85,
+      });
+      const thrusterGeom = new THREE.ConeGeometry(9, 35, 6);
+      const thrusterL = new THREE.Mesh(thrusterGeom, thrusterMat);
+      thrusterL.position.set(-22, -18, 5);
+      thrusterL.rotation.x = Math.PI;  // 下向き
+      thrusterL.visible = false;
+      group.add(thrusterL);
+      const thrusterR = thrusterL.clone();
+      thrusterR.material = thrusterMat;  // 共有
+      thrusterR.position.x = 22;
+      group.add(thrusterR);
+
+      // 肩のヨースラスター（方向転換時の姿勢制御推力・板野的「動きに理屈」）
+      const yawMat = new THREE.MeshBasicMaterial({
+        color: 0xff66cc,
+        transparent: true,
+        opacity: 0.9,
+      });
+      const yawGeom = new THREE.ConeGeometry(6, 22, 6);
+      const yawL = new THREE.Mesh(yawGeom, yawMat);
+      yawL.position.set(-68, 130, 0);
+      yawL.rotation.z = Math.PI / 2;   // -X 方向に噴射
+      yawL.visible = false;
+      group.add(yawL);
+      const yawR = yawL.clone();
+      yawR.material = yawMat;
+      yawR.position.set(68, 130, 0);
+      yawR.rotation.z = -Math.PI / 2;  // +X 方向に噴射
+      yawR.visible = false;
+      group.add(yawR);
+
+      // 参照を保持しておく（アニメーション・エフェクト制御用）
+      group.userData.parts = {
+        torso, head, armL, armR, legL, legR, footL, footR, visor,
+        thrusterL, thrusterR,
+        yawL, yawR,
+      };
+
+      return group;
+    }
+
+    const CHARACTER_ASSETS = {
+      player_viper: {
+        type: 'procedural',
+        path: null,
+        buildFn: buildPlayerMesh,
+      },
+      // 将来追加例:
+      // enemy_scrapper: { type: 'procedural', buildFn: buildScrapperMesh },
+      // player_viper_v2: { type: 'gltf', path: './assets/player.glb' },
+    };
+
+    async function loadCharacterModel(key) {
+      const asset = CHARACTER_ASSETS[key];
+      if (!asset) throw new Error(`Asset key not found: ${key}`);
+      if (asset.type === 'gltf') {
+        // 将来：GLTFLoader で読み込み
+        throw new Error('GLTF loader not yet implemented in Phase 1');
+      } else {
+        return asset.buildFn();
+      }
+    }
+
+    // ============================================================
+    //  PHYSICS / TUNING （ランタイムで変更可能）
+    //  コンソール: window.SB.PHYSICS.JUMP_V = 12   などで即反映
+    // ============================================================
+    const PHYSICS = {
+      SPEED:            5.5,    // 水平移動速度
+      JUMP_V:           10,     // ジャンプ初速（小さめ＝重量感）
+      THRUST_FORCE:     1.20,   // ブースター毎フレーム加速量
+      THRUST_FRAMES:    12,     // ブースター持続フレーム数（最大）
+      GRAVITY:          0.96,   // 重力加速度
+      YAW_BURST_FRAMES: 9,      // 方向転換時の肩スラスター噴射時間
+
+      // === 攻撃・コンボ系 ===
+      // キャンセルジャンプ時の大噴射（板野的ケレン味）
+      CANCEL_JUMP_V:        16,    // キャンセル時のジャンプ初速（通常より大）
+      CANCEL_JUMP_THRUST:   1.6,   // キャンセル時の推力（通常より大）
+      CANCEL_JUMP_FRAMES:   18,    // キャンセル時の推力持続（通常より長）
+    };
+
+    // ============================================================
+    //  攻撃データテーブル（弱攻撃3段チェーン）
+    //  Plan §2 戦闘システム §キャンセルシステム
+    //  値はランタイムで SB.ATTACKS.z1.damage = ... のように調整可能
+    // ============================================================
+    const ATTACKS = {
+      z1: {
+        label:        'Z1 (左ジャブ)',
+        duration:     16, hitFrame: 6, hitDuration: 4, cancelWindow: 14,
+        damage:       6,
+        rangeX:       95, rangeZ: 70,
+        knockback:    6, hitstop: 3, shake: 2,
+        partsAnim:    'punch_l',
+      },
+      z2: {
+        label:        'Z2 (右ストレート)',
+        duration:     16, hitFrame: 6, hitDuration: 4, cancelWindow: 14,
+        damage:       7,
+        rangeX:       100, rangeZ: 70,
+        knockback:    8, hitstop: 4, shake: 3,
+        partsAnim:    'punch_r',
+      },
+      z3: {
+        label:        'Z3 (回し蹴り)',
+        duration:     22, hitFrame: 9, hitDuration: 5, cancelWindow: 16,
+        damage:       12,
+        rangeX:       115, rangeZ: 80,
+        knockback:    14, hitstop: 6, shake: 5,
+        partsAnim:    'kick',
+      },
+    };
+
+    // チェーン定義：Z 連打で z1 → z2 → z3
+    const Z_CHAIN = ['z1', 'z2', 'z3'];
+
+    // プレイヤー状態
+    const STATE = {
+      IDLE:        'idle',
+      ATTACKING:   'attacking',     // 攻撃モーション中
+      HIT_CONFIRM: 'hit_confirm',   // ヒット確認後のキャンセル受付中
+    };
+
+    // ============================================================
+    //  PLAYER STATE (将来マルチ対応のため配列管理)
+    //  Plan §注意事項
+    // ============================================================
+    const players = [];
+
+    const playerMesh = await loadCharacterModel('player_viper');
+    scene.add(playerMesh);
+
+    const player = {
+      mesh:             playerMesh,
+      x: 0, y: 0, z: 0,
+      vy:               0,
+      isGrounded:       true,
+      facing:           1,   // 1 = 右向き, -1 = 左向き
+      bobPhase:         0,   // 待機時の上下バウンス用
+      thrustFramesLeft: 0,   // ブースター残量（フレーム数）
+      yawBurstTimer:    0,   // ヨースラスター残時間
+      yawBurstSide:     0,   // -1=左肩 / +1=右肩 が噴射中
+      prevMoveDir:      0,   // 前フレームの水平移動方向（-1/0/+1）
+
+      // === 戦闘ステート ===
+      state:            STATE.IDLE,
+      stateTimer:       0,    // 現在ステートの残フレーム
+      attackId:         null, // 現在の攻撃ID（z1/z2/z3）
+      attackChainIdx:   -1,   // チェーンの何段目か
+      hitDelivered:     false,// 現攻撃でヒット成立済みか
+      cancelTimer:      0,    // キャンセル受付残フレーム
+      bigBurstTimer:    0,    // キャンセルジャンプの大噴射演出残時間
+      attackBuffered:   false,// 攻撃中に Z が押されたバッファ
+    };
+    players.push(player);
+
+    // ============================================================
+    //  HITSTOP / SHAKE 機構（プランの共通関数）
+    // ============================================================
+    let hitstopTimer  = 0;
+    let shakeTimer    = 0;
+    let shakeStrength = 0;
+    let shakeOffsetX  = 0;
+    let shakeOffsetY  = 0;
+
+    function triggerHitstop(frames) {
+      if (frames > hitstopTimer) hitstopTimer = frames;
+    }
+    function triggerShake(strength, frames) {
+      if (strength > shakeStrength) shakeStrength = strength;
+      if (frames > shakeTimer) shakeTimer = frames;
+    }
+
+    // ============================================================
+    //  PARTICLE SYSTEM（ヒット時の火花）
+    // ============================================================
+    const particles = [];
+
+    function spawnHitParticles(x, y, z, color = 0xffee44, count = 10) {
+      const geom = new THREE.BoxGeometry(7, 7, 7);
+      for (let i = 0; i < count; i++) {
+        const mat = new THREE.MeshBasicMaterial({ color });
+        const mesh = new THREE.Mesh(geom, mat);
+        mesh.position.set(x, y, z);
+        scene.add(mesh);
+        particles.push({
+          mesh,
+          vx: (Math.random() - 0.5) * 14,
+          vy: 4 + Math.random() * 10,
+          vz: (Math.random() - 0.5) * 14,
+          life: 22 + Math.random() * 10,
+        });
+      }
+    }
+
+    function updateParticles() {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.mesh.position.x += p.vx;
+        p.mesh.position.y += p.vy;
+        p.mesh.position.z += p.vz;
+        p.vy -= 0.7;
+        p.life--;
+        const lifeRatio = Math.max(0, p.life / 22);
+        p.mesh.scale.setScalar(lifeRatio);
+        if (p.life <= 0 || p.mesh.position.y < 0) {
+          scene.remove(p.mesh);
+          particles.splice(i, 1);
+        }
+      }
+    }
+
+    // ============================================================
+    //  DUMMY ENEMY（攻撃対象）
+    // ============================================================
+    function buildDummyMesh() {
+      const group = new THREE.Group();
+      const baseMat = new THREE.MeshToonMaterial({ color: 0x884444 });
+      const accentMat = new THREE.MeshToonMaterial({ color: 0xddaa44 });
+
+      // 胴体（やや大きめ）
+      const body = new THREE.Mesh(new THREE.BoxGeometry(70, 130, 60), baseMat);
+      body.position.y = 80;
+      body.castShadow = true;
+      group.add(body);
+
+      // 頭
+      const head = new THREE.Mesh(new THREE.BoxGeometry(45, 40, 40), accentMat);
+      head.position.y = 165;
+      head.castShadow = true;
+      group.add(head);
+
+      // 脚（一体化した台座風）
+      const stand = new THREE.Mesh(new THREE.BoxGeometry(60, 30, 60), accentMat);
+      stand.position.y = 15;
+      stand.castShadow = true;
+      group.add(stand);
+
+      group.userData.parts = { body, head, stand };
+      return group;
+    }
+
+    const enemies = [];
+    const dummyMesh = buildDummyMesh();
+    dummyMesh.position.set(280, 0, 0);
+    scene.add(dummyMesh);
+
+    const dummy = {
+      mesh:           dummyMesh,
+      x: 280, y: 0, z: 0,
+      hp:             100,
+      maxHp:          100,
+      hitFlashTimer:  0,
+      knockbackVx:    0,
+      knockbackVz:    0,
+      isAlive:        true,
+    };
+    enemies.push(dummy);
+
+    // ============================================================
+    //  COMBO COUNTER
+    // ============================================================
+    const combo = {
+      count:       0,
+      decayTimer:  0,
+      decayMax:    90,  // 90F = 1.5秒で消失
+    };
+    const comboEl     = document.getElementById('combo');
+    const comboNumEl  = document.getElementById('combo-num');
+    const dummyHpEl   = document.getElementById('dummy-hp-num');
+
+    function bumpCombo() {
+      combo.count += 1;
+      combo.decayTimer = combo.decayMax;
+      comboEl.style.opacity = '1';
+      comboNumEl.textContent = combo.count;
+      // 段階別の色変化
+      if (combo.count >= 30)      comboNumEl.style.color = '#ff44ff';
+      else if (combo.count >= 20) comboNumEl.style.color = '#ff8800';
+      else if (combo.count >= 10) comboNumEl.style.color = '#ffff44';
+      else                        comboNumEl.style.color = '#ffffff';
+      // ポップアニメ
+      comboNumEl.style.transform = 'scale(1.3)';
+      setTimeout(() => { comboNumEl.style.transform = 'scale(1)'; }, 80);
+    }
+
+    function decayCombo() {
+      if (combo.decayTimer > 0) {
+        combo.decayTimer--;
+        if (combo.decayTimer <= 0) {
+          combo.count = 0;
+          comboEl.style.opacity = '0';
+        }
+      }
+    }
+
+    // ============================================================
+    //  INPUT
+    // ============================================================
+    const keys = {};
+    addEventListener('keydown', (e) => {
+      keys[e.code] = true;
+      if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) {
+        e.preventDefault();
+      }
+    });
+    addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+    // ============================================================
+    //  GAME LOOP
+    // ============================================================
+    const debug = document.getElementById('debug');
+
+    // ============================================================
+    //  攻撃の発動・進行
+    // ============================================================
+    function startAttack(p, chainIdx) {
+      const id = Z_CHAIN[chainIdx];
+      if (!id) return;
+      p.state           = STATE.ATTACKING;
+      p.attackId        = id;
+      p.attackChainIdx  = chainIdx;
+      p.stateTimer      = ATTACKS[id].duration;
+      p.hitDelivered    = false;
+      p.cancelTimer     = 0;
+      p.attackBuffered  = false;
+    }
+
+    function tryHitEnemies(p, attack) {
+      const facing = p.facing;
+      let anyHit = false;
+      for (const e of enemies) {
+        if (!e.isAlive) continue;
+        const dx = e.x - p.x;
+        const dz = e.z - p.z;
+        // 前方判定：facing と dx の符号が一致
+        if (Math.sign(dx) !== facing) continue;
+        if (Math.abs(dx) > attack.rangeX) continue;
+        if (Math.abs(dz) > attack.rangeZ) continue;
+        // ヒット
+        e.hp = Math.max(0, e.hp - attack.damage);
+        e.hitFlashTimer = 7;
+        e.knockbackVx   = facing * (attack.knockback * 0.4);
+        // 演出
+        triggerHitstop(attack.hitstop);
+        triggerShake(attack.shake, attack.shake * 2 + 4);
+        spawnHitParticles(e.x - dx * 0.4, e.y + 80, e.z, 0xffee44, 10);
+        bumpCombo();
+        anyHit = true;
+      }
+      return anyHit;
+    }
+
+    function updateAttack(p) {
+      if (p.state !== STATE.ATTACKING) return;
+      const atk = ATTACKS[p.attackId];
+      const elapsed = atk.duration - p.stateTimer;
+
+      // 判定発生中フレーム
+      if (
+        !p.hitDelivered &&
+        elapsed >= atk.hitFrame &&
+        elapsed <  atk.hitFrame + atk.hitDuration
+      ) {
+        if (tryHitEnemies(p, atk)) {
+          p.hitDelivered = true;
+        }
+      }
+
+      p.stateTimer--;
+      if (p.stateTimer <= 0) {
+        // 攻撃終了
+        if (p.hitDelivered) {
+          // ヒット成立 → キャンセル受付に入る
+          p.state        = STATE.HIT_CONFIRM;
+          p.cancelTimer  = atk.cancelWindow;
+        } else {
+          // 空振り → IDLE に戻る（プラン上「空振りキャンセル不可」）
+          p.state           = STATE.IDLE;
+          p.attackChainIdx  = -1;
+          p.attackId        = null;
+        }
+      }
+    }
+
+    function updateHitConfirm(p) {
+      if (p.state !== STATE.HIT_CONFIRM) return;
+      p.cancelTimer--;
+      if (p.cancelTimer <= 0) {
+        // 受付終了 → IDLE 復帰・チェーンリセット
+        p.state           = STATE.IDLE;
+        p.attackChainIdx  = -1;
+        p.attackId        = null;
+      }
+    }
+
+    // 攻撃入力処理（Z キー押下）
+    let zKeyWasDown = false;
+    function processAttackInput(p) {
+      const zPressed = !!keys['KeyZ'];
+      const justPressed = zPressed && !zKeyWasDown;
+      zKeyWasDown = zPressed;
+      if (!justPressed) return;
+
+      if (p.state === STATE.IDLE) {
+        startAttack(p, 0);
+      } else if (p.state === STATE.HIT_CONFIRM) {
+        // チェーン進行
+        const next = p.attackChainIdx + 1;
+        if (next < Z_CHAIN.length) startAttack(p, next);
+      } else if (p.state === STATE.ATTACKING) {
+        // バッファして攻撃終了直後に発動候補にする
+        p.attackBuffered = true;
+      }
+    }
+
+    // バッファ消化（HIT_CONFIRM になった瞬間に Z バッファがあれば次段へ）
+    function consumeAttackBuffer(p) {
+      if (p.state === STATE.HIT_CONFIRM && p.attackBuffered) {
+        const next = p.attackChainIdx + 1;
+        p.attackBuffered = false;
+        if (next < Z_CHAIN.length) startAttack(p, next);
+      }
+    }
+
+    // キャンセルジャンプ：HIT_CONFIRM 中に SPACE → 大噴射ジャンプ
+    function tryCancelJump(p) {
+      if (p.state !== STATE.HIT_CONFIRM) return false;
+      if (!keys['Space']) return false;
+      // 発動！
+      p.vy               = PHYSICS.CANCEL_JUMP_V;
+      p.isGrounded       = false;
+      p.thrustFramesLeft = PHYSICS.CANCEL_JUMP_FRAMES;
+      p.bigBurstTimer    = 14;  // 大噴射演出時間
+      // ステートは IDLE に戻す（空中でまた Z を押せばコンボ継続可能・将来空中攻撃で対応）
+      p.state            = STATE.IDLE;
+      p.attackChainIdx   = -1;
+      p.attackId         = null;
+      // 視覚的フィードバック：大きめのシェイクとスローパーティクル
+      triggerShake(4, 8);
+      spawnHitParticles(p.x, p.y + 20, p.z, 0x00ddff, 16);
+      return true;
+    }
+
+    function updatePlayer(p) {
+      // === 攻撃入力処理（毎フレーム）===
+      processAttackInput(p);
+
+      // === キャンセルジャンプ判定 ===
+      tryCancelJump(p);
+
+      // === ステート更新 ===
+      updateAttack(p);
+      updateHitConfirm(p);
+      consumeAttackBuffer(p);
+
+      // === 攻撃中は地上移動を抑制 ===
+      const movementLocked = (p.state === STATE.ATTACKING) && p.isGrounded;
+
+      // === 入力 → 移動ベクトル ===
+      let mvx = 0, mvz = 0;
+      if (!movementLocked) {
+        if (keys['ArrowLeft']  || keys['KeyA']) mvx -= 1;
+        if (keys['ArrowRight'] || keys['KeyD']) mvx += 1;
+        if (keys['ArrowUp']    || keys['KeyW']) mvz -= 1;
+        if (keys['ArrowDown']  || keys['KeyS']) mvz += 1;
+      }
+      const len = Math.hypot(mvx, mvz);
+      if (len > 0) { mvx /= len; mvz /= len; }
+
+      p.x += mvx * PHYSICS.SPEED;
+      p.z += mvz * PHYSICS.SPEED;
+      // 深度制限（ベルスクの帯幅）
+      p.z = Math.max(-380, Math.min(380, p.z));
+
+      // === 向き（攻撃中は固定）===
+      if (!movementLocked) {
+        if (mvx > 0) p.facing = 1;
+        else if (mvx < 0) p.facing = -1;
+      }
+
+      // === 方向転換検知 → 肩ヨースラスター噴射（板野的姿勢制御推力） ===
+      const curMoveDir = (mvx > 0) ? 1 : (mvx < 0 ? -1 : 0);
+      if (curMoveDir !== 0 && p.prevMoveDir !== 0 && curMoveDir !== p.prevMoveDir) {
+        // 旧方向側の肩スラスターが噴く（旧方向への速度を打ち消す姿勢制御）
+        p.yawBurstSide  = p.prevMoveDir;
+        p.yawBurstTimer = PHYSICS.YAW_BURST_FRAMES;
+      }
+      if (curMoveDir !== 0) p.prevMoveDir = curMoveDir;
+
+      // === ジャンプ・ブースター・重力 ===
+      // 接地中にスペース → 初速付与＋ブースター点火
+      // ※キャンセルジャンプ（tryCancelJump）で既に発動済みの場合は二重発動しない
+      if (p.isGrounded && keys['Space'] && p.bigBurstTimer === 0) {
+        p.vy = PHYSICS.JUMP_V;
+        p.isGrounded = false;
+        p.thrustFramesLeft = PHYSICS.THRUST_FRAMES;
+      }
+
+      // 空中処理
+      const thrustingNow =
+        !p.isGrounded &&
+        keys['Space'] &&
+        p.thrustFramesLeft > 0 &&
+        p.vy >= 0;  // 上昇中のみ推力（落下中は不可）
+
+      if (!p.isGrounded) {
+        if (thrustingNow) {
+          // キャンセルジャンプ中は推力UP
+          const force = (p.bigBurstTimer > 0)
+            ? PHYSICS.CANCEL_JUMP_THRUST
+            : PHYSICS.THRUST_FORCE;
+          p.vy += force;
+          p.thrustFramesLeft--;
+        }
+        p.vy -= PHYSICS.GRAVITY;
+        p.y += p.vy;
+        if (p.y <= 0) {
+          p.y = 0;
+          p.vy = 0;
+          p.isGrounded = true;
+          p.thrustFramesLeft = 0;
+        }
+      }
+
+      // 大噴射タイマーの減衰
+      if (p.bigBurstTimer > 0) p.bigBurstTimer--;
+
+      const parts = p.mesh.userData.parts;
+
+      // ブースター炎（足元）の表示・パルス
+      parts.thrusterL.visible = thrustingNow;
+      parts.thrusterR.visible = thrustingNow;
+      if (thrustingNow) {
+        // キャンセルジャンプ中はサイズも色も派手に
+        const isBig = p.bigBurstTimer > 0;
+        const pulse = (isBig ? 1.6 : 0.85) + Math.random() * (isBig ? 0.7 : 0.4);
+        parts.thrusterL.scale.set(isBig ? 1.8 : 1, pulse, isBig ? 1.8 : 1);
+        parts.thrusterR.scale.set(isBig ? 1.8 : 1, pulse, isBig ? 1.8 : 1);
+        parts.thrusterL.material.color.setHex(isBig ? 0xffff66 : 0x00ddff);
+        parts.thrusterR.material.color.setHex(isBig ? 0xffff66 : 0x00ddff);
+      } else {
+        // 待機色に戻す
+        parts.thrusterL.material.color.setHex(0x00ddff);
+        parts.thrusterR.material.color.setHex(0x00ddff);
+      }
+
+      // ヨースラスター（肩）の表示・パルス
+      if (p.yawBurstTimer > 0) p.yawBurstTimer--;
+      const yawActive = p.yawBurstTimer > 0;
+      parts.yawL.visible = yawActive && (p.yawBurstSide < 0);
+      parts.yawR.visible = yawActive && (p.yawBurstSide > 0);
+      if (yawActive) {
+        const yawPulse = 0.6 + Math.random() * 0.6;
+        const target = (p.yawBurstSide < 0) ? parts.yawL : parts.yawR;
+        target.scale.set(1, yawPulse, 1);
+      }
+
+      // === 待機時のバウンス（生き生き演出） ===
+      const isMoving = (len > 0);
+      if (isMoving && p.isGrounded) {
+        p.bobPhase += 0.3;
+      } else if (p.isGrounded) {
+        p.bobPhase += 0.05;
+      }
+      const bobY = isMoving ? Math.abs(Math.sin(p.bobPhase)) * 4 : Math.sin(p.bobPhase) * 2;
+
+      // === メッシュへ反映 ===
+      p.mesh.position.set(p.x, p.y + bobY, p.z);
+      // 向き：右なら +Z、左なら -Z 方向に体を回す
+      const targetRot = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+      p.mesh.rotation.y += (targetRot - p.mesh.rotation.y) * 0.2;
+    }
+
+    function updateEnemies() {
+      for (const e of enemies) {
+        if (!e.isAlive) continue;
+        // 死亡判定
+        if (e.hp <= 0) {
+          e.hp = e.maxHp;  // ダミーは即復活（無限練習用）
+          spawnHitParticles(e.x, e.y + 100, e.z, 0xff8844, 24);
+          triggerShake(8, 14);
+        }
+        // ノックバック減衰
+        e.x += e.knockbackVx;
+        e.knockbackVx *= 0.78;
+        if (Math.abs(e.knockbackVx) < 0.1) e.knockbackVx = 0;
+        e.mesh.position.x = e.x;
+
+        // ヒットフラッシュ
+        if (e.hitFlashTimer > 0) {
+          e.hitFlashTimer--;
+          const t = e.hitFlashTimer / 7;
+          e.mesh.userData.parts.body.material.color.setRGB(
+            0.53 + t * 0.47, 0.27, 0.27
+          );
+          e.mesh.userData.parts.head.material.color.setRGB(
+            0.87 + t * 0.13, 0.67, 0.27
+          );
+        } else {
+          e.mesh.userData.parts.body.material.color.setHex(0x884444);
+          e.mesh.userData.parts.head.material.color.setHex(0xddaa44);
+        }
+      }
+    }
+
+    function updateCamera() {
+      const p = players[0];
+      // X軸追従（Z, Yは固定）
+      const baseX = p.x;
+      const baseY = 800;
+
+      // シェイク計算
+      if (shakeTimer > 0) {
+        shakeOffsetX = (Math.random() - 0.5) * shakeStrength * 2;
+        shakeOffsetY = (Math.random() - 0.5) * shakeStrength * 2;
+        shakeTimer--;
+        if (shakeTimer <= 0) {
+          shakeStrength = 0;
+          shakeOffsetX  = 0;
+          shakeOffsetY  = 0;
+        }
+      } else {
+        shakeOffsetX = 0;
+        shakeOffsetY = 0;
+      }
+
+      camera.position.x = baseX + shakeOffsetX;
+      camera.position.y = baseY + shakeOffsetY;
+      camera.lookAt(baseX, 0, 0);
+    }
+
+    function updateDebug() {
+      const p = players[0];
+      debug.textContent =
+        `x:${p.x.toFixed(0)} z:${p.z.toFixed(0)} y:${p.y.toFixed(0)} | ` +
+        `state:${p.state} chain:${p.attackChainIdx} | ` +
+        `grounded:${p.isGrounded ? 'Y' : 'N'}`;
+      dummyHpEl.textContent = `${enemies[0].hp}/${enemies[0].maxHp}`;
+    }
+
+    function update() {
+      players.forEach(updatePlayer);
+      updateEnemies();
+      updateParticles();
+      decayCombo();
+      updateCamera();
+      updateDebug();
+    }
+
+    function render() {
+      renderer.render(scene, camera);
+    }
+
+    function loop() {
+      // ヒットストップ：更新スキップ・描画は継続
+      if (hitstopTimer > 0) {
+        hitstopTimer--;
+        render();
+        requestAnimationFrame(loop);
+        return;
+      }
+      update();
+      render();
+      requestAnimationFrame(loop);
+    }
+    loop();
+
+    // ============================================================
+    //  RESIZE
+    // ============================================================
+    addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ============================================================
+    //  開発者向け：グローバル参照（コンソールから動的に調整可能）
+    //  例:
+    //    SB.PHYSICS.JUMP_V = 14
+    //    SB.PHYSICS.THRUST_FRAMES = 18
+    //    SB.PHYSICS.SPEED = 7
+    //  → 次フレームから即反映。コンボのテンポ調整はここで完結する。
+    // ============================================================
+    window.SB = {
+      scene, camera, renderer, players, enemies,
+      CHARACTER_ASSETS,
+      PHYSICS, ATTACKS,
+      // 共通関数（コンソールから呼べる）
+      triggerHitstop, triggerShake, spawnHitParticles,
+    };
+    console.log('[SCRAP BLITZ] Phase 2.1 (combat core) loaded.');
+    console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS');
+    console.log('[SCRAP BLITZ] Try: SB.ATTACKS.z3.damage = 30');
+  </script>
+</body>
+</html>
