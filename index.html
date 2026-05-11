@@ -184,7 +184,7 @@ const SE = {
   areaup:   new Audio('sounds/se_areaup.mp3'),
 };
 for (const s of Object.values(SE)) s.volume = SE_VOLUME;
-SE.item.volume = SE_VOLUME * 0.18;
+SE.item.volume = SE_VOLUME * 0.5;
 
 const BGM = {
   normal: new Audio('sounds/bgm01.mp3'),
@@ -243,7 +243,7 @@ const PADDLE_H = 24;
 const PADDLE_Y = H - 80;
 const BALL_R = 16;
 const BOSS_R = BALL_R * 7;   // 112px
-const BOSS_MAX_HP = 30;
+const BOSS_MAX_HP = 21;
 const COLS = 16;
 const ROWS = 8;
 const BLOCK_W = 88;
@@ -567,7 +567,7 @@ function launchBall(ball) {
 
 function resetBallAndPaddle() {
   paddle = { x: W / 2 - PADDLE_W / 2, y: PADDLE_Y, w: PADDLE_W, h: PADDLE_H };
-  baseSpeed = 9 + (level - 1) * 1.2;
+  baseSpeed = (9 + (level - 1) * 1.2) * 0.7;
   balls = [makeBall(true)];
   bounceStreak = 0;
   streakAnimTarget = 0;
@@ -590,7 +590,7 @@ function initBlocks() {
   const cols = Array.from({length: COLS}, (_, i) => i);
   const bossCols = cols.sort(() => Math.random() - 0.5).slice(0, 3);
   for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
+    for (let c = 1; c < COLS - 1; c++) {
       const isBoss = bossCols.includes(c) && r < ROWS - 1;
       const isItem = Math.random() < (1 / 6);
       const itemDef = isItem ? randomItemDef() : null;
@@ -1350,7 +1350,7 @@ function spawnBossBlock() {
   blocks.push({
     x, y, w: BLOCK_W, h: BLOCK_H,
     color, alive: true,
-    isBoss: true, hp: 3,
+    isBoss: false, hp: 1,
     isItem: true, itemDef,
     spawned: true, spawnAlpha: 0,
   });
@@ -1440,7 +1440,7 @@ function updateBoss() {
   } else if (boss.phase === 'laser') {
     boss.laserX = boss.x;
     if (!boss.laserHitDone) {
-      const lw = 36;
+      const lw = 8 + 28 * (boss.laserTimer / 60);
       if (paddle.x < boss.laserX + lw && paddle.x + paddle.w > boss.laserX - lw) {
         boss.laserHitDone = true;
         lives--;
@@ -1521,19 +1521,20 @@ function drawBoss() {
     ctx.restore();
   }
 
-  // レーザービーム
+  // レーザービーム（時間とともに細くなる）
   if (boss.phase === 'laser') {
+    const lw = 8 + 28 * (boss.laserTimer / 60);
     ctx.save();
     ctx.shadowColor = '#ff6600';
-    ctx.shadowBlur = 70;
-    const lg = ctx.createLinearGradient(boss.laserX - 36, 0, boss.laserX + 36, 0);
+    ctx.shadowBlur = 40 + 30 * (boss.laserTimer / 60);
+    const lg = ctx.createLinearGradient(boss.laserX - lw, 0, boss.laserX + lw, 0);
     lg.addColorStop(0,    'rgba(255, 80,  0, 0)');
     lg.addColorStop(0.25, 'rgba(255,160, 40, 0.85)');
     lg.addColorStop(0.5,  'rgba(255,255,180, 1.0)');
     lg.addColorStop(0.75, 'rgba(255,160, 40, 0.85)');
     lg.addColorStop(1,    'rgba(255, 80,  0, 0)');
     ctx.fillStyle = lg;
-    ctx.fillRect(boss.laserX - 36, y + BOSS_R, 72, H - (y + BOSS_R));
+    ctx.fillRect(boss.laserX - lw, y + BOSS_R, lw * 2, H - (y + BOSS_R));
     ctx.restore();
   }
 
