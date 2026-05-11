@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>SCRAP BLITZ - Phase 1 Prototype</title>
+  <title>SCRAP BLITZ - Phase 2.2</title>
   <style>
     html, body {
       margin: 0; padding: 0;
@@ -11,90 +11,169 @@
       background: #000;
       font-family: 'Courier New', monospace;
       color: #00ddff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-    canvas { display: block; }
 
+    /* === 16:9 固定ゲームフレーム（基本解像度 1920x1080）===
+       ウィンドウサイズに応じてレターボックスでスケーリング。
+       HUD・Canvas はすべてこの中に内包される。 */
+    #game-frame {
+      position: relative;
+      width:  min(100vw, calc(100vh * 16 / 9));
+      height: min(100vh, calc(100vw * 9 / 16));
+      background: #0a0a1f;
+      overflow: hidden;
+    }
+    canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 0;
+    }
+
+    /* === HUD レイヤー：1920x1080 デザイン空間で全 HUD を配置し、
+       transform: scale() でゲームフレームに合わせて等倍スケーリング ===
+       JS が --hud-scale を更新（解像度スケール追従） */
+    #hud-layer {
+      position: absolute;
+      top: 0; left: 0;
+      width: 1920px;
+      height: 1080px;
+      transform-origin: top left;
+      transform: scale(var(--hud-scale, 1));
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* === 個別 HUD 要素 ===
+       基本解像度（1920x1080）で 1.5x サイズ。
+       hud-layer の transform: scale() で window スケールに自動追従する */
     #hud {
       position: absolute;
-      top: 12px; left: 12px;
-      padding: 8px 14px;
+      top: 18px; left: 18px;
+      padding: 12px 21px;
       background: rgba(0, 20, 40, 0.55);
-      border-left: 3px solid #00ddff;
-      font-size: 12px;
-      letter-spacing: 1px;
+      border-left: 5px solid #00ddff;
+      font-size: 18px;
+      letter-spacing: 1.5px;
       pointer-events: none;
     }
     #hud .title {
       color: #ff00aa;
       font-weight: bold;
-      letter-spacing: 2px;
-      margin-bottom: 4px;
+      letter-spacing: 3px;
+      margin-bottom: 6px;
     }
-    #hud .small { color: #88aacc; font-size: 10px; }
+    #hud .small { color: #88aacc; font-size: 15px; }
 
     #debug {
       position: absolute;
-      bottom: 12px; left: 12px;
-      padding: 6px 10px;
+      bottom: 18px; left: 18px;
+      padding: 9px 15px;
       background: rgba(0, 0, 0, 0.5);
-      font-size: 11px;
+      font-size: 17px;
       color: #88ff88;
       pointer-events: none;
     }
 
     #phase {
       position: absolute;
-      top: 12px; right: 12px;
-      padding: 6px 12px;
+      top: 18px; right: 18px;
+      padding: 9px 18px;
       background: rgba(40, 0, 40, 0.55);
-      border-right: 3px solid #ff00aa;
-      font-size: 11px;
+      border-right: 5px solid #ff00aa;
+      font-size: 17px;
       color: #ff88cc;
       pointer-events: none;
+    }
+
+    #sp-gauge-wrap {
+      position: absolute;
+      bottom: 90px; left: 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      pointer-events: none;
+    }
+    #sp-label {
+      font-family: 'Courier New', monospace;
+      font-size: 17px;
+      color: #00ddff;
+      letter-spacing: 3px;
+      width: 33px;
+    }
+    #sp-bar-bg {
+      width: 210px;
+      height: 12px;
+      background: rgba(0, 30, 60, 0.7);
+      border: 2px solid #006688;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    #sp-bar {
+      height: 100%;
+      width: 100%;
+      background: #00ddff;
+      border-radius: 3px;
+      transition: width 0.05s linear, background 0.1s linear;
     }
   </style>
 </head>
 <body>
+  <div id="game-frame">
+  <div id="hud-layer">
   <div id="hud">
     <div class="title">SCRAP BLITZ</div>
     <div>WASD / 矢印キー: 移動</div>
     <div>SPACE: ジャンプ</div>
-    <div>Z: 攻撃（連打で3段コンボ）</div>
+    <div>J: 攻撃（連打で3段コンボ）</div>
     <div>ヒット中SPACE: キャンセルジャンプ</div>
-    <div class="small">Phase 2.1 - 戦闘骨格</div>
+    <div>K: 強攻撃</div>
+    <div class="small">Phase 2.2 - SP / 強攻撃 / ダッシュ</div>
   </div>
 
   <div id="debug">x: 0  z: 0  y: 0</div>
-  <div id="phase">PHASE 2.1: COMBAT CORE</div>
+  <div id="phase">PHASE 2.2: SP / STRONG / DASH</div>
 
   <div id="combo" style="
     position: absolute;
-    top: 50%; right: 60px;
+    top: 50%; right: 90px;
     transform: translateY(-50%);
     font-family: 'Courier New', monospace;
-    font-size: 36px;
+    font-size: 54px;
     color: #ffff44;
-    text-shadow: 0 0 12px #ff8800, 2px 2px 0 #000;
+    text-shadow: 0 0 18px #ff8800, 3px 3px 0 #000;
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.2s;
     text-align: right;
   ">
-    <div id="combo-num" style="font-size: 64px; line-height: 1;">0</div>
-    <div id="combo-label" style="font-size: 18px; color: #ffaa44;">COMBO</div>
+    <div id="combo-num" style="font-size: 96px; line-height: 1;">0</div>
+    <div id="combo-label" style="font-size: 27px; color: #ffaa44;">COMBO</div>
+  </div>
+
+  <div id="sp-gauge-wrap">
+    <div id="sp-label">SP</div>
+    <div id="sp-bar-bg"><div id="sp-bar"></div></div>
   </div>
 
   <div id="dummy-hp" style="
     position: absolute;
-    bottom: 60px; right: 60px;
+    bottom: 90px; right: 90px;
     font-family: 'Courier New', monospace;
-    font-size: 14px;
+    font-size: 21px;
     color: #ff8888;
     background: rgba(40, 0, 0, 0.5);
-    padding: 6px 12px;
-    border-right: 3px solid #ff4444;
+    padding: 9px 18px;
+    border-right: 5px solid #ff4444;
     pointer-events: none;
   ">DUMMY HP: <span id="dummy-hp-num">100</span></div>
+  </div><!-- /#hud-layer -->
+  </div><!-- /#game-frame -->
 
   <script type="importmap">
     {
@@ -111,13 +190,18 @@
     // ============================================================
     //  SCENE / CAMERA / RENDERER
     // ============================================================
+    // === 基本解像度（仕様書 §技術: 16:9 固定）===
+    const GAME_WIDTH  = 1920;
+    const GAME_HEIGHT = 1080;
+    const GAME_ASPECT = GAME_WIDTH / GAME_HEIGHT;  // 16/9
+
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0a1f);
     scene.fog = new THREE.Fog(0x0a0a1f, 1400, 3500);
 
     const camera = new THREE.PerspectiveCamera(
       45,
-      window.innerWidth / window.innerHeight,
+      GAME_ASPECT,
       1,
       5000
     );
@@ -126,10 +210,11 @@
     camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    // 内部レンダリング解像度は 1920x1080 固定。表示サイズは CSS が制御
+    renderer.setSize(GAME_WIDTH, GAME_HEIGHT, false);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.body.appendChild(renderer.domElement);
+    document.getElementById('game-frame').appendChild(renderer.domElement);
 
     // ============================================================
     //  LIGHTING (key + fill + rim accent)
@@ -415,10 +500,29 @@
       YAW_BURST_FRAMES: 9,      // 方向転換時の肩スラスター噴射時間
 
       // === 攻撃・コンボ系 ===
-      // キャンセルジャンプ時の大噴射（板野的ケレン味）
-      CANCEL_JUMP_V:        16,    // キャンセル時のジャンプ初速（通常より大）
-      CANCEL_JUMP_THRUST:   1.6,   // キャンセル時の推力（通常より大）
-      CANCEL_JUMP_FRAMES:   18,    // キャンセル時の推力持続（通常より長）
+      // キャンセルジャンプ時の噴射（板野的ケレン味）
+      // 通常ジャンプ: JUMP_V=10, THRUST=1.20, FRAMES=12 → 最大vy=24.4
+      // キャンセル時:                                  → 最大vy=30.2（24%増）
+      // 視覚演出（bigBurstTimer）でケレン味を出し、物理は通常+α 程度に抑える
+      CANCEL_JUMP_V:        12,    // キャンセル時のジャンプ初速（通常+2）
+      CANCEL_JUMP_THRUST:   1.3,   // キャンセル時の推力（通常+0.1）
+      CANCEL_JUMP_FRAMES:   14,    // キャンセル時の推力持続（通常+2）
+
+      // === ステージ横バウンド ===
+      // プレイヤーがこの範囲外に出られないようにクランプ。
+      // 横に無限に広がらないための制約（仕様書 §技術 / §7 ステージ構成）。
+      // 値はランタイムで SB.PHYSICS.STAGE_LEFT = -2000 等で即変更可。
+      STAGE_LEFT:   -1500,
+      STAGE_RIGHT:   1500,
+    };
+
+    // ============================================================
+    //  SP ゲージ設定
+    // ============================================================
+    const SP_CONFIG = {
+      MAX:         100,
+      REGEN_RATE:  0.01,  // フレームごとの自然回復量（攻撃優先設計：逃げ回りだけでは遅い）
+      GAIN_ON_HIT: 8,     // ヒット1発あたりの獲得量
     };
 
     // ============================================================
@@ -451,9 +555,24 @@
         knockback:    14, hitstop: 6, shake: 5,
         partsAnim:    'kick',
       },
+      // === 強攻撃 K（キャラ別）===
+      // 仕様: METEO の強攻撃 — ダウンなし・キャラ約1体分のノックバック
+      k_meteo: {
+        label:        'K (METEO 強攻撃)',
+        duration:     28, hitFrame: 12, hitDuration: 5, cancelWindow: 18,
+        damage:       20,
+        rangeX:       130, rangeZ: 80,
+        knockback:    30,  // ★ キャラ約1体分の距離（z3=14 の約2倍）
+        hitstop:      9, shake: 7,           // 強攻撃感を強化（z3=6/5 → 9/7）
+        hitColor:     0xff6622,              // オレンジレッドの火花（弱攻撃の黄色と差別化）
+        hitCount:     22,                    // パーティクル数増（z3=10 → 22）
+        partsAnim:    'strong_punch_r',
+        launcher:     false,                 // 打ち上げ属性なし → キャンセルジャンプ不可
+        // ダウン属性: なし（デフォルト挙動）
+      },
     };
 
-    // チェーン定義：Z 連打で z1 → z2 → z3
+    // チェーン定義：J 連打で z1 → z2 → z3（K は単独・チェーン外）
     const Z_CHAIN = ['z1', 'z2', 'z3'];
 
     // プレイヤー状態
@@ -493,6 +612,10 @@
       cancelTimer:      0,    // キャンセル受付残フレーム
       bigBurstTimer:    0,    // キャンセルジャンプの大噴射演出残時間
       attackBuffered:   false,// 攻撃中に Z が押されたバッファ
+
+      // === SP ゲージ ===
+      sp:               0,
+      dashCooldown:     0,
     };
     players.push(player);
 
@@ -656,16 +779,29 @@
     // ============================================================
     //  攻撃の発動・進行
     // ============================================================
-    function startAttack(p, chainIdx) {
-      const id = Z_CHAIN[chainIdx];
-      if (!id) return;
+    // ID 直指定で攻撃を開始（チェーン外の K 等を含む汎用版）
+    function startAttackById(p, id, chainIdx) {
+      if (!ATTACKS[id]) return;
       p.state           = STATE.ATTACKING;
       p.attackId        = id;
-      p.attackChainIdx  = chainIdx;
+      p.attackChainIdx  = chainIdx;   // -1 = チェーン外（K など）
       p.stateTimer      = ATTACKS[id].duration;
       p.hitDelivered    = false;
       p.cancelTimer     = 0;
       p.attackBuffered  = false;
+    }
+
+    // 弱攻撃チェーン用ラッパ（chainIdx → ID 解決）
+    function startAttack(p, chainIdx) {
+      const id = Z_CHAIN[chainIdx];
+      if (!id) return;
+      startAttackById(p, id, chainIdx);
+    }
+
+    // 強攻撃（K）はチェーン外で発動
+    function startStrongAttack(p) {
+      // 現プロト：METEO 固定。将来キャラ別の k_viper / k_cannon / k_bastion に切り替え
+      startAttackById(p, 'k_meteo', -1);
     }
 
     function tryHitEnemies(p, attack) {
@@ -686,8 +822,12 @@
         // 演出
         triggerHitstop(attack.hitstop);
         triggerShake(attack.shake, attack.shake * 2 + 4);
-        spawnHitParticles(e.x - dx * 0.4, e.y + 80, e.z, 0xffee44, 10);
+        // ヒット演出：攻撃ごとに色・パーティクル数を変える（差別化）
+        const hitColor = attack.hitColor ?? 0xffee44;  // デフォルト黄色（弱攻撃）
+        const hitCount = attack.hitCount ?? 10;        // デフォルト10
+        spawnHitParticles(e.x - dx * 0.4, e.y + 80, e.z, hitColor, hitCount);
         bumpCombo();
+        p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
         anyHit = true;
       }
       return anyHit;
@@ -736,10 +876,10 @@
       }
     }
 
-    // 攻撃入力処理（Z キー押下）
+    // 攻撃入力処理（J キー押下 — 弱攻撃チェーン）
     let zKeyWasDown = false;
     function processAttackInput(p) {
-      const zPressed = !!keys['KeyZ'];
+      const zPressed = !!keys['KeyJ'];
       const justPressed = zPressed && !zKeyWasDown;
       zKeyWasDown = zPressed;
       if (!justPressed) return;
@@ -747,13 +887,40 @@
       if (p.state === STATE.IDLE) {
         startAttack(p, 0);
       } else if (p.state === STATE.HIT_CONFIRM) {
-        // チェーン進行
+        // J 押下時の HIT_CONFIRM 分岐
+        if (p.attackChainIdx < 0) {
+          // K（チェーン外）後の J 押下 → 弱攻撃から再起点（仕様: 強→弱は基本なし、再起点扱い）
+          // 現プロトでは何もしない（強の後は強キャンセル or 必殺技 or メガクラのみを想定）
+          return;
+        }
+        // J チェーン進行
         const next = p.attackChainIdx + 1;
         if (next < Z_CHAIN.length) startAttack(p, next);
       } else if (p.state === STATE.ATTACKING) {
         // バッファして攻撃終了直後に発動候補にする
         p.attackBuffered = true;
       }
+    }
+
+    // 強攻撃入力処理（K キー押下）
+    let kKeyWasDown = false;
+    function processStrongAttackInput(p) {
+      const kPressed = !!keys['KeyK'];
+      const justPressed = kPressed && !kKeyWasDown;
+      kKeyWasDown = kPressed;
+      if (!justPressed) return;
+
+      if (p.state === STATE.IDLE) {
+        // 単独 K 発動
+        startStrongAttack(p);
+      } else if (p.state === STATE.HIT_CONFIRM) {
+        // 弱 → 強キャンセル（J ヒット中の K で K へ繋ぐ）
+        // K 後の K は再キャンセル不可（仕様）
+        if (p.attackChainIdx >= 0) {
+          startStrongAttack(p);
+        }
+      }
+      // ATTACKING 中の K 入力は無視（弱→強は HIT_CONFIRM 経由のみ・簡素化）
     }
 
     // バッファ消化（HIT_CONFIRM になった瞬間に Z バッファがあれば次段へ）
@@ -766,9 +933,16 @@
     }
 
     // キャンセルジャンプ：HIT_CONFIRM 中に SPACE → 大噴射ジャンプ
+    // 仕様: J チェーン or 打ち上げ属性持ち技のみキャンセルジャンプ可
+    //       K（強攻撃）は打ち上げ属性なし → 不可
     function tryCancelJump(p) {
       if (p.state !== STATE.HIT_CONFIRM) return false;
       if (!keys['Space']) return false;
+      // 弱攻撃チェーン中 or 打ち上げ属性持ち技のみ許可
+      const atk = ATTACKS[p.attackId];
+      const isChainAttack = p.attackChainIdx >= 0;
+      const isLauncher    = atk && atk.launcher === true;
+      if (!isChainAttack && !isLauncher) return false;
       // 発動！
       p.vy               = PHYSICS.CANCEL_JUMP_V;
       p.isGrounded       = false;
@@ -785,8 +959,13 @@
     }
 
     function updatePlayer(p) {
+      // === SP 自然回復 ===
+      p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.REGEN_RATE);
+      if (p.dashCooldown > 0) p.dashCooldown--;
+
       // === 攻撃入力処理（毎フレーム）===
       processAttackInput(p);
+      processStrongAttackInput(p);
 
       // === キャンセルジャンプ判定 ===
       tryCancelJump(p);
@@ -812,6 +991,8 @@
 
       p.x += mvx * PHYSICS.SPEED;
       p.z += mvz * PHYSICS.SPEED;
+      // ステージ横バウンド（横に無限に広がらない）
+      p.x = Math.max(PHYSICS.STAGE_LEFT, Math.min(PHYSICS.STAGE_RIGHT, p.x));
       // 深度制限（ベルスクの帯幅）
       p.z = Math.max(-380, Math.min(380, p.z));
 
@@ -972,6 +1153,19 @@
       camera.lookAt(baseX, 0, 0);
     }
 
+    const spBarEl = document.getElementById('sp-bar');
+    function updateSPGauge() {
+      const p = players[0];
+      const pct = p.sp / SP_CONFIG.MAX;
+      spBarEl.style.width = (pct * 100).toFixed(1) + '%';
+      // 残量が少ないと暗い青→シアンで点滅感
+      const brightness = 0.5 + pct * 0.5;
+      const r = Math.round(0   * brightness);
+      const g = Math.round(200 * brightness);
+      const b = Math.round(255 * brightness);
+      spBarEl.style.background = `rgb(${r},${g},${b})`;
+    }
+
     function updateDebug() {
       const p = players[0];
       debug.textContent =
@@ -987,6 +1181,7 @@
       updateParticles();
       decayCombo();
       updateCamera();
+      updateSPGauge();
       updateDebug();
     }
 
@@ -1011,11 +1206,24 @@
     // ============================================================
     //  RESIZE
     // ============================================================
-    addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    // === RESIZE / HUD スケール追従 ===
+    // 16:9 固定なのでアスペクト変更は不要。
+    // CSS が #game-frame のサイズをウィンドウに合わせてレターボックス調整する。
+    // 内部レンダリング解像度は 1920x1080 を維持。
+    // HUD は #hud-layer を transform: scale() でフレームサイズに追従させる。
+    function updateHudScale() {
+      const frame = document.getElementById('game-frame');
+      if (frame) {
+        const scale = frame.clientWidth / GAME_WIDTH;
+        document.documentElement.style.setProperty('--hud-scale', scale);
+      }
+      if (renderer.domElement) {
+        renderer.domElement.style.width  = '100%';
+        renderer.domElement.style.height = '100%';
+      }
+    }
+    addEventListener('resize', updateHudScale);
+    updateHudScale();  // 初期化
 
     // ============================================================
     //  開発者向け：グローバル参照（コンソールから動的に調整可能）
@@ -1028,13 +1236,13 @@
     window.SB = {
       scene, camera, renderer, players, enemies,
       CHARACTER_ASSETS,
-      PHYSICS, ATTACKS,
+      PHYSICS, SP_CONFIG, ATTACKS, STATE, Z_CHAIN,
       // 共通関数（コンソールから呼べる）
       triggerHitstop, triggerShake, spawnHitParticles,
     };
-    console.log('[SCRAP BLITZ] Phase 2.1 (combat core) loaded.');
-    console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS');
-    console.log('[SCRAP BLITZ] Try: SB.ATTACKS.z3.damage = 30');
+    console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / dash) loaded.');
+    console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG');
+    console.log('[SCRAP BLITZ] Try: SB.SP_CONFIG.REGEN_RATE = 0.5');
   </script>
 </body>
 </html>
