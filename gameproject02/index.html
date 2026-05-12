@@ -190,6 +190,7 @@
     <div id="hk-ult">I / R2 / J+K+L: ULT（超必殺技）</div>
     <div id="hk-hitbox" class="small">Q: ヒットボックス / コリジョン [OFF]</div>
     <div id="hk-pixel"  class="small hk-toggle-on">P: ピクセルシェーダー [ON]</div>
+    <div id="hk-slowmo" class="small">T: スロー再生 [OFF]</div>
     <div class="small">Phase 2.2 — KB+Pad対応</div>
   </div>
 
@@ -245,6 +246,32 @@
     border-right: var(--hud-accent-w) solid #ff4444;
     pointer-events: none;
   ">DUMMY HP: <span id="dummy-hp-num">100</span></div>
+
+  <!-- ステート表示HUD（画面下中央・デバッグ用） -->
+  <div id="state-hud" style="
+    position: absolute;
+    bottom: var(--sp-xl);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: var(--sp-lg);
+    font-family: 'Courier New', monospace;
+    font-size: var(--fs-sm);
+    pointer-events: none;
+  ">
+    <div style="
+      background: rgba(0, 30, 60, 0.55);
+      border-left: var(--hud-accent-w) solid #44ccff;
+      padding: var(--sp-sm) var(--sp-lg);
+      color: #aadfff;
+    ">PLAYER: <span id="state-hud-player">未設定</span></div>
+    <div style="
+      background: rgba(60, 20, 0, 0.55);
+      border-left: var(--hud-accent-w) solid #ffaa44;
+      padding: var(--sp-sm) var(--sp-lg);
+      color: #ffd29a;
+    ">ENEMY: <span id="state-hud-enemy">未設定</span></div>
+  </div>
   </div><!-- /#hud-layer -->
   </div><!-- /#game-frame -->
 
@@ -723,32 +750,36 @@
         label:        'Z1 (左ジャブ)',
         duration:     16, hitFrame: 6, hitDuration: 4, cancelWindow: 14,
         damage:       6,
-        rangeX:       95, rangeZ: 70,
+        rangeX:       110, rangeZ: 110,
         knockback:    6, hitstop: 3, shake: 2,
+        atk_lv:       1,
         partsAnim:    'punch_l',
       },
       z2: {
         label:        'Z2 (右ストレート)',
         duration:     16, hitFrame: 6, hitDuration: 4, cancelWindow: 14,
         damage:       7,
-        rangeX:       100, rangeZ: 70,
+        rangeX:       115, rangeZ: 110,
         knockback:    8, hitstop: 4, shake: 3,
+        atk_lv:       1,
         partsAnim:    'punch_r',
       },
       z3: {
         label:        'Z3 (回し蹴り)',
         duration:     22, hitFrame: 9, hitDuration: 5, cancelWindow: 16,
         damage:       12,
-        rangeX:       115, rangeZ: 80,
+        rangeX:       130, rangeZ: 120,
         knockback:    14, hitstop: 6, shake: 5,
+        atk_lv:       1,
         partsAnim:    'kick',
       },
       z4: {
         label:        'Z4 (旋回アッパー・フィニッシャー)',
         duration:     24, hitFrame: 10, hitDuration: 5, cancelWindow: 16,
         damage:       14,
-        rangeX:       120, rangeZ: 85,
+        rangeX:       135, rangeZ: 125,
         knockback:    16, hitstop: 7, shake: 6,
+        atk_lv:       1,
         partsAnim:    'spin_upper',
       },
       // === 空中弱攻撃（METEO） ===
@@ -756,25 +787,31 @@
         label:        'A1 (空中ジャブ)',
         duration:     14, hitFrame: 5, hitDuration: 3, cancelWindow: 12,
         damage:       5,
-        rangeX:       90, rangeZ: 65, rangeY: PHYSICS.AERIAL_RANGE_Y,
+        rangeX:       145, rangeZ: 120, rangeY: PHYSICS.AERIAL_RANGE_Y, rangeYDown: 260,
         knockback:    3, hitstop: 3, shake: 2,
+        aerialHop:    true,
+        atk_lv:       1,
         partsAnim:    'air_punch_l',
       },
       a2: {
         label:        'A2 (空中蹴り)',
         duration:     16, hitFrame: 6, hitDuration: 3, cancelWindow: 13,
         damage:       7,
-        rangeX:       100, rangeZ: 70, rangeY: PHYSICS.AERIAL_RANGE_Y + 10,
+        rangeX:       145, rangeZ: 120, rangeY: PHYSICS.AERIAL_RANGE_Y + 10, rangeYDown: 270,
         knockback:    5, hitstop: 4, shake: 3,
+        aerialHop:    true,
+        atk_lv:       1,
         partsAnim:    'air_kick',
       },
       a3: {
         label:        'A3 (空中叩きつけ・フィニッシャー)',
         duration:     18, hitFrame: 7, hitDuration: 4, cancelWindow: 14,
         damage:       10,
-        rangeX:       105, rangeZ: 75, rangeY: PHYSICS.AERIAL_RANGE_Y + 20,
+        rangeX:       145, rangeZ: 120, rangeY: PHYSICS.AERIAL_RANGE_Y + 20, rangeYDown: 280,
+        // aerialHop は launchVy:-6（叩きつけ）に消されるため不要
         knockback:    26,             // 地上K(30)相当の吹き飛ばし・とどめ感
         launchVy:     -6,             // 叩きつけ方向（斜め下）でグラウンドへ叩き落す
+        atk_lv:       5,              // 叩きつけ（専用ステート未実装・既存パスにフォールバック）
         hitstop:      7, shake: 6,
         hitColor:     0x44ddff,       // 叩きつけ：氷系シアン（打ち上げの金・強攻撃のオレンジと差別化）
         hitCount:     18,
@@ -787,11 +824,12 @@
         label:        'K (METEO 強攻撃)',
         duration:     28, hitFrame: 12, hitDuration: 5, cancelWindow: 18,
         damage:       20,
-        rangeX:       130, rangeZ: 80,
+        rangeX:       145, rangeZ: 120,
         knockback:    30,  // ★ キャラ約1体分の距離（z3=14 の約2倍）
         hitstop:      9, shake: 7,
         hitColor:     0xff6622,
         hitCount:     22,
+        atk_lv:       2,
         partsAnim:    'strong_punch_r',
         launcher:     false,
       },
@@ -800,7 +838,7 @@
         label:        '↑+K (METEO 打ち上げ)',
         duration:     26, hitFrame: 10, hitDuration: 4, cancelWindow: 16,
         damage:       18,
-        rangeX:       100, rangeZ: 70,
+        rangeX:       115, rangeZ: 110,
         knockback:    10,               // 水平は控えめ・主作用は打ち上げ
         launchVy:     24,               // 敵を浮かせる垂直速度（プレイヤー最大vy≒24に合わせる）
         hitstop:      8, shake: 6,
@@ -809,6 +847,28 @@
         partsAnim:    'upper_cut',
         launcher:     true,             // ★ キャンセルジャンプ可（tryCancelJump が直参照）
         attrGroup:    'LAUNCH_COMBO',   // 属性バンドル：打ち上げ→頂点スロー→追撃
+        atk_lv:       4,                // 打ち上げ
+      },
+      // 仕様: METEO 空中強攻撃 — 空中で K を押すと発動（地上Kと別の独立技）
+      // 下方向の当たり判定を大きく取り、地上敵を空中から殴れる
+      ak_meteo: {
+        label:        'AK (METEO 空中強攻撃)',
+        duration:     24, hitFrame: 10, hitDuration: 5, cancelWindow: 16,
+        damage:       18,
+        rangeX:       145, rangeZ: 135, rangeY: 110, rangeYDown: 260,
+        knockback:    24,                // 地上Kよりやや控えめ（空中なので）
+        hitstop:      9, shake: 7,
+        aerialHop:    true,              // 空中Jと同じ量のホップ（AERIAL_HOP_V）
+        atk_lv:       2,                 // 強攻撃（地上敵向け）
+        atk_lv_air:   6,                 // 空中の敵にヒットしたら超吹き飛ばし
+        // 超吹き飛ばし時のベクトル上書き：後方斜め下へ叩きつける（ほぼ一直線の斜め落下）
+        kb_vy:        -10,               // 下向き初速（vy 負 → 即時下降）
+        kb_vx_mult:   5.0,               // 水平倍率を超強化（4-5 で「すさまじい勢い」）
+        kb_vx_decay:  0.92,              // knockbackVx 減衰を緩く（0.78→0.92 で直線軌道を維持）
+        hitColor:     0xff9944,          // 地上K(0xff6622)より明るいオレンジ（差別化）
+        hitCount:     22,
+        partsAnim:    'strong_punch_r',  // 当面は地上Kと共用（将来 air_strong_punch に分離）
+        launcher:     false,
       },
       // 仕様: METEO 払い攻撃 — ↓+K で発動（単体可・Jチェーンからも可）
       // 当たり判定：足元中心・全方向・地面スライスのみ（浮き敵には当たらない）
@@ -816,7 +876,7 @@
         label:        '↓+K (METEO 払い)',
         duration:     20, hitFrame: 8, hitDuration: 4, cancelWindow: 14,
         damage:       14,
-        rangeX:       140, rangeZ: 110,
+        rangeX:       155, rangeZ: 150,
         rangeY:       35,              // 足元の薄いスライス（地面の敵だけ拾う）
         knockback:    8,
         hitstop:      6, shake: 4,
@@ -824,6 +884,7 @@
         hitCount:     12,
         launcher:     false,
         omni:         true,            // 前方限定を外す（全方向ヒット）
+        atk_lv:       2,               // 強攻撃（払い）
         partsAnim:    'sweep',
       },
     };
@@ -856,24 +917,89 @@
     // 空中 J チェーン：a1 → a2 → a3（ジャンプ中 or キャンセルジャンプ後）
     const A_CHAIN = ['a1', 'a2', 'a3'];
 
-    // プレイヤー状態
+    // ステート定数（敵味方共通カタログ・2026-05-13 STATE/ESTATE 統合）
+    //   プレイヤーは p.state、敵は e.state に文字列を入れる。
+    //   ロジック（state machine の遷移）は updatePlayer / updateEnemies 内に別途持つ。
     const STATE = {
-      IDLE:        'idle',
-      ATTACKING:   'attacking',     // 攻撃モーション中
-      HIT_CONFIRM: 'hit_confirm',   // ヒット確認後のキャンセル受付中
+      // ── 通常 ───────────────────────────────────────────────────
+      wait01:           'wait01',            // 立ち・通常待機
+      // ── プレイヤー行動（敵が攻撃するようになったら共用予定）─────────
+      attacking:        'attacking',         // 攻撃モーション中
+      hit_confirm:      'hit_confirm',       // ヒット確認後のキャンセル受付中
+      // ── 被弾フリンチ（atk_lv 駆動）─────────────────────────────
+      knockback01:      'knockback01',       // lv01 地上ヒット・小フリンチ → wait01
+      knockback02:      'knockback02',       // lv02 地上ヒット・大フリンチ → wait01
+      knockback_air01:  'knockback_air01',   // lv01/lv02 空中ヒット → fall_loop
+      fall_loop:        'fall_loop',         // 自由落下 → 着地で land
+      land:             'land',              // 着地モーション → wait01
+      // ── 吹き飛び（lv03）────────────────────────────────────────
+      down_front_start: 'down_front_start',  // 後方へ吹き飛び開始 → down_front_loop
+      down_front_loop:  'down_front_loop',   // 吹き飛び中 → 着地で down_bas_end
+      // ── 打ち上げ（lv04・既存）─────────────────────────────────
+      down_up_start:    'down_up_start',     // 打ち上げ後・傾き開始（tiltAngle 0→π/2）
+      down_up_loop:     'down_up_loop',      // 横倒し姿勢のまま落下継続
+      // ── 超吹き飛ばし（lv06）─────────────────────────────────
+      down_chou_start:  'down_chou_start',   // 高速で吹っ飛び開始（地上/空中共用）→ down_chou_loop ／ 壁: down_wall_start ／ 地面: down_roll_start
+      down_chou_loop:   'down_chou_loop',    // 吹き飛び中ループ ／ 壁: down_wall_start ／ 地面: down_roll_start
+      down_wall_start:  'down_wall_start',   // 壁に張り付き → down_wall_loop
+      down_wall_loop:   'down_wall_loop',    // うつ伏せ落下 → 着地で down_bas_start
+      down_roll_start:  'down_roll_start',   // 転がり → down_bas_loop
+      // ── ダウン静止・起き上がり ─────────────────────────────────
+      down_bas_start:   'down_bas_start',    // 着地直後（イントロ） → down_bas_loop
+      down_bas_loop:    'down_bas_loop',     // ダウン静止ループ → down_bas_end
+      down_bas_end:     'down_bas_end',      // 起き上がり
     };
+    const ENEMY_FALL_FRAMES = 36; // 0.6s：倒れ終わるまで（down_up_start）
+    const ENEMY_RISE_FRAMES = 30; // 0.5s：起き上がり（down_bas_end）
+    // ダウン静止（down_bas_start イントロ + down_bas_loop ループ）
+    const ENEMY_DOWN_BAS_START_FRAMES = 20;  // 着地直後イントロ
+    const ENEMY_DOWN_BAS_LOOP_FRAMES  = 40;  // ダウン静止ループ
+    // 新規ステートの持続F
+    const ENEMY_KB01_FRAMES         = 12;  // knockback01
+    const ENEMY_KB02_FRAMES         = 18;  // knockback02
+    const ENEMY_KB_AIR_FRAMES       = 12;  // knockback_air01
+    const ENEMY_LAND_FRAMES         = 12;  // land
+    const ENEMY_DOWN_FRONT_FRAMES   = 24;  // down_front_start（吹き飛び傾き）
+    // 超吹き飛ばし系（lv06）
+    const ENEMY_DOWN_CHOU_FRAMES    = 12;  // down_chou_start イントロ
+    const ENEMY_WALL_START_FRAMES   = 15;  // down_wall_start（壁張り付き）
+    const ENEMY_ROLL_FRAMES         = 30;  // down_roll_start（転がり）
 
-    // 敵ダウンステート
-    const ESTATE = {
-      wait01:         'wait01',
-      down_up_start:  'down_up_start',  // 打ち上げ後・傾き開始（tiltAngle 0→π/2）
-      down_up_loop:   'down_up_loop',   // 横倒し姿勢のまま落下継続
-      down_bas_start: 'down_bas_start', // 着地後ダウン静止
-      down_bas_end:   'down_bas_end',   // 起き上がり
+    // ============================================================
+    //  ステート別の傾き（tiltAngle）目標テーブル
+    //  ステート機械からは tiltAngle 設定を撤去し、ここを単一の真とする。
+    //  rotation.z = -fallDir * tiltAngle で実反映。
+    //  ランプ系（down_up_start / down_bas_end）は別途タイマー駆動で計算（後段で特殊処理）。
+    // ============================================================
+    const STATE_TILT_TARGET = {
+      // 立ち姿勢（0）
+      wait01:           0,
+      attacking:        0,
+      hit_confirm:      0,
+      knockback01:      0,
+      knockback02:      0,
+      knockback_air01:  0,
+      fall_loop:        0,
+      land:             0,
+      down_front_start: 0,
+      down_chou_start:  0,
+      down_chou_loop:   0,
+      down_wall_start:  0,                // 壁張り付き（うつ伏せ姿勢は将来 rotation.x で）
+      // 横倒し姿勢（π/2）
+      down_front_loop:  Math.PI / 2,      // 吹き飛び落下中は横倒し
+      down_wall_loop:   Math.PI / 2,      // うつ伏せ落下（暫定的に横倒し）
+      down_roll_start:  Math.PI / 2,      // 転がり
+      down_up_loop:     Math.PI / 2,
+      down_bas_start:   Math.PI / 2,
+      down_bas_loop:    Math.PI / 2,
     };
-    const ENEMY_FALL_FRAMES = 36; // 0.6s：倒れ終わるまで
-    const ENEMY_DOWN_FRAMES = 60; // 1.0s：ダウン静止
-    const ENEMY_RISE_FRAMES = 30; // 0.5s：起き上がり
+    const STATE_TILT_LERP = 0.25;          // 補間係数（0.25 で約12F でほぼ目標到達）
+    // lv03（吹き飛び）打ち上げパラメータ
+    const KB_LV03_VY      = 12;
+    const KB_LV03_VX_MULT = 1.5;
+    // lv06（超吹き飛ばし）打ち上げパラメータ — down_front_* を共用し倍率だけ強化
+    const KB_LV06_VY      = 18;
+    const KB_LV06_VX_MULT = 2.5;
 
     // ============================================================
     //  パーツアニメーション定義（仮アニメーション・本番素材差し替えで削除）
@@ -943,7 +1069,7 @@
       prevMoveDir:      0,   // 前フレームの水平移動方向（-1/0/+1）
 
       // === 戦闘ステート ===
-      state:            STATE.IDLE,
+      state:            STATE.wait01,
       stateTimer:       0,    // 現在ステートの残フレーム
       attackId:         null, // 現在の攻撃ID（z1/z2/z3）
       attackChainIdx:   -1,   // チェーンの何段目か
@@ -951,6 +1077,7 @@
       hitDelivered:     false,// 現攻撃でヒット成立済みか
       cancelTimer:      0,    // キャンセル受付残フレーム
       bigBurstTimer:    0,    // キャンセルジャンプの大噴射演出残時間
+      jumpConsumed:     false,// SPACE エッジ検出用：true の間はジャンプ再発動禁止（SPACEを離すと解除）
       attackBuffered:   false,// 攻撃中に J が押されたバッファ
       kBuffered:        false,// 攻撃中に K が押されたバッファ
       kBufferUp:        false,// バッファ時の ↑ 入力状態（打ち上げ判定用）
@@ -1265,7 +1392,7 @@
       peakHangTimer:    0,     // 打ち上げ頂点スロー残フレーム
       peakHangTotal:    0,     // スロー総フレーム数（フェード計算用）
       launcherAirborne: false, // LAUNCH_COMBO 属性で打ち上げられた状態か
-      estate:           ESTATE.wait01,
+      state:            STATE.wait01,
       tiltAngle:        0,    // 傾き角（0=立ち、π/2=横倒し）
       fallDir:          1,    // 倒れ方向（+1=右、-1=左）：ヒット時に攻撃者と逆に設定
       downTimer:        0,    // DOWN/RISE ステートの残フレーム
@@ -1301,6 +1428,8 @@
     const comboNumEl     = document.getElementById('combo-num');
     const comboTimerBar  = document.getElementById('combo-timer-bar');
     const dummyHpEl      = document.getElementById('dummy-hp-num');
+    const stateHudPlayerEl = document.getElementById('state-hud-player');
+    const stateHudEnemyEl  = document.getElementById('state-hud-enemy');
 
     function bumpCombo() {
       combo.count += 1;
@@ -1335,6 +1464,19 @@
     }
 
     // ============================================================
+    //  デバッグ：スロー再生モード
+    //   divisor: 1=通常 / 2=半速 / 4=1/4速 / 8=1/8速
+    //   counter < divisor の間は update をスキップし render のみ → スロー感
+    // ============================================================
+    const SLOWMO = {
+      LEVELS:   [1, 2, 4, 8],
+      levelIdx: 0,
+      divisor:  1,
+      counter:  0,
+    };
+    const _hkSlowmoEl = document.getElementById('hk-slowmo');
+
+    // ============================================================
     //  INPUT
     // ============================================================
     const keys = {};
@@ -1351,6 +1493,16 @@
         _hkPixelEl.textContent = `P: ピクセルシェーダー [${PIXEL_SHADER.ENABLED ? 'ON' : 'OFF'}]`;
         _hkPixelEl.classList.toggle('hk-toggle-on', PIXEL_SHADER.ENABLED);
         console.log('[PIXEL_SHADER] ENABLED =', PIXEL_SHADER.ENABLED);
+      }
+      // スロー再生：T で 1x → 1/2x → 1/4x → 1/8x をサイクル
+      if (e.code === 'KeyT') {
+        SLOWMO.levelIdx = (SLOWMO.levelIdx + 1) % SLOWMO.LEVELS.length;
+        SLOWMO.divisor  = SLOWMO.LEVELS[SLOWMO.levelIdx];
+        SLOWMO.counter  = 0;
+        const label = SLOWMO.divisor === 1 ? 'OFF' : `1/${SLOWMO.divisor}x`;
+        _hkSlowmoEl.textContent = `T: スロー再生 [${label}]`;
+        _hkSlowmoEl.classList.toggle('hk-toggle-on', SLOWMO.divisor > 1);
+        console.log('[SLOWMO]', label);
       }
     });
     addEventListener('keyup', (e) => { keys[e.code] = false; });
@@ -1434,7 +1586,7 @@
     // ID 直指定で攻撃を開始（チェーン外の K 等を含む汎用版）
     function startAttackById(p, id, chainIdx) {
       if (!ATTACKS[id]) return;
-      p.state           = STATE.ATTACKING;
+      p.state           = STATE.attacking;
       p.attackId        = id;
       p.attackChainIdx  = chainIdx;   // -1 = チェーン外（K など）
       p.stateTimer      = ATTACKS[id].duration;
@@ -1465,9 +1617,16 @@
     }
 
     // 強攻撃（K）はチェーン外で発動
-    function startStrongAttack(p) {
+    // 接地状態と方向入力で発動技を決定（空中は方向問わず ak_meteo 一択）
+    function pickStrongAttackId(p, upHeld, dnHeld) {
+      if (!p.isGrounded) return 'ak_meteo';
+      if (upHeld) return 'k_up_meteo';
+      if (dnHeld) return 'k_dn_meteo';
+      return 'k_meteo';
+    }
+    function startStrongAttack(p, upHeld, dnHeld) {
       // 現プロト：METEO 固定。将来キャラ別の k_viper / k_cannon / k_bastion に切り替え
-      startAttackById(p, 'k_meteo', -1);
+      startAttackById(p, pickStrongAttackId(p, !!upHeld, !!dnHeld), -1);
     }
 
     function tryHitEnemies(p, attack) {
@@ -1478,40 +1637,108 @@
         const dx = e.x - p.x;
         const dz = e.z - p.z;
         // 前方判定（omni 攻撃は全方向ヒット）
-        if (!attack.omni && Math.sign(dx) !== facing) continue;
+        // 真正面（dx=0）も拾えるよう「逆方向だけ弾く」判定に変更（旧 sign !== facing は dx=0 で空振り）
+        if (!attack.omni && Math.sign(dx) === -facing) continue;
         if (Math.abs(dx) > attack.rangeX) continue;
         if (Math.abs(dz) > attack.rangeZ) continue;
-        // Y軸判定（rangeY が定義された攻撃のみ）
-        if (attack.rangeY !== undefined && Math.abs(e.y - p.y) > attack.rangeY) continue;
+        // Y軸判定（非対称：上方向 rangeY / 下方向 rangeYDown ≥ rangeY）
+        if (attack.rangeY !== undefined) {
+          const dy = e.y - p.y;          // 正:敵が上 / 負:敵が下
+          const maxDown = attack.rangeYDown ?? attack.rangeY;
+          if (dy >  attack.rangeY) continue;
+          if (dy < -maxDown)       continue;
+        }
         // ヒット
         e.hp = Math.max(0, e.hp - attack.damage);
         e.hitFlashTimer = 7;
         // 被弾時：倒れ方向を記録。IDLEのみ向きスナップ（FALL/DOWN/RISE中は回転競合のため不変）
         e.fallDir = (e.x !== p.x) ? Math.sign(e.x - p.x) : p.facing;
-        if (e.estate === ESTATE.wait01) {
+        if (e.state === STATE.wait01) {
           e.mesh.rotation.y = -e.fallDir * Math.PI / 2;
         }
         e.knockbackVx   = facing * (attack.knockback * 0.4);
         const resolved = resolveAttackAttr(attack);
         if (attack.launchVy) {
+          // 既存パス：lv04（打ち上げ）/ lv05（叩きつけ・専用ステート未実装）
           e.vy = attack.launchVy;
           e.launcherAirborne = !!resolved.peakHang; // LAUNCH_COMBO属性のみ頂点スロー有効
-          e.estate    = ESTATE.down_up_start;
-          e.tiltAngle = 0;
+          e.state    = STATE.down_up_start;
+          e.downTimer = ENEMY_FALL_FRAMES;  // タイマー駆動：0→π/2 のランプ用
+          // tiltAngle は STATE_TILT_TARGET 系で計算されるので明示設定不要
           // rotation.yは維持（左右向きを保ったまま倒れる）
           spawnLaunchSmoke(e.x, e.y, e.z);
+        } else if (
+          e.state === STATE.wait01 ||
+          e.state === STATE.knockback01 ||
+          e.state === STATE.knockback02 ||
+          e.state === STATE.knockback_air01 ||
+          e.state === STATE.fall_loop ||
+          e.state === STATE.land ||
+          e.state === STATE.down_up_start ||
+          e.state === STATE.down_up_loop
+        ) {
+          // === atk_lv 駆動の被弾ステート振り分け ===
+          // 再発火許可ステート：
+          //  - wait01（初動）
+          //  - knockback*（フリンチ系・タイマーリフレッシュでコンボ持続）
+          //  - fall_loop / land（空中→落下→着地モーション中も拾う）
+          //  - down_up_start / down_up_loop（**打ち上げ juggle 中の追撃でフリンチへ移行**）
+          // 再発火しない（既存ダウン保護）：
+          //  - down_front_* / down_chou_* / down_wall_* / down_roll_* / down_bas_*
+          // 実効 lv：敵が空中かつ atk_lv_air が定義されていれば優先（例: ak_meteo は空中ヒットで lv06）
+          const lv = (e.y > 0 && attack.atk_lv_air !== undefined)
+            ? attack.atk_lv_air
+            : (attack.atk_lv ?? 1);
+          if (lv === 6) {
+            // 超吹き飛ばし — 専用ステート down_chou_start（地上/空中共用）
+            // 着地で down_roll_start、壁ヒットで down_wall_start に強制遷移
+            // 攻撃側で kb_vy / kb_vx_mult / kb_vx_decay を上書き可能（ak_meteo は斜め下叩きつけ）
+            e.vy           = attack.kb_vy ?? KB_LV06_VY;
+            e.knockbackVx *= attack.kb_vx_mult ?? KB_LV06_VX_MULT;
+            e.kbDecay      = attack.kb_vx_decay ?? 0.78;  // 既定値は通常減衰
+            e.state       = STATE.down_chou_start;
+            e.downTimer    = ENEMY_DOWN_CHOU_FRAMES;
+          } else if (lv === 3) {
+            // 吹き飛び（汎用後方ブロー）
+            e.vy           = KB_LV03_VY;
+            e.knockbackVx *= KB_LV03_VX_MULT;
+            e.state       = STATE.down_front_start;
+            e.downTimer    = ENEMY_DOWN_FRONT_FRAMES;
+          } else if (e.y > 0) {
+            // lv01/lv02 空中ヒット → knockback_air01 → fall_loop → land → wait01
+            e.state    = STATE.knockback_air01;
+            e.downTimer = ENEMY_KB_AIR_FRAMES;
+          } else if (lv === 2) {
+            e.state    = STATE.knockback02;
+            e.downTimer = ENEMY_KB02_FRAMES;
+          } else {
+            // lv01 / それ以外（未指定）地上 → knockback01
+            e.state    = STATE.knockback01;
+            e.downTimer = ENEMY_KB01_FRAMES;
+          }
         }
-        // 空中の敵へのヒット：ホップで浮遊継続（非打ち上げ技共通・地上技でも適用）
-        if (e.y > 0 && !attack.launchVy) {
+        // 空中の敵へのヒット：敵もホップで浮遊継続（非打ち上げ技共通・地上技でも適用）
+        // ※叩きつけ/吹き飛ばし系（down_chou_start / down_front_start）はホップで vy を上書きされたくないので除外
+        const _slamState = (e.state === STATE.down_chou_start || e.state === STATE.down_front_start);
+        if (e.y > 0 && !attack.launchVy && !_slamState) {
           // Math.max をやめて直接セット → 打ち上げ余剰vy を持ち越させない
           e.vy = PHYSICS.AERIAL_HOP_V;
           e.peakHangTimer    = 0; // 頂点スロー強制解除
           e.launcherAirborne = false;
-          // プレイヤーも空中コンボ中なら同期ホップ＋Y引き寄せ
-          if (p.attackChainArr === A_CHAIN && !p.isGrounded) {
-            p.vy = PHYSICS.AERIAL_HOP_V;
+          // 敵が空中ならプレイヤーをY引き寄せ（同期感）
+          if (attack.aerialHop && !p.isGrounded) {
             e.y += (p.y - e.y) * PHYSICS.AERIAL_Y_PULL;
           }
+        } else if (_slamState) {
+          // 叩きつけ系：頂点スローと launcherAirborne だけ解除（vy は dispatch 値を維持）
+          e.peakHangTimer    = 0;
+          e.launcherAirborne = false;
+        }
+        // プレイヤーの空中ホップ：攻撃側に aerialHop:true が立っている技で発動
+        // 対象：a1 / a2 / ak_meteo（a3 は launchVy で叩きつけ・対象外）
+        // Math.max で「下降中なら浮き直す／上昇中はそのまま」→ cancel jump 直後の上昇vyを潰さない
+        if (attack.aerialHop && !attack.launchVy && !p.isGrounded) {
+          p.vy = Math.max(p.vy, PHYSICS.AERIAL_HOP_V);
         }
         // 演出
         triggerHitstop(attack.hitstop);
@@ -1532,7 +1759,7 @@
     }
 
     function updateAttack(p) {
-      if (p.state !== STATE.ATTACKING) return;
+      if (p.state !== STATE.attacking) return;
       const atk = ATTACKS[p.attackId];
       const elapsed = atk.duration - p.stateTimer;
 
@@ -1553,15 +1780,15 @@
         if (p.hitDelivered) {
           // ヒット成立 → キャンセル受付に入る
           p.aerialWhiffed   = false;
-          p.state           = STATE.HIT_CONFIRM;
+          p.state           = STATE.hit_confirm;
           p.cancelTimer     = atk.cancelWindow;
         } else {
-          // 空振り → IDLE に戻る（プラン上「空振りキャンセル不可」）
+          // 空振り → wait01 に戻る（プラン上「空振りキャンセル不可」）
           // 空中で空振りした場合は次の空中Jを封鎖し落下させる
           if (p.attackChainArr === A_CHAIN && !p.isGrounded) {
             p.aerialWhiffed = true;
           }
-          p.state           = STATE.IDLE;
+          p.state           = STATE.wait01;
           p.attackChainIdx  = -1;
           p.attackId        = null;
         }
@@ -1569,11 +1796,11 @@
     }
 
     function updateHitConfirm(p) {
-      if (p.state !== STATE.HIT_CONFIRM) return;
+      if (p.state !== STATE.hit_confirm) return;
       p.cancelTimer--;
       if (p.cancelTimer <= 0) {
-        // 受付終了 → IDLE 復帰・チェーンリセット
-        p.state           = STATE.IDLE;
+        // 受付終了 → wait01 復帰・チェーンリセット
+        p.state           = STATE.wait01;
         p.attackChainIdx  = -1;
         p.attackId        = null;
       }
@@ -1587,18 +1814,18 @@
       zKeyWasDown = zPressed;
       if (!justPressed) return;
 
-      if (p.state === STATE.IDLE) {
+      if (p.state === STATE.wait01) {
         // 地上 / 空中でチェーンを切り替え
         if (p.isGrounded) startAttack(p, 0);
         else if (!p.aerialWhiffed) startAerialAttack(p, 0);
         // aerialWhiffed 中は入力を無視して落下させる
-      } else if (p.state === STATE.HIT_CONFIRM) {
+      } else if (p.state === STATE.hit_confirm) {
         if (p.attackChainIdx < 0) return; // K（チェーン外）後は何もしない
         // 同じチェーン配列を継続（地上 or 空中を自動維持）
         const chain = p.attackChainArr || Z_CHAIN;
         const next  = p.attackChainIdx + 1;
         if (next < chain.length) startAttackFromChain(p, chain, next);
-      } else if (p.state === STATE.ATTACKING) {
+      } else if (p.state === STATE.attacking) {
         p.attackBuffered = true;
       }
     }
@@ -1611,22 +1838,18 @@
       kKeyWasDown = kPressed;
       if (!justPressed) return;
 
-      if (p.state === STATE.IDLE) {
+      if (p.state === STATE.wait01) {
         const upHeld = inp('ArrowUp') || inp('KeyW');
         const dnHeld = inp('ArrowDown') || inp('KeyS');
-        if (upHeld)      startAttackById(p, 'k_up_meteo', -1);
-        else if (dnHeld) startAttackById(p, 'k_dn_meteo', -1);
-        else             startStrongAttack(p);
-      } else if (p.state === STATE.HIT_CONFIRM) {
+        startAttackById(p, pickStrongAttackId(p, upHeld, dnHeld), -1);
+      } else if (p.state === STATE.hit_confirm) {
         // 弱 → 強キャンセル（Jチェーン中のみ ↑+K / ↓+K / 通常K を分岐）
         if (p.attackChainIdx >= 0) {
           const upHeld = inp('ArrowUp') || inp('KeyW');
           const dnHeld = inp('ArrowDown') || inp('KeyS');
-          if (upHeld)      startAttackById(p, 'k_up_meteo', -1);
-          else if (dnHeld) startAttackById(p, 'k_dn_meteo', -1);
-          else             startStrongAttack(p);
+          startAttackById(p, pickStrongAttackId(p, upHeld, dnHeld), -1);
         }
-      } else if (p.state === STATE.ATTACKING) {
+      } else if (p.state === STATE.attacking) {
         // ATTACKING 中はバッファに積む（方向状態を保存）
         p.kBuffered  = true;
         p.kBufferUp  = inp('ArrowUp') || inp('KeyW');
@@ -1726,7 +1949,7 @@
       // ダッシュ可能条件（タイマー判定より先にチェック）
       const canDash = p.dashCooldown <= 0
                    && !p.dashActive
-                   && p.state !== STATE.ATTACKING;
+                   && p.state !== STATE.attacking;
 
       // ダブルタップ判定（デクリメント前に確認してウィンドウを正確に保つ）
       if (canDash && p.lastTapTimer > 0 && p.lastTapDir) {
@@ -1751,7 +1974,7 @@
 
     // バッファ消化（HIT_CONFIRM になった瞬間に Z バッファがあれば次段へ）
     function consumeAttackBuffer(p) {
-      if (p.state === STATE.HIT_CONFIRM && p.attackBuffered) {
+      if (p.state === STATE.hit_confirm && p.attackBuffered) {
         const chain = p.attackChainArr || Z_CHAIN;
         const next  = p.attackChainIdx + 1;
         p.attackBuffered = false;
@@ -1761,7 +1984,7 @@
 
     // ATTACKING中にバッファされたK入力をHIT_CONFIRM移行時に消費
     function consumeStrongAttackBuffer(p) {
-      if (p.state !== STATE.HIT_CONFIRM) return;
+      if (p.state !== STATE.hit_confirm) return;
       if (!p.kBuffered) return;
       if (p.attackChainIdx < 0) { p.kBuffered = false; return; } // Kチェーン外は無視
       const wasUp  = p.kBufferUp;
@@ -1769,17 +1992,18 @@
       p.kBuffered  = false;
       p.kBufferUp  = false;
       p.kBufferDn  = false;
-      if (wasUp)      startAttackById(p, 'k_up_meteo', -1);
-      else if (wasDn) startAttackById(p, 'k_dn_meteo', -1);
-      else            startStrongAttack(p);
+      startAttackById(p, pickStrongAttackId(p, wasUp, wasDn), -1);
     }
 
     // キャンセルジャンプ：HIT_CONFIRM 中に SPACE → 大噴射ジャンプ
     // 仕様: J チェーン or 打ち上げ属性持ち技のみキャンセルジャンプ可
     //       K（強攻撃）は打ち上げ属性なし → 不可
     function tryCancelJump(p) {
-      if (p.state !== STATE.HIT_CONFIRM) return false;
+      if (p.state !== STATE.hit_confirm) return false;
       if (!inp('Space')) return false;
+      // ※キャンセルジャンプは HIT_CONFIRM 中の意図的入力なので jumpConsumed では gating しない
+      //   （SPACE 押しっぱなしのまま J 連打でも cancel jump を発火させたい）
+      //   再ジャンプ防止は発動時の jumpConsumed=true で着地後の auto-jump を抑えれば十分
       // 地上Jチェーン中 or 打ち上げ属性持ち技のみ許可
       // A_CHAIN（空中Jコンボ）は対象外 → 空中J→SPACE→空中J の無限ループを防止
       const atk = ATTACKS[p.attackId];
@@ -1791,8 +2015,9 @@
       p.isGrounded       = false;
       p.thrustFramesLeft = PHYSICS.CANCEL_JUMP_FRAMES;
       p.bigBurstTimer    = 14;  // 大噴射演出時間
-      // ステートは IDLE に戻す（空中でまた Z を押せばコンボ継続可能・将来空中攻撃で対応）
-      p.state            = STATE.IDLE;
+      p.jumpConsumed     = true;
+      // ステートは wait01 に戻す（空中でまた Z を押せばコンボ継続可能・将来空中攻撃で対応）
+      p.state            = STATE.wait01;
       p.attackChainIdx   = -1;
       p.attackId         = null;
       // 視覚的フィードバック：大きめのシェイクとスローパーティクル
@@ -1806,7 +2031,7 @@
       if (!parts) return;
       const LERP_SPD = 0.30;
 
-      const inAttack = (p.state === STATE.ATTACKING || p.state === STATE.HIT_CONFIRM) && p.attackId;
+      const inAttack = (p.state === STATE.attacking || p.state === STATE.hit_confirm) && p.attackId;
       const atk      = inAttack ? ATTACKS[p.attackId] : null;
       const animKey  = atk?.partsAnim;
       const animDef  = animKey ? PART_ANIMS[animKey] : null;
@@ -1847,7 +2072,7 @@
       consumeStrongAttackBuffer(p);
 
       // === 攻撃中は地上移動を抑制 ===
-      const movementLocked = (p.state === STATE.ATTACKING) && p.isGrounded;
+      const movementLocked = (p.state === STATE.attacking) && p.isGrounded;
 
       // === 入力 → 移動ベクトル（空中慣性 → ダッシュ → 通常の優先順）===
       let mvx = 0, mvz = 0;
@@ -1952,9 +2177,12 @@
       }
 
       // === ジャンプ・ブースター・重力 ===
+      // SPACE を離した瞬間にエッジ用ロックを解除（押しっぱなし連続ジャンプ防止）
+      if (!inp('Space')) p.jumpConsumed = false;
       // 接地中にスペース → 初速付与＋ブースター点火
       // ※キャンセルジャンプ（tryCancelJump）で既に発動済みの場合は二重発動しない
-      if (p.isGrounded && inp('Space') && p.bigBurstTimer === 0) {
+      // ※jumpConsumed が true の間はエッジ未検出として再発動禁止
+      if (p.isGrounded && inp('Space') && !p.jumpConsumed && p.bigBurstTimer === 0) {
         // ジャンプ時に地上の速度を空中慣性として引き継ぐ
         if (p.dashActive) {
           // ダッシュ中ジャンプ：ダッシュ速度をそのまま慣性に
@@ -1971,6 +2199,7 @@
         p.vy = PHYSICS.JUMP_V;
         p.isGrounded = false;
         p.thrustFramesLeft = PHYSICS.THRUST_FRAMES;
+        p.jumpConsumed = true;
       }
 
       // 空中処理
@@ -2080,22 +2309,39 @@
         // 死亡判定
         if (e.hp <= 0) {
           e.hp = e.maxHp;  // ダミーは即復活（無限練習用）
-          e.estate = ESTATE.wait01; e.tiltAngle = 0; e.downTimer = 0; e.fallDir = 1;
+          e.state = STATE.wait01; e.tiltAngle = 0; e.downTimer = 0; e.fallDir = 1;
           e.mesh.rotation.set(0, -Math.PI / 2, 0); // 復活後は左向きリセット（fallDir=1）
           spawnHitParticles(e.x, e.y + 100, e.z, 0xff8844, 24);
           triggerShake(8, 14);
         }
-        // ノックバック減衰（水平）
+        // ノックバック減衰（水平）— 攻撃側で e.kbDecay 上書き可（lv06 ak_meteo は 0.92 で直線軌道）
         e.x += e.knockbackVx;
-        e.knockbackVx *= 0.78;
-        if (Math.abs(e.knockbackVx) < 0.1) e.knockbackVx = 0;
-        // ステージバウンドで壁に当たったらノックバックを止める
-        if (e.x < PHYSICS.STAGE_LEFT)  { e.x = PHYSICS.STAGE_LEFT;  e.knockbackVx = 0; }
-        if (e.x > PHYSICS.STAGE_RIGHT) { e.x = PHYSICS.STAGE_RIGHT; e.knockbackVx = 0; }
+        e.knockbackVx *= (e.kbDecay ?? 0.78);
+        if (Math.abs(e.knockbackVx) < 0.1) {
+          e.knockbackVx = 0;
+          e.kbDecay = 0.78;  // ノックバック終了で減衰率を既定値に戻す
+        }
+        // ステージバウンド壁ヒット
+        // 超吹き飛ばし中（down_chou_start/loop）に壁に到達 → 強制 down_wall_start
+        const hitLeft  = e.x < PHYSICS.STAGE_LEFT;
+        const hitRight = e.x > PHYSICS.STAGE_RIGHT;
+        if (hitLeft || hitRight) {
+          e.x = hitLeft ? PHYSICS.STAGE_LEFT : PHYSICS.STAGE_RIGHT;
+          if (e.state === STATE.down_chou_start || e.state === STATE.down_chou_loop) {
+            e.state       = STATE.down_wall_start;
+            e.downTimer   = ENEMY_WALL_START_FRAMES;
+            e.vy          = 0;          // 壁にべたっと張り付き（一旦停止）
+            e.knockbackVx = 0;
+            // tiltAngle は STATE_TILT_TARGET 経由で自動補間
+          } else {
+            e.knockbackVx = 0;
+          }
+        }
         e.mesh.position.x = e.x;
         e.mesh.position.z = e.z;
         // 打ち上げ（垂直）
-        if (e.vy !== 0 || e.y > 0 || e.peakHangTimer > 0) {
+        // down_wall_start は壁張り付きで重力スキップ（vy/yは保持・タイマー満了で wall_loop が落下開始）
+        if ((e.vy !== 0 || e.y > 0 || e.peakHangTimer > 0) && e.state !== STATE.down_wall_start) {
           // 頂点到達検出：LAUNCH_COMBO属性で打ち上げ中かつ上昇→下降に切り替わった瞬間
           if (e.launcherAirborne && e.prevVy > 0 && e.vy <= 0 && e.y > 0 && e.peakHangTimer === 0) {
             e.peakHangTimer = 36;
@@ -2125,38 +2371,95 @@
             e.y = 0; e.vy = 0; e.prevVy = 0;
             e.peakHangTimer = 0; e.peakHangTotal = 0;
             e.launcherAirborne = false;
-            if (e.estate === ESTATE.down_up_start || e.estate === ESTATE.down_up_loop) {
-              e.tiltAngle = Math.PI / 2;
-              e.estate    = ESTATE.down_bas_start;
-              e.downTimer = ENEMY_DOWN_FRAMES;
+            // === 地面到達時のステート分岐（挙動途中からでも次へ） ===
+            // tiltAngle は STATE_TILT_TARGET 経由で自動補間（明示設定なし）
+            if (e.state === STATE.down_up_start || e.state === STATE.down_up_loop) {
+              // 打ち上げ → 着地で静止フェーズへ
+              e.state     = STATE.down_bas_start;
+              e.downTimer = ENEMY_DOWN_BAS_START_FRAMES;
+            } else if (e.state === STATE.knockback_air01) {
+              // 空中フリンチ途中で着地 → land に直行
+              e.state     = STATE.land;
+              e.downTimer = ENEMY_LAND_FRAMES;
+            } else if (e.state === STATE.fall_loop) {
+              // 自由落下 → 着地 land
+              e.state     = STATE.land;
+              e.downTimer = ENEMY_LAND_FRAMES;
+            } else if (e.state === STATE.down_front_start) {
+              // 吹き飛び立ち上がり途中で着地 → 静止フェーズへ（down_bas_start）
+              e.state     = STATE.down_bas_start;
+              e.downTimer = ENEMY_DOWN_BAS_START_FRAMES;
+            } else if (e.state === STATE.down_front_loop) {
+              // 吹き飛び完走着地 → 起き上がり直行（仕様 §4.2）
+              e.state     = STATE.down_bas_end;
+              e.downTimer = ENEMY_RISE_FRAMES;
+            } else if (e.state === STATE.down_chou_start || e.state === STATE.down_chou_loop) {
+              // 超吹き飛ばし途中で地面に当たった → 強制 down_roll_start
+              e.state     = STATE.down_roll_start;
+              e.downTimer = ENEMY_ROLL_FRAMES;
+            } else if (e.state === STATE.down_wall_loop) {
+              // うつ伏せ落下着地 → down_bas_start（静止フェーズへ）
+              e.state     = STATE.down_bas_start;
+              e.downTimer = ENEMY_DOWN_BAS_START_FRAMES;
             }
           }
           e.mesh.position.y = e.y;
         }
 
-        // ダウンステート管理（倒れ→静止→起き上がり）
-        if (e.estate === ESTATE.down_up_start) {
-          e.tiltAngle += (Math.PI / 2) / ENEMY_FALL_FRAMES;
-          if (e.tiltAngle >= Math.PI / 2) {
-            e.tiltAngle = Math.PI / 2;
-            e.estate    = ESTATE.down_up_loop;
-          }
-        } else if (e.estate === ESTATE.down_up_loop) {
-          e.tiltAngle = Math.PI / 2; // 横倒し固定のまま落下
-        } else if (e.estate === ESTATE.down_bas_start) {
-          e.tiltAngle = Math.PI / 2;
+        // ダウン・被弾ステート機械（タイマー駆動の遷移のみ・tiltAngle は後段で一括計算）
+        if (e.state === STATE.down_up_start) {
+          if (--e.downTimer <= 0) e.state = STATE.down_up_loop;
+        } else if (e.state === STATE.down_up_loop) {
+          // 横倒しのまま落下（着地は y<=0 ブロックで処理）
+        } else if (e.state === STATE.down_bas_start) {
           if (--e.downTimer <= 0) {
-            e.estate    = ESTATE.down_bas_end;
+            e.state    = STATE.down_bas_loop;
+            e.downTimer = ENEMY_DOWN_BAS_LOOP_FRAMES;
+          }
+        } else if (e.state === STATE.down_bas_loop) {
+          if (--e.downTimer <= 0) {
+            e.state    = STATE.down_bas_end;
             e.downTimer = ENEMY_RISE_FRAMES;
           }
-        } else if (e.estate === ESTATE.down_bas_end) {
-          e.tiltAngle = (e.downTimer / ENEMY_RISE_FRAMES) * (Math.PI / 2);
+        } else if (e.state === STATE.down_bas_end) {
+          if (--e.downTimer <= 0) e.state = STATE.wait01;
+        } else if (e.state === STATE.knockback01 || e.state === STATE.knockback02) {
+          if (--e.downTimer <= 0) e.state = STATE.wait01;
+        } else if (e.state === STATE.knockback_air01) {
+          if (--e.downTimer <= 0) e.state = STATE.fall_loop;
+        } else if (e.state === STATE.fall_loop) {
+          // 自由落下中（着地は y<=0 ブロック）
+        } else if (e.state === STATE.land) {
+          if (--e.downTimer <= 0) e.state = STATE.wait01;
+        } else if (e.state === STATE.down_front_start) {
+          if (--e.downTimer <= 0) e.state = STATE.down_front_loop;
+        } else if (e.state === STATE.down_front_loop) {
+          // 吹き飛び中（着地は y<=0 ブロック）
+        } else if (e.state === STATE.down_chou_start) {
+          if (--e.downTimer <= 0) e.state = STATE.down_chou_loop;
+        } else if (e.state === STATE.down_chou_loop) {
+          // 吹き飛び中（壁/地面は前段ブロックで処理）
+        } else if (e.state === STATE.down_wall_start) {
+          if (--e.downTimer <= 0) e.state = STATE.down_wall_loop;
+        } else if (e.state === STATE.down_wall_loop) {
+          // うつ伏せ落下中（着地は y<=0 ブロック）
+        } else if (e.state === STATE.down_roll_start) {
           if (--e.downTimer <= 0) {
-            e.tiltAngle = 0;
-            e.estate    = ESTATE.wait01;
+            e.state    = STATE.down_bas_loop;
+            e.downTimer = ENEMY_DOWN_BAS_LOOP_FRAMES;
           }
+        }
+
+        // === tiltAngle 一括計算（データテーブル + ランプ系特殊処理） ===
+        if (e.state === STATE.down_up_start) {
+          // 0 → π/2 ランプ（downTimer: ENEMY_FALL_FRAMES → 0）
+          e.tiltAngle = (1 - e.downTimer / ENEMY_FALL_FRAMES) * (Math.PI / 2);
+        } else if (e.state === STATE.down_bas_end) {
+          // π/2 → 0 ランプ（downTimer: ENEMY_RISE_FRAMES → 0）
+          e.tiltAngle = (e.downTimer / ENEMY_RISE_FRAMES) * (Math.PI / 2);
         } else {
-          e.tiltAngle = 0;
+          const tiltTarget = STATE_TILT_TARGET[e.state] ?? 0;
+          e.tiltAngle += (tiltTarget - e.tiltAngle) * STATE_TILT_LERP;
         }
         e.mesh.rotation.z = -e.fallDir * e.tiltAngle;
 
@@ -2252,6 +2555,9 @@
         `state:${p.state} chain:${p.attackChainIdx} | ` +
         `grounded:${p.isGrounded ? 'Y' : 'N'}`;
       dummyHpEl.textContent = `${enemies[0].hp}/${enemies[0].maxHp}`;
+      // ステートHUD更新（未設定の場合は「未設定」表示）
+      stateHudPlayerEl.textContent = players[0]?.state ?? '未設定';
+      stateHudEnemyEl.textContent  = enemies[0]?.state ?? '未設定';
     }
 
     function update() {
@@ -2305,7 +2611,7 @@
       { id: 'hk-jump',      check: () => action('jump') },
       { id: 'hk-weak',      check: () => action('weakAttack') },
       { id: 'hk-strong',    check: () => action('strongAttack') },
-      { id: 'hk-cancel',    check: () => action('jump') && players[0]?.state === STATE.HIT_CONFIRM },
+      { id: 'hk-cancel',    check: () => action('jump') && players[0]?.state === STATE.hit_confirm },
       { id: 'hk-secondary', check: () => action('secondary') },
       { id: 'hk-mega',      check: () => action('megaCrash') || (inp('KeyJ') && inp('KeyK') && !inp('KeyL')) },
       { id: 'hk-ult',       check: () => action('ult')      || (inp('KeyJ') && inp('KeyK') &&  inp('KeyL')) },
@@ -2421,7 +2727,7 @@
 
       // 攻撃ヒットボックス（判定フレーム中のみ表示）
       let showAtk = false;
-      if (p.state === STATE.ATTACKING && p.attackId) {
+      if (p.state === STATE.attacking && p.attackId) {
         const atk     = ATTACKS[p.attackId];
         const elapsed = atk.duration - p.stateTimer;
         if (elapsed >= atk.hitFrame && elapsed < atk.hitFrame + atk.hitDuration) {
@@ -2502,6 +2808,16 @@
         requestAnimationFrame(loop);
         return;
       }
+      // スロー再生：divisor フレームに1回だけ update を走らせる（描画は毎フレーム）
+      if (SLOWMO.divisor > 1) {
+        SLOWMO.counter++;
+        if (SLOWMO.counter < SLOWMO.divisor) {
+          render();
+          requestAnimationFrame(loop);
+          return;
+        }
+        SLOWMO.counter = 0;
+      }
       update();
       render();
       requestAnimationFrame(loop);
@@ -2535,6 +2851,8 @@
       SP_CONFIG, ATTACKS, STATE, Z_CHAIN, A_CHAIN,
       KEY_CONFIG,
       PIXEL_SHADER,  // ピクセルシェーダー設定（P キーで ENABLED トグル / RT_W・RT_H で解像度調整）
+      SLOWMO,        // スロー再生（T キーで 1x→1/2x→1/4x→1/8x サイクル）
+      STATE_TILT_TARGET,  // ステート別 tilt 目標値（コンソールから上書き可）
       // 共通関数（コンソールから呼べる）
       triggerHitstop, triggerShake, spawnHitParticles,
       triggerMegaCrash, triggerUlt,
