@@ -239,22 +239,43 @@
     const GAME_ASPECT = GAME_WIDTH / GAME_HEIGHT;  // 16/9
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a1f);
-    scene.fog = new THREE.Fog(0x0a0a1f, 1400, 3500);
+    // scene.background はデュアルパスレンダリングで2パス目に上書きされるため削除。
+    // クリアカラーはrenderer.setClearColor()で管理する。
+    scene.fog = new THREE.Fog(0x0a0a1f, 2800, 5000);
 
-    const camera = new THREE.PerspectiveCamera(
-      45,
-      GAME_ASPECT,
-      1,
-      5000
-    );
-    // Plan: (0, 800, 600) → (0, 0, 0) を見る
-    camera.position.set(0, 800, 600);
-    camera.lookAt(0, 0, 0);
+    // === カメラ設定（正投影・2Dベルスク方式）— カメラ初期化より前に定義必須 ===
+    const CAM_CONFIG = {
+      // メインカメラ（正投影・キャラ用）
+      ORTHO_H: 700,  // 正投影フラスタム高さ（小さいほど拡大）
+      CAM_Y:   400,  // カメラ基準高さ
+      CAM_Z:   1000, // カメラZ（傾きに影響）
+      LOOK_Y:  0,    // 注視点Y（床面）
+      // 背景カメラ（Perspective・俯瞰パース用）
+      BG_FOV:   5,    // 背景FOV（超望遠・透視収束を最小化）
+      BG_CAM_Y: 500,  // 背景カメラ高さ
+      BG_CAM_Z: 6000, // 背景カメラZ（遠くに引いてOrthoに近づける）
+      BG_LOOK_Y: 0,  // 背景注視点Y
+    };
+
+    {
+      const h = CAM_CONFIG.ORTHO_H / 2;
+      var camera = new THREE.OrthographicCamera(
+        -h * GAME_ASPECT, h * GAME_ASPECT, h, -h, 1, 5000
+      );
+    }
+    camera.position.set(0, CAM_CONFIG.CAM_Y, CAM_CONFIG.CAM_Z);
+    camera.lookAt(0, CAM_CONFIG.LOOK_Y, 0);
+
+    // 背景専用カメラ（Perspective・Layer 1のみ描画）
+    const bgCamera = new THREE.PerspectiveCamera(CAM_CONFIG.BG_FOV, GAME_ASPECT, 1, 10000);
+    bgCamera.layers.set(1);
+    bgCamera.position.set(0, CAM_CONFIG.BG_CAM_Y, CAM_CONFIG.BG_CAM_Z);
+    bgCamera.lookAt(0, CAM_CONFIG.BG_LOOK_Y, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     // 内部レンダリング解像度は 1920x1080 固定。表示サイズは CSS が制御
     renderer.setSize(GAME_WIDTH, GAME_HEIGHT, false);
+    renderer.setClearColor(0x0a0a1f, 1);  // scene.background の代わり（デュアルパス対応）
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.getElementById('game-frame').appendChild(renderer.domElement);
@@ -263,6 +284,7 @@
     //  LIGHTING (key + fill + rim accent)
     // ============================================================
     const ambient = new THREE.AmbientLight(0x4455aa, 0.4);
+    ambient.layers.enableAll();
     scene.add(ambient);
 
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.1);
@@ -275,16 +297,19 @@
     keyLight.shadow.camera.bottom = -1500;
     keyLight.shadow.camera.near = 100;
     keyLight.shadow.camera.far  = 3500;
+    keyLight.layers.enableAll();
     scene.add(keyLight);
 
     // Rim light でメカに紫の差し色
     const rimLight = new THREE.DirectionalLight(0xff44aa, 0.55);
     rimLight.position.set(-500, 400, -500);
+    rimLight.layers.enableAll();
     scene.add(rimLight);
 
     // 弱フィル（青）
     const fillLight = new THREE.DirectionalLight(0x4488ff, 0.3);
     fillLight.position.set(0, 200, 800);
+    fillLight.layers.enableAll();
     scene.add(fillLight);
 
     // ============================================================
@@ -332,7 +357,9 @@
     const ground = new THREE.Mesh(groundGeom, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = 0;
+    ground.position.z = 500;  // 手前に寄せる
     ground.receiveShadow = true;
+    ground.layers.set(1);  // 背景レイヤー（Perspective・パース付き）
     scene.add(ground);
 
     // ============================================================
@@ -365,7 +392,9 @@
 
       return group;
     }
-    scene.add(buildBackgroundElements());
+    const bgElements = buildBackgroundElements();
+    bgElements.traverse(obj => { if (obj.isMesh) obj.layers.set(1); });
+    scene.add(bgElements);
 
     // ============================================================
     //  ASSET ABSTRACTION LAYER (将来 GLTF 差し替え対応)
@@ -773,6 +802,8 @@
     let shakeStrength = 0;
     let shakeOffsetX  = 0;
     let shakeOffsetY  = 0;
+    let camFollowY    = 0;  // Y追従の遅延用（lerp）
+    let camTargetX    = 0;  // デッドゾーンカメラ用X目標
 
     function triggerHitstop(frames) {
       if (frames > hitstopTimer) hitstopTimer = frames;
@@ -1667,9 +1698,12 @@
 
     function updateCamera() {
       const p = players[0];
-      // X軸追従（Z, Yは固定）
-      const baseX = p.x;
-      const baseY = 800;
+
+      // デッドゾーン：中央帯では固定、端に達したら追従
+      const DEAD_ZONE = 220;
+      if (p.x > camTargetX + DEAD_ZONE) camTargetX = p.x - DEAD_ZONE;
+      if (p.x < camTargetX - DEAD_ZONE) camTargetX = p.x + DEAD_ZONE;
+      const baseX = camTargetX;
 
       // シェイク計算
       if (shakeTimer > 0) {
@@ -1686,9 +1720,32 @@
         shakeOffsetY = 0;
       }
 
+      // Y追従：デッドゾーン付きlerp（低ジャンプではカメラ動かさない）
+      const Y_DEAD_ZONE = 100;
+      const yTarget = Math.max(0, p.y - Y_DEAD_ZONE);
+      camFollowY += (yTarget - camFollowY) * 0.08;
+      camFollowY = Math.max(0, Math.min(camFollowY, 150));
       camera.position.x = baseX + shakeOffsetX;
-      camera.position.y = baseY + shakeOffsetY;
-      camera.lookAt(baseX, 0, 0);
+      camera.position.y = CAM_CONFIG.CAM_Y + camFollowY + shakeOffsetY;
+      camera.position.z = CAM_CONFIG.CAM_Z;
+      camera.lookAt(baseX, CAM_CONFIG.LOOK_Y + camFollowY, 0);
+
+      // 背景カメラ：XはデッドゾーンbaseX追従、YはメインカメラのcamFollowYと同期
+      const bgX = baseX * 1.0;
+      bgCamera.position.x = bgX;
+      bgCamera.position.y = CAM_CONFIG.BG_CAM_Y + camFollowY;
+      bgCamera.position.z = CAM_CONFIG.BG_CAM_Z;
+      bgCamera.lookAt(bgX, CAM_CONFIG.BG_LOOK_Y + camFollowY, 0);
+    }
+
+    // FOV変更はupdateProjectionMatrix()が必要なためヘルパー経由
+    function applyCamConfig() {
+      const h = CAM_CONFIG.ORTHO_H / 2;
+      camera.left   = -h * GAME_ASPECT;
+      camera.right  =  h * GAME_ASPECT;
+      camera.top    =  h;
+      camera.bottom = -h;
+      camera.updateProjectionMatrix();
     }
 
     const spBarEl = document.getElementById('sp-bar');
@@ -1724,7 +1781,18 @@
     }
 
     function render() {
+      // パス1：背景（Perspective・フォグ無効）
+      const savedFog = scene.fog;
+      scene.fog = null;
+      renderer.autoClear = true;
+      renderer.render(scene, bgCamera);
+      scene.fog = savedFog;
+      // デプスバッファをクリアしてキャラが背景に埋まらないようにする
+      renderer.clearDepth();
+      // パス2：キャラ・エフェクト（Orthographic・フォグ有効）
+      renderer.autoClear = false;
       renderer.render(scene, camera);
+      renderer.autoClear = true;
     }
 
     // === デバッグ用 HUD ハイライト ===
@@ -1929,9 +1997,10 @@
     addEventListener('resize', updateHudScale);
     updateHudScale();  // 初期化
     window.SB = {
-      scene, camera, renderer, players, enemies,
+      scene, camera, bgCamera, renderer, players, enemies,
       CHARACTER_ASSETS,
-      PHYSICS, SP_CONFIG, ATTACKS, STATE, Z_CHAIN, A_CHAIN,
+      PHYSICS, CAM_CONFIG, applyCamConfig,
+      SP_CONFIG, ATTACKS, STATE, Z_CHAIN, A_CHAIN,
       KEY_CONFIG,   // キーコンフィグ（将来オプション画面でリバインド可能）
       // 共通関数（コンソールから呼べる）
       triggerHitstop, triggerShake, spawnHitParticles,
