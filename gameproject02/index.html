@@ -4,6 +4,28 @@
   <meta charset="UTF-8">
   <title>SCRAP BLITZ - Phase 2.2</title>
   <style>
+    /* === HUD デザイントークン（仕様書 §22）===
+       全 HUD の px 値はこの :root 変数を参照する。
+       トーン調整（HUD全体を 1.2倍に絞る等）は変数1箇所で完結。 */
+    :root {
+      --fs-xs:  15px;  /* 補足テキスト */
+      --fs-sm:  18px;  /* 標準 HUD */
+      --fs-md:  21px;  /* 中サイズ（DUMMY HP 等）*/
+      --fs-lg:  27px;  /* サブラベル（COMBO）*/
+      --fs-xl:  54px;  /* 中盛り見出し */
+      --fs-xxl: 96px;  /* 大数字（コンボ数字）*/
+
+      --sp-xs:  6px;   /* 細余白 */
+      --sp-sm:  9px;   /* 内側余白・小 */
+      --sp-md:  12px;  /* 内側余白・中 */
+      --sp-lg:  18px;  /* 外側余白（HUD端）*/
+      --sp-xl:  90px;  /* 大外側オフセット */
+
+      --hud-accent-w: 5px;   /* アクセントボーダー幅 */
+      --ls-tight:     1.5px; /* letter-spacing 標準 */
+      --ls-wide:      3px;   /* letter-spacing 強調 */
+    }
+
     html, body {
       margin: 0; padding: 0;
       width: 100%; height: 100%;
@@ -54,61 +76,78 @@
        hud-layer の transform: scale() で window スケールに自動追従する */
     #hud {
       position: absolute;
-      top: 18px; left: 18px;
-      padding: 12px 21px;
+      top: var(--sp-lg); left: var(--sp-lg);
+      padding: var(--sp-md) var(--fs-md);
       background: rgba(0, 20, 40, 0.55);
-      border-left: 5px solid #00ddff;
-      font-size: 18px;
-      letter-spacing: 1.5px;
+      border-left: var(--hud-accent-w) solid #00ddff;
+      font-size: var(--fs-sm);
+      letter-spacing: var(--ls-tight);
       pointer-events: none;
     }
     #hud .title {
       color: #ff00aa;
       font-weight: bold;
-      letter-spacing: 3px;
-      margin-bottom: 6px;
+      letter-spacing: var(--ls-wide);
+      margin-bottom: var(--sp-xs);
     }
-    #hud .small { color: #88aacc; font-size: 15px; }
+    #hud .small { color: #88aacc; font-size: var(--fs-xs); }
+    #hud .hk-active {
+      color: #ffff44;
+      background: rgba(255, 255, 0, 0.15);
+      border-radius: 3px;
+      padding-left: 6px;
+      margin-left: -6px;
+      text-shadow: 0 0 8px #ffaa00;
+    }
+    /* トグル系デバッグ機能（ON状態を緑で常時表示） */
+    #hud .hk-toggle-on {
+      color: #44ff88;
+      background: rgba(0, 255, 100, 0.12);
+      border-radius: 3px;
+      padding-left: 6px;
+      margin-left: -6px;
+      text-shadow: 0 0 6px #00ff66;
+    }
 
     #debug {
       position: absolute;
-      bottom: 18px; left: 18px;
-      padding: 9px 15px;
+      bottom: var(--sp-lg); left: var(--sp-lg);
+      padding: var(--sp-sm) var(--fs-xs);
       background: rgba(0, 0, 0, 0.5);
-      font-size: 17px;
+      font-size: var(--fs-sm);
       color: #88ff88;
       pointer-events: none;
     }
 
     #phase {
       position: absolute;
-      top: 18px; right: 18px;
-      padding: 9px 18px;
+      top: var(--sp-lg); right: var(--sp-lg);
+      padding: var(--sp-sm) var(--sp-lg);
       background: rgba(40, 0, 40, 0.55);
-      border-right: 5px solid #ff00aa;
-      font-size: 17px;
+      border-right: var(--hud-accent-w) solid #ff00aa;
+      font-size: var(--fs-sm);
       color: #ff88cc;
       pointer-events: none;
     }
 
     #sp-gauge-wrap {
       position: absolute;
-      bottom: 90px; left: 18px;
+      bottom: var(--sp-xl); left: var(--sp-lg);
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: var(--sp-md);
       pointer-events: none;
     }
     #sp-label {
       font-family: 'Courier New', monospace;
-      font-size: 17px;
+      font-size: var(--fs-sm);
       color: #00ddff;
-      letter-spacing: 3px;
+      letter-spacing: var(--ls-wide);
       width: 33px;
     }
     #sp-bar-bg {
       width: 210px;
-      height: 12px;
+      height: var(--sp-md);
       background: rgba(0, 30, 60, 0.7);
       border: 2px solid #006688;
       border-radius: 3px;
@@ -128,12 +167,16 @@
   <div id="hud-layer">
   <div id="hud">
     <div class="title">SCRAP BLITZ</div>
-    <div>WASD / 矢印キー: 移動</div>
-    <div>SPACE: ジャンプ</div>
-    <div>J: 攻撃（連打で3段コンボ）</div>
-    <div>ヒット中SPACE: キャンセルジャンプ</div>
-    <div>K: 強攻撃</div>
-    <div class="small">Phase 2.2 - SP / 強攻撃 / ダッシュ</div>
+    <div id="hk-move">WASD / 矢印キー: 移動</div>
+    <div id="hk-jump">SPACE / A: ジャンプ</div>
+    <div id="hk-weak">J / □: 弱攻撃（連打で3段）</div>
+    <div id="hk-strong">K / △: 強攻撃</div>
+    <div id="hk-cancel">ヒット中SPACE: キャンセルジャンプ</div>
+    <div id="hk-secondary">L / L1: セカンダリ</div>
+    <div id="hk-mega">U / R1: メガクラッシュ</div>
+    <div id="hk-ult">I / R2: ULT（超必殺技）</div>
+    <div id="hk-hitbox" class="small">Q: ヒットボックス / コリジョン [OFF]</div>
+    <div class="small">Phase 2.2 — KB+Pad対応</div>
   </div>
 
   <div id="debug">x: 0  z: 0  y: 0</div>
@@ -141,19 +184,19 @@
 
   <div id="combo" style="
     position: absolute;
-    top: 50%; right: 90px;
+    top: 50%; right: var(--sp-xl);
     transform: translateY(-50%);
     font-family: 'Courier New', monospace;
-    font-size: 54px;
+    font-size: var(--fs-xl);
     color: #ffff44;
-    text-shadow: 0 0 18px #ff8800, 3px 3px 0 #000;
+    text-shadow: 0 0 var(--sp-lg) #ff8800, 3px 3px 0 #000;
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.2s;
     text-align: right;
   ">
-    <div id="combo-num" style="font-size: 96px; line-height: 1;">0</div>
-    <div id="combo-label" style="font-size: 27px; color: #ffaa44;">COMBO</div>
+    <div id="combo-num" style="font-size: var(--fs-xxl); line-height: 1;">0</div>
+    <div id="combo-label" style="font-size: var(--fs-lg); color: #ffaa44;">COMBO</div>
   </div>
 
   <div id="sp-gauge-wrap">
@@ -163,13 +206,13 @@
 
   <div id="dummy-hp" style="
     position: absolute;
-    bottom: 90px; right: 90px;
+    bottom: var(--sp-xl); right: var(--sp-xl);
     font-family: 'Courier New', monospace;
-    font-size: 21px;
+    font-size: var(--fs-md);
     color: #ff8888;
     background: rgba(40, 0, 0, 0.5);
-    padding: 9px 18px;
-    border-right: 5px solid #ff4444;
+    padding: var(--sp-sm) var(--sp-lg);
+    border-right: var(--hud-accent-w) solid #ff4444;
     pointer-events: none;
   ">DUMMY HP: <span id="dummy-hp-num">100</span></div>
   </div><!-- /#hud-layer -->
@@ -507,6 +550,7 @@
       CANCEL_JUMP_V:        12,    // キャンセル時のジャンプ初速（通常+2）
       CANCEL_JUMP_THRUST:   1.3,   // キャンセル時の推力（通常+0.1）
       CANCEL_JUMP_FRAMES:   14,    // キャンセル時の推力持続（通常+2）
+      AERIAL_HOP_V:          7,    // 空中Jコンボ開始時に付与する上昇速度（滞空維持）
 
       // === ステージ横バウンド ===
       // プレイヤーがこの範囲外に出られないようにクランプ。
@@ -514,15 +558,27 @@
       // 値はランタイムで SB.PHYSICS.STAGE_LEFT = -2000 等で即変更可。
       STAGE_LEFT:   -1500,
       STAGE_RIGHT:   1500,
+
+      // === ダッシュ（ローラーダッシュ式：2回タップ＋押しっぱなしで無制限持続） ===
+      DASH_SPEED_MULT:  2.5,  // 通常速度の倍率
+      DASH_COOLDOWN:    24,   // ダッシュ終了後の再発動クールダウン（フレーム）
+      DASH_TAP_WINDOW:  12,   // 同方向2回タップの受付ウィンドウ（フレーム）
+      DASH_SPARK_ANGLE: Math.PI / 6, // 足元火花を出す方向変化の閾値（30°）
+
+      // === 空中慣性 ===
+      AIR_FRICTION:  0.90,  // 空中の水平速度減衰率（毎フレーム）
+      AIR_CONTROL:   1.2,   // 空中での方向修正力（SPEED より小さく・空中は足場がない）
     };
 
     // ============================================================
     //  SP ゲージ設定
     // ============================================================
     const SP_CONFIG = {
-      MAX:         100,
-      REGEN_RATE:  0.01,  // フレームごとの自然回復量（攻撃優先設計：逃げ回りだけでは遅い）
-      GAIN_ON_HIT: 8,     // ヒット1発あたりの獲得量
+      MAX:              100,
+      REGEN_RATE:       0.01,  // フレームごとの自然回復量（攻撃優先設計：逃げ回りだけでは遅い）
+      GAIN_ON_HIT:      8,     // ヒット1発あたりの獲得量
+      MEGA_CRASH_COST:  20,    // メガクラッシュ消費（= 1 LEVEL / MAX5換算）
+      ULT_COST:         40,    // ULT消費（= 2 LEVEL / MAX5換算）
     };
 
     // ============================================================
@@ -555,6 +611,39 @@
         knockback:    14, hitstop: 6, shake: 5,
         partsAnim:    'kick',
       },
+      z4: {
+        label:        'Z4 (旋回アッパー・フィニッシャー)',
+        duration:     24, hitFrame: 10, hitDuration: 5, cancelWindow: 16,
+        damage:       14,
+        rangeX:       120, rangeZ: 85,
+        knockback:    16, hitstop: 7, shake: 6,
+        partsAnim:    'spin_upper',
+      },
+      // === 空中弱攻撃（METEO） ===
+      a1: {
+        label:        'A1 (空中ジャブ)',
+        duration:     14, hitFrame: 5, hitDuration: 3, cancelWindow: 12,
+        damage:       5,
+        rangeX:       90, rangeZ: 65,
+        knockback:    3, hitstop: 3, shake: 2,
+        partsAnim:    'air_punch_l',
+      },
+      a2: {
+        label:        'A2 (空中蹴り)',
+        duration:     16, hitFrame: 6, hitDuration: 3, cancelWindow: 13,
+        damage:       7,
+        rangeX:       100, rangeZ: 70,
+        knockback:    5, hitstop: 4, shake: 3,
+        partsAnim:    'air_kick',
+      },
+      a3: {
+        label:        'A3 (空中叩きつけ)',
+        duration:     18, hitFrame: 7, hitDuration: 4, cancelWindow: 14,
+        damage:       10,
+        rangeX:       105, rangeZ: 75,
+        knockback:    8, hitstop: 5, shake: 4,
+        partsAnim:    'air_slam',
+      },
       // === 強攻撃 K（キャラ別）===
       // 仕様: METEO の強攻撃 — ダウンなし・キャラ約1体分のノックバック
       k_meteo: {
@@ -563,17 +652,56 @@
         damage:       20,
         rangeX:       130, rangeZ: 80,
         knockback:    30,  // ★ キャラ約1体分の距離（z3=14 の約2倍）
-        hitstop:      9, shake: 7,           // 強攻撃感を強化（z3=6/5 → 9/7）
-        hitColor:     0xff6622,              // オレンジレッドの火花（弱攻撃の黄色と差別化）
-        hitCount:     22,                    // パーティクル数増（z3=10 → 22）
+        hitstop:      9, shake: 7,
+        hitColor:     0xff6622,
+        hitCount:     22,
         partsAnim:    'strong_punch_r',
-        launcher:     false,                 // 打ち上げ属性なし → キャンセルジャンプ不可
-        // ダウン属性: なし（デフォルト挙動）
+        launcher:     false,
+      },
+      // 仕様: METEO 打ち上げ攻撃 — Jチェーン中 ↑+K で発動・launcher:true → キャンセルジャンプ可
+      k_up_meteo: {
+        label:        '↑+K (METEO 打ち上げ)',
+        duration:     26, hitFrame: 10, hitDuration: 4, cancelWindow: 16,
+        damage:       18,
+        rangeX:       100, rangeZ: 70,
+        knockback:    10,               // 水平は控えめ・主作用は打ち上げ
+        launchVy:     24,               // 敵を浮かせる垂直速度（プレイヤー最大vy≒24に合わせる）
+        hitstop:      8, shake: 6,
+        hitColor:     0xffcc00,         // 黄金色（打ち上げの特別感）
+        hitCount:     18,
+        partsAnim:    'upper_cut',
+        launcher:     true,             // ★ キャンセルジャンプ可（tryCancelJump が直参照）
+        attrGroup:    'LAUNCH_COMBO',   // 属性バンドル：打ち上げ→頂点スロー→追撃
       },
     };
 
-    // チェーン定義：J 連打で z1 → z2 → z3（K は単独・チェーン外）
-    const Z_CHAIN = ['z1', 'z2', 'z3'];
+    // ============================================================
+    //  攻撃属性テーブル（特殊挙動バンドルの定義）
+    //  技の attrGroup フィールドで参照する。
+    //  個別フィールドが attrGroup と重複する場合は個別フィールドが優先。
+    // ============================================================
+    const ATTACK_ATTRS = {
+      // 打ち上げコンボ：敵を垂直に浮かせ→頂点でスロー→キャンセルジャンプで追撃
+      LAUNCH_COMBO: {
+        launcher:  true,   // プレイヤーのキャンセルジャンプ許可
+        peakHang:  true,   // 敵が頂点付近でスロー（「今がチャンス」演出）
+      },
+      // ─── 将来の属性枠組み ──────────────────────────────────────
+      // SLAM:        { slamWave: true },             // 叩きつけ → 地面衝撃波
+      // GUARD_BREAK: { breakGuard: true },           // ガードブレイク
+      // FIRE_DOT:    { dot: true, element: 'fire' }, // 燃焼DoT（METEO属性）
+    };
+
+    // attrGroup を解決して実効フラグを返す（個別フィールドが優先）
+    function resolveAttackAttr(attack) {
+      if (!attack.attrGroup) return attack;
+      return Object.assign({}, ATTACK_ATTRS[attack.attrGroup] ?? {}, attack);
+    }
+
+    // 地上 J チェーン：z1 → z2 → z3 → z4（K は単独・チェーン外）
+    const Z_CHAIN = ['z1', 'z2', 'z3', 'z4'];
+    // 空中 J チェーン：a1 → a2 → a3（ジャンプ中 or キャンセルジャンプ後）
+    const A_CHAIN = ['a1', 'a2', 'a3'];
 
     // プレイヤー状態
     const STATE = {
@@ -608,14 +736,32 @@
       stateTimer:       0,    // 現在ステートの残フレーム
       attackId:         null, // 現在の攻撃ID（z1/z2/z3）
       attackChainIdx:   -1,   // チェーンの何段目か
+      attackChainArr:   null, // 実行中チェーン配列（Z_CHAIN / A_CHAIN）
       hitDelivered:     false,// 現攻撃でヒット成立済みか
       cancelTimer:      0,    // キャンセル受付残フレーム
       bigBurstTimer:    0,    // キャンセルジャンプの大噴射演出残時間
-      attackBuffered:   false,// 攻撃中に Z が押されたバッファ
+      attackBuffered:   false,// 攻撃中に J が押されたバッファ
+      kBuffered:        false,// 攻撃中に K が押されたバッファ
+      kBufferUp:        false,// バッファ時の ↑ 入力状態（打ち上げ判定用）
+      aerialWhiffed:    false,// 空中J空振り中フラグ（着地でリセット）
 
       // === SP ゲージ ===
       sp:               0,
+
+      // === 空中慣性 ===
+      airVx:            0,        // 空中水平慣性 X（ダッシュジャンプの勢い）
+      airVz:            0,        // 空中水平慣性 Z
+
+      // === ダッシュ（ローラーダッシュ） ===
       dashCooldown:     0,
+      dashActive:       false,    // ローラーダッシュ継続中フラグ
+      dashTriggerDx:    0,        // ダッシュ発動キーの方向 X
+      dashTriggerDz:    0,        // ダッシュ発動キーの方向 Z
+      dashDirX:         0,        // 現フレームの移動方向 X（斜め時に更新）
+      dashDirZ:         0,        // 現フレームの移動方向 Z
+      lastTapDir:       null,     // 最後タップ方向 { x, z }
+      lastTapTimer:     0,        // 最後タップからの経過受付フレーム
+      dashSparkColor:   0xff9900, // 軸変更火花色（METEO=オレンジ）
     };
     players.push(player);
 
@@ -654,6 +800,32 @@
           vy: 4 + Math.random() * 10,
           vz: (Math.random() - 0.5) * 14,
           life: 22 + Math.random() * 10,
+        });
+      }
+    }
+
+    // 打ち上げヒット時の足元から吹き上がる土煙エフェクト
+    function spawnLaunchSmoke(x, y, z) {
+      const count = 30;
+      for (let i = 0; i < count; i++) {
+        const col = Math.random() > 0.5 ? 0xeedd99 : 0xfff4cc; // 土埃・砂煙
+        const size = 12 + Math.random() * 10;
+        const geom = new THREE.BoxGeometry(size, size, size);
+        const mat  = new THREE.MeshBasicMaterial({ color: col });
+        const mesh = new THREE.Mesh(geom, mat);
+        // 足元から少し散らしてスポーン
+        mesh.position.set(
+          x + (Math.random() - 0.5) * 50,
+          y + Math.random() * 20,
+          z + (Math.random() - 0.5) * 25
+        );
+        scene.add(mesh);
+        particles.push({
+          mesh,
+          vx: (Math.random() - 0.5) * 5,
+          vy: 12 + Math.random() * 18,  // 強い上方向
+          vz: (Math.random() - 0.5) * 5,
+          life: 32 + Math.random() * 14,
         });
       }
     }
@@ -718,7 +890,12 @@
       hitFlashTimer:  0,
       knockbackVx:    0,
       knockbackVz:    0,
-      isAlive:        true,
+      vy:               0,     // 垂直速度（打ち上げ用）
+      prevVy:           0,     // 前フレームの垂直速度（頂点検出用）
+      peakHangTimer:    0,     // 打ち上げ頂点スロー残フレーム
+      peakHangTotal:    0,     // スロー総フレーム数（フェード計算用）
+      launcherAirborne: false, // LAUNCH_COMBO 属性で打ち上げられた状態か
+      isAlive:          true,
     };
     enemies.push(dummy);
 
@@ -768,8 +945,78 @@
       if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) {
         e.preventDefault();
       }
+      // デバッグトグル
+      if (e.code === 'KeyQ') toggleHitbox();
     });
     addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+    // === ゲームパッド入力（標準マッピング）===
+    // キーボードと並列動作。padKeys に書き込み、inp() で統合参照する。
+    const padKeys = {};
+
+    // 標準ゲームパッドボタン → keys コード変換テーブル
+    const PAD_BUTTON_MAP = {
+      0:  'Space',     // A / Cross    → ジャンプ
+      2:  'KeyJ',      // X / Square   → 弱攻撃
+      3:  'KeyK',      // Y / Triangle → 強攻撃
+      4:  'KeyL',      // LB / L1      → セカンダリ（Lキー）
+      5:  'KeyU',      // RB / R1      → メガクラッシュ専用
+      7:  'KeyI',      // RT / R2      → ULT専用
+      12: 'ArrowUp',   // D-pad ↑
+      13: 'ArrowDown', // D-pad ↓
+      14: 'ArrowLeft', // D-pad ←
+      15: 'ArrowRight',// D-pad →
+    };
+
+    // === キーコンフィグ（将来オプション画面でリバインド可能な設計）===
+    // PAD_BUTTON_MAP の kb 値と対応させることで pad も自動追従する
+    const KEY_CONFIG = {
+      moveLeft:     { kb: 'ArrowLeft',  kb2: 'KeyA'  },
+      moveRight:    { kb: 'ArrowRight', kb2: 'KeyD'  },
+      moveUp:       { kb: 'ArrowUp',    kb2: 'KeyW'  },
+      moveDown:     { kb: 'ArrowDown',  kb2: 'KeyS'  },
+      jump:         { kb: 'Space'                     },
+      weakAttack:   { kb: 'KeyJ'                      },
+      strongAttack: { kb: 'KeyK'                      },
+      secondary:    { kb: 'KeyL'                      },
+      megaCrash:    { kb: 'KeyU'                      }, // U / R1（J+K同時も発動）
+      ult:          { kb: 'KeyI'                      }, // I / R2（J+K+L同時も発動）
+    };
+
+    // アクション判定（KEY_CONFIG 参照・将来リバインド対応の統合口）
+    function action(name) {
+      const cfg = KEY_CONFIG[name];
+      if (!cfg) return false;
+      return !!(inp(cfg.kb) || (cfg.kb2 && inp(cfg.kb2)));
+    }
+    const PAD_AXIS_DEAD = 0.25; // スティックデッドゾーン
+
+    function pollGamepad() {
+      // padKeys をいったんリセット
+      for (const k in padKeys) padKeys[k] = false;
+
+      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+      // インデックス固定だと再接続時にずれるため、最初の有効なパッドを使う
+      const gp = Array.from(gamepads).find(g => g && g.connected);
+      if (!gp) return;
+
+      // ボタン
+      for (const [idx, code] of Object.entries(PAD_BUTTON_MAP)) {
+        const btn = gp.buttons[idx];
+        if (btn && btn.pressed) padKeys[code] = true;
+      }
+
+      // 左スティック → 移動（Axis 0 = X, Axis 1 = Y）
+      const ax = gp.axes[0] ?? 0;
+      const ay = gp.axes[1] ?? 0;
+      if (ax < -PAD_AXIS_DEAD) padKeys['ArrowLeft']  = true;
+      if (ax >  PAD_AXIS_DEAD) padKeys['ArrowRight'] = true;
+      if (ay < -PAD_AXIS_DEAD) padKeys['ArrowUp']    = true;
+      if (ay >  PAD_AXIS_DEAD) padKeys['ArrowDown']  = true;
+    }
+
+    // キーボード OR ゲームパッドの統合参照
+    function inp(code) { return !!(keys[code] || padKeys[code]); }
 
     // ============================================================
     //  GAME LOOP
@@ -791,11 +1038,25 @@
       p.attackBuffered  = false;
     }
 
-    // 弱攻撃チェーン用ラッパ（chainIdx → ID 解決）
-    function startAttack(p, chainIdx) {
-      const id = Z_CHAIN[chainIdx];
+    // チェーン共通ラッパ（配列 + インデックスで ID 解決）
+    function startAttackFromChain(p, chain, chainIdx) {
+      const id = chain[chainIdx];
       if (!id) return;
+      p.attackChainArr = chain;
+      // 空中Jチェーン開始・継続時に軽くホップ（滞空維持）
+      if (chain === A_CHAIN && !p.isGrounded) {
+        if (p.vy < 0) p.vy *= 0.8; // ホップ時に落下速度を0.8倍に抑制してふわっとさせる
+        p.vy = Math.max(p.vy, PHYSICS.AERIAL_HOP_V);
+      }
       startAttackById(p, id, chainIdx);
+    }
+    // 地上 J チェーン
+    function startAttack(p, chainIdx) {
+      startAttackFromChain(p, Z_CHAIN, chainIdx);
+    }
+    // 空中 J チェーン
+    function startAerialAttack(p, chainIdx) {
+      startAttackFromChain(p, A_CHAIN, chainIdx);
     }
 
     // 強攻撃（K）はチェーン外で発動
@@ -819,6 +1080,16 @@
         e.hp = Math.max(0, e.hp - attack.damage);
         e.hitFlashTimer = 7;
         e.knockbackVx   = facing * (attack.knockback * 0.4);
+        const resolved = resolveAttackAttr(attack);
+        if (attack.launchVy) {
+          e.vy = attack.launchVy;
+          e.launcherAirborne = !!resolved.peakHang; // LAUNCH_COMBO属性のみ頂点スロー有効
+          spawnLaunchSmoke(e.x, e.y, e.z);
+        }
+        // 空中コンボヒット時：敵もホップして追撃範囲に留まる（頂点スローは発生させない）
+        if (p.attackChainArr === A_CHAIN && !p.isGrounded) {
+          e.vy = Math.max(e.vy, PHYSICS.AERIAL_HOP_V);
+        }
         // 演出
         triggerHitstop(attack.hitstop);
         triggerShake(attack.shake, attack.shake * 2 + 4);
@@ -854,10 +1125,15 @@
         // 攻撃終了
         if (p.hitDelivered) {
           // ヒット成立 → キャンセル受付に入る
-          p.state        = STATE.HIT_CONFIRM;
-          p.cancelTimer  = atk.cancelWindow;
+          p.aerialWhiffed   = false;
+          p.state           = STATE.HIT_CONFIRM;
+          p.cancelTimer     = atk.cancelWindow;
         } else {
           // 空振り → IDLE に戻る（プラン上「空振りキャンセル不可」）
+          // 空中で空振りした場合は次の空中Jを封鎖し落下させる
+          if (p.attackChainArr === A_CHAIN && !p.isGrounded) {
+            p.aerialWhiffed = true;
+          }
           p.state           = STATE.IDLE;
           p.attackChainIdx  = -1;
           p.attackId        = null;
@@ -879,25 +1155,23 @@
     // 攻撃入力処理（J キー押下 — 弱攻撃チェーン）
     let zKeyWasDown = false;
     function processAttackInput(p) {
-      const zPressed = !!keys['KeyJ'];
+      const zPressed = inp('KeyJ');
       const justPressed = zPressed && !zKeyWasDown;
       zKeyWasDown = zPressed;
       if (!justPressed) return;
 
       if (p.state === STATE.IDLE) {
-        startAttack(p, 0);
+        // 地上 / 空中でチェーンを切り替え
+        if (p.isGrounded) startAttack(p, 0);
+        else if (!p.aerialWhiffed) startAerialAttack(p, 0);
+        // aerialWhiffed 中は入力を無視して落下させる
       } else if (p.state === STATE.HIT_CONFIRM) {
-        // J 押下時の HIT_CONFIRM 分岐
-        if (p.attackChainIdx < 0) {
-          // K（チェーン外）後の J 押下 → 弱攻撃から再起点（仕様: 強→弱は基本なし、再起点扱い）
-          // 現プロトでは何もしない（強の後は強キャンセル or 必殺技 or メガクラのみを想定）
-          return;
-        }
-        // J チェーン進行
-        const next = p.attackChainIdx + 1;
-        if (next < Z_CHAIN.length) startAttack(p, next);
+        if (p.attackChainIdx < 0) return; // K（チェーン外）後は何もしない
+        // 同じチェーン配列を継続（地上 or 空中を自動維持）
+        const chain = p.attackChainArr || Z_CHAIN;
+        const next  = p.attackChainIdx + 1;
+        if (next < chain.length) startAttackFromChain(p, chain, next);
       } else if (p.state === STATE.ATTACKING) {
-        // バッファして攻撃終了直後に発動候補にする
         p.attackBuffered = true;
       }
     }
@@ -905,31 +1179,169 @@
     // 強攻撃入力処理（K キー押下）
     let kKeyWasDown = false;
     function processStrongAttackInput(p) {
-      const kPressed = !!keys['KeyK'];
+      const kPressed = inp('KeyK');
       const justPressed = kPressed && !kKeyWasDown;
       kKeyWasDown = kPressed;
       if (!justPressed) return;
 
       if (p.state === STATE.IDLE) {
-        // 単独 K 発動
-        startStrongAttack(p);
+        // ↑+K → 打ち上げ攻撃、それ以外 → 通常強攻撃
+        const upHeld = inp('ArrowUp') || inp('KeyW');
+        if (upHeld) startAttackById(p, 'k_up_meteo', -1);
+        else        startStrongAttack(p);
       } else if (p.state === STATE.HIT_CONFIRM) {
-        // 弱 → 強キャンセル（J ヒット中の K で K へ繋ぐ）
-        // K 後の K は再キャンセル不可（仕様）
+        // 弱 → 強キャンセル（J ヒット中の K で繋ぐ）
         if (p.attackChainIdx >= 0) {
-          startStrongAttack(p);
+          // Jチェーン中に ↑+K → 打ち上げ攻撃
+          const upHeld = inp('ArrowUp') || inp('KeyW');
+          if (upHeld) {
+            startAttackById(p, 'k_up_meteo', -1);
+          } else {
+            startStrongAttack(p);
+          }
         }
+      } else if (p.state === STATE.ATTACKING) {
+        // ATTACKING 中はバッファに積む（↑ 状態も保存して打ち上げ判定に使う）
+        p.kBuffered  = true;
+        p.kBufferUp  = inp('ArrowUp') || inp('KeyW');
       }
-      // ATTACKING 中の K 入力は無視（弱→強は HIT_CONFIRM 経由のみ・簡素化）
+    }
+
+    // ============================================================
+    //  メガクラッシュ / ULT 入力処理
+    //  発動条件: SP >= コスト
+    //  J+K+L 同時押し（or I / R2）→ SP 十分なら ULT・不足ならメガクラへフォールバック
+    //  J+K 同時押し（or U / R1）→ メガクラッシュ
+    // ============================================================
+    let megaCrashWasDown = false;
+    let ultWasDown = false;
+
+    // ダッシュ用：前フレームの方向キー状態（ダブルタップ検知）
+    let _dTapWasL = false, _dTapWasR = false;
+    let _dTapWasU = false, _dTapWasD = false;
+
+    function triggerMegaCrash(p) {
+      if (p.sp < SP_CONFIG.MEGA_CRASH_COST) return; // SP 不足 → 不発
+      p.sp -= SP_CONFIG.MEGA_CRASH_COST;
+      // TODO Phase 2.3: 自機中心の円形攻撃・command/charge フラグリセット・ヒットストップ
+      console.log('[MEGA CRASH] SP残:', p.sp.toFixed(1));
+    }
+
+    function triggerUlt(p) {
+      if (p.sp < SP_CONFIG.ULT_COST) {
+        // SP 不足: J+K+L 入力の場合はメガクラへフォールバック
+        triggerMegaCrash(p);
+        return;
+      }
+      p.sp -= SP_CONFIG.ULT_COST;
+      // TODO Phase 2.3: 画面全体攻撃・無敵・演出
+      console.log('[ULT] SP残:', p.sp.toFixed(1));
+    }
+
+    function processMegaCrashUltInput(p) {
+      // ULT 判定（優先）: I キー / R2 / J+K+L 同時押し
+      const jkl     = inp('KeyJ') && inp('KeyK') && inp('KeyL');
+      const ultDown  = action('ult') || jkl;
+      const ultJust  = ultDown && !ultWasDown;
+      ultWasDown     = ultDown;
+
+      // メガクラッシュ判定: U キー / R1 / J+K（L なし）同時押し
+      // ※ULT が発動する場合はメガクラ判定をスキップ
+      const jkOnly  = inp('KeyJ') && inp('KeyK') && !inp('KeyL');
+      const mcDown  = action('megaCrash') || jkOnly;
+      const mcJust  = mcDown && !megaCrashWasDown;
+      megaCrashWasDown = mcDown;
+
+      if (ultJust) { triggerUlt(p); return; }
+      if (mcJust)  { triggerMegaCrash(p); }
+    }
+
+    // ============================================================
+    //  ダッシュ（同方向2回タップ・板野式噴射付き）
+    // ============================================================
+    function startDash(p, dx, dz) {
+      p.dashActive    = true;
+      p.dashTriggerDx = dx;
+      p.dashTriggerDz = dz;
+      p.dashDirX      = dx;
+      p.dashDirZ      = dz;
+      p.lastTapDir    = null;
+      p.lastTapTimer  = 0;
+
+      // 板野的演出：対側スラスター噴射で加速理由を可視化
+      if (dx !== 0) {
+        p.yawBurstSide  = -dx;
+        p.yawBurstTimer = PHYSICS.YAW_BURST_FRAMES;
+      } else {
+        // Z方向ダッシュ → 両肩同時噴射（yawBurstSide=0 で両側表示）
+        p.yawBurstSide  = 0;
+        p.yawBurstTimer = PHYSICS.YAW_BURST_FRAMES;
+      }
+
+      // ダッシュ開始のオレンジ粒子
+      spawnHitParticles(p.x, p.y + 20, p.z, 0xff8800, 12);
+    }
+
+    function processDashInput(p) {
+      const nowL = inp('ArrowLeft')  || inp('KeyA');
+      const nowR = inp('ArrowRight') || inp('KeyD');
+      const nowU = inp('ArrowUp')    || inp('KeyW');
+      const nowD = inp('ArrowDown')  || inp('KeyS');
+
+      const justL = nowL && !_dTapWasL;
+      const justR = nowR && !_dTapWasR;
+      const justU = nowU && !_dTapWasU;
+      const justD = nowD && !_dTapWasD;
+
+      _dTapWasL = nowL;  _dTapWasR = nowR;
+      _dTapWasU = nowU;  _dTapWasD = nowD;
+
+      // ダッシュ可能条件（タイマー判定より先にチェック）
+      const canDash = p.dashCooldown <= 0
+                   && !p.dashActive
+                   && p.state !== STATE.ATTACKING;
+
+      // ダブルタップ判定（デクリメント前に確認してウィンドウを正確に保つ）
+      if (canDash && p.lastTapTimer > 0 && p.lastTapDir) {
+        const d = p.lastTapDir;
+        if (justL && d.x === -1) { startDash(p, -1,  0); return; }
+        if (justR && d.x ===  1) { startDash(p,  1,  0); return; }
+        if (justU && d.z === -1) { startDash(p,  0, -1); return; }
+        if (justD && d.z ===  1) { startDash(p,  0,  1); return; }
+      }
+
+      // タイマーを1フレーム進める（攻撃中も進める）
+      if (p.lastTapTimer > 0) p.lastTapTimer--;
+
+      if (!canDash) return;
+
+      // 最初のタップを記録（優先: L > R > U > D）
+      if      (justL) { p.lastTapDir = {x:-1, z: 0}; p.lastTapTimer = PHYSICS.DASH_TAP_WINDOW; }
+      else if (justR) { p.lastTapDir = {x: 1, z: 0}; p.lastTapTimer = PHYSICS.DASH_TAP_WINDOW; }
+      else if (justU) { p.lastTapDir = {x: 0, z:-1}; p.lastTapTimer = PHYSICS.DASH_TAP_WINDOW; }
+      else if (justD) { p.lastTapDir = {x: 0, z: 1}; p.lastTapTimer = PHYSICS.DASH_TAP_WINDOW; }
     }
 
     // バッファ消化（HIT_CONFIRM になった瞬間に Z バッファがあれば次段へ）
     function consumeAttackBuffer(p) {
       if (p.state === STATE.HIT_CONFIRM && p.attackBuffered) {
-        const next = p.attackChainIdx + 1;
+        const chain = p.attackChainArr || Z_CHAIN;
+        const next  = p.attackChainIdx + 1;
         p.attackBuffered = false;
-        if (next < Z_CHAIN.length) startAttack(p, next);
+        if (next < chain.length) startAttackFromChain(p, chain, next);
       }
+    }
+
+    // ATTACKING中にバッファされたK入力をHIT_CONFIRM移行時に消費
+    function consumeStrongAttackBuffer(p) {
+      if (p.state !== STATE.HIT_CONFIRM) return;
+      if (!p.kBuffered) return;
+      if (p.attackChainIdx < 0) { p.kBuffered = false; return; } // Kチェーン外は無視
+      const wasUp  = p.kBufferUp;
+      p.kBuffered  = false;
+      p.kBufferUp  = false;
+      if (wasUp) startAttackById(p, 'k_up_meteo', -1);
+      else       startStrongAttack(p);
     }
 
     // キャンセルジャンプ：HIT_CONFIRM 中に SPACE → 大噴射ジャンプ
@@ -937,12 +1349,13 @@
     //       K（強攻撃）は打ち上げ属性なし → 不可
     function tryCancelJump(p) {
       if (p.state !== STATE.HIT_CONFIRM) return false;
-      if (!keys['Space']) return false;
-      // 弱攻撃チェーン中 or 打ち上げ属性持ち技のみ許可
+      if (!inp('Space')) return false;
+      // 地上Jチェーン中 or 打ち上げ属性持ち技のみ許可
+      // A_CHAIN（空中Jコンボ）は対象外 → 空中J→SPACE→空中J の無限ループを防止
       const atk = ATTACKS[p.attackId];
-      const isChainAttack = p.attackChainIdx >= 0;
+      const isGroundChain = p.attackChainArr === Z_CHAIN && p.attackChainIdx >= 0;
       const isLauncher    = atk && atk.launcher === true;
-      if (!isChainAttack && !isLauncher) return false;
+      if (!isGroundChain && !isLauncher) return false;
       // 発動！
       p.vy               = PHYSICS.CANCEL_JUMP_V;
       p.isGrounded       = false;
@@ -964,8 +1377,10 @@
       if (p.dashCooldown > 0) p.dashCooldown--;
 
       // === 攻撃入力処理（毎フレーム）===
+      processMegaCrashUltInput(p);  // ULT / メガクラ（優先度高）
       processAttackInput(p);
       processStrongAttackInput(p);
+      processDashInput(p);          // ダッシュ（ダブルタップ検知）
 
       // === キャンセルジャンプ判定 ===
       tryCancelJump(p);
@@ -974,47 +1389,113 @@
       updateAttack(p);
       updateHitConfirm(p);
       consumeAttackBuffer(p);
+      consumeStrongAttackBuffer(p);
 
       // === 攻撃中は地上移動を抑制 ===
       const movementLocked = (p.state === STATE.ATTACKING) && p.isGrounded;
 
-      // === 入力 → 移動ベクトル ===
+      // === 入力 → 移動ベクトル（空中慣性 → ダッシュ → 通常の優先順）===
       let mvx = 0, mvz = 0;
-      if (!movementLocked) {
-        if (keys['ArrowLeft']  || keys['KeyA']) mvx -= 1;
-        if (keys['ArrowRight'] || keys['KeyD']) mvx += 1;
-        if (keys['ArrowUp']    || keys['KeyW']) mvz -= 1;
-        if (keys['ArrowDown']  || keys['KeyS']) mvz += 1;
-      }
-      const len = Math.hypot(mvx, mvz);
-      if (len > 0) { mvx /= len; mvz /= len; }
+      const isDashing = p.dashActive;
 
-      p.x += mvx * PHYSICS.SPEED;
-      p.z += mvz * PHYSICS.SPEED;
-      // ステージ横バウンド（横に無限に広がらない）
+      if (!p.isGrounded) {
+        // 空中：慣性ベースの移動。キー入力で緩やかに方向修正できるが急停止しない
+        let ix = 0, iz = 0;
+        if (inp('ArrowLeft')  || inp('KeyA')) ix -= 1;
+        if (inp('ArrowRight') || inp('KeyD')) ix += 1;
+        if (inp('ArrowUp')    || inp('KeyW')) iz -= 1;
+        if (inp('ArrowDown')  || inp('KeyS')) iz += 1;
+        const ilen = Math.hypot(ix, iz);
+        if (ilen > 0) { ix /= ilen; iz /= ilen; }
+        p.airVx = p.airVx * PHYSICS.AIR_FRICTION + ix * PHYSICS.AIR_CONTROL;
+        p.airVz = p.airVz * PHYSICS.AIR_FRICTION + iz * PHYSICS.AIR_CONTROL;
+        p.x += p.airVx;
+        p.z += p.airVz;
+        mvx = p.airVx;
+        mvz = p.airVz;
+      } else if (isDashing) {
+        // 全方向キーから移動ベクトル生成
+        let dvx = 0, dvz = 0;
+        if (inp('ArrowLeft')  || inp('KeyA')) dvx -= 1;
+        if (inp('ArrowRight') || inp('KeyD')) dvx += 1;
+        if (inp('ArrowUp')    || inp('KeyW')) dvz -= 1;
+        if (inp('ArrowDown')  || inp('KeyS')) dvz += 1;
+        const anyKey = dvx !== 0 || dvz !== 0;
+
+        if (!anyKey || movementLocked) {
+          // 全キー離し or 攻撃 → ダッシュ終了
+          p.dashActive   = false;
+          p.dashCooldown = PHYSICS.DASH_COOLDOWN;
+          // mvx/mvz は 0 のまま → このフレームは移動なし
+        } else {
+          const dvlen = Math.hypot(dvx, dvz);
+          if (dvlen > 0) { dvx /= dvlen; dvz /= dvlen; }
+
+          // 移動軸変化 30° 以上 → 足元火花（急制動の板野演出）
+          const prevAngle = Math.atan2(p.dashDirZ, p.dashDirX);
+          const currAngle = Math.atan2(dvz, dvx);
+          let angleDiff = Math.abs(currAngle - prevAngle);
+          if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+          if (angleDiff > PHYSICS.DASH_SPARK_ANGLE && p.isGrounded) {
+            spawnHitParticles(p.x, p.y + 5, p.z, p.dashSparkColor, 10);
+          }
+
+          p.dashDirX = dvx;
+          p.dashDirZ = dvz;
+          mvx = dvx;
+          mvz = dvz;
+          p.x += mvx * PHYSICS.SPEED * PHYSICS.DASH_SPEED_MULT;
+          p.z += mvz * PHYSICS.SPEED * PHYSICS.DASH_SPEED_MULT;
+        }
+      } else if (!movementLocked) {
+        if (inp('ArrowLeft')  || inp('KeyA')) mvx -= 1;
+        if (inp('ArrowRight') || inp('KeyD')) mvx += 1;
+        if (inp('ArrowUp')    || inp('KeyW')) mvz -= 1;
+        if (inp('ArrowDown')  || inp('KeyS')) mvz += 1;
+        const rawLen = Math.hypot(mvx, mvz);
+        if (rawLen > 0) { mvx /= rawLen; mvz /= rawLen; }
+        p.x += mvx * PHYSICS.SPEED;
+        p.z += mvz * PHYSICS.SPEED;
+      }
+      // ← ブロック外で len を計算（isMoving 判定・待機バウンスに使用）
+      const len = Math.hypot(mvx, mvz);
+
+      // ステージバウンド
       p.x = Math.max(PHYSICS.STAGE_LEFT, Math.min(PHYSICS.STAGE_RIGHT, p.x));
-      // 深度制限（ベルスクの帯幅）
       p.z = Math.max(-380, Math.min(380, p.z));
 
-      // === 向き（攻撃中は固定）===
-      if (!movementLocked) {
+      // === 向き（ダッシュ中は dash 方向に従う・攻撃中は固定）===
+      if (isDashing || !movementLocked) {
         if (mvx > 0) p.facing = 1;
         else if (mvx < 0) p.facing = -1;
       }
 
       // === 方向転換検知 → 肩ヨースラスター噴射（板野的姿勢制御推力） ===
-      const curMoveDir = (mvx > 0) ? 1 : (mvx < 0 ? -1 : 0);
-      if (curMoveDir !== 0 && p.prevMoveDir !== 0 && curMoveDir !== p.prevMoveDir) {
-        // 旧方向側の肩スラスターが噴く（旧方向への速度を打ち消す姿勢制御）
-        p.yawBurstSide  = p.prevMoveDir;
-        p.yawBurstTimer = PHYSICS.YAW_BURST_FRAMES;
+      // ダッシュ中は startDash() 内でスラスターを設定済みのためスキップ
+      if (!isDashing) {
+        const curMoveDir = (mvx > 0) ? 1 : (mvx < 0 ? -1 : 0);
+        if (curMoveDir !== 0 && p.prevMoveDir !== 0 && curMoveDir !== p.prevMoveDir) {
+          p.yawBurstSide  = p.prevMoveDir;
+          p.yawBurstTimer = PHYSICS.YAW_BURST_FRAMES;
+        }
+        if (curMoveDir !== 0) p.prevMoveDir = curMoveDir;
       }
-      if (curMoveDir !== 0) p.prevMoveDir = curMoveDir;
 
       // === ジャンプ・ブースター・重力 ===
       // 接地中にスペース → 初速付与＋ブースター点火
       // ※キャンセルジャンプ（tryCancelJump）で既に発動済みの場合は二重発動しない
-      if (p.isGrounded && keys['Space'] && p.bigBurstTimer === 0) {
+      if (p.isGrounded && inp('Space') && p.bigBurstTimer === 0) {
+        // ジャンプ時に地上の速度を空中慣性として引き継ぐ
+        if (p.dashActive) {
+          // ダッシュ中ジャンプ：ダッシュ速度をそのまま慣性に
+          p.airVx = p.dashDirX * PHYSICS.SPEED * PHYSICS.DASH_SPEED_MULT;
+          p.airVz = p.dashDirZ * PHYSICS.SPEED * PHYSICS.DASH_SPEED_MULT;
+          p.dashActive = false; // ダッシュはジャンプで終了（cooldown設定なし）
+        } else {
+          // 通常ジャンプ：歩き速度を慣性に
+          p.airVx = mvx * PHYSICS.SPEED;
+          p.airVz = mvz * PHYSICS.SPEED;
+        }
         p.vy = PHYSICS.JUMP_V;
         p.isGrounded = false;
         p.thrustFramesLeft = PHYSICS.THRUST_FRAMES;
@@ -1023,7 +1504,7 @@
       // 空中処理
       const thrustingNow =
         !p.isGrounded &&
-        keys['Space'] &&
+        inp('Space') &&
         p.thrustFramesLeft > 0 &&
         p.vy >= 0;  // 上昇中のみ推力（落下中は不可）
 
@@ -1041,8 +1522,24 @@
         if (p.y <= 0) {
           p.y = 0;
           p.vy = 0;
-          p.isGrounded = true;
+          p.isGrounded    = true;
+          p.aerialWhiffed = false;
           p.thrustFramesLeft = 0;
+          // 着地時に方向キーが入力中であればダッシュを自動継続
+          { let ldx = 0, ldz = 0;
+            if (inp('ArrowLeft')  || inp('KeyA')) ldx -= 1;
+            if (inp('ArrowRight') || inp('KeyD')) ldx += 1;
+            if (inp('ArrowUp')    || inp('KeyW')) ldz -= 1;
+            if (inp('ArrowDown')  || inp('KeyS')) ldz += 1;
+            const llen = Math.hypot(ldx, ldz);
+            if (llen > 0 && p.dashCooldown === 0) {
+              p.dashActive   = true;
+              p.dashDirX     = ldx / llen;
+              p.dashDirZ     = ldz / llen;
+            }
+          }
+          p.airVx = 0;
+          p.airVz = 0;
         }
       }
 
@@ -1052,27 +1549,33 @@
       const parts = p.mesh.userData.parts;
 
       // ブースター炎（足元）の表示・パルス
-      parts.thrusterL.visible = thrustingNow;
-      parts.thrusterR.visible = thrustingNow;
-      if (thrustingNow) {
-        // キャンセルジャンプ中はサイズも色も派手に
-        const isBig = p.bigBurstTimer > 0;
-        const pulse = (isBig ? 1.6 : 0.85) + Math.random() * (isBig ? 0.7 : 0.4);
-        parts.thrusterL.scale.set(isBig ? 1.8 : 1, pulse, isBig ? 1.8 : 1);
-        parts.thrusterR.scale.set(isBig ? 1.8 : 1, pulse, isBig ? 1.8 : 1);
-        parts.thrusterL.material.color.setHex(isBig ? 0xffff66 : 0x00ddff);
-        parts.thrusterR.material.color.setHex(isBig ? 0xffff66 : 0x00ddff);
+      // ダッシュ中もスラスター点火（オレンジで差別化）
+      const thrustOrDash = thrustingNow || isDashing;
+      parts.thrusterL.visible = thrustOrDash;
+      parts.thrusterR.visible = thrustOrDash;
+      if (thrustOrDash) {
+        const isBig  = p.bigBurstTimer > 0;
+        const isDash = isDashing && !thrustingNow;
+        // 色：キャンセルジャンプ=黄 / 通常ジャンプ=シアン / ダッシュ=オレンジ
+        const col  = isBig ? 0xffff66 : isDash ? 0xff8800 : 0x00ddff;
+        const sz   = isBig ? 1.8 : isDash ? 1.4 : 1.0;
+        const pulse = (isBig ? 1.6 : isDash ? 1.3 : 0.85)
+                    + Math.random() * (isBig ? 0.7 : isDash ? 0.5 : 0.4);
+        parts.thrusterL.scale.set(sz, pulse, sz);
+        parts.thrusterR.scale.set(sz, pulse, sz);
+        parts.thrusterL.material.color.setHex(col);
+        parts.thrusterR.material.color.setHex(col);
       } else {
-        // 待機色に戻す
         parts.thrusterL.material.color.setHex(0x00ddff);
         parts.thrusterR.material.color.setHex(0x00ddff);
       }
 
       // ヨースラスター（肩）の表示・パルス
+      // yawBurstSide === 0 はZ軸ダッシュ時の両肩同時噴射
       if (p.yawBurstTimer > 0) p.yawBurstTimer--;
       const yawActive = p.yawBurstTimer > 0;
-      parts.yawL.visible = yawActive && (p.yawBurstSide < 0);
-      parts.yawR.visible = yawActive && (p.yawBurstSide > 0);
+      parts.yawL.visible = yawActive && (p.yawBurstSide <= 0);
+      parts.yawR.visible = yawActive && (p.yawBurstSide >= 0);
       if (yawActive) {
         const yawPulse = 0.6 + Math.random() * 0.6;
         const target = (p.yawBurstSide < 0) ? parts.yawL : parts.yawR;
@@ -1104,11 +1607,46 @@
           spawnHitParticles(e.x, e.y + 100, e.z, 0xff8844, 24);
           triggerShake(8, 14);
         }
-        // ノックバック減衰
+        // ノックバック減衰（水平）
         e.x += e.knockbackVx;
         e.knockbackVx *= 0.78;
         if (Math.abs(e.knockbackVx) < 0.1) e.knockbackVx = 0;
+        // ステージバウンドで壁に当たったらノックバックを止める
+        if (e.x < PHYSICS.STAGE_LEFT)  { e.x = PHYSICS.STAGE_LEFT;  e.knockbackVx = 0; }
+        if (e.x > PHYSICS.STAGE_RIGHT) { e.x = PHYSICS.STAGE_RIGHT; e.knockbackVx = 0; }
         e.mesh.position.x = e.x;
+        // 打ち上げ（垂直）
+        if (e.vy !== 0 || e.y > 0 || e.peakHangTimer > 0) {
+          // 頂点到達検出：LAUNCH_COMBO属性で打ち上げ中かつ上昇→下降に切り替わった瞬間
+          if (e.launcherAirborne && e.prevVy > 0 && e.vy <= 0 && e.y > 0 && e.peakHangTimer === 0) {
+            e.peakHangTimer = 36;
+            e.peakHangTotal = 36;
+            spawnHitParticles(e.x, e.y + 100, e.z, 0xffffff, 8);
+          }
+          e.prevVy = e.vy;
+
+          let gravFactor;
+          if (e.peakHangTimer > 0) {
+            // フェードイン：最初の12Fかけて重力を1.0→0.05へ滑らかに落とす
+            const elapsed  = e.peakHangTotal - e.peakHangTimer;
+            const fadeT    = Math.min(1, elapsed / 12);
+            const baseFactor = (e.vy < 0) ? 0.6 : 1.0;
+            gravFactor = baseFactor + (0.05 - baseFactor) * fadeT;
+            e.peakHangTimer--;
+          } else if (e.y > 0 && e.vy < 0) {
+            gravFactor = 0.6; // スロー終了後の落下も6割重力
+          } else {
+            gravFactor = 1.0;
+          }
+          e.vy -= PHYSICS.GRAVITY * gravFactor;
+          e.y  += e.vy;
+          if (e.y <= 0) {
+            e.y = 0; e.vy = 0; e.prevVy = 0;
+            e.peakHangTimer = 0; e.peakHangTotal = 0;
+            e.launcherAirborne = false;
+          }
+          e.mesh.position.y = e.y;
+        }
 
         // ヒットフラッシュ
         if (e.hitFlashTimer > 0) {
@@ -1189,7 +1727,174 @@
       renderer.render(scene, camera);
     }
 
+    // === デバッグ用 HUD ハイライト ===
+    // 押されているボタンに対応する説明行を黄色くハイライトする
+    const HUD_HIGHLIGHT_MAP = [
+      { id: 'hk-move',      check: () => inp('ArrowLeft') || inp('ArrowRight') || inp('ArrowUp') || inp('ArrowDown') || inp('KeyA') || inp('KeyD') || inp('KeyW') || inp('KeyS') },
+      { id: 'hk-jump',      check: () => action('jump') },
+      { id: 'hk-weak',      check: () => action('weakAttack') },
+      { id: 'hk-strong',    check: () => action('strongAttack') },
+      { id: 'hk-cancel',    check: () => action('jump') && players[0]?.state === STATE.HIT_CONFIRM },
+      { id: 'hk-secondary', check: () => action('secondary') },
+      { id: 'hk-mega',      check: () => action('megaCrash') || (inp('KeyJ') && inp('KeyK') && !inp('KeyL')) },
+      { id: 'hk-ult',       check: () => action('ult')      || (inp('KeyJ') && inp('KeyK') &&  inp('KeyL')) },
+    ];
+    const _hkEls = {};
+    HUD_HIGHLIGHT_MAP.forEach(({ id }) => { _hkEls[id] = document.getElementById(id); });
+
+    function updateHudHighlight() {
+      HUD_HIGHLIGHT_MAP.forEach(({ id, check }) => {
+        const el = _hkEls[id];
+        if (!el) return;
+        el.classList.toggle('hk-active', check());
+      });
+    }
+
+    // ============================================================
+    //  デバッグ：ヒットボックス可視化（Q トグル）
+    //  depthTest:false でキャラを貫通して常に前面表示
+    //  色凡例: 緑=プレイヤーボディ / オレンジ=攻撃判定 / シアン=敵ボディ
+    //  ※ loop() より前に定義する（TDZ 回避 — CLAUDE.md 変数定義順の鉄則）
+    // ============================================================
+    let debugHitbox = false;
+    const _hkHudEl = document.getElementById('hk-hitbox');
+
+    function _makeWireBox(w, h, d, color) {
+      const box = new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d)),
+        new THREE.LineBasicMaterial({ color, depthTest: false })
+      );
+      box.renderOrder = 999;
+      box.visible = false;
+      scene.add(box);
+      return box;
+    }
+
+    // プレイヤーボディ（緑）— torso〜headまでの外形
+    const _dbgPlayerBody = _makeWireBox(70, 170, 55, 0x00ff44);
+
+    // 攻撃ヒットボックス（オレンジ）— 判定フレーム中のみ出現・scale で可変
+    const _dbgAttackBox  = _makeWireBox(1, 1, 1, 0xff6600);
+
+    // 敵ボディ（シアン）— 各敵に1つ生成
+    const _dbgEnemyBodies = enemies.map(() => _makeWireBox(70, 185, 60, 0x00ccff));
+
+    // ============================================================
+    //  背景コリジョン表示（半透明塗りつぶし）
+    //  色凡例: 緑=床 / オレンジ=X境界壁 / 青=Z境界壁
+    //  depthWrite:false で透過オブジェクトのソートを安定させる
+    // ============================================================
+    function _makeCollisionMesh(w, h, d, color, opacity, order = 997) {
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(w, h, d),
+        new THREE.MeshBasicMaterial({
+          color, transparent: true, opacity,
+          depthWrite: false, side: THREE.DoubleSide,
+        })
+      );
+      mesh.renderOrder = order;
+      mesh.visible = false;
+      scene.add(mesh);
+      return mesh;
+    }
+
+    const _COL_Z_HALF = 380;
+    const _COL_Z_SPAN = _COL_Z_HALF * 2;  // 760
+    const _COL_WALL_H = 400;               // 壁の高さ（プレイヤー約2体分）
+
+    // 床（緑）— renderOrder 999 で最前面。カメラ手前の壁より必ず上に描画
+    const _dbgFloor = _makeCollisionMesh(
+      PHYSICS.STAGE_RIGHT - PHYSICS.STAGE_LEFT, 2, _COL_Z_SPAN, 0x00ff88, 0.25, 999
+    );
+    _dbgFloor.position.set(
+      (PHYSICS.STAGE_LEFT + PHYSICS.STAGE_RIGHT) / 2, 1, 0
+    );
+
+    // 左右壁（オレンジ）— X方向の移動限界
+    const _dbgWallL = _makeCollisionMesh(4, _COL_WALL_H, _COL_Z_SPAN, 0xff7700, 0.28);
+    const _dbgWallR = _makeCollisionMesh(4, _COL_WALL_H, _COL_Z_SPAN, 0xff7700, 0.28);
+
+    // 前後壁（青）— Z方向の移動限界
+    const _dbgWallFront = _makeCollisionMesh(
+      PHYSICS.STAGE_RIGHT - PHYSICS.STAGE_LEFT, _COL_WALL_H, 4, 0x4499ff, 0.3
+    );
+    const _dbgWallBack = _makeCollisionMesh(
+      PHYSICS.STAGE_RIGHT - PHYSICS.STAGE_LEFT, _COL_WALL_H, 4, 0x4499ff, 0.3
+    );
+
+    const _dbgCollisionMeshes = [_dbgFloor, _dbgWallL, _dbgWallR, _dbgWallFront, _dbgWallBack];
+
+    function toggleHitbox() {
+      debugHitbox = !debugHitbox;
+      _hkHudEl.textContent = `Q: ヒットボックス / コリジョン [${debugHitbox ? 'ON' : 'OFF'}]`;
+      _hkHudEl.classList.toggle('hk-toggle-on', debugHitbox);
+      if (!debugHitbox) {
+        _dbgPlayerBody.visible = false;
+        _dbgAttackBox.visible  = false;
+        _dbgEnemyBodies.forEach(b => { b.visible = false; });
+        _dbgCollisionMeshes.forEach(m => { m.visible = false; });
+      }
+    }
+
+    function updateHitboxDebug() {
+      if (!debugHitbox) return;
+      const p = players[0];
+
+      // プレイヤーボディ（中心 y = p.y + 85）
+      _dbgPlayerBody.visible = true;
+      _dbgPlayerBody.position.set(p.x, p.y + 85, p.z);
+
+      // 攻撃ヒットボックス（判定フレーム中のみ表示）
+      let showAtk = false;
+      if (p.state === STATE.ATTACKING && p.attackId) {
+        const atk     = ATTACKS[p.attackId];
+        const elapsed = atk.duration - p.stateTimer;
+        if (elapsed >= atk.hitFrame && elapsed < atk.hitFrame + atk.hitDuration) {
+          const rx = atk.rangeX;
+          const rz = atk.rangeZ;
+          _dbgAttackBox.scale.set(rx, 180, rz * 2);
+          _dbgAttackBox.position.set(p.x + p.facing * rx * 0.5, p.y + 90, p.z);
+          showAtk = true;
+        }
+      }
+      _dbgAttackBox.visible = showAtk;
+
+      // 敵ボディ
+      enemies.forEach((e, i) => {
+        const b = _dbgEnemyBodies[i];
+        if (!b) return;
+        b.visible = e.isAlive;
+        if (e.isAlive) b.position.set(e.x, e.y + 92, e.z);
+      });
+
+      // 背景コリジョン表示（ランタイム変更に追従）
+      const sl = PHYSICS.STAGE_LEFT, sr = PHYSICS.STAGE_RIGHT;
+      const cx = (sl + sr) / 2, sw = sr - sl;
+      const cy = _COL_WALL_H / 2;
+
+      _dbgFloor.visible = true;
+      _dbgFloor.position.set(cx, 1, 0);
+      _dbgFloor.scale.set(sw / (sr - sl || 1), 1, 1); // STAGE_LEFT/RIGHT 動的変更対応
+
+      _dbgWallL.visible = true;
+      _dbgWallL.position.set(sl, cy, 0);
+
+      _dbgWallR.visible = true;
+      _dbgWallR.position.set(sr, cy, 0);
+
+      _dbgWallFront.visible = true;
+      _dbgWallFront.position.set(cx, cy, -_COL_Z_HALF);
+      _dbgWallFront.scale.set(sw / (sr - sl || 1), 1, 1);
+
+      _dbgWallBack.visible = true;
+      _dbgWallBack.position.set(cx, cy, _COL_Z_HALF);
+      _dbgWallBack.scale.set(sw / (sr - sl || 1), 1, 1);
+    }
+
     function loop() {
+      pollGamepad();       // ゲームパッド状態を padKeys に反映
+      updateHudHighlight();
+      updateHitboxDebug(); // ヒットボックス可視化（Q トグル）
       // ヒットストップ：更新スキップ・描画は継続
       if (hitstopTimer > 0) {
         hitstopTimer--;
@@ -1204,13 +1909,12 @@
     loop();
 
     // ============================================================
-    //  RESIZE
+    //  RESIZE / HUD スケール追従
+    //  16:9 固定なのでアスペクト変更は不要。
+    //  CSS が #game-frame のサイズをウィンドウに合わせてレターボックス調整する。
+    //  内部レンダリング解像度は 1920x1080 を維持。
+    //  HUD は #hud-layer を transform: scale() でフレームサイズに追従させる。
     // ============================================================
-    // === RESIZE / HUD スケール追従 ===
-    // 16:9 固定なのでアスペクト変更は不要。
-    // CSS が #game-frame のサイズをウィンドウに合わせてレターボックス調整する。
-    // 内部レンダリング解像度は 1920x1080 を維持。
-    // HUD は #hud-layer を transform: scale() でフレームサイズに追従させる。
     function updateHudScale() {
       const frame = document.getElementById('game-frame');
       if (frame) {
@@ -1224,25 +1928,20 @@
     }
     addEventListener('resize', updateHudScale);
     updateHudScale();  // 初期化
-
-    // ============================================================
-    //  開発者向け：グローバル参照（コンソールから動的に調整可能）
-    //  例:
-    //    SB.PHYSICS.JUMP_V = 14
-    //    SB.PHYSICS.THRUST_FRAMES = 18
-    //    SB.PHYSICS.SPEED = 7
-    //  → 次フレームから即反映。コンボのテンポ調整はここで完結する。
-    // ============================================================
     window.SB = {
       scene, camera, renderer, players, enemies,
       CHARACTER_ASSETS,
-      PHYSICS, SP_CONFIG, ATTACKS, STATE, Z_CHAIN,
+      PHYSICS, SP_CONFIG, ATTACKS, STATE, Z_CHAIN, A_CHAIN,
+      KEY_CONFIG,   // キーコンフィグ（将来オプション画面でリバインド可能）
       // 共通関数（コンソールから呼べる）
       triggerHitstop, triggerShake, spawnHitParticles,
+      triggerMegaCrash, triggerUlt,
+      // ダッシュ（例: SB.startDash(SB.players[0], 1, 0) で右ダッシュ強制発動）
+      startDash,
     };
-    console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / dash) loaded.');
-    console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG');
-    console.log('[SCRAP BLITZ] Try: SB.SP_CONFIG.REGEN_RATE = 0.5');
+    console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / pad / mega crash / ult) loaded.');
+    console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG / SB.KEY_CONFIG');
+    console.log('[SCRAP BLITZ] Try: SB.SP_CONFIG.MEGA_CRASH_COST = 10');
   </script>
 </body>
 </html>
