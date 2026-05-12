@@ -130,6 +130,18 @@
       pointer-events: none;
     }
 
+    #fps {
+      position: absolute;
+      top: 66px; right: var(--sp-lg);
+      padding: var(--sp-xs) var(--sp-lg);
+      background: rgba(0, 0, 0, 0.45);
+      border-right: var(--hud-accent-w) solid #446655;
+      font-size: var(--fs-xs);
+      color: #66ffaa;
+      letter-spacing: var(--ls-tight);
+      pointer-events: none;
+    }
+
     #sp-gauge-wrap {
       position: absolute;
       bottom: var(--sp-xl); left: var(--sp-lg);
@@ -168,19 +180,22 @@
   <div id="hud">
     <div class="title">SCRAP BLITZ</div>
     <div id="hk-move">WASD / 矢印キー: 移動</div>
+    <div id="hk-dash">同方向2回タップ長押し: ローラーダッシュ</div>
     <div id="hk-jump">SPACE / A: ジャンプ</div>
-    <div id="hk-weak">J / □: 弱攻撃（連打で3段）</div>
-    <div id="hk-strong">K / △: 強攻撃</div>
+    <div id="hk-weak">J / □: 弱攻撃（地上4段 / 空中3段）</div>
+    <div id="hk-strong">K / △: 強攻撃 / ↑+K: 打ち上げ / ↓+K: 払い</div>
     <div id="hk-cancel">ヒット中SPACE: キャンセルジャンプ</div>
     <div id="hk-secondary">L / L1: セカンダリ</div>
-    <div id="hk-mega">U / R1: メガクラッシュ</div>
-    <div id="hk-ult">I / R2: ULT（超必殺技）</div>
+    <div id="hk-mega">U / R1 / J+K: メガクラッシュ</div>
+    <div id="hk-ult">I / R2 / J+K+L: ULT（超必殺技）</div>
     <div id="hk-hitbox" class="small">Q: ヒットボックス / コリジョン [OFF]</div>
+    <div id="hk-pixel"  class="small hk-toggle-on">P: ピクセルシェーダー [ON]</div>
     <div class="small">Phase 2.2 — KB+Pad対応</div>
   </div>
 
   <div id="debug">x: 0  z: 0  y: 0</div>
   <div id="phase">PHASE 2.2: SP / STRONG / DASH</div>
+  <div id="fps">-- FPS</div>
 
   <div id="combo" style="
     position: absolute;
@@ -197,6 +212,21 @@
   ">
     <div id="combo-num" style="font-size: var(--fs-xxl); line-height: 1;">0</div>
     <div id="combo-label" style="font-size: var(--fs-lg); color: #ffaa44;">COMBO</div>
+    <div id="combo-timer-bg" style="
+      width: 120px; height: 5px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 3px;
+      margin: 6px auto 0;
+      overflow: hidden;
+    ">
+      <div id="combo-timer-bar" style="
+        height: 100%; width: 100%;
+        background: #ffaa44;
+        border-radius: 3px;
+        transform-origin: right center;
+        transition: background 0.1s;
+      "></div>
+    </div>
   </div>
 
   <div id="sp-gauge-wrap">
@@ -281,6 +311,31 @@
     document.getElementById('game-frame').appendChild(renderer.domElement);
 
     // ============================================================
+    //  ピクセルシェーダー（案A：低解像度RT + NEAREST拡大）
+    //  P キーで ON/OFF トグル。SB.PIXEL_SHADER でランタイム調整可能。
+    // ============================================================
+    const PIXEL_SHADER = {
+      ENABLED: true,
+      RT_W: 640,  // 1920/3 — 細かめのドット感（480より1段上）
+      RT_H: 360,  // 1080/3 — 16:9 比率を維持
+    };
+
+    // 低解像度レンダーターゲット（両カメラパスの出力先）
+    const pixelRT = new THREE.WebGLRenderTarget(PIXEL_SHADER.RT_W, PIXEL_SHADER.RT_H, {
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      format: THREE.RGBAFormat,
+      depthBuffer: true,
+      stencilBuffer: false,
+    });
+
+    // フルスクリーンクアッド（pixelRT → 画面への最終ブリット用）
+    const _blitScene = new THREE.Scene();
+    const _blitCam   = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const _blitMat   = new THREE.MeshBasicMaterial({ map: pixelRT.texture });
+    _blitScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), _blitMat));
+
+    // ============================================================
     //  LIGHTING (key + fill + rim accent)
     // ============================================================
     const ambient = new THREE.AmbientLight(0x4455aa, 0.4);
@@ -313,36 +368,74 @@
     scene.add(fillLight);
 
     // ============================================================
-    //  PROCEDURAL GRID TEXTURE (ピクセル風)
+    //  PROCEDURAL GRID TEXTURE (パース焼き込み)
+    //  UV V=1 = canvas top = 奥（消失点）/ V=0 = canvas bottom = 手前
     // ============================================================
     function makeGridTexture() {
+      // B案：横タイリング対応・縦方向（奥行き）のみ透視圧縮
+      // wrapS=Repeat で横に無限タイル可能、wrapT=Clamp で奥行き感維持
+      const W = 512, H = 512;
       const canvas = document.createElement('canvas');
-      canvas.width = canvas.height = 64;
+      canvas.width = W; canvas.height = H;
       const ctx = canvas.getContext('2d');
 
       // ベース
-      ctx.fillStyle = '#161628';
-      ctx.fillRect(0, 0, 64, 64);
+      ctx.fillStyle = '#0c0c1e';
+      ctx.fillRect(0, 0, W, H);
 
-      // 格子線
-      ctx.strokeStyle = '#26264a';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(0, 0, 64, 64);
+      // 奥行きグラデ（上=奥を暗く）
+      const grad = ctx.createLinearGradient(0, H, 0, 0);
+      grad.addColorStop(0,   'rgba(14,14,36,0)');
+      grad.addColorStop(0.65,'rgba(8,8,24,0.25)');
+      grad.addColorStop(1,   'rgba(4,4,16,0.6)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
 
-      // ピクセルアクセント（中央に小ブロック）
-      ctx.fillStyle = '#3a3a72';
-      ctx.fillRect(28, 28, 8, 8);
+      // 縦線（均等間隔・タイル境界に線を置かない → シームレスタイル）
+      const numV = 4;
+      for (let i = 0; i < numV; i++) {
+        const x = (i / numV) * W;
+        const isMain = (i === 0);
+        ctx.strokeStyle = isMain ? 'rgba(55,55,150,0.5)' : 'rgba(35,35,100,0.28)';
+        ctx.lineWidth   = isMain ? 1.5 : 0.8;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, H);
+        ctx.stroke();
+      }
 
-      // コーナーノイズ
-      ctx.fillStyle = '#1f1f3a';
-      ctx.fillRect(2, 2, 4, 4);
-      ctx.fillRect(58, 58, 4, 4);
+      // 横線：透視圧縮（奥ほど密・手前ほど疎）
+      // canvas top(y=0)=奥(V=1)、bottom(y=H)=手前(V=0)
+      const numH = 26;
+      for (let i = 1; i <= numH; i++) {
+        const t = i / numH;
+        const y = H * (1 - Math.pow(1 - t, 2.4));
+        const isAccent = (i % 5 === 0);
+        ctx.strokeStyle = isAccent ? 'rgba(55,55,175,0.6)' : 'rgba(30,30,90,0.42)';
+        ctx.lineWidth   = isAccent ? 1.5 : 0.8;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      }
+
+      // ネオン横線アクセント（均一色でタイルしてもズレない）
+      [0.15, 0.40, 0.65, 0.85].forEach(at => {
+        const y = H * (1 - Math.pow(1 - at, 2.4));
+        ctx.strokeStyle = 'rgba(0,190,255,0.28)';
+        ctx.lineWidth   = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      });
 
       const tex = new THREE.CanvasTexture(canvas);
-      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-      tex.magFilter = THREE.NearestFilter; // ピクセル感維持
-      tex.minFilter = THREE.NearestFilter;
-      tex.repeat.set(80, 30);
+      tex.wrapS   = THREE.RepeatWrapping;       // 横：無限タイル
+      tex.wrapT   = THREE.ClampToEdgeWrapping;  // 縦：1枚で奥行き感維持
+      tex.repeat.set(8, 1);
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
       return tex;
     }
 
@@ -353,13 +446,16 @@
     const groundMat = new THREE.MeshToonMaterial({
       map:   makeGridTexture(),
       color: 0xaaaadd,
+      polygonOffset:       true,  // デバッグ壁との Z-fighting を防ぐ
+      polygonOffsetFactor: 2,
+      polygonOffsetUnits:  2,
     });
     const ground = new THREE.Mesh(groundGeom, groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = 0;
     ground.position.z = 500;  // 手前に寄せる
     ground.receiveShadow = true;
-    ground.layers.set(1);  // 背景レイヤー（Perspective・パース付き）
+    ground.layers.set(0);  // Orthographic カメラで描画 → X 移動時のスライドゼロ
     scene.add(ground);
 
     // ============================================================
@@ -529,7 +625,7 @@
 
       // 参照を保持しておく（アニメーション・エフェクト制御用）
       group.userData.parts = {
-        torso, head, armL, armR, legL, legR, footL, footR, visor,
+        torso, head, armL, armR, legL, legR, footL, footR, fistL, fistR, visor,
         thrusterL, thrusterR,
         yawL, yawR,
       };
@@ -565,6 +661,7 @@
     // ============================================================
     const PHYSICS = {
       SPEED:            5.5,    // 水平移動速度
+      Z_SPEED_MULT:     1.8,    // Z軸移動の視覚補正倍率（パース圧縮で遅く見えるため）
       JUMP_V:           10,     // ジャンプ初速（小さめ＝重量感）
       THRUST_FORCE:     1.20,   // ブースター毎フレーム加速量
       THRUST_FRAMES:    12,     // ブースター持続フレーム数（最大）
@@ -579,7 +676,12 @@
       CANCEL_JUMP_V:        12,    // キャンセル時のジャンプ初速（通常+2）
       CANCEL_JUMP_THRUST:   1.3,   // キャンセル時の推力（通常+0.1）
       CANCEL_JUMP_FRAMES:   14,    // キャンセル時の推力持続（通常+2）
-      AERIAL_HOP_V:          7,    // 空中Jコンボ開始時に付与する上昇速度（滞空維持）
+
+      // === 空中コンボ共通（全キャラ共有・キャラ固有値を持たせない） ===
+      AERIAL_HOP_V:          9,    // ヒット時の両者ホップ速度（プレイヤー・敵 共通）
+      AERIAL_RANGE_Y:      110,    // 空中攻撃の高さ方向当たり判定（チェーン内で段階加算）
+      AERIAL_Y_PULL:      0.45,    // ヒット確定時に敵 Y をプレイヤー Y へ引き寄せる割合
+      AERIAL_GRAV_FACTOR: 0.9,    // 空中コンボ中の重力倍率（1.0=通常・小さいほどふわっと）
 
       // === ステージ横バウンド ===
       // プレイヤーがこの範囲外に出られないようにクランプ。
@@ -589,9 +691,10 @@
       STAGE_RIGHT:   1500,
 
       // === ダッシュ（ローラーダッシュ式：2回タップ＋押しっぱなしで無制限持続） ===
-      DASH_SPEED_MULT:  2.5,  // 通常速度の倍率
+      DASH_SPEED_MULT:  2.0,  // 通常速度の倍率
+      GROUND_ACCEL:     0.20, // 地上方向転換の慣性係数（小さいほど重い・膨らむ）
       DASH_COOLDOWN:    24,   // ダッシュ終了後の再発動クールダウン（フレーム）
-      DASH_TAP_WINDOW:  12,   // 同方向2回タップの受付ウィンドウ（フレーム）
+      DASH_TAP_WINDOW:  18,   // 同方向2回タップの受付ウィンドウ（フレーム）
       DASH_SPARK_ANGLE: Math.PI / 6, // 足元火花を出す方向変化の閾値（30°）
 
       // === 空中慣性 ===
@@ -653,7 +756,7 @@
         label:        'A1 (空中ジャブ)',
         duration:     14, hitFrame: 5, hitDuration: 3, cancelWindow: 12,
         damage:       5,
-        rangeX:       90, rangeZ: 65,
+        rangeX:       90, rangeZ: 65, rangeY: PHYSICS.AERIAL_RANGE_Y,
         knockback:    3, hitstop: 3, shake: 2,
         partsAnim:    'air_punch_l',
       },
@@ -661,17 +764,22 @@
         label:        'A2 (空中蹴り)',
         duration:     16, hitFrame: 6, hitDuration: 3, cancelWindow: 13,
         damage:       7,
-        rangeX:       100, rangeZ: 70,
+        rangeX:       100, rangeZ: 70, rangeY: PHYSICS.AERIAL_RANGE_Y + 10,
         knockback:    5, hitstop: 4, shake: 3,
         partsAnim:    'air_kick',
       },
       a3: {
-        label:        'A3 (空中叩きつけ)',
+        label:        'A3 (空中叩きつけ・フィニッシャー)',
         duration:     18, hitFrame: 7, hitDuration: 4, cancelWindow: 14,
         damage:       10,
-        rangeX:       105, rangeZ: 75,
-        knockback:    8, hitstop: 5, shake: 4,
+        rangeX:       105, rangeZ: 75, rangeY: PHYSICS.AERIAL_RANGE_Y + 20,
+        knockback:    26,             // 地上K(30)相当の吹き飛ばし・とどめ感
+        launchVy:     -6,             // 叩きつけ方向（斜め下）でグラウンドへ叩き落す
+        hitstop:      7, shake: 6,
+        hitColor:     0x44ddff,       // 叩きつけ：氷系シアン（打ち上げの金・強攻撃のオレンジと差別化）
+        hitCount:     18,
         partsAnim:    'air_slam',
+        particleType: 'normal',       // launchVy<0 の slam 自動選択を上書き → 前方放射
       },
       // === 強攻撃 K（キャラ別）===
       // 仕様: METEO の強攻撃 — ダウンなし・キャラ約1体分のノックバック
@@ -701,6 +809,22 @@
         partsAnim:    'upper_cut',
         launcher:     true,             // ★ キャンセルジャンプ可（tryCancelJump が直参照）
         attrGroup:    'LAUNCH_COMBO',   // 属性バンドル：打ち上げ→頂点スロー→追撃
+      },
+      // 仕様: METEO 払い攻撃 — ↓+K で発動（単体可・Jチェーンからも可）
+      // 当たり判定：足元中心・全方向・地面スライスのみ（浮き敵には当たらない）
+      k_dn_meteo: {
+        label:        '↓+K (METEO 払い)',
+        duration:     20, hitFrame: 8, hitDuration: 4, cancelWindow: 14,
+        damage:       14,
+        rangeX:       140, rangeZ: 110,
+        rangeY:       35,              // 足元の薄いスライス（地面の敵だけ拾う）
+        knockback:    8,
+        hitstop:      6, shake: 4,
+        hitColor:     0xaaddff,
+        hitCount:     12,
+        launcher:     false,
+        omni:         true,            // 前方限定を外す（全方向ヒット）
+        partsAnim:    'sweep',
       },
     };
 
@@ -739,6 +863,64 @@
       HIT_CONFIRM: 'hit_confirm',   // ヒット確認後のキャンセル受付中
     };
 
+    // 敵ダウンステート
+    const ESTATE = {
+      wait01:         'wait01',
+      down_up_start:  'down_up_start',  // 打ち上げ後・傾き開始（tiltAngle 0→π/2）
+      down_up_loop:   'down_up_loop',   // 横倒し姿勢のまま落下継続
+      down_bas_start: 'down_bas_start', // 着地後ダウン静止
+      down_bas_end:   'down_bas_end',   // 起き上がり
+    };
+    const ENEMY_FALL_FRAMES = 36; // 0.6s：倒れ終わるまで
+    const ENEMY_DOWN_FRAMES = 60; // 1.0s：ダウン静止
+    const ENEMY_RISE_FRAMES = 30; // 0.5s：起き上がり
+
+    // ============================================================
+    //  パーツアニメーション定義（仮アニメーション・本番素材差し替えで削除）
+    //  攻撃の hitFrame 窓中に各パーツをオフセットして「動き」を表現する。
+    //  PART_REST: 静止時のローカル座標（buildPlayerMesh の初期位置と一致）
+    //  PART_ANIMS: partsAnim キー → パーツ名 → { x,y,z } の加算オフセット
+    //
+    //  ⚠️ 本番アニメーション（AnimationMixer）差し替え時のルール：
+    //    1. 対象技の ATTACKS[id].partsAnim フィールドを削除する
+    //    2. PART_ANIMS の対応エントリを削除する
+    //    → partsAnim が未定義なら updatePartAnims は何もしないため、削除だけで干渉が消える
+    // ============================================================
+    const PART_REST = {
+      armL:  { x: -50, y: 90, z:  0 },
+      armR:  { x:  50, y: 90, z:  0 },
+      fistL: { x: -50, y: 50, z:  0 },
+      fistR: { x:  50, y: 50, z:  0 },
+      legL:  { x: -22, y: 35, z:  0 },
+      legR:  { x:  22, y: 35, z:  0 },
+      footL: { x: -22, y:  6, z:  5 },
+      footR: { x:  22, y:  6, z:  5 },
+    };
+
+    // 各攻撃の hitFrame 窓での変位（facing 方向に沿って前方は +Z）
+    const PART_ANIMS = {
+      // z1: 左ジャブ — 左腕突き出し・右腕引き・左脚重心移動
+      punch_l:       { armL:{z:58,x:-6}, fistL:{z:76}, armR:{z:-22}, fistR:{z:-22}, legL:{z:12} },
+      // z2: 右ストレート — 右腕突き出し・左腕引き・右脚体重乗せ
+      punch_r:       { armR:{z:58,x:6},  fistR:{z:76}, armL:{z:-22}, fistL:{z:-22}, legR:{z:12} },
+      // z3: 回し蹴り — 右脚大きく前上方・左脚踏ん張り・腕バランス
+      kick:          { legR:{y:32,z:58}, footR:{y:40,z:74}, legL:{z:-14}, armL:{z:-12}, armR:{z:14} },
+      // z4: 旋回アッパー — 左腕上方弧・拳が頂点まで上がる・右腕カウンター
+      spin_upper:    { armL:{y:52,z:44}, fistL:{y:76,z:56}, armR:{z:-18}, fistR:{z:-10}, legL:{y:12,z:16} },
+      // K: 強パンチ右 — 右腕フル伸展・左腕大きく引き・右脚踏み込み
+      strong_punch_r:{ armR:{z:74,x:16}, fistR:{z:94,x:20}, armL:{z:-28,x:-12}, fistL:{z:-28,x:-12}, legR:{z:18} },
+      // ↑+K: アッパーカット — 右腕縦に突き上げ・左腕引き・右脚伸び
+      upper_cut:     { armR:{y:72,z:30}, fistR:{y:96,z:40}, armL:{z:-18}, fistL:{z:-8}, legR:{z:14} },
+      // a1: 空中ジャブ — 左腕突き出し・右腕引き
+      air_punch_l:   { armL:{z:52,x:-6}, fistL:{z:68}, armR:{z:-20}, fistR:{z:-20} },
+      // a2: 空中蹴り — 右脚前方高め・腕バランス
+      air_kick:      { legR:{y:30,z:58}, footR:{y:40,z:74}, armL:{z:-12}, armR:{z:12} },
+      // a3: 空中叩きつけ — 両腕両拳を真下に振り下ろす
+      air_slam:      { armL:{y:-44,z:34}, armR:{y:-44,z:34}, fistL:{y:-62,z:44}, fistR:{y:-62,z:44}, legL:{y:-12}, legR:{y:-12} },
+      // ↓+K: 払い — 右脚が低く前方に大きく流れ・左脚引き・腕バランス
+      sweep:         { legR:{y:-20,z:66}, footR:{y:-24,z:82}, legL:{z:-16,y:-10}, footL:{z:-14,y:-6}, armL:{z:-14}, armR:{z:-14} },
+    };
+
     // ============================================================
     //  PLAYER STATE (将来マルチ対応のため配列管理)
     //  Plan §注意事項
@@ -750,7 +932,7 @@
 
     const player = {
       mesh:             playerMesh,
-      x: 0, y: 0, z: 0,
+      x: 0, y: 0, z: 300,
       vy:               0,
       isGrounded:       true,
       facing:           1,   // 1 = 右向き, -1 = 左向き
@@ -780,6 +962,11 @@
       // === 空中慣性 ===
       airVx:            0,        // 空中水平慣性 X（ダッシュジャンプの勢い）
       airVz:            0,        // 空中水平慣性 Z
+      airWasDash:       false,    // ジャンプ前がダッシュだったか（着地継続制御用）
+
+      // === 地上慣性 ===
+      groundVx:         0,        // 地上移動の平滑化速度 X（方向転換で膨らむ）
+      groundVz:         0,        // 地上移動の平滑化速度 Z
 
       // === ダッシュ（ローラーダッシュ） ===
       dashCooldown:     0,
@@ -814,24 +1001,164 @@
     }
 
     // ============================================================
+    //  DASH TRAIL（後方テールランプ帯）
+    // ============================================================
+    const TRAIL_LEN      = 15;   // 保持フレーム数
+    const TRAIL_FADE_DUR = 14;   // ダッシュ終了後のフェードアウト時間（フレーム）
+    // 2バンド × 各3本密集で「太い1本」感を表現（WebGL は linewidth>1 不可）
+    const TRAIL_BANDS_Y = [
+      [58, 60, 62],  // 腰バンド
+      [13, 15, 17],  // 足首バンド
+    ];
+    const TRAIL_ALL_Y = TRAIL_BANDS_Y.flat();  // [58,60,62,13,15,17]
+    const _trailHistory  = [];   // 生履歴 {x, y, z}（[0]=最新）
+    let   _trailFadeTimer = 0;
+
+    const _trailPos = TRAIL_ALL_Y.map(() => new Float32Array(TRAIL_LEN * 3));
+    const _trailCol = TRAIL_ALL_Y.map(() => new Float32Array(TRAIL_LEN * 3));
+
+    function _makeTrailLine(posArr, colArr) {
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute('position', new THREE.BufferAttribute(posArr, 3).setUsage(THREE.DynamicDrawUsage));
+      geom.setAttribute('color',    new THREE.BufferAttribute(colArr, 3).setUsage(THREE.DynamicDrawUsage));
+      const mat = new THREE.LineBasicMaterial({
+        vertexColors: true,
+        blending:     THREE.AdditiveBlending,
+        transparent:  true,
+        depthWrite:   false,
+      });
+      const line = new THREE.Line(geom, mat);
+      line.frustumCulled = false;
+      line.visible = false;
+      scene.add(line);
+      return line;
+    }
+    const _trailLines = TRAIL_ALL_Y.map((_, i) => _makeTrailLine(_trailPos[i], _trailCol[i]));
+
+    function updateDashTrail(p) {
+      const active = p.dashActive || (p.airWasDash && !p.isGrounded);
+
+      if (active) {
+        _trailFadeTimer = TRAIL_FADE_DUR;
+        _trailHistory.unshift({ x: p.x, y: p.y, z: p.z });
+        if (_trailHistory.length > TRAIL_LEN) _trailHistory.length = TRAIL_LEN;
+      } else {
+        if (_trailFadeTimer > 0) {
+          _trailFadeTimer--;
+          // フェード中：各履歴点を現在の足元へ引き寄せる（尾ほど強く）
+          const n = _trailHistory.length;
+          for (let i = 0; i < n; i++) {
+            const h = _trailHistory[i];
+            const tailness = i / Math.max(n - 1, 1);       // 0=頭, 1=尾
+            const pull     = 0.12 + tailness * 0.28;        // 頭0.12〜尾0.40
+            h.x += (p.x - h.x) * pull;
+            h.y += (p.y - h.y) * pull;
+            h.z += (p.z - h.z) * pull;
+          }
+        }
+        if (_trailFadeTimer === 0) {
+          _trailHistory.length = 0;
+          _trailLines.forEach(l => { l.visible = false; });
+          return;
+        }
+      }
+
+      const n = _trailHistory.length;
+      if (n < 2) return;
+
+      // 3点移動平均スムージング
+      const smoothed = _trailHistory.map((h, i) => {
+        if (i === 0 || i === n - 1) return h;
+        const prev = _trailHistory[i - 1];
+        const next = _trailHistory[i + 1];
+        return {
+          x: (prev.x + h.x + next.x) / 3,
+          y: (prev.y + h.y + next.y) / 3,
+          z: (prev.z + h.z + next.z) / 3,
+        };
+      });
+
+      const fadeAlpha = active ? 1.0 : _trailFadeTimer / TRAIL_FADE_DUR;
+
+      for (let li = 0; li < TRAIL_ALL_Y.length; li++) {
+        const yOff = TRAIL_ALL_Y[li];
+        const pos  = _trailPos[li];
+        const col  = _trailCol[li];
+
+        for (let i = 0; i < n; i++) {
+          const s    = smoothed[i];
+          const t    = (1 - i / (n - 1)) * fadeAlpha;
+          const base = i * 3;
+          pos[base]     = s.x;
+          pos[base + 1] = s.y + yOff;
+          pos[base + 2] = s.z;
+          col[base]     = t * 1.0;
+          col[base + 1] = t * 0.35;
+          col[base + 2] = 0;
+        }
+
+        const line = _trailLines[li];
+        line.geometry.setDrawRange(0, n);
+        line.geometry.attributes.position.needsUpdate = true;
+        line.geometry.attributes.color.needsUpdate    = true;
+        line.visible = true;
+      }
+    }
+
+    // ============================================================
     //  PARTICLE SYSTEM（ヒット時の火花）
     // ============================================================
     const particles = [];
 
-    function spawnHitParticles(x, y, z, color = 0xffee44, count = 10) {
+    // opts.type : 'normal'(攻撃方向放射) | 'launch'(Y軸上方) | 'slam'(叩きつけ放射) | 'omni'(全方向・旧来)
+    // opts.dirX / opts.dirZ : 攻撃方向（normal 時に使用・正規化不要）
+    function spawnHitParticles(x, y, z, color = 0xffee44, count = 10, opts = {}) {
+      const { type = 'omni', dirX = 1, dirZ = 0 } = opts;
       const geom = new THREE.BoxGeometry(7, 7, 7);
+
+      // 攻撃方向の正規化と垂直ベクトル（XZ平面）
+      const dLen = Math.sqrt(dirX * dirX + dirZ * dirZ) || 1;
+      const nx = dirX / dLen;
+      const nz = dirZ / dLen;
+      const perpX = -nz;   // XZ平面での垂直方向
+      const perpZ =  nx;
+
       for (let i = 0; i < count; i++) {
         const mat = new THREE.MeshBasicMaterial({ color });
         const mesh = new THREE.Mesh(geom, mat);
         mesh.position.set(x, y, z);
         scene.add(mesh);
-        particles.push({
-          mesh,
-          vx: (Math.random() - 0.5) * 14,
-          vy: 4 + Math.random() * 10,
-          vz: (Math.random() - 0.5) * 14,
-          life: 22 + Math.random() * 10,
-        });
+
+        let vx, vy, vz;
+        const r = Math.random;
+
+        if (type === 'normal') {
+          // 攻撃方向に前方コーンで放射（前方強め + 左右散らし + 上方向小さめ）
+          const fwd = 7 + r() * 9;
+          const lat = (r() - 0.5) * 11;
+          vx = nx * fwd + perpX * lat;
+          vz = nz * fwd + perpZ * lat;
+          vy = 0.5 + r() * 3;
+        } else if (type === 'launch') {
+          // 打ち上げ：Y軸上方向に強く広がる
+          vx = (r() - 0.5) * 8;
+          vy = 9 + r() * 13;
+          vz = (r() - 0.5) * 8;
+        } else if (type === 'slam') {
+          // 叩きつけ：XZ全方向に放射 + わずかに下方向（地面への叩き落とし感）
+          const angle = r() * Math.PI * 2;
+          const speed = 5 + r() * 8;
+          vx = Math.cos(angle) * speed;
+          vz = Math.sin(angle) * speed;
+          vy = -(r() * 4);
+        } else {
+          // omni（全方向・旧来動作）
+          vx = (r() - 0.5) * 14;
+          vy = 4 + r() * 10;
+          vz = (r() - 0.5) * 14;
+        }
+
+        particles.push({ mesh, vx, vy, vz, life: 22 + r() * 10 });
       }
     }
 
@@ -883,6 +1210,10 @@
     // ============================================================
     function buildDummyMesh() {
       const group = new THREE.Group();
+      // rotation.y（向き）と rotation.z（傾き）を同時に使うため ZYX 順序が必要。
+      // XYZ のままだと R_y * R_z で tilt がカメラ奥行き方向に出る。
+      // ZYX では R_z * R_y となりスクリーン左右方向に正しく傾く。
+      group.rotation.order = 'ZYX';
       const baseMat = new THREE.MeshToonMaterial({ color: 0x884444 });
       const accentMat = new THREE.MeshToonMaterial({ color: 0xddaa44 });
 
@@ -904,18 +1235,26 @@
       stand.castShadow = true;
       group.add(stand);
 
-      group.userData.parts = { body, head, stand };
+      // 向き確認用ノーズ（頭前面 +Z に赤コーン）
+      const noseMat = new THREE.MeshToonMaterial({ color: 0xff2222 });
+      const nose = new THREE.Mesh(new THREE.ConeGeometry(6, 20, 8), noseMat);
+      nose.rotation.x = -Math.PI / 2; // コーン先端を +Z（前方）に向ける
+      nose.position.set(0, 165, 30);
+      group.add(nose);
+
+      group.userData.parts = { body, head, stand, nose };
       return group;
     }
 
     const enemies = [];
     const dummyMesh = buildDummyMesh();
-    dummyMesh.position.set(280, 0, 0);
+    dummyMesh.position.set(280, 0, 300);
+    dummyMesh.rotation.y = -Math.PI / 2; // 初期向き：左向き（プレイヤー方向）
     scene.add(dummyMesh);
 
     const dummy = {
       mesh:           dummyMesh,
-      x: 280, y: 0, z: 0,
+      x: 280, y: 0, z: 300,
       hp:             100,
       maxHp:          100,
       hitFlashTimer:  0,
@@ -926,6 +1265,10 @@
       peakHangTimer:    0,     // 打ち上げ頂点スロー残フレーム
       peakHangTotal:    0,     // スロー総フレーム数（フェード計算用）
       launcherAirborne: false, // LAUNCH_COMBO 属性で打ち上げられた状態か
+      estate:           ESTATE.wait01,
+      tiltAngle:        0,    // 傾き角（0=立ち、π/2=横倒し）
+      fallDir:          1,    // 倒れ方向（+1=右、-1=左）：ヒット時に攻撃者と逆に設定
+      downTimer:        0,    // DOWN/RISE ステートの残フレーム
       isAlive:          true,
     };
     enemies.push(dummy);
@@ -936,22 +1279,40 @@
     const combo = {
       count:       0,
       decayTimer:  0,
-      decayMax:    90,  // 90F = 1.5秒で消失
+      decayMax:    63,  // 63F ≈ 1.05秒（旧90Fの70%）
     };
-    const comboEl     = document.getElementById('combo');
-    const comboNumEl  = document.getElementById('combo-num');
-    const dummyHpEl   = document.getElementById('dummy-hp-num');
+
+    // ヒット数 → レベル変換（演出強度の一元管理）
+    // 将来: 各レベルでバー色・コンボ数字エフェクト・グロー強度を変えやすいよう抽出
+    // レベル定義: { threshold, barColor, numColor, /* 将来: glowColor, shakeScale, etc */ }
+    const COMBO_LEVELS = [
+      { threshold:  1, barColor: '#ffaa44', numColor: '#ffffff' },  // lv1: 白
+      { threshold: 10, barColor: '#ffdd00', numColor: '#ffff44' },  // lv2: 黄
+      { threshold: 20, barColor: '#ff8800', numColor: '#ff8800' },  // lv3: オレンジ
+      { threshold: 30, barColor: '#cc44ff', numColor: '#ff44ff' },  // lv4: 紫（フレンジー）
+    ];
+
+    function getComboLevel(count) {
+      let lv = COMBO_LEVELS[0];
+      for (const l of COMBO_LEVELS) { if (count >= l.threshold) lv = l; }
+      return lv;
+    }
+    const comboEl        = document.getElementById('combo');
+    const comboNumEl     = document.getElementById('combo-num');
+    const comboTimerBar  = document.getElementById('combo-timer-bar');
+    const dummyHpEl      = document.getElementById('dummy-hp-num');
 
     function bumpCombo() {
       combo.count += 1;
       combo.decayTimer = combo.decayMax;
       comboEl.style.opacity = '1';
       comboNumEl.textContent = combo.count;
-      // 段階別の色変化
-      if (combo.count >= 30)      comboNumEl.style.color = '#ff44ff';
-      else if (combo.count >= 20) comboNumEl.style.color = '#ff8800';
-      else if (combo.count >= 10) comboNumEl.style.color = '#ffff44';
-      else                        comboNumEl.style.color = '#ffffff';
+      // レベルに応じた色・演出（COMBO_LEVELS で一元管理）
+      const lv = getComboLevel(combo.count);
+      comboNumEl.style.color = lv.numColor;
+      comboTimerBar.style.width = '100%';
+      comboTimerBar.style.background = lv.barColor;
+      comboEl.dataset.level = COMBO_LEVELS.indexOf(lv);  // 将来のCSS演出用
       // ポップアニメ
       comboNumEl.style.transform = 'scale(1.3)';
       setTimeout(() => { comboNumEl.style.transform = 'scale(1)'; }, 80);
@@ -960,6 +1321,12 @@
     function decayCombo() {
       if (combo.decayTimer > 0) {
         combo.decayTimer--;
+        const ratio = combo.decayTimer / combo.decayMax;
+        comboTimerBar.style.width = (ratio * 100) + '%';
+        // 残り30%以下で赤に変化、それ以外は現レベルの色
+        comboTimerBar.style.background = ratio <= 0.3
+          ? '#ff4444'
+          : getComboLevel(combo.count).barColor;
         if (combo.decayTimer <= 0) {
           combo.count = 0;
           comboEl.style.opacity = '0';
@@ -978,6 +1345,13 @@
       }
       // デバッグトグル
       if (e.code === 'KeyQ') toggleHitbox();
+      if (e.code === 'KeyP') {
+        PIXEL_SHADER.ENABLED = !PIXEL_SHADER.ENABLED;
+        const _hkPixelEl = document.getElementById('hk-pixel');
+        _hkPixelEl.textContent = `P: ピクセルシェーダー [${PIXEL_SHADER.ENABLED ? 'ON' : 'OFF'}]`;
+        _hkPixelEl.classList.toggle('hk-toggle-on', PIXEL_SHADER.ENABLED);
+        console.log('[PIXEL_SHADER] ENABLED =', PIXEL_SHADER.ENABLED);
+      }
     });
     addEventListener('keyup', (e) => { keys[e.code] = false; });
 
@@ -1074,10 +1448,10 @@
       const id = chain[chainIdx];
       if (!id) return;
       p.attackChainArr = chain;
-      // 空中Jチェーン開始・継続時に軽くホップ（滞空維持）
+      // 空中Jチェーン開始時：落下速度を少し抑制してふわっとさせる
+      // ホップ本体はヒット確定時（tryHitEnemies）で敵と同時に適用する
       if (chain === A_CHAIN && !p.isGrounded) {
-        if (p.vy < 0) p.vy *= 0.8; // ホップ時に落下速度を0.8倍に抑制してふわっとさせる
-        p.vy = Math.max(p.vy, PHYSICS.AERIAL_HOP_V);
+        if (p.vy < 0) p.vy *= 0.8;
       }
       startAttackById(p, id, chainIdx);
     }
@@ -1103,31 +1477,53 @@
         if (!e.isAlive) continue;
         const dx = e.x - p.x;
         const dz = e.z - p.z;
-        // 前方判定：facing と dx の符号が一致
-        if (Math.sign(dx) !== facing) continue;
+        // 前方判定（omni 攻撃は全方向ヒット）
+        if (!attack.omni && Math.sign(dx) !== facing) continue;
         if (Math.abs(dx) > attack.rangeX) continue;
         if (Math.abs(dz) > attack.rangeZ) continue;
+        // Y軸判定（rangeY が定義された攻撃のみ）
+        if (attack.rangeY !== undefined && Math.abs(e.y - p.y) > attack.rangeY) continue;
         // ヒット
         e.hp = Math.max(0, e.hp - attack.damage);
         e.hitFlashTimer = 7;
+        // 被弾時：倒れ方向を記録。IDLEのみ向きスナップ（FALL/DOWN/RISE中は回転競合のため不変）
+        e.fallDir = (e.x !== p.x) ? Math.sign(e.x - p.x) : p.facing;
+        if (e.estate === ESTATE.wait01) {
+          e.mesh.rotation.y = -e.fallDir * Math.PI / 2;
+        }
         e.knockbackVx   = facing * (attack.knockback * 0.4);
         const resolved = resolveAttackAttr(attack);
         if (attack.launchVy) {
           e.vy = attack.launchVy;
           e.launcherAirborne = !!resolved.peakHang; // LAUNCH_COMBO属性のみ頂点スロー有効
+          e.estate    = ESTATE.down_up_start;
+          e.tiltAngle = 0;
+          // rotation.yは維持（左右向きを保ったまま倒れる）
           spawnLaunchSmoke(e.x, e.y, e.z);
         }
-        // 空中コンボヒット時：敵もホップして追撃範囲に留まる（頂点スローは発生させない）
-        if (p.attackChainArr === A_CHAIN && !p.isGrounded) {
-          e.vy = Math.max(e.vy, PHYSICS.AERIAL_HOP_V);
+        // 空中の敵へのヒット：ホップで浮遊継続（非打ち上げ技共通・地上技でも適用）
+        if (e.y > 0 && !attack.launchVy) {
+          // Math.max をやめて直接セット → 打ち上げ余剰vy を持ち越させない
+          e.vy = PHYSICS.AERIAL_HOP_V;
+          e.peakHangTimer    = 0; // 頂点スロー強制解除
+          e.launcherAirborne = false;
+          // プレイヤーも空中コンボ中なら同期ホップ＋Y引き寄せ
+          if (p.attackChainArr === A_CHAIN && !p.isGrounded) {
+            p.vy = PHYSICS.AERIAL_HOP_V;
+            e.y += (p.y - e.y) * PHYSICS.AERIAL_Y_PULL;
+          }
         }
         // 演出
         triggerHitstop(attack.hitstop);
         triggerShake(attack.shake, attack.shake * 2 + 4);
         // ヒット演出：攻撃ごとに色・パーティクル数を変える（差別化）
-        const hitColor = attack.hitColor ?? 0xffee44;  // デフォルト黄色（弱攻撃）
-        const hitCount = attack.hitCount ?? 10;        // デフォルト10
-        spawnHitParticles(e.x - dx * 0.4, e.y + 80, e.z, hitColor, hitCount);
+        const hitColor = attack.hitColor ?? 0xffee44;
+        const hitCount = attack.hitCount ?? 10;
+        // パーティクルタイプ：attack.particleType が明示されていれば優先、なければ launchVy 符号で自動判定
+        const _lvy = attack.launchVy ?? 0;
+        const _pType = attack.particleType ?? (_lvy > 0 ? 'launch' : _lvy < 0 ? 'slam' : 'normal');
+        spawnHitParticles(e.x - dx * 0.4, e.y + 80, e.z, hitColor, hitCount,
+          { type: _pType, dirX: dx, dirZ: 0 });
         bumpCombo();
         p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
         anyHit = true;
@@ -1216,25 +1612,25 @@
       if (!justPressed) return;
 
       if (p.state === STATE.IDLE) {
-        // ↑+K → 打ち上げ攻撃、それ以外 → 通常強攻撃
         const upHeld = inp('ArrowUp') || inp('KeyW');
-        if (upHeld) startAttackById(p, 'k_up_meteo', -1);
-        else        startStrongAttack(p);
+        const dnHeld = inp('ArrowDown') || inp('KeyS');
+        if (upHeld)      startAttackById(p, 'k_up_meteo', -1);
+        else if (dnHeld) startAttackById(p, 'k_dn_meteo', -1);
+        else             startStrongAttack(p);
       } else if (p.state === STATE.HIT_CONFIRM) {
-        // 弱 → 強キャンセル（J ヒット中の K で繋ぐ）
+        // 弱 → 強キャンセル（Jチェーン中のみ ↑+K / ↓+K / 通常K を分岐）
         if (p.attackChainIdx >= 0) {
-          // Jチェーン中に ↑+K → 打ち上げ攻撃
           const upHeld = inp('ArrowUp') || inp('KeyW');
-          if (upHeld) {
-            startAttackById(p, 'k_up_meteo', -1);
-          } else {
-            startStrongAttack(p);
-          }
+          const dnHeld = inp('ArrowDown') || inp('KeyS');
+          if (upHeld)      startAttackById(p, 'k_up_meteo', -1);
+          else if (dnHeld) startAttackById(p, 'k_dn_meteo', -1);
+          else             startStrongAttack(p);
         }
       } else if (p.state === STATE.ATTACKING) {
-        // ATTACKING 中はバッファに積む（↑ 状態も保存して打ち上げ判定に使う）
+        // ATTACKING 中はバッファに積む（方向状態を保存）
         p.kBuffered  = true;
         p.kBufferUp  = inp('ArrowUp') || inp('KeyW');
+        p.kBufferDn  = inp('ArrowDown') || inp('KeyS');
       }
     }
 
@@ -1369,10 +1765,13 @@
       if (!p.kBuffered) return;
       if (p.attackChainIdx < 0) { p.kBuffered = false; return; } // Kチェーン外は無視
       const wasUp  = p.kBufferUp;
+      const wasDn  = p.kBufferDn;
       p.kBuffered  = false;
       p.kBufferUp  = false;
-      if (wasUp) startAttackById(p, 'k_up_meteo', -1);
-      else       startStrongAttack(p);
+      p.kBufferDn  = false;
+      if (wasUp)      startAttackById(p, 'k_up_meteo', -1);
+      else if (wasDn) startAttackById(p, 'k_dn_meteo', -1);
+      else            startStrongAttack(p);
     }
 
     // キャンセルジャンプ：HIT_CONFIRM 中に SPACE → 大噴射ジャンプ
@@ -1400,6 +1799,31 @@
       triggerShake(4, 8);
       spawnHitParticles(p.x, p.y + 20, p.z, 0x00ddff, 16);
       return true;
+    }
+
+    function updatePartAnims(p) {
+      const parts = p.mesh.userData.parts;
+      if (!parts) return;
+      const LERP_SPD = 0.30;
+
+      const inAttack = (p.state === STATE.ATTACKING || p.state === STATE.HIT_CONFIRM) && p.attackId;
+      const atk      = inAttack ? ATTACKS[p.attackId] : null;
+      const animKey  = atk?.partsAnim;
+      const animDef  = animKey ? PART_ANIMS[animKey] : null;
+      const elapsed  = atk ? (atk.duration - p.stateTimer) : 0;
+      const inHit    = atk && elapsed >= atk.hitFrame && elapsed < atk.hitFrame + atk.hitDuration + 2;
+
+      for (const [name, rest] of Object.entries(PART_REST)) {
+        const part = parts[name];
+        if (!part) continue;
+        const delta = (inHit && animDef) ? animDef[name] : null;
+        const tx = rest.x + (delta?.x ?? 0);
+        const ty = rest.y + (delta?.y ?? 0);
+        const tz = rest.z + (delta?.z ?? 0);
+        part.position.x += (tx - part.position.x) * LERP_SPD;
+        part.position.y += (ty - part.position.y) * LERP_SPD;
+        part.position.z += (tz - part.position.z) * LERP_SPD;
+      }
     }
 
     function updatePlayer(p) {
@@ -1430,7 +1854,7 @@
       const isDashing = p.dashActive;
 
       if (!p.isGrounded) {
-        // 空中：慣性ベースの移動。キー入力で緩やかに方向修正できるが急停止しない
+        // 空中入力方向
         let ix = 0, iz = 0;
         if (inp('ArrowLeft')  || inp('KeyA')) ix -= 1;
         if (inp('ArrowRight') || inp('KeyD')) ix += 1;
@@ -1438,10 +1862,20 @@
         if (inp('ArrowDown')  || inp('KeyS')) iz += 1;
         const ilen = Math.hypot(ix, iz);
         if (ilen > 0) { ix /= ilen; iz /= ilen; }
-        p.airVx = p.airVx * PHYSICS.AIR_FRICTION + ix * PHYSICS.AIR_CONTROL;
-        p.airVz = p.airVz * PHYSICS.AIR_FRICTION + iz * PHYSICS.AIR_CONTROL;
+
+        if (p.airWasDash) {
+          // ダッシュジャンプ：強い慣性（AIR_FRICTION / AIR_CONTROL）
+          p.airVx = p.airVx * PHYSICS.AIR_FRICTION + ix * PHYSICS.AIR_CONTROL;
+          p.airVz = p.airVz * PHYSICS.AIR_FRICTION + iz * PHYSICS.AIR_CONTROL;
+        } else {
+          // 通常ジャンプ：地上GROUND_ACCELに準じた軽い慣性
+          const tVx = ix * PHYSICS.SPEED;
+          const tVz = iz * PHYSICS.SPEED;  // Z_SPEED_MULT は位置更新時に適用
+          p.airVx += (tVx - p.airVx) * PHYSICS.GROUND_ACCEL;
+          p.airVz += (tVz - p.airVz) * PHYSICS.GROUND_ACCEL;
+        }
         p.x += p.airVx;
-        p.z += p.airVz;
+        p.z += p.airVz * PHYSICS.Z_SPEED_MULT;
         mvx = p.airVx;
         mvz = p.airVz;
       } else if (isDashing) {
@@ -1476,7 +1910,7 @@
           mvx = dvx;
           mvz = dvz;
           p.x += mvx * PHYSICS.SPEED * PHYSICS.DASH_SPEED_MULT;
-          p.z += mvz * PHYSICS.SPEED * PHYSICS.DASH_SPEED_MULT;
+          p.z += mvz * PHYSICS.SPEED * PHYSICS.DASH_SPEED_MULT * PHYSICS.Z_SPEED_MULT;
         }
       } else if (!movementLocked) {
         if (inp('ArrowLeft')  || inp('KeyA')) mvx -= 1;
@@ -1485,15 +1919,20 @@
         if (inp('ArrowDown')  || inp('KeyS')) mvz += 1;
         const rawLen = Math.hypot(mvx, mvz);
         if (rawLen > 0) { mvx /= rawLen; mvz /= rawLen; }
-        p.x += mvx * PHYSICS.SPEED;
-        p.z += mvz * PHYSICS.SPEED;
+        // 目標速度へ lerp → 方向転換時に少し膨らむ慣性
+        const tVx = mvx * PHYSICS.SPEED;
+        const tVz = mvz * PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT;
+        p.groundVx += (tVx - p.groundVx) * PHYSICS.GROUND_ACCEL;
+        p.groundVz += (tVz - p.groundVz) * PHYSICS.GROUND_ACCEL;
+        p.x += p.groundVx;
+        p.z += p.groundVz;
       }
       // ← ブロック外で len を計算（isMoving 判定・待機バウンスに使用）
       const len = Math.hypot(mvx, mvz);
 
       // ステージバウンド
       p.x = Math.max(PHYSICS.STAGE_LEFT, Math.min(PHYSICS.STAGE_RIGHT, p.x));
-      p.z = Math.max(-380, Math.min(380, p.z));
+      p.z = Math.max(-380, Math.min(700, p.z));
 
       // === 向き（ダッシュ中は dash 方向に従う・攻撃中は固定）===
       if (isDashing || !movementLocked) {
@@ -1521,11 +1960,13 @@
           // ダッシュ中ジャンプ：ダッシュ速度をそのまま慣性に
           p.airVx = p.dashDirX * PHYSICS.SPEED * PHYSICS.DASH_SPEED_MULT;
           p.airVz = p.dashDirZ * PHYSICS.SPEED * PHYSICS.DASH_SPEED_MULT;
-          p.dashActive = false; // ダッシュはジャンプで終了（cooldown設定なし）
+          p.dashActive  = false;  // ダッシュはジャンプで終了（cooldown設定なし）
+          p.airWasDash  = true;
         } else {
           // 通常ジャンプ：歩き速度を慣性に
           p.airVx = mvx * PHYSICS.SPEED;
           p.airVz = mvz * PHYSICS.SPEED;
+          p.airWasDash  = false;
         }
         p.vy = PHYSICS.JUMP_V;
         p.isGrounded = false;
@@ -1548,7 +1989,8 @@
           p.vy += force;
           p.thrustFramesLeft--;
         }
-        p.vy -= PHYSICS.GRAVITY;
+        const pGravFactor = (!p.isGrounded) ? PHYSICS.AERIAL_GRAV_FACTOR : 1.0;
+        p.vy -= PHYSICS.GRAVITY * pGravFactor;
         p.y += p.vy;
         if (p.y <= 0) {
           p.y = 0;
@@ -1563,11 +2005,12 @@
             if (inp('ArrowUp')    || inp('KeyW')) ldz -= 1;
             if (inp('ArrowDown')  || inp('KeyS')) ldz += 1;
             const llen = Math.hypot(ldx, ldz);
-            if (llen > 0 && p.dashCooldown === 0) {
+            if (llen > 0 && p.dashCooldown === 0 && p.airWasDash) {
               p.dashActive   = true;
               p.dashDirX     = ldx / llen;
               p.dashDirZ     = ldz / llen;
             }
+            p.airWasDash = false;
           }
           p.airVx = 0;
           p.airVz = 0;
@@ -1579,9 +2022,8 @@
 
       const parts = p.mesh.userData.parts;
 
-      // ブースター炎（足元）の表示・パルス
-      // ダッシュ中もスラスター点火（オレンジで差別化）
-      const thrustOrDash = thrustingNow || isDashing;
+      // ブースター炎（足元）の表示・パルス（ジャンプ推力時のみ）
+      const thrustOrDash = thrustingNow;
       parts.thrusterL.visible = thrustOrDash;
       parts.thrusterR.visible = thrustOrDash;
       if (thrustOrDash) {
@@ -1613,6 +2055,9 @@
         target.scale.set(1, yawPulse, 1);
       }
 
+      // パーツアニメーション（攻撃の意思を四肢の動きで表現）
+      updatePartAnims(p);
+
       // === 待機時のバウンス（生き生き演出） ===
       const isMoving = (len > 0);
       if (isMoving && p.isGrounded) {
@@ -1635,6 +2080,8 @@
         // 死亡判定
         if (e.hp <= 0) {
           e.hp = e.maxHp;  // ダミーは即復活（無限練習用）
+          e.estate = ESTATE.wait01; e.tiltAngle = 0; e.downTimer = 0; e.fallDir = 1;
+          e.mesh.rotation.set(0, -Math.PI / 2, 0); // 復活後は左向きリセット（fallDir=1）
           spawnHitParticles(e.x, e.y + 100, e.z, 0xff8844, 24);
           triggerShake(8, 14);
         }
@@ -1646,6 +2093,7 @@
         if (e.x < PHYSICS.STAGE_LEFT)  { e.x = PHYSICS.STAGE_LEFT;  e.knockbackVx = 0; }
         if (e.x > PHYSICS.STAGE_RIGHT) { e.x = PHYSICS.STAGE_RIGHT; e.knockbackVx = 0; }
         e.mesh.position.x = e.x;
+        e.mesh.position.z = e.z;
         // 打ち上げ（垂直）
         if (e.vy !== 0 || e.y > 0 || e.peakHangTimer > 0) {
           // 頂点到達検出：LAUNCH_COMBO属性で打ち上げ中かつ上昇→下降に切り替わった瞬間
@@ -1665,7 +2113,9 @@
             gravFactor = baseFactor + (0.05 - baseFactor) * fadeT;
             e.peakHangTimer--;
           } else if (e.y > 0 && e.vy < 0) {
-            gravFactor = 0.6; // スロー終了後の落下も6割重力
+            // 打ち上げ直後は重い減速・その後（地上技含む）はふわっと重力で統一
+            if (e.launcherAirborne)  gravFactor = 0.6;
+            else                     gravFactor = PHYSICS.AERIAL_GRAV_FACTOR;
           } else {
             gravFactor = 1.0;
           }
@@ -1675,9 +2125,40 @@
             e.y = 0; e.vy = 0; e.prevVy = 0;
             e.peakHangTimer = 0; e.peakHangTotal = 0;
             e.launcherAirborne = false;
+            if (e.estate === ESTATE.down_up_start || e.estate === ESTATE.down_up_loop) {
+              e.tiltAngle = Math.PI / 2;
+              e.estate    = ESTATE.down_bas_start;
+              e.downTimer = ENEMY_DOWN_FRAMES;
+            }
           }
           e.mesh.position.y = e.y;
         }
+
+        // ダウンステート管理（倒れ→静止→起き上がり）
+        if (e.estate === ESTATE.down_up_start) {
+          e.tiltAngle += (Math.PI / 2) / ENEMY_FALL_FRAMES;
+          if (e.tiltAngle >= Math.PI / 2) {
+            e.tiltAngle = Math.PI / 2;
+            e.estate    = ESTATE.down_up_loop;
+          }
+        } else if (e.estate === ESTATE.down_up_loop) {
+          e.tiltAngle = Math.PI / 2; // 横倒し固定のまま落下
+        } else if (e.estate === ESTATE.down_bas_start) {
+          e.tiltAngle = Math.PI / 2;
+          if (--e.downTimer <= 0) {
+            e.estate    = ESTATE.down_bas_end;
+            e.downTimer = ENEMY_RISE_FRAMES;
+          }
+        } else if (e.estate === ESTATE.down_bas_end) {
+          e.tiltAngle = (e.downTimer / ENEMY_RISE_FRAMES) * (Math.PI / 2);
+          if (--e.downTimer <= 0) {
+            e.tiltAngle = 0;
+            e.estate    = ESTATE.wait01;
+          }
+        } else {
+          e.tiltAngle = 0;
+        }
+        e.mesh.rotation.z = -e.fallDir * e.tiltAngle;
 
         // ヒットフラッシュ
         if (e.hitFlashTimer > 0) {
@@ -1725,8 +2206,11 @@
       const yTarget = Math.max(0, p.y - Y_DEAD_ZONE);
       camFollowY += (yTarget - camFollowY) * 0.08;
       camFollowY = Math.max(0, Math.min(camFollowY, 150));
-      camera.position.x = baseX + shakeOffsetX;
-      camera.position.y = CAM_CONFIG.CAM_Y + camFollowY + shakeOffsetY;
+      // ピクセルシェーダーON時はシェイクをブリット側（UV）で処理するのでカメラに乗せない
+      const sx = PIXEL_SHADER.ENABLED ? 0 : shakeOffsetX;
+      const sy = PIXEL_SHADER.ENABLED ? 0 : shakeOffsetY;
+      camera.position.x = baseX + sx;
+      camera.position.y = CAM_CONFIG.CAM_Y + camFollowY + sy;
       camera.position.z = CAM_CONFIG.CAM_Z;
       camera.lookAt(baseX, CAM_CONFIG.LOOK_Y + camFollowY, 0);
 
@@ -1774,6 +2258,7 @@
       players.forEach(updatePlayer);
       updateEnemies();
       updateParticles();
+      players.forEach(p => updateDashTrail(p));
       decayCombo();
       updateCamera();
       updateSPGauge();
@@ -1781,10 +2266,14 @@
     }
 
     function render() {
+      // ピクセルシェーダー ON 時は両パスを pixelRT に描画してから NEAREST ブリット
+      const rt = PIXEL_SHADER.ENABLED ? pixelRT : null;
+
       // パス1：背景（Perspective・フォグ無効）
       const savedFog = scene.fog;
       scene.fog = null;
       renderer.autoClear = true;
+      renderer.setRenderTarget(rt);
       renderer.render(scene, bgCamera);
       scene.fog = savedFog;
       // デプスバッファをクリアしてキャラが背景に埋まらないようにする
@@ -1793,12 +2282,26 @@
       renderer.autoClear = false;
       renderer.render(scene, camera);
       renderer.autoClear = true;
+
+      // ピクセルシェーダー ON → シェイクをUVオフセットで適用してブリット
+      // カメラ空間のworld単位をUV空間に変換
+      //   X: ortho 幅 = ORTHO_H * GAME_ASPECT = 700*(16/9) ≈ 1244 wu
+      //   Y: ortho 高 = ORTHO_H = 700 wu
+      if (PIXEL_SHADER.ENABLED) {
+        const uvX =  shakeOffsetX / (CAM_CONFIG.ORTHO_H * GAME_ASPECT);
+        const uvY = -shakeOffsetY / CAM_CONFIG.ORTHO_H;  // Y軸反転（UV原点は左下）
+        _blitMat.map.offset.set(uvX, uvY);
+        renderer.setRenderTarget(null);
+        renderer.render(_blitScene, _blitCam);
+        _blitMat.map.offset.set(0, 0);  // 次フレームのためにリセット
+      }
     }
 
     // === デバッグ用 HUD ハイライト ===
     // 押されているボタンに対応する説明行を黄色くハイライトする
     const HUD_HIGHLIGHT_MAP = [
       { id: 'hk-move',      check: () => inp('ArrowLeft') || inp('ArrowRight') || inp('ArrowUp') || inp('ArrowDown') || inp('KeyA') || inp('KeyD') || inp('KeyW') || inp('KeyS') },
+      { id: 'hk-dash',      check: () => players[0]?.dashActive },
       { id: 'hk-jump',      check: () => action('jump') },
       { id: 'hk-weak',      check: () => action('weakAttack') },
       { id: 'hk-strong',    check: () => action('strongAttack') },
@@ -1806,6 +2309,7 @@
       { id: 'hk-secondary', check: () => action('secondary') },
       { id: 'hk-mega',      check: () => action('megaCrash') || (inp('KeyJ') && inp('KeyK') && !inp('KeyL')) },
       { id: 'hk-ult',       check: () => action('ult')      || (inp('KeyJ') && inp('KeyK') &&  inp('KeyL')) },
+      { id: 'hk-pixel',     check: () => inp('KeyP') },
     ];
     const _hkEls = {};
     HUD_HIGHLIGHT_MAP.forEach(({ id }) => { _hkEls[id] = document.getElementById(id); });
@@ -1866,8 +2370,10 @@
       return mesh;
     }
 
-    const _COL_Z_HALF = 380;
-    const _COL_Z_SPAN = _COL_Z_HALF * 2;  // 760
+    const _COL_Z_BACK  = 380;   // 奥（負Z）限界
+    const _COL_Z_FRONT = 700;   // 手前（正Z）限界
+    const _COL_Z_HALF  = _COL_Z_BACK;  // 後方互換エイリアス
+    const _COL_Z_SPAN  = _COL_Z_BACK + _COL_Z_FRONT;  // 920
     const _COL_WALL_H = 400;               // 壁の高さ（プレイヤー約2体分）
 
     // 床（緑）— renderOrder 999 で最前面。カメラ手前の壁より必ず上に描画
@@ -1875,7 +2381,8 @@
       PHYSICS.STAGE_RIGHT - PHYSICS.STAGE_LEFT, 2, _COL_Z_SPAN, 0x00ff88, 0.25, 999
     );
     _dbgFloor.position.set(
-      (PHYSICS.STAGE_LEFT + PHYSICS.STAGE_RIGHT) / 2, 1, 0
+      (PHYSICS.STAGE_LEFT + PHYSICS.STAGE_RIGHT) / 2, 1,
+      (_COL_Z_FRONT - _COL_Z_BACK) / 2   // 非対称中心 = +80
     );
 
     // 左右壁（オレンジ）— X方向の移動限界
@@ -1920,8 +2427,15 @@
         if (elapsed >= atk.hitFrame && elapsed < atk.hitFrame + atk.hitDuration) {
           const rx = atk.rangeX;
           const rz = atk.rangeZ;
-          _dbgAttackBox.scale.set(rx, 180, rz * 2);
-          _dbgAttackBox.position.set(p.x + p.facing * rx * 0.5, p.y + 90, p.z);
+          if (atk.omni) {
+            // 全方向攻撃（払い等）：足元中心の平たいボックス
+            const ry = (atk.rangeY || 40) * 2;
+            _dbgAttackBox.scale.set(rx * 2, ry, rz * 2);
+            _dbgAttackBox.position.set(p.x, p.y + (atk.rangeY || 40), p.z);
+          } else {
+            _dbgAttackBox.scale.set(rx, 180, rz * 2);
+            _dbgAttackBox.position.set(p.x + p.facing * rx * 0.5, p.y + 90, p.z);
+          }
           showAtk = true;
         }
       }
@@ -1938,31 +2452,49 @@
       // 背景コリジョン表示（ランタイム変更に追従）
       const sl = PHYSICS.STAGE_LEFT, sr = PHYSICS.STAGE_RIGHT;
       const cx = (sl + sr) / 2, sw = sr - sl;
-      const cy = _COL_WALL_H / 2;
+      // 壁を Y=0 中心（上下±200）に配置 → 床面と底辺が重ならず貫通感をなくす
+      const cy = 0;
+      const zCenter = (_COL_Z_FRONT - _COL_Z_BACK) / 2;
 
       _dbgFloor.visible = true;
-      _dbgFloor.position.set(cx, 1, 0);
+      _dbgFloor.position.set(cx, 1, zCenter);
       _dbgFloor.scale.set(sw / (sr - sl || 1), 1, 1); // STAGE_LEFT/RIGHT 動的変更対応
 
       _dbgWallL.visible = true;
-      _dbgWallL.position.set(sl, cy, 0);
+      _dbgWallL.position.set(sl, cy, zCenter);
 
       _dbgWallR.visible = true;
-      _dbgWallR.position.set(sr, cy, 0);
+      _dbgWallR.position.set(sr, cy, zCenter);
 
       _dbgWallFront.visible = true;
-      _dbgWallFront.position.set(cx, cy, -_COL_Z_HALF);
+      _dbgWallFront.position.set(cx, cy, -_COL_Z_BACK);
       _dbgWallFront.scale.set(sw / (sr - sl || 1), 1, 1);
 
       _dbgWallBack.visible = true;
-      _dbgWallBack.position.set(cx, cy, _COL_Z_HALF);
+      _dbgWallBack.position.set(cx, cy, _COL_Z_FRONT);
       _dbgWallBack.scale.set(sw / (sr - sl || 1), 1, 1);
     }
 
-    function loop() {
-      pollGamepad();       // ゲームパッド状態を padKeys に反映
+    const _fpsEl = document.getElementById('fps');
+    let _fpsLastTime = performance.now();
+    let _fpsSmooth   = 60;
+    let _fpsFrame    = 0;
+
+    function loop(now) {
+      // FPS 表示更新（EMA平滑化・6フレームに1回）
+      const fpsDelta = now - _fpsLastTime;
+      _fpsLastTime = now;
+      if (fpsDelta > 0) _fpsSmooth += (1000 / fpsDelta - _fpsSmooth) * 0.1;
+      if (++_fpsFrame % 6 === 0) {
+        const v = Math.round(_fpsSmooth);
+        _fpsEl.textContent = `${v} FPS`;
+        _fpsEl.style.color            = v >= 55 ? '#66ffaa' : v >= 40 ? '#ffdd44' : '#ff5555';
+        _fpsEl.style.borderRightColor = v >= 55 ? '#446655' : v >= 40 ? '#887700' : '#882222';
+      }
+
+      pollGamepad();
       updateHudHighlight();
-      updateHitboxDebug(); // ヒットボックス可視化（Q トグル）
+      updateHitboxDebug();
       // ヒットストップ：更新スキップ・描画は継続
       if (hitstopTimer > 0) {
         hitstopTimer--;
@@ -1974,7 +2506,7 @@
       render();
       requestAnimationFrame(loop);
     }
-    loop();
+    requestAnimationFrame(loop);
 
     // ============================================================
     //  RESIZE / HUD スケール追従
@@ -2001,7 +2533,8 @@
       CHARACTER_ASSETS,
       PHYSICS, CAM_CONFIG, applyCamConfig,
       SP_CONFIG, ATTACKS, STATE, Z_CHAIN, A_CHAIN,
-      KEY_CONFIG,   // キーコンフィグ（将来オプション画面でリバインド可能）
+      KEY_CONFIG,
+      PIXEL_SHADER,  // ピクセルシェーダー設定（P キーで ENABLED トグル / RT_W・RT_H で解像度調整）
       // 共通関数（コンソールから呼べる）
       triggerHitstop, triggerShake, spawnHitParticles,
       triggerMegaCrash, triggerUlt,

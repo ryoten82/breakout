@@ -47,6 +47,42 @@ window.SB.SP_CONFIG.REGEN_RATE = 0.05 // SP回復速度
 
 ---
 
+## キャラ仕様 md の更新ルール
+
+挙動・パラメータを追加・変更する際は、実装（`index.html`）と **同時に** 対応する `chars/` md も更新する。
+
+| 変更の種類 | 更新対象ファイル |
+|-----------|----------------|
+| 敵味方共通の挙動（ノックバック・ESTATE・キャンセル等） | `common01.md` |
+| METEO 固有の攻撃・ステータス | `char01.md` |
+| 敵 AI・プロパティ | `enem01.md` |
+| ボス設計 | `boss01.md` |
+
+実装先行で md が後回しになると乖離が生まれるため、**同一 PR / 同一セッション内で揃える**。
+
+---
+
+## 攻撃定義のルール
+
+新しい攻撃を `ATTACKS` に追加するとき、**必ず `partsAnim` フィールドを含める**。
+暫定・仮でよい。未定義のままにしない（動きがない攻撃は視覚的に「当たっていない」ように見える）。
+
+対応するアニメーション定義は `PART_ANIMS` に追加する。
+動きのパターンに迷ったら近い技のエントリをコピーして値を調整する。
+
+### 本番アニメーション差し替え時のルール（重要）
+
+キャラクターモデルに **AnimationMixer による本番アニメーション**（GLTF/FBX スケルタルアニメ）が組み込まれたとき：
+
+1. 差し替えた技の `ATTACKS[id].partsAnim` フィールドを**削除する**
+2. 対応する `PART_ANIMS` のエントリも**削除する**
+3. `updatePartAnims` は `partsAnim` が未定義なら何もしない設計なので、削除するだけで二重アニメーションは防げる
+
+**理由：** `updatePartAnims` は `partsAnim` キーの有無で動作を切り替えている。
+本番アニメが入った技に `partsAnim` が残っていると、スケルタルアニメと座標上書きが干渉して破綻する。
+
+---
+
 ## 変数定義順の鉄則（TDZ事故防止）
 
 `STATE` / `PHYSICS` / `ATTACKS` / `SP_CONFIG` / `Z_CHAIN` は **`players` 配列の宣言より前**に定義する。
@@ -83,6 +119,11 @@ Unity は採用しない。詳細は仕様書 §3 参照。
 ## 関連ファイル
 
 - 仕様書（**最初に読む**）：`~/.claude/plans/buzzing-juggling-sedgewick.md`
+- キャラ個別仕様：`~/.claude/plans/chars/`
+  - `common01.md` — 敵味方共通挙動（ノックバック・ESTATE・キャンセル・SP・コンボ補正）
+  - `char01.md` — METEO 固有仕様（攻撃テーブル・パラメータ全量）
+  - `enem01.md` — 敵仕様（現ダミー実装・将来AI設計）
+  - `boss01.md` — CRUSHER（Stage1ボス）設計メモ
 - メモリ：`~/.claude/projects/G--claude-code-local/memory/project_scrapblitz.md`
 - ユーザー全体ガイド：`~/.claude/CLAUDE.md`
 - 実装：`gameproject02/index.html`
