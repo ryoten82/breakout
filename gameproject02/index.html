@@ -1093,6 +1093,42 @@
     };
 
     // ============================================================
+    //  HOMING（コンボ追尾）— 最初に殴った敵に対する自動接近
+    //  - 全攻撃で windup 中に target 方向へ補間移動
+    //  - 反対方向入力 0.3 秒（連打 or 持続）でロック解除
+    //  - 距離が遠すぎる or target が無敵化（down_burst）でも自動解除
+    // ============================================================
+    const HOMING_CONFIG = {
+      MAX_DISTANCE:        400,   // XZ 合算距離での解除（フェイルセーフ）
+      MAX_DISTANCE_X:      200,   // X 軸単独での解除（横方向に逃げ過ぎたら諦める・Z は強く効かせるので別管理）
+      // 補間係数（距離スケーリングで実効値は減算される）
+      WINDUP_LERP_X:       0.22,  // 水平 X：標準
+      WINDUP_LERP_Y:       0.18,  // 空中 Y：標準（コンボ繋がりやすさ優先で据置）
+      WINDUP_LERP_Z:       0.32,  // 奥行き Z：強め（2.5D 圧縮で最もズレやすい軸・コマンド ↓ 入力で誤って動きやすい）
+      // 目標位置のオフセット
+      AIM_OFFSET_X_RATIO:  0.55,  // hitFrame 時の理想 X 距離 = rangeX × この係数
+      AIM_Y_OFFSET:        60,    // 空中追尾時、target の Y より少し上を狙う
+      // デッドゾーン：既に圏内なら動かさない（さりげなさのため）
+      DEADZONE_X_MARGIN:   40,    // |gapX| < (rangeX × AIM_OFFSET_X_RATIO + これ) なら X 動かない
+      DEADZONE_Y_MARGIN:   30,    // |gapY| < これ なら Y 動かない
+      DEADZONE_Z_MARGIN:   15,    // |gapZ| < これ なら Z 動かない（小さめ＝Z は積極補正）
+      // 距離スケーリング：遠いほど効きを弱める（ワープ感の軽減）
+      FALLOFF_NEAR:        100,   // この距離までは LERP 100% 適用
+      FALLOFF_FAR:         350,   // この距離で LERP の 30% まで減衰（線形補間）
+      FALLOFF_FAR_RATIO:   0.30,  // FALLOFF_FAR 地点での残存比率
+      // 当たり判定の内部拡張（C 案）：comboTarget だけ rangeX をこの分上乗せ
+      HIT_RANGE_BONUS_X:   40,    // ぎりぎり外れる攻撃を「届いた」扱いに（locked target のみ）
+      HIT_RANGE_BONUS_Z:   30,    // Z も同様（圧縮軸の救済）
+      // facing 自動反転：閾値を上げて「遠くから振り向く」感を回避
+      FACING_FLIP_DIST:    70,    // dist > これ なら facing を target 方向に強制反転
+      // 解除入力
+      BREAK_INPUT_FRAMES:  18,    // 反対方向入力で解除されるまでの累積 F（0.3 秒）
+      OPPOSITE_DECAY:      0.5,   // 反対入力していないフレームでのカウンタ減衰
+      // デバッグ
+      SHOW_DEBUG_ARROW:    true,  // 対象敵に矢印デバッグ表示（本番では false）
+    };
+
+    // ============================================================
     //  GUARD（METEO L キー前方ガード）
     //  - 長押し中 SP 持続消費 / 移動可・攻撃不可
     //  - L 離す or SP 切れ で即解除 → 短いフェードアウト
@@ -1134,7 +1170,7 @@
         duration:     16, hitFrame: 6, hitDuration: 4, cancelWindow: 14,
         damage:       6,
         rangeX:       110, rangeZ: 110, rangeY: 80,   // 胸高さまで
-        knockback:    6, hitstop: 3, shake: 2,
+        knockback:    9, hitstop: 3, shake: 2,         // 6→9（J コンボ全弾 1.5x：間合い詰まり対策・J 連打無限コンボ抑止）
         atk_lv:       1,
         partsAnim:    'punch_l',
       },
@@ -1143,7 +1179,7 @@
         duration:     16, hitFrame: 6, hitDuration: 4, cancelWindow: 14,
         damage:       7,
         rangeX:       115, rangeZ: 110, rangeY: 80,   // 胸高さまで
-        knockback:    8, hitstop: 4, shake: 3,
+        knockback:    12, hitstop: 4, shake: 3,        // 8→12（1.5x）
         atk_lv:       1,
         partsAnim:    'punch_r',
       },
@@ -1152,7 +1188,7 @@
         duration:     22, hitFrame: 9, hitDuration: 5, cancelWindow: 16,
         damage:       12,
         rangeX:       130, rangeZ: 120, rangeY: 110,  // 蹴りは少し高めまで
-        knockback:    14, hitstop: 6, shake: 5,
+        knockback:    21, hitstop: 6, shake: 5,        // 14→21（1.5x）
         atk_lv:       1,
         partsAnim:    'kick',
       },
@@ -1161,7 +1197,7 @@
         duration:     24, hitFrame: 10, hitDuration: 5, cancelWindow: 16,
         damage:       14,
         rangeX:       135, rangeZ: 125, rangeY: 140,  // 旋回アッパー：頭上付近まで
-        knockback:    40, hitstop: 7, shake: 6,
+        knockback:    60, hitstop: 7, shake: 6,        // 40→60（1.5x）
         atk_lv:       2,                      // フィニッシャー：地上は knockback02
         atk_lv_air:   3,                      // 空中敵には吹き飛び（down_front_*）
         partsAnim:    'spin_upper',
@@ -1172,7 +1208,7 @@
         duration:     14, hitFrame: 5, hitDuration: 3, cancelWindow: 12,
         damage:       5,
         rangeX:       145, rangeZ: 120, rangeY: PHYSICS.AERIAL_RANGE_Y, rangeYDown: 260,
-        knockback:    3, hitstop: 3, shake: 2,
+        knockback:    5, hitstop: 3, shake: 2,         // 3→5（1.5x 切り上げ）
         aerialHop:    true,
         atk_lv:       1,
         partsAnim:    'air_punch_l',
@@ -1182,7 +1218,7 @@
         duration:     16, hitFrame: 6, hitDuration: 3, cancelWindow: 13,
         damage:       7,
         rangeX:       145, rangeZ: 120, rangeY: PHYSICS.AERIAL_RANGE_Y + 10, rangeYDown: 270,
-        knockback:    5, hitstop: 4, shake: 3,
+        knockback:    8, hitstop: 4, shake: 3,         // 5→8（1.5x 切り上げ）
         aerialHop:    true,
         atk_lv:       1,
         partsAnim:    'air_kick',
@@ -1192,7 +1228,7 @@
         duration:     18, hitFrame: 7, hitDuration: 4, cancelWindow: 14,
         damage:       10,
         rangeX:       145, rangeZ: 120, rangeY: PHYSICS.AERIAL_RANGE_Y + 20, rangeYDown: 280,
-        knockback:    32,             // 26 → 32（少し追加・吹き飛ばし感UP）
+        knockback:    80,             // 26 → 32 → 48 → 80（空中フィニッシャー：地上 J へ吸い込み防止）
         aerialHop:    true,           // 空中Jコンボ全体で同じ量のホップ（c01_atk_s_01_air / 02_air と統一）
         atk_lv:       2,              // 地上敵：強攻撃フリンチ（knockback02）
         atk_lv_air:   3,              // 空中敵：吹き飛び（down_front_start）
@@ -1219,7 +1255,9 @@
       },
       // 仕様: METEO 打ち上げ攻撃 — Jチェーン中 ↑+K で発動・launcher:true → キャンセルジャンプ可
       c01_atk_l_01_up: {
-        label:        'c01_atk_l_01_up (METEO ↑+K・軽浮かせ／コンボ始動)',
+        // ★旧称：打ち上げ K。lv02 軽フリンチ + knockbackY=12 で軽く浮かせるだけのコンボ始動技に変更（2026-05-14）
+        //   強い打ち上げは sp_02 系へ移管済
+        label:        'c01_atk_l_01_up (METEO ↑+K・軽浮かせコンボ始動)',
         duration:     26, hitFrame: 10, hitDuration: 4, cancelWindow: 16,
         damage:       18,
         rangeX:       115, rangeZ: 110, rangeY: 180,  // 上方向リーチは維持（浮いた敵にも届く）
@@ -1250,11 +1288,8 @@
         aerialHop:    true,              // 空中Jと同じ量のホップ（AERIAL_HOP_V）
         atk_lv:       3,                 // 地上敵：吹き飛び（down_front_start）
         atk_lv_air:   3,                 // 空中敵も吹き飛び（超吹き飛ばしは sp_01_air に移管）
-        // ※ kb_vy / kb_vx_mult / kb_vx_decay は lv06 超吹き飛ばし時のベクトル上書き専用。
-        //    lv03 では使われないが、将来 sp_01_air 側の lv06 で参照される予定のため残置可。
-        kb_vy:        -10,
-        kb_vx_mult:   5.0,
-        kb_vx_decay:  0.92,
+        // ※ lv06 用 kb_vy / kb_vx_mult / kb_vx_decay は撤去（移管元の sp_01_air が
+        //    自身の kb_vy_lv6 / kb_vx_mult_lv6 / kb_vx_decay_lv6 で持つようになったため）
         hitColor:     0xff9944,          // 地上K(0xff6622)より明るいオレンジ（差別化）
         hitCount:     22,
         partsAnim:    'strong_punch_r',  // 当面は地上Kと共用（将来 air_strong_punch に分離）
@@ -1262,9 +1297,20 @@
       },
       // 仕様: METEO 空中急降下踏みつけ — 空中で ↓+K 発動。発動瞬間に真下へ急降下
       c01_atk_l_01_air_down: {
-        label:        'c01_atk_l_01_air_down (METEO 空中急降下・↓+K)',
+        label:        'c01_atk_l_01_air_down (METEO 空中急降下・↓+K・連続ヒット)',
+        // === 連続ヒット化：ドリル踏みつけ → 最終で叩きつけ ===
+        // 旧来は単発で頭に当たって即バウンドする見栄えだった
+        // 3 段：frame 8 / 12 / 16（hitInterval=4）。最終ヒットで atk_lv 5 → down_rakka_start
+        // 中間 2 発は knockback01 軽フリンチ（位置維持）、最終で kb_vy=-45 の強叩きつけ発動
         duration:     24, hitFrame: 8, hitDuration: 6, cancelWindow: 16,
-        damage:       16,
+        isMultiHit:     true,
+        multiHitCount:  3,
+        hitInterval:    4,
+        damagePerHit:   4,
+        damageLastHit:  8,
+        damage:         16,            // 互換用：4+4+8 = 16（旧と同じ総ダメージ）
+        intermediateKnockbackVx: 0,    // ドリル特性：水平移動させず真下で複数ヒット
+        intermediateKbDecay:     0.78,
         rangeX:       145, rangeZ: 135,
         rangeY:       60,              // 上方向は小さめ（踏みつけ想定）
         rangeYDown:   300,             // 下方向は大きく（急降下からの踏みつけ）
@@ -1276,10 +1322,10 @@
         atk_lv:       5,               // 叩きつけ
         atk_lv_air:   5,               // 空中敵も同じ（明示・down_rakka_start に飛ばす）
         atk_lv_down:  5,               // ダウン中の敵も同じ（明示・down_bound_start に飛ばして拾い直し可能）
-        // === lv05 ベクトル個別上書き：すごい勢いで地面にたたきつける ===
+        // === lv05 ベクトル個別上書き：すごい勢いで地面にたたきつける（最終ヒットでのみ発動）===
         // 既定 KB_LV05_VY=-18 / KB_LV05_VX_MULT=0.1 を 2.5 倍に強化
-        kb_vy:        -45,             // 下向き初速 2.5 倍（KB_LV05_VY * 2.5）
-        kb_vx_mult:   0.1,             // 水平は据え置き（真下落下を維持）
+        kb_vy_lv5:        -45,         // 下向き初速 2.5 倍（KB_LV05_VY * 2.5）
+        kb_vx_mult_lv5:   0.1,         // 水平は据え置き（真下落下を維持）
         omni:         true,            // 全方向ヒット（踏みつけ性質）
         launcher:     false,
         hitColor:     0xff4422,
@@ -1379,15 +1425,23 @@
         tiltX:        -1.40,             // ≈ -80°（ほぼ水平・後ろ倒し）
       },
       c01_atk_l_01_step: {
-        label:        'c01_atk_l_01_step (METEO ステップK・ショルダータックル)',
-        duration:     28, hitFrame: 11, hitDuration: 5, cancelWindow: 0,
-        damage:       22,
+        label:        'c01_atk_l_01_step (METEO ステップK・ショルダータックル・連続ヒット)',
+        duration:     28, hitFrame: 8, hitDuration: 5, cancelWindow: 0,
+        // === 連続ヒット技：軌道上の敵を多段ヒット（巻き込み）===
+        // hits at frame 8 / 13 / 18（hitInterval=5 × multiHitCount=3）
+        // 中間 2 発：damagePerHit / 最終 1 発：damageLastHit + atk_lv 3 で吹き飛ばし
+        isMultiHit:     true,
+        multiHitCount:  3,
+        hitInterval:    5,
+        damagePerHit:   5,
+        damageLastHit:  12,
+        damage:         22,             // 互換用（最終ヒットが上書きするので参照されない）
         rangeX:       160, rangeZ: 90, rangeY: 180,
         knockback:    80, hitstop: 10, shake: 9,
         atk_lv:       3,
         atk_lv_air:   3,
         hitColor:     0xff8844,
-        hitCount:     22,
+        hitCount:     22,                // パーティクル数（多段時は中間 1 ヒットあたり半量）
         launcher:     false,
         aerialHop:    false,
         partsAnim:    'tackle',
@@ -1406,9 +1460,16 @@
       //  - flashOnStart: true でプレイヤーを発動瞬間に白く発光
       // ============================================================
       c01_sp_01: {
-        label:        'c01_sp_01 (METEO 波動コマンド・弱ビーム・地上版)',
+        label:        'c01_sp_01 (METEO 波動コマンド・弱ビーム・連続ヒット)',
         duration:     30, hitFrame: 14, hitDuration: 6, cancelWindow: 14,
-        damage:       16,
+        // === 連続ヒット：3 段（フレーム 14 / 19 / 24）===
+        // ビームの「ジリジリ」感を多段で表現。最終ヒットで吹き飛び（atk_lv 3）
+        isMultiHit:     true,
+        multiHitCount:  3,
+        hitInterval:    5,
+        damagePerHit:   4,    // 中間 2 発：軽フリンチ + 4 ダメ
+        damageLastHit:  10,   // 最終 1 発：10 ダメ + atk_lv 3 dispatch
+        damage:         18,   // 互換用（4×2 + 10 = 18 総合・旧 16 から微増）
         rangeX:       250, rangeZ: 80, rangeY: 100,
         knockback:    50, hitstop: 8, shake: 6,
         atk_lv:       3,    // 地上敵：吹き飛び（down_front_start）
@@ -1425,9 +1486,16 @@
       // 空中版：斜め下方向に発射。rangeY を絞って rangeYDown を大きく取る非対称 hitbox。
       // METEO 固有の挙動（VIPER 等は別の傾向にする予定）。pickSpecialAttackId で地上/空中を分岐
       c01_sp_01_air: {
-        label:        'c01_sp_01_air (METEO 波動コマンド・空中版・斜め下パイルバンカー)',
+        label:        'c01_sp_01_air (METEO 波動コマンド・空中版・パイルバンカー連続ヒット)',
         duration:     26, hitFrame: 10, hitDuration: 6, cancelWindow: 14,
-        damage:       14,
+        // === 連続ヒット：3 段（フレーム 10 / 14 / 18）===
+        // パイルバンカーの「ドリル」感を多段で表現。最終ヒットで叩きつけ or 超吹き飛ばし
+        isMultiHit:     true,
+        multiHitCount:  3,
+        hitInterval:    4,    // ドリル感のためインターバル短め
+        damagePerHit:   4,
+        damageLastHit:  8,    // 最終 1 発：8 ダメ + atk_lv 5/6 dispatch
+        damage:         16,   // 互換用（4×2 + 8 = 16 総合・旧 14 から微増）
         rangeX:       220, rangeZ: 90,
         rangeY:       30,       // 上方向は薄く
         rangeYDown:   260,      // 下方向は大きく（斜め下射撃の表現）
@@ -1457,21 +1525,36 @@
         showHitbox:   true,
       },
       c01_sp_02: {
-        label:        'c01_sp_02 (METEO 対空コマンド・噴射打ち上げ・地上版)',
-        duration:     14, hitFrame: 8, hitDuration: 5, cancelWindow: 4,  // 硬直短縮：peak 到達前に wait01 へ
-        damage:       14,
+        label:        'c01_sp_02 (METEO 対空コマンド・粉塵昇竜・地上版)',
+        // === 二段構造（SF6 ケン粉塵昇竜パターン）===
+        //   frame 0-9 : 前進フェーズ（地上を lungeVx で走り、ヒット 1-3 発を稼ぐ）
+        //   frame 10  : plyrLiftVyDelay 発動 → leap up 開始
+        //   frame 13  : 最終 4 発目（昇竜・launcher で敵を上空へ）
+        duration:     18, hitFrame: 4, hitDuration: 5, cancelWindow: 4,
+        isMultiHit:     true,
+        multiHitCount:  4,
+        hitInterval:    3,                 // ラピッドな「粉塵」感
+        damagePerHit:   3,                 // 中間 3 発 × 3 = 9
+        damageLastHit:  16,                // 最終昇竜：9 + 16 = 25 トータル
+        damage:         25,                // 互換用
+        intermediateKnockbackVx: 12,       // 敵をプレイヤー前進と同調させて引き連れる（通過防止）
+        intermediateKbDecay:     0.85,     // 中速減衰：refresh まで持続させる
+        // === 前進フェーズ（地上 dash）===
+        lungeVx:      14,                  // plyrLiftVx の代わりに地上ダッシュ
+        lungeDecay:   0.92,                // 緩減衰で 10F 持続
         rangeX:       110, rangeZ: 100, rangeY: 200,
         knockback:    10, hitstop: 7, shake: 6,
-        atk_lv:       4,    // 打ち上げ（down_up_start）— launcher 機能と整合
-        atk_lv_air:   4,    // 空中敵も打ち上げ（連続打ち上げ抑止は dispatcher 側で処理）
-        // atk_lv_down は撤去
-        launchVy:     22,
+        atk_lv:       4,    // 最終ヒット：打ち上げ（down_up_start）
+        atk_lv_air:   4,    // 空中敵も打ち上げ
+        launchVy:     22,   // 最終ヒットで発動（中間はホールドのみ）
         launcher:     true,
         attrGroup:    'LAUNCH_COMBO',
         hitColor:     0xffcc44,
         hitCount:     22,
-        plyrLiftVy:   24,
-        plyrLiftVx:   14,
+        // === 昇竜フェーズ：frame 10 で発動 ===
+        plyrLiftVy:       24,
+        plyrLiftVyDelay:  10,              // 最終ヒット直前に leap up（粉塵昇竜の核）
+        plyrLiftVx:       14,              // 離地後の airVx 維持用（事前セット）
         aerialHop:    true,
         aerialHopVy:  16,
         partsAnim:    'upper_cut',
@@ -1479,23 +1562,29 @@
         flashOnStart: true,
         showHitbox:   true,
       },
-      // 空中版：地上版とほぼ同等の触感で、空中で ↓↑+J を入力した時にディスパッチされる
+      // 空中版：単発打ち上げ（多段は触感的に苦しかったため単発化・2026-05-14）
+      //   ヒットストップは重め維持で必殺技コマンド入力余地を確保
+      //   plyrLiftVy は遅延発動：ヒット時にはまだ上昇していないので低空で敵を捉えられる
+      //   ヒット後（frame 12）に追加上昇 → 「単発で当てて、その後昇る」絵
       c01_sp_02_air: {
-        label:        'c01_sp_02_air (METEO 対空コマンド・空中版)',
-        duration:     14, hitFrame: 8, hitDuration: 5, cancelWindow: 4,  // 硬直短縮：地上版と同調
-        damage:       14,
+        label:        'c01_sp_02_air (METEO 対空コマンド・空中版・単発)',
+        duration:     14, hitFrame: 6, hitDuration: 6, cancelWindow: 4,
+        damage:       25,
         rangeX:       110, rangeZ: 100, rangeY: 200,
-        knockback:    10, hitstop: 7, shake: 6,
-        atk_lv:       4,    // 打ち上げ（down_up_start）
-        atk_lv_air:   4,    // 空中敵も打ち上げ
-        // atk_lv_down 無し
+        knockback:    10, hitstop: 12, shake: 7,    // hitstop 重め（コマンド入力余地）
+        atk_lv:       4,
+        atk_lv_air:   4,
         launchVy:     22,
         launcher:     true,
         attrGroup:    'LAUNCH_COMBO',
         hitColor:     0xffcc44,
         hitCount:     22,
+        // === 構造：plyrLiftVx 即時 / plyrLiftVy 遅延 ===
+        plyrLiftVx:       14,             // 即時 airVx で前進ドリフト
+        plyrLiftVy:       16,             // 24→16：空中追加上昇は控えめに（既に空中スタートのため）
+        plyrLiftVyDelay:  12,             // ヒット後（frame 6-11 終了直後）に上昇開始
         aerialHop:    true,
-        aerialHopVy:  24,   // 地上 plyrLiftVy と合わせて、空中ヒット時にプレイヤーも同じ高さまで浮く
+        aerialHopVy:  16,                 // 24→16：ヒット時のホップも控えめ
         partsAnim:    'upper_cut',
         isSpecial:    true,
         flashOnStart: true,
@@ -1505,7 +1594,7 @@
         label:        'c01_sp_03 (METEO 溜め・チャージパンチ・地上版)',
         duration:     36, hitFrame: 16, hitDuration: 6, cancelWindow: 16,
         damage:       28,
-        rangeX:       180, rangeZ: 130,
+        rangeX:       360, rangeZ: 130,    // 180→360：単発・中距離まで届く重い 1 撃（多段ばかりにしないバランス役）
         rangeY:       130,    // 上方向：頭上〜浮いた敵まで
         rangeYDown:   30,     // 下方向は足元のみ（旧 viz の見た目に合わせて下判定を絞る）
         knockback:    60, hitstop: 12, shake: 10,
@@ -1526,7 +1615,7 @@
         label:        'c01_sp_03_air (METEO 溜め・チャージパンチ・空中版)',
         duration:     36, hitFrame: 16, hitDuration: 6, cancelWindow: 16,
         damage:       28,
-        rangeX:       180, rangeZ: 130,
+        rangeX:       360, rangeZ: 130,    // 180→360：空中版も中距離まで（地上版と同調）
         rangeY:       130,
         rangeYDown:   30,     // 空中版も下判定は絞る（地上版に合わせる）
         knockback:    60, hitstop: 12, shake: 10,
@@ -1565,6 +1654,19 @@
     function resolveAttackAttr(attack) {
       if (!attack.attrGroup) return attack;
       return Object.assign({}, ATTACK_ATTRS[attack.attrGroup] ?? {}, attack);
+    }
+
+    // 多段ヒット技の「ヒットウィンドウ終端フレーム」を返す（hitFrame からの相対）
+    //   単発：hitFrame + hitDuration
+    //   多段：hitFrame + (multiHitCount-1) × hitInterval + hitDuration
+    //   ビジュアル（パーツアニメ・赤ボックス）の表示期間に使う
+    function getHitWindowEnd(atk) {
+      if (atk.isMultiHit) {
+        const count = atk.multiHitCount ?? 1;
+        const interval = atk.hitInterval ?? 6;
+        return atk.hitFrame + (count - 1) * interval + (atk.hitDuration ?? 4);
+      }
+      return atk.hitFrame + (atk.hitDuration ?? 4);
     }
 
     // 地上 J チェーン：c01_atk_s_01 → 02 → 03 → 04（K 系は単独・チェーン外）
@@ -1608,6 +1710,12 @@
       down_rakka_start: 'down_rakka_start',  // 真下に高速落下開始（地上/空中共用）→ down_rakka_loop ／ 地面: down_bound_start
       down_rakka_loop:  'down_rakka_loop',   // 真下落下ループ ／ 地面: down_bound_start
       down_bound_start: 'down_bound_start',  // 着地後の1回バウンド → 再着地で down_bas_loop
+      // ── バースト離脱（重複必殺技ヒット時の完全無敵スピン）─────────────
+      // ダメージは通常通り入るが、敵は無敵で派手にぐるぐる回りながら後方へ吹き飛ぶ。
+      // 着地で down_bas_start に合流。コンボは +1 してから自然消滅。
+      // 重複検出は p.specialIsDuplicate フラグ経由（startSpecial で立つ）。
+      down_burst_start: 'down_burst_start',  // 12F イントロ → down_burst_loop
+      down_burst_loop:  'down_burst_loop',   // 空中スピン中（完全無敵）→ 着地で down_bas_start
       // ── ダウン静止・起き上がり ─────────────────────────────────
       down_bas_start:   'down_bas_start',    // 着地直後（イントロ） → down_bas_loop
       down_bas_loop:    'down_bas_loop',     // ダウン静止ループ → down_bas_end
@@ -1629,6 +1737,14 @@
     const ENEMY_DOWN_CHOU_FRAMES    = 12;  // down_chou_start イントロ
     const ENEMY_WALL_START_FRAMES   = 15;  // down_wall_start（壁張り付き）
     const ENEMY_ROLL_FRAMES         = 30;  // down_roll_start（転がり）
+    // バースト離脱（重複必殺技）
+    const ENEMY_DOWN_BURST_START_FRAMES = 12;  // down_burst_start イントロ
+    const ENEMY_DOWN_BURST_LOOP_FRAMES  = 60;  // down_burst_loop 空中スピン持続
+    const KB_BURST_VY        = 18;     // 上向き初速（軽め）
+    const KB_BURST_VX        = 15;     // 後方水平初速
+    const KB_BURST_VX_DECAY  = 0.95;   // 緩い減衰（遠くまで飛ぶ）
+    const KB_BURST_SPIN_RATE = 0.40;   // 毎フレーム rotation.z 増分（≒ 23°/F・ぐるぐる）
+    const KB_BURST_GRAV_MULT = 0.6;    // gravFactor（既存 launcherAirborne と同じ・滞空延長）
     // 叩きつけ系（lv05）
     const ENEMY_DOWN_RAKKA_FRAMES   = 12;  // down_rakka_start（落下開始イントロ）
     const ENEMY_DOWN_BOUND_FRAMES   = 60;  // down_bound_start（バウンド効果時間・着地で早期終了可）
@@ -1665,6 +1781,9 @@
       down_rakka_start: 0,
       down_rakka_loop:  0,
       down_bound_start: 0,
+      // バースト離脱（重複必殺技）— tilt 補間は使わず updateEnemies で直接 rotation.z を回す
+      down_burst_start: 0,
+      down_burst_loop:  0,
     };
     const STATE_TILT_LERP = 0.25;          // 補間係数（0.25 で約12F でほぼ目標到達）
 
@@ -1899,6 +2018,24 @@
       return mesh;
     })();
 
+    // === ホーミング対象表示矢印（デバッグ）===
+    //   comboTarget 設定中、対象敵の頭上に下向き三角を浮かす
+    //   HOMING_CONFIG.SHOW_DEBUG_ARROW を false にすると非表示
+    const homingArrowMesh = (() => {
+      const geo = new THREE.ConeGeometry(22, 38, 4);
+      const mat = new THREE.MeshBasicMaterial({
+        color:       0xffee44,
+        transparent: true,
+        opacity:     0.9,
+        depthWrite:  false,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.rotation.x = Math.PI;  // 円錐は +Y に尖るので 180° 回して下向き
+      mesh.visible = false;
+      scene.add(mesh);
+      return mesh;
+    })();
+
     // === メガクラッシュ球体（拡大波エフェクト）===
     // 完全な球シェルを player 中心にスポーンし、半径 0 → MEGA_CONFIG.RADIUS まで scale で拡大
     // 半透明の薄いシェル → カメラ側からは円形シルエット（球の輪郭）として見える
@@ -2014,12 +2151,22 @@
       // ヒット成立 or 攻撃終了で 0 にリセット → オーバーシュート防止
       lungeMomentum:        0,
 
+      // === コンボ追尾（最初に殴った敵にロック）===
+      comboTarget:          null,  // ロック対象の enemy 参照（bumpCombo で初回 set / 切断で null）
+      oppositeInputFrames:  0,     // 反対方向入力の累積カウンタ（HOMING_CONFIG.BREAK_INPUT_FRAMES で解除）
+
+      // === 連続ヒット技：敵ごとの「次ヒット可能フレーム」管理 ===
+      // 攻撃開始時にクリア・hitInterval 経過で再ヒット可能
+      multiHitNextHit:      new Map(),
+
       // === 必殺技（コマンド・溜め）===
       dirHistory:           [],    // 方向入力履歴 [{dir, frame}, ...]・新しい順で push
       chargeJFrames:        0,     // J 長押し蓄積フレーム
       chargeReady:          false, // 0.8 秒到達フラグ
       jHeldDuringCharge:    false, // 直近で J 押下開始してチャージ蓄積中か
       specialUsedIds:       new Set(), // 同コンボ中に発動済みの必殺技 ID 集合（ID 単位で 1 回制限）
+      specialIsDuplicate:   false,     // 今回発動した必殺技が「既に使用済 ID の再発動」かどうか
+                                       // → ヒット時に敵を down_burst_* に強制遷移するためのフラグ
       specialFlashTimer:    0,     // 白フラッシュ残フレーム
       _jWasDownSpecial:     false, // 必殺技用 J エッジ検出（processAttackInput と独立）
 
@@ -2343,6 +2490,9 @@
       kbFromMega:       false, // メガクラ被弾フラグ（knockback_air01 中の重力半減に使う）
       pitchAngle:       0,     // 前後傾（rotation.x）— knockback 系の被弾モーション用
       frozenByUlt:      false, // ULT 演出中の時間停止フラグ（最初のヒットで解除）
+      burstSpinRate:    0,     // バースト離脱中のロール増分（0=回さない）
+      burstGravMult:    0,     // バースト離脱中の重力倍率（0 or undef なら通常重力）
+      burstRollAngle:   0,     // バースト中の累積ロール角（クォータニオン合成用）
       grabbedBy:        null,  // 自分を掴んでいるプレイヤー（state===grabbed の補助情報）
       state:            STATE.wait01,
       tiltAngle:        0,    // 傾き角（0=立ち、π/2=横倒し）
@@ -2386,6 +2536,14 @@
     const dbgSpUsedEl      = document.getElementById('dbg-sp-used');
 
     function bumpCombo(hitEnemy) {
+      // コンボ初回ヒット：最初に殴った敵を各プレイヤーの comboTarget としてロック
+      // （以降の攻撃 windup で自動接近・対象が固定されることで連続ヒット率が上がる）
+      if (combo.count === 0) {
+        for (const pp of players) {
+          pp.comboTarget = hitEnemy;
+          pp.oppositeInputFrames = 0;
+        }
+      }
       combo.count += 1;
       combo.lastHitEnemy = hitEnemy;  // 最後に殴った敵を更新（追跡対象切替）
       comboEl.style.opacity = '1';
@@ -2408,9 +2566,12 @@
       // タイミングで specialUsedIds が残っていたら解除する。
       // 攻撃中・hit_confirm 中はまだ「進行中」なので保留。
       if (combo.count === 0) {
-        if (p && p.state !== STATE.attacking && p.state !== STATE.hit_confirm
-            && p.specialUsedIds.size > 0) {
-          for (const pp of players) pp.specialUsedIds.clear();
+        if (p && p.state !== STATE.attacking && p.state !== STATE.hit_confirm) {
+          for (const pp of players) {
+            if (pp.specialUsedIds.size > 0) pp.specialUsedIds.clear();
+            pp.comboTarget = null;            // ロック解除
+            pp.oppositeInputFrames = 0;
+          }
         }
         return;
       }
@@ -2420,8 +2581,12 @@
         combo.count = 0;
         combo.lastHitEnemy = null;
         comboEl.style.opacity = '0';
-        // コンボ切断時：必殺技 ID 集合も解除
-        for (const pp of players) pp.specialUsedIds.clear();
+        // コンボ切断時：必殺技 ID 集合と comboTarget ロックも解除
+        for (const pp of players) {
+          pp.specialUsedIds.clear();
+          pp.comboTarget = null;
+          pp.oppositeInputFrames = 0;
+        }
       }
     }
 
@@ -2552,28 +2717,34 @@
       p.state           = STATE.attacking;
       p.attackId        = id;
       p.attackChainIdx  = chainIdx;   // -1 = チェーン外（K など）
+      // チェーン外攻撃（K 単発・必殺技 sp 系）開始時は attackChainArr を明示クリア
+      //   持ち越し時の Z バッファ漏れ系バグ（consumeAttackBuffer が前のチェーンに合流する等）の予防
+      //   startAttackFromChain 経由はこの後で chain を再代入するので問題ない
+      if (chainIdx < 0) p.attackChainArr = null;
       p.stateTimer      = ATTACKS[id].duration;
       p.hitDelivered    = false;
       p.cancelTimer     = 0;
       p.attackBuffered  = false;
+      // 連続ヒット技：敵ごとの次ヒット可能フレーム管理を毎攻撃ごとにリセット
+      p.multiHitNextHit.clear();
       // 急降下技：発動時はホバー（vy=0）→ divePause F 後に急降下
       if (ATTACKS[id].diveVy !== undefined && !p.isGrounded) {
         p.vy = 0;
         p.diveCountdown = ATTACKS[id].divePause ?? 0;
       }
-      // プレイヤー自身のリフト（c01_sp_02 の噴射打ち上げ等）：地上発動でも空中発動でも適用
-      // plyrLiftVy = 真上方向の初速（Math.max で既存上昇 vy を潰さない）
-      // plyrLiftVx = 前方向（facing）の初速・airVx を強制セット
-      // ボルカニックヴァイパー的な「前進しながら昇る」軌道を表現する
-      if (ATTACKS[id].plyrLiftVy !== undefined) {
+      // === プレイヤー自身のリフト（plyrLift*）===
+      //   plyrLiftVx：facing 方向の airVx 初速。常に即時適用（離地時 or 後で離地した時に効く）
+      //   plyrLiftVy：上昇 vy 初速。
+      //     - plyrLiftVyDelay 未指定 / 0 → 発動瞬間に適用
+      //     - plyrLiftVyDelay 指定 → updateAttack 内の elapsed === delay フレームで適用（粉塵昇竜パターン）
+      //   ボルカニックヴァイパー的な「前進しながら昇る」/ 粉塵昇竜的な「前進→上昇」を表現
+      if (ATTACKS[id].plyrLiftVx !== undefined) {
+        p.airVx = p.facing * ATTACKS[id].plyrLiftVx;
+      }
+      const _plyrLiftDelay = ATTACKS[id].plyrLiftVyDelay ?? 0;
+      if (ATTACKS[id].plyrLiftVy !== undefined && _plyrLiftDelay === 0) {
         p.vy = Math.max(p.vy, ATTACKS[id].plyrLiftVy);
         if (p.isGrounded) p.isGrounded = false;  // 地上発動なら離地
-        if (ATTACKS[id].plyrLiftVx !== undefined) {
-          // facing 方向に airVx を強制セット（空中慣性として AIR_FRICTION で自然減衰）
-          p.airVx = p.facing * ATTACKS[id].plyrLiftVx;
-          // TODO（後々詰める）：敵追尾。今は単純な前進のみ。
-          // ホーミングは c01_atk_l_01_up の homingTarget / homingFrames 機構を流用する方針で。
-        }
       }
       // 踏み込み攻撃：lungeVx 指定があれば facing 方向へ短時間前進
       // ステップ攻撃と違って tilt 等の特別演出はせず、純粋に前進運動量だけを与える
@@ -2644,13 +2815,21 @@
       let anyHit = false;
       for (const e of enemies) {
         if (!e.isAlive) continue;
+        // down_burst_* 中は完全無敵：判定もダメージも一切受けない
+        if (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop) continue;
         const dx = e.x - p.x;
         const dz = e.z - p.z;
         // 前方判定（omni 攻撃は全方向ヒット）
         // 真正面（dx=0）も拾えるよう「逆方向だけ弾く」判定に変更（旧 sign !== facing は dx=0 で空振り）
         if (!attack.omni && Math.sign(dx) === -facing) continue;
-        if (Math.abs(dx) > attack.rangeX) continue;
-        if (Math.abs(dz) > attack.rangeZ) continue;
+        // === ホーミング当たり判定拡張 ===
+        // comboTarget 本人だけ rangeX / rangeZ にボーナスを乗せて
+        // 「ぎりぎり外れた」攻撃を「届いた」扱いに（さりげなさのため）
+        const _isLockedTarget = (e === p.comboTarget);
+        const _bonusX = _isLockedTarget ? HOMING_CONFIG.HIT_RANGE_BONUS_X : 0;
+        const _bonusZ = _isLockedTarget ? HOMING_CONFIG.HIT_RANGE_BONUS_Z : 0;
+        if (Math.abs(dx) > attack.rangeX + _bonusX) continue;
+        if (Math.abs(dz) > attack.rangeZ + _bonusZ) continue;
         // Y軸判定（非対称：上方向 rangeY / 下方向 rangeYDown ≥ rangeY）
         if (attack.rangeY !== undefined) {
           const dy = e.y - p.y;          // 正:敵が上 / 負:敵が下
@@ -2683,6 +2862,35 @@
         }
         e.knockbackVx   = facing * (attack.knockback * 0.4);
         const resolved = resolveAttackAttr(attack);
+        // ====================================================================
+        //  重複必殺技ヒット：敵を down_burst_* に強制遷移（完全無敵スピン離脱）
+        //  - ダメージは通常通り入る（既に上で適用済み）
+        //  - lv 振り分けはスキップ・通常ステートには遷移させない
+        //  - +1 コンボしてから自然消滅（着地で down_bas_start に合流）
+        // ====================================================================
+        if (attack.isSpecial && p.specialIsDuplicate) {
+          // 後方斜め上に吹き飛び・facing と反対方向（プレイヤーから離れる）
+          e.vy            = KB_BURST_VY;
+          e.knockbackVx   = facing * KB_BURST_VX;          // facing 方向 = プレイヤーから遠ざかる
+          e.kbDecay       = KB_BURST_VX_DECAY;
+          e.state         = STATE.down_burst_start;
+          e.downTimer     = ENEMY_DOWN_BURST_START_FRAMES;
+          e.burstSpinRate = KB_BURST_SPIN_RATE;             // ロール累積レート
+          e.burstGravMult = KB_BURST_GRAV_MULT;             // 重力軽減で滞空延長
+          e.burstRollAngle = 0;                             // ロール角を 0 から開始
+          e.peakHangTimer    = 0;
+          e.launcherAirborne = false;
+          applyHitInitialPitch(e);
+          // 演出（通常ヒットエフェクト）
+          spawnHitParticles(e.x, e.y + 60, e.z, attack.hitColor ?? 0xffffff,
+            attack.hitCount ?? 24, { type: 'omni' });
+          // コンボ +1（その後敵が wait01 に戻るまで切断されない）
+          bumpCombo(e);
+          triggerHitstop(attack.hitstop);
+          triggerShake(attack.shake, attack.shake * 2 + 4);
+          anyHit = true;
+          continue;  // 通常 dispatch ツリーをスキップ
+        }
         const _isAnyDowned = (
           e.state === STATE.down_bas_start ||
           e.state === STATE.down_bas_loop ||
@@ -2870,39 +3078,180 @@
       return anyHit;
     }
 
+    // ============================================================
+    //  連続ヒット技：1 ティックぶんのヒット判定（中間ヒット / 最終ヒット）
+    //  - 中間：軽フリンチ（knockback01 短）+ damagePerHit 適用 + コンボ +1
+    //  - 最終：通常の atk_lv 振り分け（tryHitEnemies 経由）+ damageLastHit
+    //  - 同一敵への再ヒットは p.multiHitNextHit Map で間隔制御
+    //  - 巻き込み複数敵：それぞれ独立タイマーで管理
+    // ============================================================
+    function tryHitEnemiesMultiHit(p, attack, isLastHit) {
+      const facing = p.facing;
+      // 最終ヒットは通常 dispatch に委譲（damage を一時差し替え）
+      if (isLastHit) {
+        const savedDamage = attack.damage;
+        attack.damage = attack.damageLastHit ?? (attack.damagePerHit * 2);
+        const hit = tryHitEnemies(p, attack);
+        attack.damage = savedDamage;
+        // 最終ヒット適用後はトラッキングクリア（次以降の管理をリセット）
+        p.multiHitNextHit.clear();
+        return hit;
+      }
+      // 中間ヒット：状態は軽フリンチで保持・dispatch list は通さない
+      let anyHit = false;
+      for (const e of enemies) {
+        if (!e.isAlive) continue;
+        if (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop) continue;
+        // 同一敵への hitInterval ガード
+        const nextHitFrame = p.multiHitNextHit.get(e) ?? -Infinity;
+        if (gameFrameCounter < nextHitFrame) continue;
+        // 範囲判定（comboTarget は range ボーナス適用）
+        const dx = e.x - p.x;
+        const dz = e.z - p.z;
+        if (!attack.omni && Math.sign(dx) === -facing) continue;
+        const _isLockedTarget = (e === p.comboTarget);
+        const _bonusX = _isLockedTarget ? HOMING_CONFIG.HIT_RANGE_BONUS_X : 0;
+        const _bonusZ = _isLockedTarget ? HOMING_CONFIG.HIT_RANGE_BONUS_Z : 0;
+        if (Math.abs(dx) > attack.rangeX + _bonusX) continue;
+        if (Math.abs(dz) > attack.rangeZ + _bonusZ) continue;
+        if (attack.rangeY !== undefined) {
+          const dy = e.y - p.y;
+          const maxDown = attack.rangeYDown ?? attack.rangeY;
+          if (dy > attack.rangeY) continue;
+          if (dy < -maxDown)      continue;
+        }
+        // ダウン中敵への中間ヒットは原則空振り（lv 5/7 のみ拾える既存ルールを踏襲）
+        const _downedForWhiff = (
+          e.state === STATE.down_bas_start ||
+          e.state === STATE.down_bas_loop ||
+          e.state === STATE.down_bas_end
+        );
+        if (_downedForWhiff) {
+          const _lv = (attack.atk_lv_down !== undefined) ? attack.atk_lv_down : (attack.atk_lv ?? 1);
+          if (_lv !== 5 && _lv !== 7) continue;
+        }
+        // ヒット適用（中間）
+        e.hp = Math.max(0, e.hp - (attack.damagePerHit ?? 5));
+        e.hitFlashTimer = 7;
+        e.frozenByUlt = false;
+        e.fallDir = (e.x !== p.x) ? Math.sign(e.x - p.x) : p.facing;
+        if (e.state === STATE.wait01) {
+          e.mesh.rotation.y = -e.fallDir * Math.PI / 2;
+        }
+        // 軽フリンチ：hitInterval よりやや長めに固定して中間ヒット間で「外れない」よう保持
+        const flinchFrames = Math.max(ENEMY_KB01_FRAMES, (attack.hitInterval ?? 6) + 4);
+        // ダウン系・打ち上げ系には上書きしない（_slamState 等で動かない方が良いケースも考慮）
+        const _preserveState = (
+          e.state === STATE.down_chou_start ||
+          e.state === STATE.down_chou_loop  ||
+          e.state === STATE.down_front_start||
+          e.state === STATE.down_rakka_start||
+          e.state === STATE.down_rakka_loop ||
+          e.state === STATE.down_bound_start
+        );
+        if (!_preserveState) {
+          e.state    = STATE.knockback01;
+          e.downTimer = flinchFrames;
+          applyHitInitialPitch(e);
+        }
+        // 中間ノックバック：敵を facing 方向に少し押して「引き連れる」形にする
+        //   通過させないために中間ヒットでも water-flow 程度の押し量を入れる
+        //   毎ヒットで refresh するので、ヒット間隔の間に少しずつ前進し続ける
+        const iKbVx = attack.intermediateKnockbackVx ?? Math.max(6, Math.floor((attack.knockback ?? 40) * 0.12));
+        e.knockbackVx = facing * iKbVx;
+        e.kbDecay     = attack.intermediateKbDecay ?? 0.92;  // 緩い減衰で「ライドアロング」
+        // 演出：中間ヒットでも hitstop / shake をやや重めに（攻撃の手応えを優先）
+        const hitColor = attack.hitColor ?? 0xffee44;
+        spawnHitParticles(e.x, e.y + 60, e.z, hitColor,
+          Math.max(6, Math.floor((attack.hitCount ?? 10) * 0.6)),
+          { type: 'normal', dirX: dx, dirZ: dz });
+        triggerHitstop(Math.max(2, Math.floor((attack.hitstop ?? 5) * 0.7)));
+        triggerShake(Math.max(2, Math.floor((attack.shake ?? 4) * 0.6)),
+                     Math.max(3, Math.floor((attack.shake ?? 4))));
+        // 次ヒット可能フレーム記録
+        p.multiHitNextHit.set(e, gameFrameCounter + (attack.hitInterval ?? 6));
+        // コンボ +1（ヒットごと）
+        bumpCombo(e);
+        if (!attack.noSpGain) {
+          p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
+        }
+        anyHit = true;
+      }
+      return anyHit;
+    }
+
     function updateAttack(p) {
       if (p.state !== STATE.attacking) return;
       const atk = ATTACKS[p.attackId];
       const elapsed = atk.duration - p.stateTimer;
 
+      // === 遅延 plyrLiftVy 発火（粉塵昇竜パターン：前進フェーズ → 指定フレームで上昇）===
+      if (atk.plyrLiftVy !== undefined &&
+          atk.plyrLiftVyDelay !== undefined && atk.plyrLiftVyDelay > 0 &&
+          elapsed === atk.plyrLiftVyDelay) {
+        p.vy = Math.max(p.vy, atk.plyrLiftVy);
+        if (p.isGrounded) p.isGrounded = false;
+      }
+
       // === 空中必殺技のホップ：攻撃発生フレームで一度だけ適用 ===
       // 「パイルバンカー射出の反動」のような表現を狙うため、発動瞬間ではなく
       // hitFrame に到達したタイミングで vy / airVx を仕込む。
-      // 適用条件：isSpecial + aerialHop + 空中 + launchVy なし。launchVy 持ち（sp_02）は別系統。
-      if (
-        elapsed === atk.hitFrame &&
-        atk.isSpecial && atk.aerialHop && !p.isGrounded && !atk.launchVy
-      ) {
-        const hopVy = atk.aerialHopVy ?? PHYSICS.AERIAL_HOP_V;
-        p.vy = Math.max(p.vy, hopVy);
-        if (atk.aerialHopVx !== undefined) {
-          // facing 方向の符号付き初速。負値で「後方ホップ」（c01_sp_01_air 等）
-          p.airVx = p.facing * atk.aerialHopVx;
+      // 適用条件：isSpecial + aerialHop + 空中。
+      //   launchVy 持ち（sp_02_air 等）でも aerialHopVy が明示されていれば適用する
+      //   （tryHitEnemies on-hit と同じ _customHop ルール）
+      {
+        const _customHop = atk?.aerialHopVy !== undefined;
+        if (
+          elapsed === atk.hitFrame &&
+          atk.isSpecial && atk.aerialHop && !p.isGrounded &&
+          (!atk.launchVy || _customHop)
+        ) {
+          const hopVy = atk.aerialHopVy ?? PHYSICS.AERIAL_HOP_V;
+          p.vy = Math.max(p.vy, hopVy);
+          if (atk.aerialHopVx !== undefined) {
+            // facing 方向の符号付き初速。負値で「後方ホップ」（c01_sp_01_air 等）
+            p.airVx = p.facing * atk.aerialHopVx;
+          }
         }
       }
 
-      // 判定発生中フレーム
-      if (
-        !p.hitDelivered &&
-        elapsed >= atk.hitFrame &&
-        elapsed <  atk.hitFrame + atk.hitDuration
-      ) {
-        if (tryHitEnemies(p, atk)) {
-          p.hitDelivered = true;
-          // ステップ攻撃のヒット時は前進運動量を即停止（ぶつかって止まる重量感）
-          if (atk.isStepAttack) p.stepMomentum = 0;
-          // 踏み込み攻撃のヒット時も同様：当てたら止まる（オーバーシュート抑止）
-          if (atk.lungeVx !== undefined) p.lungeMomentum = 0;
+      // === ヒット判定発生中フレーム ===
+      if (atk.isMultiHit) {
+        // 連続ヒット技：hitFrame から hitInterval 間隔で hitCount 回ヒット
+        // hits は明示的にカウントしてスケジュール（最後の 1 発が isLast）
+        const sinceHitStart = elapsed - atk.hitFrame;
+        const interval = atk.hitInterval ?? 6;
+        const total = atk.multiHitCount ?? 4;
+        if (sinceHitStart >= 0 && sinceHitStart % interval === 0) {
+          const hitIdx = sinceHitStart / interval;
+          if (hitIdx < total) {
+            const isLast = (hitIdx === total - 1);
+            const hit = tryHitEnemiesMultiHit(p, atk, isLast);
+            if (hit) {
+              p.hitDelivered = true;
+              // 中間ヒット中は stepMomentum / lungeMomentum を切らない（突進を続ける）
+              // 最終ヒット時のみ止める（オーバーシュート防止）
+              if (isLast) {
+                if (atk.isStepAttack) p.stepMomentum = 0;
+                if (atk.lungeVx !== undefined) p.lungeMomentum = 0;
+              }
+            }
+          }
+        }
+      } else {
+        // 単発ヒット（既存）
+        if (
+          !p.hitDelivered &&
+          elapsed >= atk.hitFrame &&
+          elapsed <  atk.hitFrame + atk.hitDuration
+        ) {
+          if (tryHitEnemies(p, atk)) {
+            p.hitDelivered = true;
+            // ステップ攻撃のヒット時は前進運動量を即停止（ぶつかって止まる重量感）
+            if (atk.isStepAttack) p.stepMomentum = 0;
+            // 踏み込み攻撃のヒット時も同様：当てたら止まる（オーバーシュート抑止）
+            if (atk.lungeVx !== undefined) p.lungeMomentum = 0;
+          }
         }
       }
 
@@ -2924,6 +3273,8 @@
         }
         // 攻撃終了で踏み込み運動量をクリア（次の攻撃 / 待機状態に持ち越さない）
         p.lungeMomentum = 0;
+        // 必殺技の重複フラグもクリア（次の発動時に再判定する）
+        p.specialIsDuplicate = false;
         // ステップ攻撃終了：ダッシュ状態は解除して再ダッシュ要求にする（連発抑止）
         if (atk.isStepAttack) {
           p.dashActive   = false;
@@ -3098,12 +3449,11 @@
     function updateChargeJ(p) {
       const jHeld = inp('KeyJ');
       // 攻撃中・グラブ中・ガード中・ULT 中はチャージしない（独立行動中のみ）
-      // c01_sp_03 を同コンボ中に既に使用済の場合もチャージ無効（離しても発動できないため）
+      // ※ specialUsedIds に c01_sp_03 が含まれていてもチャージ可（重複は down_burst_* 経由で表現する設計）
       const canCharge = p.isGrounded
         && p.state === STATE.wait01
         && !p.guarding && !p.ultActive
-        && p.state !== STATE.grabbing
-        && !p.specialUsedIds.has('c01_sp_03');
+        && p.state !== STATE.grabbing;
       const wasReady = p.chargeReady;
       const wasCharging = p.chargeJFrames > 0;
       if (jHeld && canCharge) {
@@ -3166,6 +3516,10 @@
       return baseId;
     }
     function startSpecial(p, id) {
+      // 重複検出：specialUsedIds.add する前に判定して flag に保存。
+      // 重複ヒットすると敵が down_burst_* に強制遷移（tryHitEnemies が参照）。
+      const baseId = specialBaseId(id);
+      p.specialIsDuplicate = p.specialUsedIds.has(baseId);
       const wasGrabbing = (p.state === STATE.grabbing);
       if (wasGrabbing) {
         if (!cancelGrabIntoAttack(p, id)) return false;
@@ -3176,13 +3530,16 @@
       //    発動瞬間ではなく「攻撃が出る瞬間（パイルバンカー射出など）の反動」として表現するため。
       //    実装：updateAttack 内で elapsed === atk.hitFrame に到達したフレームで一度だけ
       //    aerialHopVy / aerialHopVx を適用する（後段の updateAttack で実施）
-      // 使用済 ID は地上/空中で共有するため base ID で記録
-      p.specialUsedIds.add(specialBaseId(id));
+      // 使用済 ID は地上/空中で共有するため base ID で記録（重複時も add は冪等）
+      p.specialUsedIds.add(baseId);
       p.specialFlashTimer  = SPECIAL_CONFIG.FLASH_FRAMES;
       // チャージ消費
       p.chargeJFrames = 0;
       p.chargeReady   = false;
-      console.log('[SPECIAL]', id, '発動');
+      // 方向入力履歴クリア：同じコマンドが連打で再成立しないように
+      // （1 コマンド = 1 発動。次に出すには方向を再入力する必要がある）
+      p.dirHistory.length = 0;
+      console.log('[SPECIAL]', id, p.specialIsDuplicate ? '重複（→burst）' : '発動');
       return true;
     }
     function processSpecialInput(p) {
@@ -3202,8 +3559,9 @@
 
       // === チャージ発動：J リリースエッジ + chargeReady ===
       // リリースは必ず chargeReady を消費する（発動不可でも畳む。さもないと明滅が残り続ける）
+      // 重複（specialUsedIds に既出）でも発動は通す → ヒット時に敵側を down_burst_* に強制遷移
       if (jReleasedEdge && p.chargeReady) {
-        const fireable = canStartSpecial(p) && !p.specialUsedIds.has('c01_sp_03');
+        const fireable = canStartSpecial(p);
         p.chargeReady   = false;
         p.chargeJFrames = 0;
         if (fireable) {
@@ -3214,7 +3572,7 @@
 
       // === gate ===
       // 必殺技 → 別 ID の必殺技キャンセルを許可する設計のため、ここでは ID 一律ブロックしない。
-      // 各コマンド分岐で specialUsedIds に含まれているかを個別判定する。
+      // 重複（specialUsedIds に既出）でも発動を通す。ヒット時に敵が down_burst_* で離脱する設計。
       if (!canStartSpecial(p)) return;
       // === J/K 押下時にコマンドマッチ判定（最長一致優先：sp_01 → sp_02）===
       // 注意：コマンドが成立しなかった場合は通常 J / K の処理に流す
@@ -3226,12 +3584,12 @@
           p.chargeJFrames = 0;
         }
         // ↓↘→ （波動）地上/空中で別 ID にディスパッチ・使用済管理は base で共有
-        if (matchCommand(p, ['D', 'DR', 'R']) && !p.specialUsedIds.has('c01_sp_01')) {
+        if (matchCommand(p, ['D', 'DR', 'R'])) {
           startSpecial(p, pickSpecialAttackId('c01_sp_01', p.isGrounded));
           return;
         }
         // ↓↑ （対空）
-        if (matchCommand(p, ['D', 'U']) && !p.specialUsedIds.has('c01_sp_02')) {
+        if (matchCommand(p, ['D', 'U'])) {
           startSpecial(p, pickSpecialAttackId('c01_sp_02', p.isGrounded));
           return;
         }
@@ -3489,6 +3847,21 @@
       if (chargeRingFrames === 0) {
         chargeReadyRing.visible = false;
       }
+    }
+
+    // ホーミング対象矢印（デバッグ）更新
+    // p.comboTarget が存在し SHOW_DEBUG_ARROW が true の時、対象敵頭上に三角を浮かす
+    function updateHomingArrowFX() {
+      const p = players[0];
+      const target = p?.comboTarget;
+      if (!target || !HOMING_CONFIG.SHOW_DEBUG_ARROW) {
+        if (homingArrowMesh.visible) homingArrowMesh.visible = false;
+        return;
+      }
+      homingArrowMesh.visible = true;
+      // 頭上に浮かべて、上下に sin で揺らす（視認性のため）
+      const bob = Math.sin(gameFrameCounter * 0.18) * 6;
+      homingArrowMesh.position.set(target.x, target.y + 230 + bob, target.z);
     }
 
     // ULT 視覚エフェクト更新（毎フレーム呼ぶ）
@@ -3818,15 +4191,41 @@
     // J+K ショートカット用の発動猶予：L が遅れて検出された場合に ULT へ昇格させるためのバッファ
     const MEGA_TO_ULT_BUFFER_FRAMES = 5;   // ~83ms
     let megaPendingFrames = 0;
+    // J+K / J+K+L ショートカット用「両方が rising edge した時刻」追跡
+    //   J 押しっぱなしのまま K を後追いで押した時のメガクラ誤発動を防ぐため、
+    //   両方が直近 JK_SIMUL_WINDOW フレーム以内に押し直されている時だけ同時押し判定
+    const JK_SIMUL_WINDOW = 2;
+    let _mcJWasDown   = false;
+    let _mcKWasDown   = false;
+    let _mcLWasDown   = false;
+    let _mcJPressedAt = -Infinity;
+    let _mcKPressedAt = -Infinity;
+    let _mcLPressedAt = -Infinity;
 
     function processMegaCrashUltInput(p) {
+      // === 鍵ごとの rising-edge 時刻を追跡（同時押し判定用）===
+      const jHeld = inp('KeyJ');
+      const kHeld = inp('KeyK');
+      const lHeld = inp('KeyL');
+      if (jHeld && !_mcJWasDown) _mcJPressedAt = gameFrameCounter;
+      if (kHeld && !_mcKWasDown) _mcKPressedAt = gameFrameCounter;
+      if (lHeld && !_mcLWasDown) _mcLPressedAt = gameFrameCounter;
+      _mcJWasDown = jHeld; _mcKWasDown = kHeld; _mcLWasDown = lHeld;
+
+      // 「両方が直近 JK_SIMUL_WINDOW フレーム以内に押し直された状態」を本物の同時押しとみなす
+      const _bothJKRecent = jHeld && kHeld
+        && (gameFrameCounter - _mcJPressedAt) <= JK_SIMUL_WINDOW
+        && (gameFrameCounter - _mcKPressedAt) <= JK_SIMUL_WINDOW;
+      const _jklAllRecent = _bothJKRecent && lHeld
+        && (gameFrameCounter - _mcLPressedAt) <= JK_SIMUL_WINDOW;
+
       // === エッジ検出は常に更新（早期 return で取り残されると状態解除後に誤検出になるため）===
-      const jkl     = inp('KeyJ') && inp('KeyK') && inp('KeyL');
+      const jkl     = _jklAllRecent;
       const ultDown = action('ult') || jkl;
       const ultJust = ultDown && !ultWasDown;
       ultWasDown    = ultDown;
 
-      const jkOnly  = inp('KeyJ') && inp('KeyK') && !inp('KeyL');
+      const jkOnly  = _bothJKRecent && !lHeld;
       const mcDown  = action('megaCrash') || jkOnly;
       const mcJust  = mcDown && !megaCrashWasDown;
       megaCrashWasDown = mcDown;
@@ -4001,6 +4400,111 @@
       return true;
     }
 
+    // ============================================================
+    //  コンボホーミング（最初に殴った敵への自動接近）
+    //  - bumpCombo の初回ヒットで p.comboTarget がセットされる
+    //  - 反対方向入力 0.3 秒（連打 or 持続）で解除
+    //  - 距離が遠すぎる / target が無敵化 / 不在 でも自動解除
+    //  - 攻撃 windup 中だけ自動接近を作用させる（待機・歩行・ダッシュは触らない）
+    // ============================================================
+    function updateComboHoming(p) {
+      if (!p.comboTarget) return;
+      const t = p.comboTarget;
+      // === ロック解除条件 ===
+      // 1) 対象が死亡・グラブ被害中・きりもみ離脱中
+      if (!t.isAlive || t.state === STATE.grabbed
+          || t.state === STATE.down_burst_start || t.state === STATE.down_burst_loop) {
+        p.comboTarget = null;
+        p.oppositeInputFrames = 0;
+        return;
+      }
+      // 2) 距離超過：X 単独 → 合算 の順でチェック
+      //    X はベルスクの「横にスクロールして離れる」方向なので主軸として厳しめ
+      //    Z は 2.5D 圧縮軸なので別管理（強めの追従）・合算は最終フェイルセーフ
+      const dx = t.x - p.x;
+      const dz = t.z - p.z;
+      if (Math.abs(dx) > HOMING_CONFIG.MAX_DISTANCE_X) {
+        p.comboTarget = null;
+        p.oppositeInputFrames = 0;
+        return;
+      }
+      const distXZ = Math.hypot(dx, dz);
+      if (distXZ > HOMING_CONFIG.MAX_DISTANCE) {
+        p.comboTarget = null;
+        p.oppositeInputFrames = 0;
+        return;
+      }
+      // 3) 反対方向入力の累積（持続 or 連打どちらでも累積。離している間は減衰）
+      const targetDirX = Math.sign(dx) || p.facing;
+      const inL = inp('ArrowLeft')  || inp('KeyA');
+      const inR = inp('ArrowRight') || inp('KeyD');
+      const inputDir = inL ? -1 : (inR ? 1 : 0);
+      if (inputDir !== 0 && inputDir === -targetDirX) {
+        p.oppositeInputFrames += 1;
+      } else {
+        p.oppositeInputFrames = Math.max(0, p.oppositeInputFrames - HOMING_CONFIG.OPPOSITE_DECAY);
+      }
+      if (p.oppositeInputFrames >= HOMING_CONFIG.BREAK_INPUT_FRAMES) {
+        p.comboTarget = null;
+        p.oppositeInputFrames = 0;
+        return;
+      }
+      // === 攻撃 windup 中の自動接近 ===
+      // hitFrame に到達するまで（= 当たる前まで）に target の圏内に入るよう補間
+      // hit_confirm 中・hitDuration 中は補正しない
+      if (p.state !== STATE.attacking || !p.attackId) return;
+      const atk = ATTACKS[p.attackId];
+      if (!atk) return;
+      const elapsed = atk.duration - p.stateTimer;
+      if (elapsed >= atk.hitFrame) return;
+      // === 「吹き飛び中の敵 × 前方向入力なし」では自動接近を抑止 ===
+      //   敵がコンボ的に逃げていく状態（down_front_* / down_chou_* / down_wall_* / down_roll_* / down_rakka_* / down_bound_*）で、
+      //   プレイヤーが明示的に前方向を押していないなら、追わない（吸い込まれ感の軽減）
+      //   ※ wait01・knockback01/02・down_up_*（打ち上げ juggle）は引き続き追跡する
+      const _isFlungState = (
+        t.state === STATE.down_front_start  || t.state === STATE.down_front_loop  ||
+        t.state === STATE.down_chou_start   || t.state === STATE.down_chou_loop   ||
+        t.state === STATE.down_wall_start   || t.state === STATE.down_wall_loop   ||
+        t.state === STATE.down_roll_start   ||
+        t.state === STATE.down_rakka_start  || t.state === STATE.down_rakka_loop  ||
+        t.state === STATE.down_bound_start
+      );
+      const _forwardInput = (inputDir !== 0 && inputDir === targetDirX);
+      if (_isFlungState && !_forwardInput) {
+        return; // 自動接近をスキップ（ロック自体は維持・前入力で復活）
+      }
+      // facing 自動反転：FACING_FLIP_DIST より遠い時のみ強制反転（近距離は維持）
+      if (Math.abs(dx) > HOMING_CONFIG.FACING_FLIP_DIST) p.facing = targetDirX;
+      // 距離スケーリング：近い時 100%・FALLOFF_FAR で FALLOFF_FAR_RATIO まで線形減衰
+      const falloff = (() => {
+        if (distXZ <= HOMING_CONFIG.FALLOFF_NEAR) return 1.0;
+        if (distXZ >= HOMING_CONFIG.FALLOFF_FAR)  return HOMING_CONFIG.FALLOFF_FAR_RATIO;
+        const t01 = (distXZ - HOMING_CONFIG.FALLOFF_NEAR)
+                  / (HOMING_CONFIG.FALLOFF_FAR - HOMING_CONFIG.FALLOFF_NEAR);
+        return 1.0 + (HOMING_CONFIG.FALLOFF_FAR_RATIO - 1.0) * t01;
+      })();
+      // X 補正：圏内デッドゾーン外なら寄せる
+      const rangeX = atk.rangeX ?? 120;
+      const desiredX = t.x - targetDirX * (rangeX * HOMING_CONFIG.AIM_OFFSET_X_RATIO);
+      const gapX = desiredX - p.x;
+      const deadX = rangeX * HOMING_CONFIG.AIM_OFFSET_X_RATIO + HOMING_CONFIG.DEADZONE_X_MARGIN;
+      if (Math.abs(t.x - p.x) > deadX) {
+        p.x += gapX * HOMING_CONFIG.WINDUP_LERP_X * falloff;
+      }
+      // Z 補正：強めに寄せる（2.5D 圧縮軸の救済）。デッドゾーンは狭く
+      if (Math.abs(dz) > HOMING_CONFIG.DEADZONE_Z_MARGIN) {
+        p.z += dz * HOMING_CONFIG.WINDUP_LERP_Z * falloff;
+      }
+      // Y 補正：空中時のみ（コンボ繋がりやすさ優先・据置）
+      if (!p.isGrounded) {
+        const desiredY = t.y + HOMING_CONFIG.AIM_Y_OFFSET;
+        const gapY = desiredY - p.y;
+        if (Math.abs(gapY) > HOMING_CONFIG.DEADZONE_Y_MARGIN) {
+          p.y += gapY * HOMING_CONFIG.WINDUP_LERP_Y * falloff;
+        }
+      }
+    }
+
     function updatePartAnims(p) {
       const parts = p.mesh.userData.parts;
       if (!parts) return;
@@ -4011,7 +4515,8 @@
       const animKey  = atk?.partsAnim;
       const animDef  = animKey ? PART_ANIMS[animKey] : null;
       const elapsed  = atk ? (atk.duration - p.stateTimer) : 0;
-      const inHit    = atk && elapsed >= atk.hitFrame && elapsed < atk.hitFrame + atk.hitDuration + 2;
+      // 多段ヒット技は窓全体でアタックポーズを保持する（hitDuration だけで切らない）
+      const inHit    = atk && elapsed >= atk.hitFrame && elapsed < getHitWindowEnd(atk) + 2;
 
       for (const [name, rest] of Object.entries(PART_REST)) {
         const part = parts[name];
@@ -4057,6 +4562,9 @@
 
       // === キャンセルジャンプ判定 ===
       tryCancelJump(p);
+
+      // === コンボホーミング：ロック更新と windup 中の自動接近 ===
+      updateComboHoming(p);
 
       // === ステート更新 ===
       updateAttack(p);
@@ -4229,7 +4737,7 @@
       // 接地中にスペース → 初速付与＋ブースター点火
       // ※キャンセルジャンプ（tryCancelJump）で既に発動済みの場合は二重発動しない
       // ※jumpConsumed が true の間はエッジ未検出として再発動禁止
-      if (p.isGrounded && inp('Space') && !p.jumpConsumed && p.bigBurstTimer === 0 && !p.guarding && p.state !== STATE.grabbing) {
+      if (p.isGrounded && inp('Space') && !p.jumpConsumed && p.bigBurstTimer === 0 && !p.guarding && p.state !== STATE.grabbing && p.state !== STATE.attacking) {
         // ジャンプ時に地上の速度を空中慣性として引き継ぐ
         if (p.dashActive) {
           // ダッシュ中ジャンプ：ダッシュ速度をそのまま慣性に
@@ -4399,13 +4907,15 @@
       p._bodyEmissiveWasOn = flashing || pulsing;
 
       // === 必殺技：当たり判定可視化（赤ボックス）===
-      // 現在の攻撃が isSpecial + showHitbox + hitFrame〜hitFrame+hitDuration の間のみ表示
+      // 単発：hitFrame ～ hitFrame+hitDuration の間表示
+      // 多段：hitFrame ～ getHitWindowEnd(atk) の間表示（多段ヒット全期間カバー）
       // 非対称 rangeY / rangeYDown に対応：上方向 rangeY、下方向 rangeYDown を反映した縦長 box
       const curAtkVis = (p.state === STATE.attacking && p.attackId) ? ATTACKS[p.attackId] : null;
       const showHb = curAtkVis && curAtkVis.isSpecial && curAtkVis.showHitbox && SPECIAL_CONFIG.SHOW_HITBOX;
       if (showHb) {
         const elapsedVis = curAtkVis.duration - p.stateTimer;
-        const inHitFrame = elapsedVis >= curAtkVis.hitFrame && elapsedVis < curAtkVis.hitFrame + curAtkVis.hitDuration;
+        const hitEnd = getHitWindowEnd(curAtkVis);
+        const inHitFrame = elapsedVis >= curAtkVis.hitFrame && elapsedVis < hitEnd;
         if (inHitFrame) {
           const rx = curAtkVis.rangeX ?? 100;
           const ryUp   = curAtkVis.rangeY ?? 100;
@@ -4513,6 +5023,11 @@
           if (e.kbFromMega && e.state === STATE.knockback_air01) {
             gravFactor *= 0.5;
           }
+          // バースト離脱中は重力軽減で滞空延長（攻撃側で e.burstGravMult が立つ）
+          if (e.burstGravMult !== undefined && e.burstGravMult > 0 &&
+              (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop)) {
+            gravFactor *= e.burstGravMult;
+          }
           e.vy -= PHYSICS.GRAVITY * gravFactor;
           e.y  += e.vy;
           if (e.y <= 0) {
@@ -4559,6 +5074,17 @@
               // バウンド再着地 → ダウン静止ループへ
               e.state     = STATE.down_bas_loop;
               e.downTimer = ENEMY_DOWN_BAS_LOOP_FRAMES;
+            } else if (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop) {
+              // バースト離脱着地 → ダウン静止イントロへ合流
+              e.state     = STATE.down_bas_start;
+              e.downTimer = ENEMY_DOWN_BAS_START_FRAMES;
+              e.burstSpinRate = 0;
+              e.burstGravMult = 0;
+              e.burstRollAngle = 0;
+              // 累積した rotation.x/z をクリア（クォータニオン経由で設定していたものを Euler に戻す）
+              e.mesh.rotation.x = 0;
+              e.mesh.rotation.z = 0;
+              e.tiltAngle = 0;
             }
           }
           e.mesh.position.y = e.y;
@@ -4618,6 +5144,24 @@
           if (--e.downTimer <= 0) e.state = STATE.down_rakka_loop;
         } else if (e.state === STATE.down_rakka_loop) {
           // 真下落下中（着地は y<=0 ブロックで down_bound_start に遷移）
+        } else if (e.state === STATE.down_burst_start) {
+          if (--e.downTimer <= 0) {
+            e.state    = STATE.down_burst_loop;
+            e.downTimer = ENEMY_DOWN_BURST_LOOP_FRAMES;
+          }
+        } else if (e.state === STATE.down_burst_loop) {
+          // 空中スピン中（着地で down_bas_start に合流・y<=0 ブロックで処理）
+          // 滞空が長引いた場合のフォールバック（万一着地検知が抜けたら強制終了）
+          if (--e.downTimer <= 0) {
+            e.state     = STATE.down_bas_start;
+            e.downTimer = ENEMY_DOWN_BAS_START_FRAMES;
+            e.burstSpinRate = 0;
+            e.burstGravMult = 0;
+            e.burstRollAngle = 0;
+            e.mesh.rotation.x = 0;
+            e.mesh.rotation.z = 0;
+            e.tiltAngle = 0;
+          }
         } else if (e.state === STATE.down_bound_start) {
           // バウンド中：通常は再着地（y<=0）で down_bas_loop に遷移
           // 万一着地が発火しなかった場合のフォールバック
@@ -4637,15 +5181,38 @@
         } else if (e.state === STATE.down_bas_end) {
           // π/2 → 0 ランプ（downTimer: ENEMY_RISE_FRAMES → 0）
           e.tiltAngle = (e.downTimer / ENEMY_RISE_FRAMES) * (Math.PI / 2);
+        } else if (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop) {
+          // バースト離脱：きりもみ回転（鉄拳系の長軸ロール）
+          //   Three.js Euler 順 'ZYX' では Rx が内側 → 単純な rotation.x 加算では
+          //   「水平に倒した上で長軸まわりに回す」が表現できない。
+          //   ここで直接クォータニオン合成： q = qX(roll) * qZ(tilt) * qY(face)
+          //   これで Rx が一番外側になり、tilt 後の世界 X 軸（≒長軸）まわりに回せる
+          e.burstRollAngle += e.fallDir * (e.burstSpinRate || 0);
+          const _faceY = -e.fallDir * Math.PI / 2;  // 既存の wait01 facing と一致
+          const _tiltZ = -e.fallDir * Math.PI / 2;  // 水平倒し（head が +fallDir 方向へ）
+          const _rollX = e.burstRollAngle;
+          const _qY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), _faceY);
+          const _qZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), _tiltZ);
+          const _qX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), _rollX);
+          e.mesh.quaternion.copy(_qX).multiply(_qZ).multiply(_qY);
+          // tiltAngle は同期しておく（参考用・他系統が触らないようにするため）
+          e.tiltAngle = Math.PI / 2;
         } else {
           const tiltTarget = STATE_TILT_TARGET[e.state] ?? 0;
           e.tiltAngle += (tiltTarget - e.tiltAngle) * STATE_TILT_LERP;
         }
-        e.mesh.rotation.z = -e.fallDir * e.tiltAngle;
-        // === rotation.x の用途分岐（優先順位：寝姿勢 > pitch system > リセット）===
+        // rotation.z = -fallDir * tiltAngle で水平倒し方向を反映
+        //   burst 中は上でクォータニオン直接合成しているのでスキップ（Euler を上書きすると壊れる）
+        if (e.state !== STATE.down_burst_start && e.state !== STATE.down_burst_loop) {
+          e.mesh.rotation.z = -e.fallDir * e.tiltAngle;
+        }
+        // === rotation.x の用途分岐（優先順位：寝姿勢 > バースト累積 > pitch system > リセット）===
         // ZYX 順なので rx と rz が独立に作用する（YXZ/XYZ だと両方非ゼロで奇妙な傾きになる）
         // pitch system の対象外ステートでは rx を 0 に固定して z-tilt の純粋な見た目を維持
-        if (e.state === STATE.down_rakka_start ||
+        if (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop) {
+          // バースト離脱中：rotation.x は上の累積回転を保持（リセットしない）
+          // pitchAngle は同期しない（次の状態でリセットされる）
+        } else if (e.state === STATE.down_rakka_start ||
             e.state === STATE.down_rakka_loop ||
             e.state === STATE.down_bound_start) {
           // あおむけ姿勢（lv05 系）：X 軸で背中を下に向ける
@@ -4848,6 +5415,7 @@
       updateMegaCrashFX();
       updateChargeRingFX();
       updateChargeParticles();
+      updateHomingArrowFX();
       players.forEach(updateUltFX);
       players.forEach(maybeReleaseMegaInvincibility);
       updateClockHud();
@@ -5268,7 +5836,7 @@
       CHARACTER_ASSETS,
       PHYSICS, CAM_CONFIG, applyCamConfig,
       SP_CONFIG, GUARD_CONFIG, MEGA_CONFIG, ULT_CONFIG, GRAB_CONFIG, SPECIAL_CONFIG, OUTLINE_CONFIG,
-      CHARGE_RING_CONFIG, CHARGE_PARTICLE_CONFIG, ATTACKS, STATE, Z_CHAIN, A_CHAIN,
+      CHARGE_RING_CONFIG, CHARGE_PARTICLE_CONFIG, HOMING_CONFIG, ATTACKS, STATE, Z_CHAIN, A_CHAIN,
       KEY_CONFIG,
       PIXEL_SHADER,  // ピクセルシェーダー設定（P キーで ENABLED トグル / RT_W・RT_H で解像度調整）
       SLOWMO,        // スロー再生（T キーで 1x→1/2x→1/4x→1/8x サイクル）
