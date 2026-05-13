@@ -342,6 +342,13 @@
       padding: var(--sp-sm) var(--sp-lg);
       color: #ffd29a;
     ">ENEMY: <span id="state-hud-enemy">未設定</span></div>
+    <div style="
+      background: rgba(20, 40, 0, 0.55);
+      border-left: var(--hud-accent-w) solid #88ff44;
+      padding: var(--sp-sm) var(--sp-lg);
+      color: #cfffaa;
+      min-width: 220px;
+    ">DIR: <span id="dbg-dir-hist">-</span><br>CHARGE: <span id="dbg-charge">0</span> | SP_USED: <span id="dbg-sp-used">false</span></div>
   </div>
   </div><!-- /#hud-layer -->
   </div><!-- /#game-frame -->
@@ -875,6 +882,24 @@
     };
 
     // ============================================================
+    //  SPECIAL（必殺技：コマンド技・溜め技）
+    //  - ↓↘→+J / ↓↑+J / J長押し0.8秒 で発動
+    //  - SP 消費なし。ヒットで通常通り SP 獲得
+    //  - 1 コンボ中 1 回まで（メガクラ・ULT 発動でフラグリセット）
+    //  - 入力バッファ 30F・最長一致優先
+    //  - 戦闘データは ATTACKS.c01_sp_01 / _02 / _03。本 CONFIG は検出・演出系のみ
+    // ============================================================
+    const SPECIAL_CONFIG = {
+      DIR_BUFFER_FRAMES: 30,    // 方向入力履歴の保持長
+      CHARGE_FRAMES:     48,    // J 長押し閾値（0.8秒）
+      FLASH_FRAMES:      12,    // 発動時の白フラッシュ長
+      FLASH_COLOR:       0xffffff,
+      SHOW_HITBOX:       true,  // 必殺技ヒットボックス可視化（本番では false）
+      HITBOX_COLOR:      0xff2222,
+      HITBOX_OPACITY:    0.35,
+    };
+
+    // ============================================================
     //  GUARD（METEO L キー前方ガード）
     //  - 長押し中 SP 持続消費 / 移動可・攻撃不可
     //  - L 離す or SP 切れ で即解除 → 短いフェードアウト
@@ -1160,6 +1185,69 @@
         tiltX:        +0.45,             // ≈ +26°（前傾タックル）
         noCancelOnHit: true,             // ヒットしても hit_confirm に入らず即 wait01
       },
+
+      // ============================================================
+      //  必殺技（コマンド技・溜め技）
+      //  - 命名規約：c01_sp_01 = 波動コマンド系 / 02 = ↓↑系 / 03 = 溜め系
+      //  - SP 消費なし・ヒットで通常 SP 獲得 / 1 コンボ中 1 回まで
+      //  - isSpecial: true で processSpecialInput 側のフラグ管理対象に
+      //  - showHitbox: true で赤い半透明 AABB を hitFrame 中に表示
+      //  - flashOnStart: true でプレイヤーを発動瞬間に白く発光
+      // ============================================================
+      c01_sp_01: {
+        label:        'c01_sp_01 (METEO 波動コマンド・弱ビーム)',
+        duration:     30, hitFrame: 14, hitDuration: 6, cancelWindow: 14,
+        damage:       16,
+        rangeX:       250, rangeZ: 80, rangeY: 100,
+        knockback:    50, hitstop: 8, shake: 6,
+        atk_lv:       3,    // 吹き飛び（down_front_start）
+        atk_lv_air:   3,    // 空中敵も吹き飛び
+        atk_lv_down:  7,    // ダウン中：down_bas_loop リフレッシュ（拾い）
+        hitColor:     0x44ccff,
+        hitCount:     24,
+        launcher:     false,
+        partsAnim:    'strong_punch_r',  // 流用（将来 beam_thrust に分離）
+        isSpecial:    true,
+        flashOnStart: true,
+        showHitbox:   true,
+      },
+      c01_sp_02: {
+        label:        'c01_sp_02 (METEO 対空コマンド・噴射打ち上げ)',
+        duration:     26, hitFrame: 10, hitDuration: 5, cancelWindow: 14,
+        damage:       14,
+        rangeX:       110, rangeZ: 100, rangeY: 200,
+        knockback:    10, hitstop: 7, shake: 6,
+        atk_lv:       4,    // 打ち上げ（down_up_start）
+        atk_lv_air:   3,    // 空中敵：吹き飛び（連続打ち上げ抑止）
+        atk_lv_down:  7,
+        launchVy:     22,
+        launcher:     true,
+        attrGroup:    'LAUNCH_COMBO',
+        hitColor:     0xffcc44,
+        hitCount:     22,
+        plyrLiftVy:   12,   // プレイヤー自身も浮く（小ジャンプ噴射の表現）
+        partsAnim:    'upper_cut',
+        isSpecial:    true,
+        flashOnStart: true,
+        showHitbox:   true,
+      },
+      c01_sp_03: {
+        label:        'c01_sp_03 (METEO 溜め・チャージパンチ)',
+        duration:     36, hitFrame: 16, hitDuration: 6, cancelWindow: 16,
+        damage:       28,
+        rangeX:       180, rangeZ: 130, rangeY: 130,
+        knockback:    60, hitstop: 12, shake: 10,
+        atk_lv:       3,
+        atk_lv_air:   3,
+        atk_lv_down:  7,
+        hitColor:     0xff4422,
+        hitCount:     30,
+        launcher:     false,
+        partsAnim:    'strong_punch_r',
+        isSpecial:    true,
+        flashOnStart: true,
+        showHitbox:   true,
+      },
     };
 
     // ============================================================
@@ -1384,6 +1472,37 @@
     playerMesh.rotation.order = 'YXZ';
     scene.add(playerMesh);
 
+    // === 必殺技：白フラッシュオーバーレイ（プレイヤーを覆う半透明白球）===
+    const specialFlashMesh = (() => {
+      const geo = new THREE.SphereGeometry(120, 16, 12);
+      const mat = new THREE.MeshBasicMaterial({
+        color:       SPECIAL_CONFIG.FLASH_COLOR,
+        transparent: true,
+        opacity:     0,
+        depthWrite:  false,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.visible = false;
+      scene.add(mesh);
+      return mesh;
+    })();
+
+    // === 必殺技：当たり判定可視化ボックス（赤・半透明）===
+    const specialHitboxMesh = (() => {
+      const geo = new THREE.BoxGeometry(1, 1, 1);
+      const mat = new THREE.MeshBasicMaterial({
+        color:       SPECIAL_CONFIG.HITBOX_COLOR,
+        transparent: true,
+        opacity:     SPECIAL_CONFIG.HITBOX_OPACITY,
+        depthWrite:  false,
+        side:        THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.visible = false;
+      scene.add(mesh);
+      return mesh;
+    })();
+
     // === メガクラッシュ球体（拡大波エフェクト）===
     // 完全な球シェルを player 中心にスポーンし、半径 0 → MEGA_CONFIG.RADIUS まで scale で拡大
     // 半透明の薄いシェル → カメラ側からは円形シルエット（球の輪郭）として見える
@@ -1493,6 +1612,15 @@
       grabPunchActive:  0,    // つかみ攻撃のアクション残フレーム（この間はタイマー停止）
       _grabJWas:        false,// J 入力エッジ検出（グラブ中専用）
       _grabKWas:        false,// K 入力エッジ検出（グラブ中専用）
+
+      // === 必殺技（コマンド・溜め）===
+      dirHistory:           [],    // 方向入力履歴 [{dir, frame}, ...]・新しい順で push
+      chargeJFrames:        0,     // J 長押し蓄積フレーム
+      chargeReady:          false, // 0.8 秒到達フラグ
+      jHeldDuringCharge:    false, // 直近で J 押下開始してチャージ蓄積中か
+      specialUsedInCombo:   false, // 1 コンボ中 1 回フラグ
+      specialFlashTimer:    0,     // 白フラッシュ残フレーム
+      _jWasDownSpecial:     false, // 必殺技用 J エッジ検出（processAttackInput と独立）
 
       // === SP ゲージ ===
       sp:               SP_CONFIG.STOCK_SIZE * SP_CONFIG.INITIAL_STOCKS,  // 初期 3 ストック
@@ -1851,6 +1979,9 @@
     const dummyHpEl      = document.getElementById('dummy-hp-num');
     const stateHudPlayerEl = document.getElementById('state-hud-player');
     const stateHudEnemyEl  = document.getElementById('state-hud-enemy');
+    const dbgDirHistEl     = document.getElementById('dbg-dir-hist');
+    const dbgChargeEl      = document.getElementById('dbg-charge');
+    const dbgSpUsedEl      = document.getElementById('dbg-sp-used');
 
     function bumpCombo(hitEnemy) {
       combo.count += 1;
@@ -1878,6 +2009,8 @@
         combo.count = 0;
         combo.lastHitEnemy = null;
         comboEl.style.opacity = '0';
+        // コンボ切断時：必殺技 1 コンボ 1 回フラグも解除
+        for (const pp of players) pp.specialUsedInCombo = false;
       }
     }
 
@@ -2015,6 +2148,11 @@
       if (ATTACKS[id].diveVy !== undefined && !p.isGrounded) {
         p.vy = 0;
         p.diveCountdown = ATTACKS[id].divePause ?? 0;
+      }
+      // プレイヤー自身のリフト（c01_sp_02 の小ジャンプ噴射等）：地上で発動した時のみ vy 上書き
+      if (ATTACKS[id].plyrLiftVy !== undefined && p.isGrounded) {
+        p.vy = Math.max(p.vy, ATTACKS[id].plyrLiftVy);
+        p.isGrounded = false; // 離地
       }
       // ステップ攻撃：ダッシュ運動量を引き継いで前進開始
       if (ATTACKS[id].isStepAttack) {
@@ -2415,6 +2553,165 @@
 
     // 攻撃入力処理（J キー押下 — 弱攻撃チェーン）
     let zKeyWasDown = false;
+    // ============================================================
+    //  必殺技（コマンド技・溜め技）入力検出
+    //  - dirHistory: 方向入力履歴を 30F 保持・直近のみ push
+    //  - matchCommand: 最長一致優先で履歴を新→旧に走査
+    //  - chargeJ: J 長押し蓄積。攻撃中・他状態中はリセット
+    //  - processAttackInput より先に呼び出す（必殺技優先）
+    // ============================================================
+    let gameFrameCounter = 0; // dirHistory のフレーム基準
+    function readDirInput() {
+      const up = inp('ArrowUp')    || inp('KeyW');
+      const dn = inp('ArrowDown')  || inp('KeyS');
+      const lf = inp('ArrowLeft')  || inp('KeyA');
+      const rt = inp('ArrowRight') || inp('KeyD');
+      let v = 0, h = 0;
+      if (up) v -= 1;
+      if (dn) v += 1;
+      if (lf) h -= 1;
+      if (rt) h += 1;
+      // 8 方向 + N
+      if (v === -1 && h === 0) return 'U';
+      if (v === -1 && h === 1) return 'UR';
+      if (v === 0  && h === 1) return 'R';
+      if (v === 1  && h === 1) return 'DR';
+      if (v === 1  && h === 0) return 'D';
+      if (v === 1  && h === -1) return 'DL';
+      if (v === 0  && h === -1) return 'L';
+      if (v === -1 && h === -1) return 'UL';
+      return 'N';
+    }
+    function updateDirHistory(p) {
+      gameFrameCounter++;
+      const dir = readDirInput();
+      const last = p.dirHistory[p.dirHistory.length - 1];
+      if (last && last.dir === dir) {
+        last.frame = gameFrameCounter; // 同方向の連続は最新時刻のみ更新
+      } else {
+        p.dirHistory.push({ dir, frame: gameFrameCounter });
+      }
+      // 古いエントリの破棄
+      const cutoff = gameFrameCounter - SPECIAL_CONFIG.DIR_BUFFER_FRAMES;
+      while (p.dirHistory.length > 0 && p.dirHistory[0].frame < cutoff) {
+        p.dirHistory.shift();
+      }
+    }
+    // facing を考慮した方向マッチ：右向き時は L/R をそのまま、左向き時は反転して評価
+    // 「波動」は前方向（プレイヤーが向いている方向）に成立すれば良い
+    function dirMatchesForFacing(actual, expected, facing) {
+      if (expected === 'R') return facing >= 0 ? actual === 'R' : actual === 'L';
+      if (expected === 'L') return facing >= 0 ? actual === 'L' : actual === 'R';
+      if (expected === 'DR') return facing >= 0 ? actual === 'DR' : actual === 'DL';
+      if (expected === 'DL') return facing >= 0 ? actual === 'DL' : actual === 'DR';
+      if (expected === 'UR') return facing >= 0 ? actual === 'UR' : actual === 'UL';
+      if (expected === 'UL') return facing >= 0 ? actual === 'UL' : actual === 'UR';
+      return actual === expected;
+    }
+    // pattern を履歴の終端から見つける（最長一致）
+    // pattern の各要素は順序通り出現する必要あり（途中に他方向が挟まっても許容するか？
+    // → 厳密に連続している必要あり）
+    function matchCommand(p, pattern) {
+      const hist = p.dirHistory;
+      const facing = p.facing || 1;
+      let pi = pattern.length - 1;
+      for (let i = hist.length - 1; i >= 0 && pi >= 0; i--) {
+        const entry = hist[i];
+        if (dirMatchesForFacing(entry.dir, pattern[pi], facing)) {
+          pi--;
+        } else if (entry.dir === 'N') {
+          // ニュートラルは無視（手を離す瞬間がコマンド成立を阻害しないよう）
+          continue;
+        } else {
+          // 想定外の方向が混入 → 失敗
+          return false;
+        }
+      }
+      return pi < 0;
+    }
+    function updateChargeJ(p) {
+      const jHeld = inp('KeyJ');
+      // 攻撃中・グラブ中・ガード中・ULT 中はチャージしない（独立行動中のみ）
+      const canCharge = p.isGrounded
+        && p.state === STATE.wait01
+        && !p.guarding && !p.ultActive
+        && p.state !== STATE.grabbing;
+      if (jHeld && canCharge) {
+        p.chargeJFrames++;
+        p.jHeldDuringCharge = true;
+        if (p.chargeJFrames >= SPECIAL_CONFIG.CHARGE_FRAMES) p.chargeReady = true;
+      } else if (!jHeld) {
+        // 離した時点でリセット（発動判定は processSpecialInput 側）
+        p.jHeldDuringCharge = false;
+      } else {
+        // 押下中だがチャージ条件を満たさない（攻撃中など）→ 蓄積停止だがリセットはしない
+      }
+    }
+    function canStartSpecial(p) {
+      if (p.guarding) return false;
+      if (p.ultActive) return false;
+      if (anyPlayerUlting()) return false;
+      // grab 中は OK（cancelGrabIntoAttack 経由で発動）
+      if (p.state === STATE.grabbing) return true;
+      if (p.state === STATE.wait01) return true;
+      if (p.state === STATE.hit_confirm) return true;
+      if (p.state === STATE.attacking) return true; // attacking もキャンセル発動可
+      return false;
+    }
+    function startSpecial(p, id) {
+      const wasGrabbing = (p.state === STATE.grabbing);
+      if (wasGrabbing) {
+        if (!cancelGrabIntoAttack(p, id)) return false;
+      } else {
+        startAttackById(p, id, -1);
+      }
+      p.specialUsedInCombo = true;
+      p.specialFlashTimer  = SPECIAL_CONFIG.FLASH_FRAMES;
+      // チャージ消費
+      p.chargeJFrames = 0;
+      p.chargeReady   = false;
+      console.log('[SPECIAL]', id, '発動');
+      return true;
+    }
+    function processSpecialInput(p) {
+      // === 常時更新 ===
+      updateDirHistory(p);
+      updateChargeJ(p);
+
+      // J エッジ検出（必殺技用：processAttackInput の zKeyWasDown とは独立）
+      const jHeld = inp('KeyJ');
+      const jJust = jHeld && !p._jWasDownSpecial;
+      const jReleasedEdge = !jHeld && p._jWasDownSpecial;
+      p._jWasDownSpecial = jHeld;
+
+      // === gate ===
+      if (!canStartSpecial(p)) return;
+      if (p.specialUsedInCombo) return;
+
+      // === チャージ発動：J リリースエッジ + chargeReady ===
+      if (jReleasedEdge && p.chargeReady) {
+        startSpecial(p, 'c01_sp_03');
+        return;
+      }
+      // === J 押下時にコマンドマッチ判定（最長一致優先：sp_01 → sp_02）===
+      if (jJust) {
+        // チャージ未満で J を離す前提：J 押下時点でチャージはリセット扱い（連打優先）
+        if (!p.chargeReady) {
+          p.chargeJFrames = 0;
+        }
+        // ↓↘→ （波動）
+        if (matchCommand(p, ['D', 'DR', 'R'])) {
+          startSpecial(p, 'c01_sp_01');
+          return;
+        }
+        // ↓↑ （対空）
+        if (matchCommand(p, ['D', 'U'])) {
+          startSpecial(p, 'c01_sp_02');
+          return;
+        }
+      }
+    }
+
     function processAttackInput(p) {
       // エッジ検出変数は常に更新（早期 return で取り残されると状態解除後に誤検出になるため）
       const zPressed = inp('KeyJ');
@@ -2512,6 +2809,8 @@
       p.sp -= SP_CONFIG.MEGA_CRASH_COST;
       // 演出中（スロー継続中）は完全無敵
       p.invincible = true;
+      // 必殺技 1 コンボ 1 回フラグを解除（メガクラで再使用可に）
+      p.specialUsedInCombo = false;
 
       // --- 視覚演出 ---
       // 画面暗転：瞬時に DARKEN_ALPHA まで上げ、リング展開後にゆっくりフェードアウト
@@ -2904,6 +3203,8 @@
         return;
       }
       p.sp -= SP_CONFIG.ULT_COST;
+      // 必殺技 1 コンボ 1 回フラグを解除（ULT で再使用可に）
+      p.specialUsedInCombo = false;
 
       // 既存攻撃を強制終了して ULT に切替
       const ultAtk = ATTACKS.c01_sp_ult01;
@@ -3165,8 +3466,12 @@
 
       // === 攻撃入力処理（毎フレーム）===
       processMegaCrashUltInput(p);  // ULT / メガクラ（優先度高）
+      processSpecialInput(p);       // 必殺技（コマンド技・溜め技）— 通常 J/K より先
       processAttackInput(p);
       processStrongAttackInput(p);
+
+      // === 白フラッシュタイマー減算 ===
+      if (p.specialFlashTimer > 0) p.specialFlashTimer--;
       if (!p.guarding && !p.ultActive && p.state !== STATE.grabbing) processDashInput(p);   // ガード・ULT・グラブ中はダッシュ起動不可
 
       // === キャンセルジャンプ判定 ===
@@ -3484,6 +3789,40 @@
         targetTiltX = STATE_PITCH_TARGET[p.state];
       }
       p.mesh.rotation.x += (targetTiltX - p.mesh.rotation.x) * 0.35;
+
+      // === 必殺技：白フラッシュ同期 ===
+      if (p.specialFlashTimer > 0) {
+        specialFlashMesh.visible = true;
+        specialFlashMesh.position.set(p.x, p.y + 80, p.z);
+        const t = p.specialFlashTimer / SPECIAL_CONFIG.FLASH_FRAMES; // 1→0
+        specialFlashMesh.material.opacity = t * 0.85;
+        const sc = 0.8 + (1 - t) * 0.8;  // 0.8 → 1.6 倍に拡大
+        specialFlashMesh.scale.set(sc, sc, sc);
+      } else {
+        specialFlashMesh.visible = false;
+      }
+
+      // === 必殺技：当たり判定可視化（赤ボックス）===
+      // 現在の攻撃が isSpecial + showHitbox + hitFrame〜hitFrame+hitDuration の間のみ表示
+      const curAtkVis = (p.state === STATE.attacking && p.attackId) ? ATTACKS[p.attackId] : null;
+      const showHb = curAtkVis && curAtkVis.isSpecial && curAtkVis.showHitbox && SPECIAL_CONFIG.SHOW_HITBOX;
+      if (showHb) {
+        const elapsedVis = curAtkVis.duration - p.stateTimer;
+        const inHitFrame = elapsedVis >= curAtkVis.hitFrame && elapsedVis < curAtkVis.hitFrame + curAtkVis.hitDuration;
+        if (inHitFrame) {
+          const rx = curAtkVis.rangeX ?? 100;
+          const ry = curAtkVis.rangeY ?? 100;
+          const rz = curAtkVis.rangeZ ?? 100;
+          specialHitboxMesh.visible = true;
+          // プレイヤー前方中心：x 方向に rangeX/2 分ずらす
+          specialHitboxMesh.position.set(p.x + p.facing * (rx * 0.5), p.y + ry * 0.5, p.z);
+          specialHitboxMesh.scale.set(rx, ry, rz * 2);
+        } else {
+          specialHitboxMesh.visible = false;
+        }
+      } else {
+        specialHitboxMesh.visible = false;
+      }
 
       // === ガードシールド同期 ===
       // 半球は +Z 側を覆う形状で生成済み。facing=+1（右向き）なら rotation.y=+π/2 で +X 側に回す
@@ -3826,6 +4165,21 @@
       // ステートHUD更新（未設定の場合は「未設定」表示）
       stateHudPlayerEl.textContent = players[0]?.state ?? '未設定';
       stateHudEnemyEl.textContent  = enemies[0]?.state ?? '未設定';
+      // 必殺技デバッグ HUD：直近 6 エントリの dir + chargeJFrames + specialUsedInCombo
+      if (dbgDirHistEl) {
+        const hist = players[0]?.dirHistory ?? [];
+        const recent = hist.slice(-6).map(e => e.dir).join(' ');
+        dbgDirHistEl.textContent = recent || '-';
+      }
+      if (dbgChargeEl) {
+        const cj = players[0]?.chargeJFrames ?? 0;
+        const ready = players[0]?.chargeReady;
+        dbgChargeEl.textContent = `${cj}/${SPECIAL_CONFIG.CHARGE_FRAMES}${ready ? ' [READY]' : ''}`;
+        dbgChargeEl.style.color = ready ? '#ffff66' : '#cfffaa';
+      }
+      if (dbgSpUsedEl) {
+        dbgSpUsedEl.textContent = String(players[0]?.specialUsedInCombo ?? false);
+      }
     }
 
     function update() {
@@ -4203,7 +4557,7 @@
       scene, camera, bgCamera, renderer, players, enemies,
       CHARACTER_ASSETS,
       PHYSICS, CAM_CONFIG, applyCamConfig,
-      SP_CONFIG, GUARD_CONFIG, MEGA_CONFIG, ULT_CONFIG, GRAB_CONFIG, ATTACKS, STATE, Z_CHAIN, A_CHAIN,
+      SP_CONFIG, GUARD_CONFIG, MEGA_CONFIG, ULT_CONFIG, GRAB_CONFIG, SPECIAL_CONFIG, ATTACKS, STATE, Z_CHAIN, A_CHAIN,
       KEY_CONFIG,
       PIXEL_SHADER,  // ピクセルシェーダー設定（P キーで ENABLED トグル / RT_W・RT_H で解像度調整）
       SLOWMO,        // スロー再生（T キーで 1x→1/2x→1/4x→1/8x サイクル）
