@@ -31,48 +31,52 @@ tags: [プロップ, ステージ構築, 命名規則, カタログ]
 
 ## カテゴリ分け（叩き台）
 
-ベルスク的に必要そうな要素を粗く列挙：
+ベルスク的に必要そうな要素を粗く列挙。**呼び名は日本語・ID プレフィックスは英語短縮**で揃える。
 
-| カテゴリ | 役割 | 例 |
-|---|---|---|
-| **terrain**（地形） | 床・段差・壁・通行不可ライン | floor_concrete / wall_metal / gap_pit |
-| **destructible**（破壊オブジェクト） | 殴れる・CR/チップを落とす | crate_wood / barrel_oil / vending_machine |
-| **hazard**（ハザード） | 触れると被弾・敵が踏むと利用可能 | spike_floor / fire_jet / electric_panel |
-| **gimmick**（ギミック） | 動く・押せる・乗れる | conveyor / lift_platform / explosive_drum |
-| **decoration**（装飾） | 当たり判定なし・世界観演出 | rusted_pillar / sign_neon / debris_pile |
-| **bg_layer**（背景レイヤー） | bgCamera 側に配置・パララックス | parabola_antenna / distant_city / smoke_plume |
-| **spawn_marker**（スポーンマーカー） | 敵出現点・カメラ停止点等の論理マーカー | wave_trigger / camera_pause / cutin_anchor |
+| 日本語呼び名 | ID プレフィックス | 役割 | 例（ID） |
+|---|---|---|---|
+| **地形** | `terr` | 床・段差・壁・通れない場所 | `terr_floor_concrete` / `terr_wall_metal` |
+| **破壊物** | `dest` | 殴って壊せる・CR/チップを落とす | `dest_crate_wood` / `dest_barrel_oil` |
+| **危険物** | `haz` | 触れるとダメージ（罠系・避けて通る） | `haz_spike_floor` / `haz_fire_jet` |
+| **仕掛け** | `gim` | 動く・押せる・乗れる | `gim_conveyor` / `gim_lift_platform` |
+| **装飾** | `dec` | 当たり判定なし・世界観演出だけ | `dec_pillar_rusted` / `dec_sign_neon` |
+| **背景レイヤー** | `bg` | bgCamera 側に配置・パララックス遠景 | `bg_antenna_parabola` / `bg_distant_city` |
+| **マーカー** | `spwn` | 見えない論理目印（敵出現点・カメラ停止点） | `spwn_wave_01` / `spwn_camera_pause` |
 
 → カテゴリ数は **7つくらいが叩き台**。多すぎず、当たり判定の扱い別に整理されている。
+
+**用語メモ（混乱しやすい点）**
+- **破壊物**と**危険物**の境界: 壊せる対象=破壊物、避ける対象=危険物。**爆発樽**のような「壊せる + 壊すとダメージ」は両性質を持つので、データ上は破壊物カテゴリ + `explosive: true` フラグで表現
+- **仕掛け**と**危険物**の境界: 動く刃・回転ノコギリは「動く危険物」。仕掛け=動くもの全般、危険物=触れて危ないもの。動く危険物は仕掛け側に置いて `hazardous: true` を立てるのが整理しやすい
+- **装飾**と**背景レイヤー**の境界: 装飾はキャラと同じレイヤー（前景・触れない柱など）、背景レイヤーはパースの違う遠景（bgCamera 描画）。同じ「触れない物」だがレンダリング先が違う
 
 ## 命名規則（叩き台）
 
 攻撃 ID 命名規約と整合させる形式：
 
 ```
-{category}_{subtype}_{variant}[_modifier]
+{カテゴリ}_{サブタイプ}_{バリアント}[_修飾]
 ```
 
 | パーツ | 意味 | 例 |
 |---|---|---|
-| `{category}` | 上記カテゴリの短縮形（terr / dest / haz / gim / dec / bg / spwn） or 全綴り | `dest` または `destructible` |
-| `{subtype}` | サブタイプ（素材・形状・機能の区分） | `crate` / `barrel` / `pillar` |
-| `{variant}` | バリエーション番号 or 識別子 | `01` / `02` / `wood` / `metal` |
-| `_modifier` | 状態・大きさ等のオプション | `_large` / `_explosive` / `_indestructible` |
+| `{カテゴリ}` | 上記の英語プレフィックス（terr / dest / haz / gim / dec / bg / spwn） | `dest` |
+| `{サブタイプ}` | サブタイプ（素材・形状・機能の区分） | `crate`（木箱） / `barrel`（樽） / `pillar`（柱） |
+| `{バリアント}` | バリエーション番号 or 識別子 | `01` / `02` / `wood` / `metal` |
+| `_修飾` | 状態・大きさ等のオプション | `_large` / `_explosive` / `_indestructible` |
 
 **例**：
-- `dest_crate_01` — 破壊可能な木箱（基本形）
+- `dest_crate_01` — 壊せる木箱（基本形）
 - `dest_barrel_oil_explosive` — 爆発する油樽
 - `terr_wall_metal_01` — 金属壁
 - `haz_spike_floor_01` — 床トゲ
-- `dec_pillar_rusted_large` — 装飾用の大きな錆びた柱
+- `dec_pillar_rusted_large` — 大きな錆びた柱（飾り）
 - `bg_antenna_parabola_01` — パラボラアンテナ（背景レイヤー）
-- `spwn_wave_01` — ウェーブ 1 のスポーンマーカー
+- `spwn_wave_01` — ウェーブ 1 の出現マーカー
 
 **運用ルール案**：
 - 新規プロップを追加する前にユーザーに ID 案を提示して確認（攻撃 ID と同じ運用）
 - 連番より素材名のほうが読みやすい場合は素材名を採用
-- カテゴリ短縮形 vs 全綴りはどちらかに統一（要決定）
 
 ## 各プロップのデータ項目（共通スキーマ叩き台）
 
@@ -107,8 +111,8 @@ PROPS_CATALOG.dest_crate_01 = {
 
 ## ステージ固有 vs 汎用
 
-- **汎用プロップ**: どのステージでも使い回せる（`dest_crate_01` 等）
-- **ステージ固有プロップ**: そのステージだけのアセット（`dec_boss1_throne` 等）
+- **汎用**: どのステージでも使い回せる（`dest_crate_01` 等）
+- **ステージ固有**: そのステージだけのアセット（`dec_boss1_throne` 等）
 - 命名は同じ規約。ID プレフィックスや tag フィールドで区別すれば検索しやすい
 
 ## Three.js プロト → Unreal 移行
@@ -119,11 +123,10 @@ PROPS_CATALOG.dest_crate_01 = {
 
 ## 現時点の傾き（叩き台）
 
-カテゴリ分け・命名規則は上記の叩き台ベースで進める。ただし以下は要相談：
+カテゴリ分け（7つ・日本語呼び名）・命名規則は上記の叩き台ベースで進める。ただし以下は要相談：
 
-- **カテゴリ短縮形 vs 全綴り**（`dest_crate_01` vs `destructible_crate_01`）
-- **subtype に素材名を含めるか**（`crate_wood_01` か `crate_01_wood` か）
-- **bg_layer と decoration の境界**（パララックス背景は分離した方が扱いやすい？）
+- **素材名の位置**: `dest_crate_wood_01`（素材→連番）か `dest_crate_01_wood`（連番→素材）か
+- **背景レイヤーと装飾の境界**: 同じ「触れない物」だがレンダリング先が違うので分けるべきか統合すべきか
 - **最初に揃えるべき "ミニマムカタログ" の規模**（5個 / 10個 / 20個？）
 
 ## 派生論点（本トピックでは決めない）
@@ -135,7 +138,9 @@ PROPS_CATALOG.dest_crate_01 = {
 
 ## 次のアクション
 
-- [ ] ユーザーに命名規則の細部を確認（短縮形 vs 全綴り、素材名の位置 等）
+- [x] カテゴリ呼び名を日本語化（2026-05-14・ID プレフィックスは英語短縮を維持）
+- [ ] 素材名の位置確定（連番→素材 / 素材→連番）
+- [ ] 背景レイヤーと装飾を分けるかどうか確定
 - [ ] ミニマムカタログの規模・優先順を決定（プロト用に何個揃えるか）
 - [ ] 確定したら §26 もしくは新セクションとして仕様書本体へ昇格
 - [ ] プロップ ID 一覧テーブルを別ファイル化するか（`chars/` 配下のような）検討
