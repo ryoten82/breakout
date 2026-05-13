@@ -157,26 +157,109 @@
       letter-spacing: var(--ls-wide);
       width: 33px;
     }
+    /* SP ストック数（ゲージの左に表示・カウントアップ） */
+    #sp-stock-num {
+      font-family: 'Courier New', monospace;
+      font-size: var(--fs-lg);
+      font-weight: bold;
+      color: #00ffaa;
+      min-width: 28px;
+      text-align: center;
+      text-shadow: 0 0 6px rgba(0, 255, 170, 0.5);
+    }
+    /* SP ゲージ：右→左に溜まる単一バー（フル到達でストック数 +1） */
     #sp-bar-bg {
-      width: 210px;
+      width: 200px;
       height: var(--sp-md);
       background: rgba(0, 30, 60, 0.7);
       border: 2px solid #006688;
       border-radius: 3px;
       overflow: hidden;
+      position: relative;
     }
     #sp-bar {
+      position: absolute;
+      right: 0;          /* 右端から伸びる（右→左に溜まる） */
+      top: 0;
       height: 100%;
-      width: 100%;
+      width: 0%;
       background: #00ddff;
-      border-radius: 3px;
       transition: width 0.05s linear, background 0.1s linear;
+    }
+    /* メガクラ用画面暗転オーバーレイ */
+    #mega-darken {
+      position: absolute;
+      inset: 0;
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+      transition: none;  /* JS で都度上書きする */
+      z-index: 50;
+    }
+    /* デバッグ：グラブ用ゲージ（敵の頭上・本番では非表示予定）*/
+    #grab-gauge {
+      position: absolute;
+      width: 80px;
+      height: 8px;
+      background: rgba(0, 0, 0, 0.65);
+      border: 1px solid #888;
+      border-radius: 2px;
+      transform: translateX(-50%);
+      pointer-events: none;
+      z-index: 80;
+      display: none;
+    }
+    #grab-gauge-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #66ff44 0%, #ffee44 60%, #ff6644 100%);
+      border-radius: 1px;
+      transition: width 0.04s linear;
+    }
+    /* デバッグ：時計 HUD（中央上・時間の停止/スローを視認するため）*/
+    #clock-hud {
+      position: absolute;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      pointer-events: none;
+      z-index: 60;
+      opacity: 0.9;
+    }
+    #clock-hud svg { display: block; }
+    /* ULT 用画面暗転オーバーレイ（メガクラより少し濃い） */
+    #ult-darken {
+      position: absolute;
+      inset: 0;
+      background: #1a0000;  /* 赤を少し含む暗色 */
+      opacity: 0;
+      pointer-events: none;
+      transition: none;
+      z-index: 51;
     }
   </style>
 </head>
 <body>
   <div id="game-frame">
+  <div id="mega-darken"></div>
+  <div id="ult-darken"></div>
+  <!-- デバッグ：時計 HUD（時間の停止/スロー視認用） -->
+  <div id="clock-hud">
+    <svg width="64" height="64" viewBox="-32 -32 64 64">
+      <circle cx="0" cy="0" r="28" fill="rgba(8,16,28,0.65)" stroke="#5cc8ff" stroke-width="2"/>
+      <!-- 12 時方向の目盛り -->
+      <line x1="0" y1="-24" x2="0" y2="-19" stroke="#5cc8ff" stroke-width="2"/>
+      <line x1="24" y1="0" x2="19" y2="0" stroke="#5cc8ff" stroke-width="1"/>
+      <line x1="-24" y1="0" x2="-19" y2="0" stroke="#5cc8ff" stroke-width="1"/>
+      <line x1="0" y1="24" x2="0" y2="19" stroke="#5cc8ff" stroke-width="1"/>
+      <!-- 針（rotate 中心は 0,0）-->
+      <line id="clock-hand" x1="0" y1="2" x2="0" y2="-22" stroke="#ffee44" stroke-width="3" stroke-linecap="round" transform="rotate(0)"/>
+      <circle cx="0" cy="0" r="3" fill="#ffee44"/>
+    </svg>
+  </div>
   <div id="hud-layer">
+  <!-- デバッグ：グラブゲージ（敵頭上に投影） -->
+  <div id="grab-gauge"><div id="grab-gauge-fill"></div></div>
   <div id="hud">
     <div class="title">SCRAP BLITZ</div>
     <div id="hk-move">WASD / 矢印キー: 移動</div>
@@ -217,7 +300,10 @@
 
   <div id="sp-gauge-wrap">
     <div id="sp-label">SP</div>
-    <div id="sp-bar-bg"><div id="sp-bar"></div></div>
+    <div id="sp-stock-num">0</div>
+    <div id="sp-bar-bg">
+      <div id="sp-bar"></div>
+    </div>
   </div>
 
   <div id="dummy-hp" style="
@@ -685,9 +771,10 @@
       // 通常ジャンプ: JUMP_V=10, THRUST=1.20, FRAMES=12 → 最大vy=24.4
       // キャンセル時:                                  → 最大vy=30.2（24%増）
       // 視覚演出（bigBurstTimer）でケレン味を出し、物理は通常+α 程度に抑える
-      CANCEL_JUMP_V:        12,    // キャンセル時のジャンプ初速（通常+2）
-      CANCEL_JUMP_THRUST:   1.3,   // キャンセル時の推力（通常+0.1）
-      CANCEL_JUMP_FRAMES:   14,    // キャンセル時の推力持続（通常+2）
+      // 物理ブーストは廃止：キャンセルジャンプの違いは初速 V=12（通常+2）のみ
+      // 推力（force/frames）は通常ジャンプと共通。SPACE 押しっぱなしで上空に飛びすぎる不具合の構造修正
+      CANCEL_JUMP_V:        12,    // キャンセル時のジャンプ初速（通常 10 +2）
+      // CANCEL_JUMP_THRUST / CANCEL_JUMP_FRAMES は撤廃（通常ジャンプの THRUST_FORCE / THRUST_FRAMES を共用）
 
       // === 空中コンボ共通（全キャラ共有・キャラ固有値を持たせない） ===
       AERIAL_HOP_V:          9,    // ヒット時の両者ホップ速度（プレイヤー・敵 共通）
@@ -718,59 +805,139 @@
     //  SP ゲージ設定
     // ============================================================
     const SP_CONFIG = {
+      // ストック性（5 段階・各 STOCK_SIZE pt）：MAX = STOCK_SIZE * MAX_STOCKS = 100
       MAX:              100,
+      STOCK_SIZE:       20,    // 1 ストックあたりの SP 量
+      MAX_STOCKS:       5,     // 最大ストック数（Marvel vs Capcom 方式の LEVEL）
+      INITIAL_STOCKS:   3,     // 戦闘開始時のストック数
       REGEN_RATE:       0.01,  // フレームごとの自然回復量（攻撃優先設計：逃げ回りだけでは遅い）
       GAIN_ON_HIT:      8,     // ヒット1発あたりの獲得量
-      MEGA_CRASH_COST:  20,    // メガクラッシュ消費（= 1 LEVEL / MAX5換算）
-      ULT_COST:         40,    // ULT消費（= 2 LEVEL / MAX5換算）
+      MEGA_CRASH_COST:  20,    // メガクラッシュ消費（= 1 ストック）
+      ULT_COST:         40,    // ULT消費（= 2 ストック）
+    };
+
+    // ============================================================
+    //  MEGA CRASH（J+K / U / R1 — SP 1 ストック消費）
+    // ============================================================
+    // ============================================================
+    //  ULT（J+K+L / I / R2 — SP 2 ストック消費）
+    //  - 地上限定（一部キャラ将来例外可）／hit_confirm からキャンセル発動可
+    //  - 発動中完全無敵（p.invincible）／画面全体に攻撃判定
+    //  - 戦闘データは ATTACKS.c01_sp_ult01。ULT_CONFIG は演出・タイミング系のみ
+    // ============================================================
+    const ULT_CONFIG = {
+      DARKEN_ALPHA:      0.55,   // 暗転濃度（メガクラ 0.45 より少し濃く）
+      DARKEN_FADE_OUT:   30,     // 解除フェードアウト長
+      SLOW_DIVISOR:      4,      // ピーク時のスロー（1/4 速・メガクラ 1/3 より深く）
+      SLOW_FADE_FRAMES:  60,     // ヒット後のスロー→通常速度フェード長（≒1秒）
+      CAM_ZOOM_RATIO:    0.78,   // カメラズーム倍率（小さいほど寄る）
+      CAM_ZOOM_FRAMES:   12,     // ズームに掛けるフレーム数
+      DOME_COLOR:        0xff4422, // 赤ドーム
+      DOME_MAX_RADIUS:   1500,   // ドーム最大半径（仮：画面相当）
+      DOME_EXPAND_FRAMES: 25,    // ドーム拡大フレーム数
+      DOME_MAX_OPACITY:  0.40,   // ドーム最大不透明度
+    };
+
+    // ============================================================
+    //  GRAB（くにおくん方式・密着自動発動）
+    //  - 相手 wait01 / 自分 wait01・地上で密着 → 即発動
+    //  - 攻撃中・のけぞり中の敵は対象外
+    //  - 発動中はお互い停止／攻撃ボタンで殴り／方向+攻撃で投げ
+    //  - 2 秒（120F）経過 or 4 発命中で時間切れ → 互いに knockback02 で離れる
+    // ============================================================
+    const GRAB_CONFIG = {
+      RANGE_X:          60,    // 密着判定（前方）
+      RANGE_Z:          40,    // 軸ズレ許容
+      DURATION:         120,   // タイマー初期値（2 秒）
+      HIT_MAX:          4,     // 最大ヒット数
+      HIT_TIME_COST:    24,    // 1 発あたり消費するタイマー（ゲージ進行 20%＝120×0.20）
+      PUNCH_ACTION_FRAMES: 20, // つかみ攻撃のアクション持続（この間はタイマー停止・入力スキップ）
+      PUNCH_DAMAGE:     6,
+      THROW_DAMAGE:     15,
+      THROW_KB_VX:      45,    // 投げ時の水平ノックバック速度（元 30 の 1.5 倍・飛距離増）
+      HOLD_OFFSET_X:    110,   // プレイヤー〜被害者の中心間距離（重なり回避のためやや広め）
+      RELEASE_KB_VX:    6,     // 時間切れ時の互いの押し合い速度
+      ACTIVATE_PARTICLE_COLOR: 0x66ff44, // 発動時パーティクル色（仮：将来は属性ベース）
+      ACTIVATE_PARTICLE_COUNT: 12,       // 1 キャラあたりのパーティクル数
+      ACTIVATE_PARTICLE_Y:     60,       // スポーン Y オフセット（腰辺り）
+    };
+
+    // 戦闘データ（damage / knockback / atk_lv 等）は ATTACKS.c01_sp_mega01 に集約。
+    // MEGA_CONFIG は演出・タイミング系のみを保持
+    const MEGA_CONFIG = {
+      RADIUS:           300,   // AoE 半径（wu・キャラ約3体分）
+      EXPAND_FRAMES:    20,    // リングが半径 0→RADIUS まで広がるフレーム数
+      SLOW_FRAMES:      30,    // スロー継続フレーム（≒0.5秒 at 60fps）
+      SLOW_DIVISOR:     3,     // スロー中の更新間隔（3 = 1/3 速）
+      DARKEN_ALPHA:     0.45,  // 暗転オーバーレイ最大不透明度
+      DARKEN_FADE_OUT:  30,    // 暗転がフェードアウトする長さ（フレーム）
+      RING_COLOR:       0x66ddff,  // 球体シェルの色
+    };
+
+    // ============================================================
+    //  GUARD（METEO L キー前方ガード）
+    //  - 長押し中 SP 持続消費 / 移動可・攻撃不可
+    //  - L 離す or SP 切れ で即解除 → 短いフェードアウト
+    //  - ダメージ軽減処理は将来実装（ダメージシステム自体未実装のため）
+    // ============================================================
+    const GUARD_CONFIG = {
+      SP_DRAIN:         0.25,  // 毎F SP消費（100 → 約6.7秒持続）
+      MIN_SP_TO_START:  5,     // 開始に必要な最低SP（切れ直後の連打防止）
+      FADE_IN_LERP:     0.70,  // 発動時の不透明度ライズ係数（大きいほど速くフェードイン）
+      FADE_OUT_FRAMES:  5,     // 解除時のフェードアウト長（フレーム）
+      SHIELD_RADIUS:    90,    // 半円シールドの半径（wu）
+      SHIELD_COLOR:     0x66ccff,
+      SHIELD_Y_OFFSET:  100,   // プレイヤー Y からシールド中心までのオフセット（みぞおち位置）
+      SHIELD_MAX_OPACITY: 0.35,// 最大不透明度（透けてプレイヤーが見える）
+      MOVE_SPEED_MULT:  0.5,   // ガード中の移動速度倍率（仕様：半分）
     };
 
     // ============================================================
     //  攻撃データテーブル（弱攻撃3段チェーン）
     //  Plan §2 戦闘システム §キャンセルシステム
-    //  値はランタイムで SB.ATTACKS.z1.damage = ... のように調整可能
+    //  値はランタイムで SB.ATTACKS.c01_atk_s_01.damage = ... のように調整可能
     // ============================================================
     const ATTACKS = {
-      z1: {
-        label:        'Z1 (左ジャブ)',
+      c01_atk_s_01: {
+        label:        'c01_atk_s_01 (METEO 左ジャブ)',
         duration:     16, hitFrame: 6, hitDuration: 4, cancelWindow: 14,
         damage:       6,
-        rangeX:       110, rangeZ: 110,
+        rangeX:       110, rangeZ: 110, rangeY: 80,   // 胸高さまで
         knockback:    6, hitstop: 3, shake: 2,
         atk_lv:       1,
         partsAnim:    'punch_l',
       },
-      z2: {
-        label:        'Z2 (右ストレート)',
+      c01_atk_s_02: {
+        label:        'c01_atk_s_02 (METEO 右ストレート)',
         duration:     16, hitFrame: 6, hitDuration: 4, cancelWindow: 14,
         damage:       7,
-        rangeX:       115, rangeZ: 110,
+        rangeX:       115, rangeZ: 110, rangeY: 80,   // 胸高さまで
         knockback:    8, hitstop: 4, shake: 3,
         atk_lv:       1,
         partsAnim:    'punch_r',
       },
-      z3: {
-        label:        'Z3 (回し蹴り)',
+      c01_atk_s_03: {
+        label:        'c01_atk_s_03 (METEO 回し蹴り)',
         duration:     22, hitFrame: 9, hitDuration: 5, cancelWindow: 16,
         damage:       12,
-        rangeX:       130, rangeZ: 120,
+        rangeX:       130, rangeZ: 120, rangeY: 110,  // 蹴りは少し高めまで
         knockback:    14, hitstop: 6, shake: 5,
         atk_lv:       1,
         partsAnim:    'kick',
       },
-      z4: {
-        label:        'Z4 (旋回アッパー・フィニッシャー)',
+      c01_atk_s_04: {
+        label:        'c01_atk_s_04 (METEO 旋回アッパー・フィニッシャー)',
         duration:     24, hitFrame: 10, hitDuration: 5, cancelWindow: 16,
         damage:       14,
-        rangeX:       135, rangeZ: 125,
+        rangeX:       135, rangeZ: 125, rangeY: 140,  // 旋回アッパー：頭上付近まで
         knockback:    40, hitstop: 7, shake: 6,
         atk_lv:       2,                      // フィニッシャー：地上は knockback02
         atk_lv_air:   3,                      // 空中敵には吹き飛び（down_front_*）
         partsAnim:    'spin_upper',
       },
       // === 空中弱攻撃（METEO） ===
-      a1: {
-        label:        'A1 (空中ジャブ)',
+      c01_atk_s_01_air: {
+        label:        'c01_atk_s_01_air (METEO 空中ジャブ)',
         duration:     14, hitFrame: 5, hitDuration: 3, cancelWindow: 12,
         damage:       5,
         rangeX:       145, rangeZ: 120, rangeY: PHYSICS.AERIAL_RANGE_Y, rangeYDown: 260,
@@ -779,8 +946,8 @@
         atk_lv:       1,
         partsAnim:    'air_punch_l',
       },
-      a2: {
-        label:        'A2 (空中蹴り)',
+      c01_atk_s_02_air: {
+        label:        'c01_atk_s_02_air (METEO 空中蹴り)',
         duration:     16, hitFrame: 6, hitDuration: 3, cancelWindow: 13,
         damage:       7,
         rangeX:       145, rangeZ: 120, rangeY: PHYSICS.AERIAL_RANGE_Y + 10, rangeYDown: 270,
@@ -789,29 +956,29 @@
         atk_lv:       1,
         partsAnim:    'air_kick',
       },
-      a3: {
-        label:        'A3 (空中Jコンボ3発目・フィニッシャー)',
+      c01_atk_s_03_air: {
+        label:        'c01_atk_s_03_air (METEO 空中Jコンボ3発目・フィニッシャー)',
         duration:     18, hitFrame: 7, hitDuration: 4, cancelWindow: 14,
         damage:       10,
         rangeX:       145, rangeZ: 120, rangeY: PHYSICS.AERIAL_RANGE_Y + 20, rangeYDown: 280,
         knockback:    32,             // 26 → 32（少し追加・吹き飛ばし感UP）
-        aerialHop:    true,           // 空中Jコンボ全体で同じ量のホップ（a1/a2 と統一）
+        aerialHop:    true,           // 空中Jコンボ全体で同じ量のホップ（c01_atk_s_01_air / 02_air と統一）
         atk_lv:       2,              // 地上敵：強攻撃フリンチ（knockback02）
         atk_lv_air:   3,              // 空中敵：吹き飛び（down_front_start）
         hitstop:      7, shake: 6,
-        hitColor:     0x44ddff,       // 氷系シアン（打ち上げの金・強攻撃のオレンジと差別化）
-        hitCount:     18,
+        hitColor:     0xffee44,       // Z チェーンと同じ黄色（払いと混同しないよう氷系シアンから戻し）
+        hitCount:     32,             // フィニッシャー強調：通常の Z 弱攻撃より多めの粒数（旧 18 → 32）
         partsAnim:    'air_slam',
         particleType: 'normal',       // 前方放射パーティクル
       },
       // === 強攻撃 K（キャラ別）===
       // 仕様: METEO の強攻撃 — ダウンなし・キャラ約1体分のノックバック
-      k_meteo: {
-        label:        'K (METEO 強攻撃)',
+      c01_atk_l_01: {
+        label:        'c01_atk_l_01 (METEO 強攻撃)',
         duration:     28, hitFrame: 12, hitDuration: 5, cancelWindow: 18,
         damage:       20,
-        rangeX:       145, rangeZ: 120,
-        knockback:    75,  // ★ キャラ約1体分の距離（z3=14 の約2倍）
+        rangeX:       145, rangeZ: 120, rangeY: 130,  // 上半身高さまで
+        knockback:    75,  // ★ キャラ約1体分の距離（c01_atk_s_03=14 の約2倍）
         hitstop:      9, shake: 7,
         hitColor:     0xff6622,
         hitCount:     22,
@@ -820,11 +987,11 @@
         launcher:     false,
       },
       // 仕様: METEO 打ち上げ攻撃 — Jチェーン中 ↑+K で発動・launcher:true → キャンセルジャンプ可
-      k_up_meteo: {
-        label:        '↑+K (METEO 打ち上げ)',
+      c01_atk_l_01_up: {
+        label:        'c01_atk_l_01_up (METEO 打ち上げ・↑+K)',
         duration:     26, hitFrame: 10, hitDuration: 4, cancelWindow: 16,
         damage:       18,
-        rangeX:       115, rangeZ: 110,
+        rangeX:       115, rangeZ: 110, rangeY: 180,  // 打ち上げ：少し浮いた敵にも届く
         knockback:    10,               // 水平は控えめ・主作用は打ち上げ
         launchVy:     24,               // 敵を浮かせる垂直速度（プレイヤー最大vy≒24に合わせる）
         hitstop:      8, shake: 6,
@@ -833,12 +1000,13 @@
         partsAnim:    'upper_cut',
         launcher:     true,             // ★ キャンセルジャンプ可（tryCancelJump が直参照）
         attrGroup:    'LAUNCH_COMBO',   // 属性バンドル：打ち上げ→頂点スロー→追撃
-        atk_lv:       4,                // 打ち上げ
+        atk_lv:       4,                // 地上敵：打ち上げ（down_up_start）
+        atk_lv_air:   3,                // 空中敵：吹き飛び（down_front_start）— 既に浮いてる敵を更に上げない
       },
       // 仕様: METEO 空中強攻撃 — 空中で K を押すと発動（地上Kと別の独立技）
       // 下方向の当たり判定を大きく取り、地上敵を空中から殴れる
-      ak_meteo: {
-        label:        'AK (METEO 空中強攻撃)',
+      c01_atk_l_01_air: {
+        label:        'c01_atk_l_01_air (METEO 空中強攻撃)',
         duration:     24, hitFrame: 10, hitDuration: 5, cancelWindow: 16,
         damage:       18,
         rangeX:       145, rangeZ: 135, rangeY: 110, rangeYDown: 260,
@@ -857,8 +1025,8 @@
         launcher:     false,
       },
       // 仕様: METEO 空中急降下踏みつけ — 空中で ↓+K 発動。発動瞬間に真下へ急降下
-      ak_dn_meteo: {
-        label:        '↓+K (METEO 空中急降下)',
+      c01_atk_l_01_air_down: {
+        label:        'c01_atk_l_01_air_down (METEO 空中急降下・↓+K)',
         duration:     24, hitFrame: 8, hitDuration: 6, cancelWindow: 16,
         damage:       16,
         rangeX:       145, rangeZ: 135,
@@ -870,6 +1038,12 @@
         divePause:    12,              // 急降下前の空中停止フレーム数（≈0.2秒）
         aerialHop:    false,
         atk_lv:       5,               // 叩きつけ
+        atk_lv_air:   5,               // 空中敵も同じ（明示・down_rakka_start に飛ばす）
+        atk_lv_down:  5,               // ダウン中の敵も同じ（明示・down_bound_start に飛ばして拾い直し可能）
+        // === lv05 ベクトル個別上書き：すごい勢いで地面にたたきつける ===
+        // 既定 KB_LV05_VY=-18 / KB_LV05_VX_MULT=0.1 を 2.5 倍に強化
+        kb_vy:        -45,             // 下向き初速 2.5 倍（KB_LV05_VY * 2.5）
+        kb_vx_mult:   0.1,             // 水平は据え置き（真下落下を維持）
         omni:         true,            // 全方向ヒット（踏みつけ性質）
         launcher:     false,
         hitColor:     0xff4422,
@@ -878,8 +1052,8 @@
       },
       // 仕様: METEO 払い攻撃 — ↓+K で発動（単体可・Jチェーンからも可）
       // 当たり判定：足元中心・全方向・地面スライスのみ（浮き敵には当たらない）
-      k_dn_meteo: {
-        label:        '↓+K (METEO 払い)',
+      c01_atk_l_01_down: {
+        label:        'c01_atk_l_01_down (METEO 払い・↓+K)',
         duration:     20, hitFrame: 8, hitDuration: 4, cancelWindow: 14,
         damage:       14,
         rangeX:       155, rangeZ: 150,
@@ -890,9 +1064,101 @@
         hitCount:     12,
         launcher:     false,
         omni:         true,            // 前方限定を外す（全方向ヒット）
-        atk_lv:       2,               // 強攻撃（払い・通常敵向け）
-        atk_lv_down:  7,               // ダウン追い打ち：寝てる/起き上がり中の敵にもヒット
+        atk_lv:       1,               // 通常時：軽フリンチ knockback01
+        atk_lv_air:   1,               // 空中敵も同じ（明示）
+        atk_lv_down:  7,               // ダウン中：knockback03 で小バウンド（拾い）
         partsAnim:    'sweep',
+      },
+      // === SP 系：メガクラッシュ（J+K / U / R1）===
+      // 切り返しでもあるが、コンボを繋ぎに行く設計：
+      //   atk_lv 2 → 軽フリンチで敵が起立復帰しやすい
+      //   atk_lv_down 5 → ダウン中の敵を拾い直してコンボ継続
+      // === SP 系：ULT01（J+K+L / I / R2 — SP 2 ストック）===
+      // 地上限定・hit_confirm からキャンセル発動可・発動中完全無敵
+      // 演出構成：決めポーズ 40F → ヒット判定 20F → 余韻 30F = 計 90F
+      c01_sp_ult01: {
+        label:        'c01_sp_ult01 (METEO ULT01)',
+        duration:     70,            // 全体長（停止感を短く・ヒット後はフェードで滑らかに余韻）
+        hitFrame:     25,            // 決めポーズ後にヒット発生（ズーム完了 12F + ポーズ 13F）
+        hitDuration:  20,            // ヒット判定アクティブ時間
+        cancelWindow: 0,             // ヒット後キャンセル不可
+        damage:       80,
+        // 全画面 AoE：rangeX/Y/Z を巨大値で omni 全方向
+        rangeX:       5000, rangeZ: 5000, rangeY: 5000, rangeYDown: 5000,
+        knockback:    60,
+        hitstop:      12, shake: 16,
+        atk_lv:       3,             // 地上敵：吹き飛び
+        atk_lv_air:   3,             // 空中敵：吹き飛び
+        atk_lv_down:  7,             // ダウン中：knockback03（小バウンド・ダウン継続）
+        kbTimeMult:   2.0,           // フリンチ時間 2 倍（追撃猶予）
+        hitColor:     0xff4422,
+        hitCount:     32,
+        omni:         true,
+        isUlt:        true,          // ULT 専用フラグ（演出トリガー）
+        noCancelOnHit: true,
+        noSpGain:     true,          // ULT ヒットでは SP 獲得しない（自己回復ループ防止）
+        // 拡張性（将来 N 発判定するときの仕様）：
+        //   hitCountTotal: 1   → 現状は単発
+        //   hitInterval:   8   → 複数 hit 時の間隔フレーム
+        hitCountTotal: 1,
+        hitInterval:   8,
+      },
+
+      c01_sp_mega01: {
+        label:        'c01_sp_mega01 (METEO メガクラッシュ)',
+        damage:       30,
+        knockback:    45,
+        hitstop:      6, shake: 8,
+        atk_lv:       2,    // 通常時：knockback02（軽フリンチ・コンボ繋ぎ）
+        atk_lv_air:   2,    // 空中敵：knockback_air01
+        atk_lv_down:  5,    // ダウン中：down_bound_start（拾い直し）
+        kbTimeMult:   2.0,  // この技で発生したフリンチ/バウンド時間を 2 倍に（コンボ猶予を延ばす）
+        hitColor:     0x66ddff,
+        hitCount:     18,
+        omni:         true, // 全方向ヒット（AoE）
+        // 注：rangeX/Y/Z は使わない。triggerMegaCrash 側で距離ベース判定する
+      },
+
+      // === ステップ攻撃（ダッシュ中 J/K の派生）===
+      // 共通: 地上限定・一発技（チェーンしない）・ダッシュ運動量を保持して前進
+      // 共通属性 isStepAttack:true で start/end/movement/hit/visual の各ロジックが分岐する
+      // momentumDecay: ダッシュ運動量の毎フレーム減衰率（1.0=不減衰）
+      // tiltX: 擬似アニメ用 rotation.x 目標値（YXZ 順・+前傾 / -後傾）— 正式アニメ実装まで
+      c01_atk_s_01_step: {
+        label:        'c01_atk_s_01_step (METEO ステップJ・スライディング)',
+        duration:     20, hitFrame: 7, hitDuration: 4, cancelWindow: 14,
+        damage:       8,
+        rangeX:       150, rangeZ: 70, rangeY: 60,
+        knockback:    18, hitstop: 5, shake: 4,
+        atk_lv:       1,                 // 通常時：軽フリンチ knockback01（スライド軽打のイメージ）
+        atk_lv_air:   1,                 // 空中敵も同じ（明示）
+        atk_lv_down:  7,                 // ダウン中：down_bas_loop リフレッシュ（拾い）
+        hitColor:     0x66ccff,
+        hitCount:     14,
+        launcher:     false,
+        aerialHop:    false,
+        partsAnim:    'slide',
+        isStepAttack: true,
+        momentumDecay: 0.97,             // 「ズザー」と滑り込む強い慣性
+        tiltX:        -1.40,             // ≈ -80°（ほぼ水平・後ろ倒し）
+      },
+      c01_atk_l_01_step: {
+        label:        'c01_atk_l_01_step (METEO ステップK・ショルダータックル)',
+        duration:     28, hitFrame: 11, hitDuration: 5, cancelWindow: 0,
+        damage:       22,
+        rangeX:       160, rangeZ: 90, rangeY: 180,
+        knockback:    80, hitstop: 10, shake: 9,
+        atk_lv:       3,
+        atk_lv_air:   3,
+        hitColor:     0xff8844,
+        hitCount:     22,
+        launcher:     false,
+        aerialHop:    false,
+        partsAnim:    'tackle',
+        isStepAttack: true,
+        momentumDecay: 0.96,
+        tiltX:        +0.45,             // ≈ +26°（前傾タックル）
+        noCancelOnHit: true,             // ヒットしても hit_confirm に入らず即 wait01
       },
     };
 
@@ -919,10 +1185,10 @@
       return Object.assign({}, ATTACK_ATTRS[attack.attrGroup] ?? {}, attack);
     }
 
-    // 地上 J チェーン：z1 → z2 → z3 → z4（K は単独・チェーン外）
-    const Z_CHAIN = ['z1', 'z2', 'z3', 'z4'];
-    // 空中 J チェーン：a1 → a2 → a3（ジャンプ中 or キャンセルジャンプ後）
-    const A_CHAIN = ['a1', 'a2', 'a3'];
+    // 地上 J チェーン：c01_atk_s_01 → 02 → 03 → 04（K 系は単独・チェーン外）
+    const Z_CHAIN = ['c01_atk_s_01', 'c01_atk_s_02', 'c01_atk_s_03', 'c01_atk_s_04'];
+    // 空中 J チェーン：c01_atk_s_01_air → 02_air → 03_air（ジャンプ中 or キャンセルジャンプ後）
+    const A_CHAIN = ['c01_atk_s_01_air', 'c01_atk_s_02_air', 'c01_atk_s_03_air'];
 
     // ステート定数（敵味方共通カタログ・2026-05-13 STATE/ESTATE 統合）
     //   プレイヤーは p.state、敵は e.state に文字列を入れる。
@@ -933,6 +1199,8 @@
       // ── プレイヤー行動（敵が攻撃するようになったら共用予定）─────────
       attacking:        'attacking',         // 攻撃モーション中
       hit_confirm:      'hit_confirm',       // ヒット確認後のキャンセル受付中
+      grabbing:         'grabbing',          // グラブ実行側（敵を掴んでいる）
+      grabbed:          'grabbed',           // グラブ被害側（掴まれている）
       // ── 被弾フリンチ（atk_lv 駆動）─────────────────────────────
       knockback01:      'knockback01',       // lv01 地上ヒット・小フリンチ → wait01
       knockback02:      'knockback02',       // lv02 地上ヒット・大フリンチ → wait01
@@ -1015,6 +1283,37 @@
       down_bound_start: 0,
     };
     const STATE_TILT_LERP = 0.25;          // 補間係数（0.25 で約12F でほぼ目標到達）
+
+    // ============================================================
+    //  ステート別の前後傾（rotation.x ピッチ）
+    //  rotation.order='ZYX' により rx の符号で「敵から見た前/後傾」を表現できる：
+    //    +rx → プレイヤー方向（手前・前傾）／ -rx → 反対側（後傾・のけぞり）
+    //  TARGET = フレーム毎の lerp 目標値
+    //  INITIAL = ヒット遷移瞬間に強制セットする値（未定義なら lerp に任せる）
+    // ============================================================
+    const STATE_PITCH_TARGET = {
+      knockback01:     +0.175,   // ≈ +10°（おなか抑えうずくまり・継続）
+      knockback02:     -0.524,   // ≈ -30°（のけぞり・継続）
+      knockback_air01: 0,        // 立ち直り（INITIAL から 0 へ徐々に lerp）
+      grabbing:        +0.175,   // ≈ +10°（敵を掴んで前傾・kb01 と同じ見た目）
+      grabbed:         +0.175,   // ≈ +10°（掴まれて前傾・kb01 と同じ見た目）
+    };
+    const STATE_PITCH_INITIAL = {
+      knockback01:     +0.175,   // 即座に前傾の姿勢へ
+      knockback02:     -0.524,   // 即座にのけぞる姿勢へ
+      knockback_air01: +0.262,   // ≈ +15° 開始（徐々に立ち直る）
+      grabbing:        +0.175,
+      grabbed:         +0.175,
+    };
+    // 被弾ステート遷移時に呼ぶ：状態に応じた pitch 初期値をセット
+    function applyHitInitialPitch(e) {
+      const v = STATE_PITCH_INITIAL[e.state];
+      if (v !== undefined) e.pitchAngle = v;
+    }
+    const STATE_PITCH_LERP = 0.18;
+    // atk_lv_air 判定のしきい値：これ以下の y は接地扱い（バウンド瞬間や落下直前の微小値で
+    // 誤って空中ルートに入るのを防ぐ。c01_atk_l_01_air を地上敵に当てた時の挙動安定化）
+    const ENEMY_AIRBORNE_Y_THRESHOLD = 10;
     // lv03（吹き飛び）打ち上げパラメータ
     const KB_LV03_VY      = 12;
     const KB_LV03_VX_MULT = 1.5;
@@ -1022,6 +1321,7 @@
     const KB_LV05_VY        = -18;  // 下向き初速（高速で真下）
     const KB_LV05_VX_MULT   = 0.1;  // 水平ノックバックはほぼ殺す（真下落下）
     const KB_LV05_BOUNCE_VY = 20;   // 着地後の 1回バウンド上向き初速（14 × 1.4 ≒ 拾い直しが狙える高さ）
+    const KB_LV07_HOP_VY    = 8;    // ダウン中ヒット時の小バウンド（knockback03 開始時 vy）
     // lv06（超吹き飛ばし）打ち上げパラメータ — down_front_* を共用し倍率だけ強化
     const KB_LV06_VY      = 18;
     const KB_LV06_VX_MULT = 2.5;
@@ -1050,23 +1350,23 @@
 
     // 各攻撃の hitFrame 窓での変位（facing 方向に沿って前方は +Z）
     const PART_ANIMS = {
-      // z1: 左ジャブ — 左腕突き出し・右腕引き・左脚重心移動
+      // c01_atk_s_01: 左ジャブ — 左腕突き出し・右腕引き・左脚重心移動
       punch_l:       { armL:{z:58,x:-6}, fistL:{z:76}, armR:{z:-22}, fistR:{z:-22}, legL:{z:12} },
-      // z2: 右ストレート — 右腕突き出し・左腕引き・右脚体重乗せ
+      // c01_atk_s_02: 右ストレート — 右腕突き出し・左腕引き・右脚体重乗せ
       punch_r:       { armR:{z:58,x:6},  fistR:{z:76}, armL:{z:-22}, fistL:{z:-22}, legR:{z:12} },
-      // z3: 回し蹴り — 右脚大きく前上方・左脚踏ん張り・腕バランス
+      // c01_atk_s_03: 回し蹴り — 右脚大きく前上方・左脚踏ん張り・腕バランス
       kick:          { legR:{y:32,z:58}, footR:{y:40,z:74}, legL:{z:-14}, armL:{z:-12}, armR:{z:14} },
-      // z4: 旋回アッパー — 左腕上方弧・拳が頂点まで上がる・右腕カウンター
+      // c01_atk_s_04: 旋回アッパー — 左腕上方弧・拳が頂点まで上がる・右腕カウンター
       spin_upper:    { armL:{y:52,z:44}, fistL:{y:76,z:56}, armR:{z:-18}, fistR:{z:-10}, legL:{y:12,z:16} },
       // K: 強パンチ右 — 右腕フル伸展・左腕大きく引き・右脚踏み込み
       strong_punch_r:{ armR:{z:74,x:16}, fistR:{z:94,x:20}, armL:{z:-28,x:-12}, fistL:{z:-28,x:-12}, legR:{z:18} },
       // ↑+K: アッパーカット — 右腕縦に突き上げ・左腕引き・右脚伸び
       upper_cut:     { armR:{y:72,z:30}, fistR:{y:96,z:40}, armL:{z:-18}, fistL:{z:-8}, legR:{z:14} },
-      // a1: 空中ジャブ — 左腕突き出し・右腕引き
+      // c01_atk_s_01_air: 空中ジャブ — 左腕突き出し・右腕引き
       air_punch_l:   { armL:{z:52,x:-6}, fistL:{z:68}, armR:{z:-20}, fistR:{z:-20} },
-      // a2: 空中蹴り — 右脚前方高め・腕バランス
+      // c01_atk_s_02_air: 空中蹴り — 右脚前方高め・腕バランス
       air_kick:      { legR:{y:30,z:58}, footR:{y:40,z:74}, armL:{z:-12}, armR:{z:12} },
-      // a3: 空中叩きつけ — 両腕両拳を真下に振り下ろす
+      // c01_atk_s_03_air: 空中叩きつけ — 両腕両拳を真下に振り下ろす
       air_slam:      { armL:{y:-44,z:34}, armR:{y:-44,z:34}, fistL:{y:-62,z:44}, fistR:{y:-62,z:44}, legL:{y:-12}, legR:{y:-12} },
       // ↓+K: 払い — 右脚が低く前方に大きく流れ・左脚引き・腕バランス
       sweep:         { legR:{y:-20,z:66}, footR:{y:-24,z:82}, legL:{z:-16,y:-10}, footL:{z:-14,y:-6}, armL:{z:-14}, armR:{z:-14} },
@@ -1079,7 +1379,81 @@
     const players = [];
 
     const playerMesh = await loadCharacterModel('player_viper');
+    // ステップ攻撃の前後傾を rotation.x で出すために回転順を YXZ に変更
+    // （既定 XYZ だと ry=±π/2 と組み合わさって rx/rz が画面奥行方向の回転になり見えない）
+    playerMesh.rotation.order = 'YXZ';
     scene.add(playerMesh);
+
+    // === メガクラッシュ球体（拡大波エフェクト）===
+    // 完全な球シェルを player 中心にスポーンし、半径 0 → MEGA_CONFIG.RADIUS まで scale で拡大
+    // 半透明の薄いシェル → カメラ側からは円形シルエット（球の輪郭）として見える
+    const megaRing = (() => {
+      const geo = new THREE.SphereGeometry(1, 32, 24);  // 単位球 → scale で半径制御
+      const mat = new THREE.MeshBasicMaterial({
+        color:       MEGA_CONFIG.RING_COLOR,
+        transparent: true,
+        opacity:     0,
+        side:        THREE.DoubleSide,
+        depthWrite:  false,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.visible = false;
+      scene.add(mesh);
+      return mesh;
+    })();
+    let megaRingProgress = 0;   // 0〜1：リング拡大進度（0=未発動 / 1=完了）
+    let megaSlowFrames   = 0;   // メガクラスローモーション残フレーム
+    let megaSlowCounter  = 0;
+    let megaDarkenFade   = 0;   // 暗転フェードアウト残フレーム
+    const megaDarkenEl   = document.getElementById('mega-darken');
+
+    // === ULT 赤ドーム（足元から画面全体へ広がる半透明シールド）===
+    const ultDome = (() => {
+      const geo = new THREE.SphereGeometry(1, 32, 24);
+      const mat = new THREE.MeshBasicMaterial({
+        color:       ULT_CONFIG.DOME_COLOR,
+        transparent: true,
+        opacity:     0,
+        side:        THREE.DoubleSide,
+        depthWrite:  false,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.visible = false;
+      scene.add(mesh);
+      return mesh;
+    })();
+    let ultDomeProgress  = 0;
+    // スロー制御：phase 0=非作動 / 1=ピーク（ヒット前）/ 2=フェード中（ヒット以降）
+    let ultSlowPhase     = 0;
+    let ultSlowFadeRemaining = 0;
+    let ultSlowAccum     = 0;
+    let ultDarkenFade    = 0;
+    let ultCamZoomFrames = 0;   // カメラズーム残時間
+    let ultCamZoomTotal  = 0;
+    let ultCamSavedZoom  = 1;   // ULT 発動前のカメラズーム値（復帰用）
+    const ultDarkenEl    = document.getElementById('ult-darken');
+
+    // === ガードシールド（青い半円エフェクト）===
+    // SphereGeometry を半周生成 → 前方ドーム形状。scene 直下に置いて
+    // 毎フレーム position/rotation を player に同期（step attack の傾きを引き継がない）
+    const guardShield = (() => {
+      const geo  = new THREE.SphereGeometry(
+        GUARD_CONFIG.SHIELD_RADIUS, 24, 16,
+        0, Math.PI,            // phi: 0〜π（半周＝+Z 側の前方ドーム）
+        0, Math.PI             // theta: 上下フル
+      );
+      const mat  = new THREE.MeshBasicMaterial({
+        color:       GUARD_CONFIG.SHIELD_COLOR,
+        transparent: true,
+        opacity:     0,
+        side:        THREE.DoubleSide,
+        depthWrite:  false,    // 半透明シールドが手前を隠さないように
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.visible = false;     // 初期は非表示
+      scene.add(mesh);
+      return mesh;
+    })();
 
     const player = {
       mesh:             playerMesh,
@@ -1096,7 +1470,7 @@
       // === 戦闘ステート ===
       state:            STATE.wait01,
       stateTimer:       0,    // 現在ステートの残フレーム
-      attackId:         null, // 現在の攻撃ID（z1/z2/z3）
+      attackId:         null, // 現在の攻撃ID（ATTACKS テーブルのキー：例 c01_atk_s_01）
       attackChainIdx:   -1,   // チェーンの何段目か
       attackChainArr:   null, // 実行中チェーン配列（Z_CHAIN / A_CHAIN）
       hitDelivered:     false,// 現攻撃でヒット成立済みか
@@ -1107,9 +1481,21 @@
       kBuffered:        false,// 攻撃中に K が押されたバッファ
       kBufferUp:        false,// バッファ時の ↑ 入力状態（打ち上げ判定用）
       aerialWhiffed:    false,// 空中J空振り中フラグ（着地でリセット）
+      guarding:         false,// L キー前方ガード中フラグ（SP 持続消費）
+      guardOpacity:     0,    // ガードシールドの不透明度（0〜1・フェード制御用）
+      guardFadeTimer:   0,    // フェードアウト残フレーム（解除時に FADE_OUT_FRAMES でセット）
+      invincible:       false,// ULT / メガクラ演出中の完全無敵フラグ（被ダメ処理で参照予定）
+      ultActive:        false,// ULT 実行中フラグ（演出制御用）
+      ultFrames:        0,    // ULT 残フレーム
+      grabTarget:       null, // グラブ中の対象敵
+      grabTimer:        0,    // グラブ残フレーム（DURATION から減らす）
+      grabHitCount:     0,    // グラブ中に当てた攻撃数（HIT_MAX で時間切れ扱い）
+      grabPunchActive:  0,    // つかみ攻撃のアクション残フレーム（この間はタイマー停止）
+      _grabJWas:        false,// J 入力エッジ検出（グラブ中専用）
+      _grabKWas:        false,// K 入力エッジ検出（グラブ中専用）
 
       // === SP ゲージ ===
-      sp:               0,
+      sp:               SP_CONFIG.STOCK_SIZE * SP_CONFIG.INITIAL_STOCKS,  // 初期 3 ストック
 
       // === 空中慣性 ===
       airVx:            0,        // 空中水平慣性 X（ダッシュジャンプの勢い）
@@ -1405,6 +1791,10 @@
     const enemies = [];
     const dummyMesh = buildDummyMesh();
     dummyMesh.position.set(280, 0, 300);
+    // rotation.order='ZYX'：rotation.z（横倒し）と rotation.x（前後傾）両方を正しく見せる
+    // YXZ/XYZ だと ry=±π/2 と rz の組み合わせで head が +Z 方向（カメラ手前）に倒れて見える
+    // ZYX なら rz は player から見て横方向（±X 軸）に倒れる正しい挙動になる
+    dummyMesh.rotation.order = 'ZYX';
     dummyMesh.rotation.y = -Math.PI / 2; // 初期向き：左向き（プレイヤー方向）
     scene.add(dummyMesh);
 
@@ -1421,6 +1811,10 @@
       peakHangTimer:    0,     // 打ち上げ頂点スロー残フレーム
       peakHangTotal:    0,     // スロー総フレーム数（フェード計算用）
       launcherAirborne: false, // LAUNCH_COMBO 属性で打ち上げられた状態か
+      kbFromMega:       false, // メガクラ被弾フラグ（knockback_air01 中の重力半減に使う）
+      pitchAngle:       0,     // 前後傾（rotation.x）— knockback 系の被弾モーション用
+      frozenByUlt:      false, // ULT 演出中の時間停止フラグ（最初のヒットで解除）
+      grabbedBy:        null,  // 自分を掴んでいるプレイヤー（state===grabbed の補助情報）
       state:            STATE.wait01,
       tiltAngle:        0,    // 傾き角（0=立ち、π/2=横倒し）
       fallDir:          1,    // 倒れ方向（+1=右、-1=左）：ヒット時に攻撃者と逆に設定
@@ -1474,7 +1868,7 @@
 
     // 最後に殴った敵が wait01 に戻ったら（または不在になったら）コンボ終了
     // ただしプレイヤーが攻撃継続中（attacking/hit_confirm）はコンボを保持
-    //   → チェーン途中の一瞬の wait01 を吸収（z3→z4 など猶予タイトな繋ぎを救済）
+    //   → チェーン途中の一瞬の wait01 を吸収（c01_atk_s_03 → 04 など猶予タイトな繋ぎを救済）
     function checkComboBreak() {
       if (combo.count === 0) return;
       const p = players[0];
@@ -1622,6 +2016,22 @@
         p.vy = 0;
         p.diveCountdown = ATTACKS[id].divePause ?? 0;
       }
+      // ステップ攻撃：ダッシュ運動量を引き継いで前進開始
+      if (ATTACKS[id].isStepAttack) {
+        p.stepMomentum = PHYSICS.DASH_SPEED_MULT;
+        // 向きを dashDirX に固定（裏向きで突進する事故を防ぐ）
+        if (p.dashDirX !== 0) p.facing = Math.sign(p.dashDirX);
+      } else {
+        p.stepMomentum = 0;
+      }
+      // 空中で攻撃を開始したらブースター窓を打ち切る
+      // → キャンセルジャンプ後に空中Jなどに繋いだ際、SPACE 押しっぱなしで
+      //   ブースト推力＋空中コンボの vy 床（AERIAL_HOP_V）が積み上がって
+      //   上空にかっとんでしまう不具合を防ぐ
+      if (!p.isGrounded) {
+        p.thrustFramesLeft = 0;
+        p.bigBurstTimer    = 0;
+      }
     }
 
     // チェーン共通ラッパ（配列 + インデックスで ID 解決）
@@ -1646,19 +2056,25 @@
     }
 
     // 強攻撃（K）はチェーン外で発動
-    // 接地状態と方向入力で発動技を決定（空中は方向問わず ak_meteo 一択）
+    // 接地状態と方向入力で発動技を決定（空中は方向問わず c01_atk_l_01_air 一択）
     function pickStrongAttackId(p, upHeld, dnHeld) {
       if (!p.isGrounded) {
-        if (dnHeld) return 'ak_dn_meteo';
-        return 'ak_meteo';
+        if (dnHeld) return 'c01_atk_l_01_air_down';
+        return 'c01_atk_l_01_air';
       }
-      if (upHeld) return 'k_up_meteo';
-      if (dnHeld) return 'k_dn_meteo';
-      return 'k_meteo';
+      if (upHeld) return 'c01_atk_l_01_up';
+      if (dnHeld) return 'c01_atk_l_01_down';
+      return 'c01_atk_l_01';
     }
     function startStrongAttack(p, upHeld, dnHeld) {
       // 現プロト：METEO 固定。将来キャラ別の k_viper / k_cannon / k_bastion に切り替え
       startAttackById(p, pickStrongAttackId(p, !!upHeld, !!dnHeld), -1);
+    }
+
+    // ステップ攻撃（地上ダッシュ中の J/K 派生）
+    // strong=false → c01_atk_s_01_step / strong=true → c01_atk_l_01_step
+    function pickStepAttackId(p, strong) {
+      return strong ? 'c01_atk_l_01_step' : 'c01_atk_s_01_step';
     }
 
     function tryHitEnemies(p, attack) {
@@ -1697,6 +2113,7 @@
         // ヒット
         e.hp = Math.max(0, e.hp - attack.damage);
         e.hitFlashTimer = 7;
+        e.frozenByUlt   = false;  // ULT 凍結解除（ヒットを受けた敵だけ時間が進み始める）
         // 被弾時：倒れ方向を記録。IDLEのみ向きスナップ（FALL/DOWN/RISE中は回転競合のため不変）
         e.fallDir = (e.x !== p.x) ? Math.sign(e.x - p.x) : p.facing;
         if (e.state === STATE.wait01) {
@@ -1712,7 +2129,7 @@
         if (_isAnyDowned) {
           // === ダウン中ヒット（最優先・lv05/lv07 のみ到達）===
           // lv05（叩きつけ）→ down_bound_start（バウンド優先・rakka スキップ）
-          // lv07（atk_lv_down）→ down_bas_loop 直リフレッシュ（追い打ち専用）
+          // lv07（拾い）→ knockback03（ダウン状態維持で少し浮く）→ 45F 後 down_bas_loop
           // ※その他 lv はダメージ前段で空振りチェック済み
           const lv = (attack.atk_lv_down !== undefined)
             ? attack.atk_lv_down
@@ -1723,12 +2140,17 @@
             e.downTimer   = ENEMY_DOWN_BOUND_FRAMES;
             e.knockbackVx = 0;
           } else if (lv === 7) {
-            e.state       = STATE.down_bas_loop;
-            e.downTimer   = ENEMY_DOWN_BAS_LOOP_FRAMES;
-            e.vy          = 0;
+            e.state       = STATE.knockback03;
+            e.downTimer   = ENEMY_KB03_FRAMES;
+            e.vy          = KB_LV07_HOP_VY;   // 小バウンド（ダウン姿勢のまま少し浮く）
             e.knockbackVx = 0;
           }
-        } else if (attack.launchVy && (attack.atk_lv ?? 1) !== 5) {
+        } else if (
+          attack.launchVy && (attack.atk_lv ?? 1) !== 5 &&
+          // 連続打ち上げ抑止：空中敵 × atk_lv_air 定義あり の場合は通常 lv dispatch を優先
+          // （既に浮いてる敵を更に打ち上げると無限コンボ化するため）
+          !(e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
+        ) {
           // 既存パス：lv04（打ち上げ）のみ。lv05 は down_rakka_start へ振る
           e.vy = attack.launchVy;
           e.launcherAirborne = !!resolved.peakHang; // LAUNCH_COMBO属性のみ頂点スロー有効
@@ -1760,14 +2182,15 @@
           //  - down_up_start / down_up_loop（**打ち上げ juggle 中の追撃でフリンチへ移行**）
           // 再発火しない（既存ダウン保護）：
           //  - down_front_* / down_chou_* / down_wall_* / down_roll_* / down_bas_*
-          // 実効 lv：敵が空中かつ atk_lv_air が定義されていれば優先（例: ak_meteo は空中ヒットで lv06）
-          const lv = (e.y > 0 && attack.atk_lv_air !== undefined)
+          // 実効 lv：敵が空中（y > しきい値）かつ atk_lv_air が定義されていれば優先（例: c01_atk_l_01_air は空中ヒットで lv06）
+          // しきい値で接地寸前の敵を地上扱いに固定し、バウンド瞬間や微小 y 値で誤って空中ルートに入るのを防ぐ
+          const lv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
             ? attack.atk_lv_air
             : (attack.atk_lv ?? 1);
           if (lv === 6) {
             // 超吹き飛ばし — 専用ステート down_chou_start（地上/空中共用）
             // 着地で down_roll_start、壁ヒットで down_wall_start に強制遷移
-            // 攻撃側で kb_vy / kb_vx_mult / kb_vx_decay を上書き可能（ak_meteo は斜め下叩きつけ）
+            // 攻撃側で kb_vy / kb_vx_mult / kb_vx_decay を上書き可能（c01_atk_l_01_air は斜め下叩きつけ）
             e.vy           = attack.kb_vy ?? KB_LV06_VY;
             e.knockbackVx *= attack.kb_vx_mult ?? KB_LV06_VX_MULT;
             e.kbDecay      = attack.kb_vx_decay ?? 0.78;  // 既定値は通常減衰
@@ -1775,8 +2198,15 @@
             e.downTimer    = ENEMY_DOWN_CHOU_FRAMES;
           } else if (lv === 5) {
             // 叩きつけ — 真下に高速落下、着地で 1回バウンド
-            // 無限コンボ対策：既に down_rakka_* 中の再ヒットは down_front_start に振り直し
-            if (e.state === STATE.down_rakka_start || e.state === STATE.down_rakka_loop) {
+            // 連鎖抑止ガード（§4.1c）：叩きつけシーケンス中（rakka_start/_loop または
+            // bound_start バウンド最中）の再ヒットは新 rakka を発火させず、
+            // 通常吹き飛び（down_front_start）に降格させて 1 コンボ 1 回の叩きつけを維持
+            const inSlamSequence = (
+              e.state === STATE.down_rakka_start ||
+              e.state === STATE.down_rakka_loop  ||
+              e.state === STATE.down_bound_start
+            );
+            if (inSlamSequence) {
               e.vy           = KB_LV03_VY;
               e.knockbackVx *= KB_LV03_VX_MULT;
               e.state        = STATE.down_front_start;
@@ -1792,23 +2222,33 @@
             e.vy           = KB_LV03_VY;
             e.knockbackVx *= KB_LV03_VX_MULT;
             e.state       = STATE.down_front_start;
-            e.downTimer    = ENEMY_DOWN_FRONT_FRAMES;
-          } else if (e.y > 0) {
+            e.downTimer    = Math.round(ENEMY_DOWN_FRONT_FRAMES * (attack.kbTimeMult ?? 1.0));
+          } else if (e.y > ENEMY_AIRBORNE_Y_THRESHOLD) {
             // lv01/lv02 空中ヒット → knockback_air01 → fall_loop → land → wait01
             e.state    = STATE.knockback_air01;
-            e.downTimer = ENEMY_KB_AIR_FRAMES;
+            e.downTimer = Math.round(ENEMY_KB_AIR_FRAMES * (attack.kbTimeMult ?? 1.0));
+            e.kbFromMega = false;  // 通常ヒット時はメガクラフラグをクリア
           } else if (lv === 2) {
             e.state    = STATE.knockback02;
-            e.downTimer = ENEMY_KB02_FRAMES;
+            e.downTimer = Math.round(ENEMY_KB02_FRAMES * (attack.kbTimeMult ?? 1.0));
           } else {
             // lv01 / それ以外（未指定）地上 → knockback01
             e.state    = STATE.knockback01;
-            e.downTimer = ENEMY_KB01_FRAMES;
+            e.downTimer = Math.round(ENEMY_KB01_FRAMES * (attack.kbTimeMult ?? 1.0));
           }
+          applyHitInitialPitch(e);
         }
         // 空中の敵へのヒット：敵もホップで浮遊継続（非打ち上げ技共通・地上技でも適用）
-        // ※叩きつけ/吹き飛ばし系（down_chou_start / down_front_start）はホップで vy を上書きされたくないので除外
-        const _slamState = (e.state === STATE.down_chou_start || e.state === STATE.down_front_start);
+        // ※叩きつけ/吹き飛ばし系はホップで vy を上書きされたくないので除外
+        //   対象：down_chou_start（lv6）／ down_front_start（lv3）／ down_rakka_*（lv5・kb_vy 維持必須）
+        //   ／ down_bound_start（バウンド上向き vy 維持）
+        const _slamState = (
+          e.state === STATE.down_chou_start  ||
+          e.state === STATE.down_front_start ||
+          e.state === STATE.down_rakka_start ||
+          e.state === STATE.down_rakka_loop  ||
+          e.state === STATE.down_bound_start
+        );
         if (e.y > 0 && !attack.launchVy && !_slamState) {
           // Math.max をやめて直接セット → 打ち上げ余剰vy を持ち越させない
           e.vy = PHYSICS.AERIAL_HOP_V;
@@ -1824,7 +2264,7 @@
           e.launcherAirborne = false;
         }
         // プレイヤーの空中ホップ：攻撃側に aerialHop:true が立っている技で発動
-        // 対象：a1 / a2 / ak_meteo（a3 は launchVy で叩きつけ・対象外）
+        // 対象：c01_atk_s_01_air / 02_air / 03_air / c01_atk_l_01_air（aerialHop 持ち全般）
         // Math.max で「下降中なら浮き直す／上昇中はそのまま」→ cancel jump 直後の上昇vyを潰さない
         if (attack.aerialHop && !attack.launchVy && !p.isGrounded) {
           p.vy = Math.max(p.vy, PHYSICS.AERIAL_HOP_V);
@@ -1841,7 +2281,10 @@
         spawnHitParticles(e.x - dx * 0.4, e.y + 80, e.z, hitColor, hitCount,
           { type: _pType, dirX: dx, dirZ: 0 });
         bumpCombo(e);
-        p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
+        // SP 獲得：attack.noSpGain で個別オプトアウト可（ULT 等の自己回復ループ防止用）
+        if (!attack.noSpGain) {
+          p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
+        }
         anyHit = true;
       }
       return anyHit;
@@ -1860,26 +2303,48 @@
       ) {
         if (tryHitEnemies(p, atk)) {
           p.hitDelivered = true;
+          // ステップ攻撃のヒット時は前進運動量を即停止（ぶつかって止まる重量感）
+          if (atk.isStepAttack) p.stepMomentum = 0;
         }
       }
 
       p.stateTimer--;
       if (p.stateTimer <= 0) {
         // 攻撃終了
-        if (p.hitDelivered) {
-          // ヒット成立 → キャンセル受付に入る
+        const enterCancelWindow = p.hitDelivered && !atk.noCancelOnHit;
+        if (enterCancelWindow) {
           p.aerialWhiffed   = false;
           p.state           = STATE.hit_confirm;
           p.cancelTimer     = atk.cancelWindow;
         } else {
-          // 空振り → wait01 に戻る（プラン上「空振りキャンセル不可」）
-          // 空中で空振りした場合は次の空中Jを封鎖し落下させる
-          if (p.attackChainArr === A_CHAIN && !p.isGrounded) {
-            p.aerialWhiffed = true;
-          }
+          // 空振り or noCancelOnHit ヒット → wait01 復帰
+          // 空中空振りのみ次の空中Jを封鎖して落下させる（aerialWhiffed）
+          p.aerialWhiffed   = !p.hitDelivered && p.attackChainArr === A_CHAIN && !p.isGrounded;
           p.state           = STATE.wait01;
           p.attackChainIdx  = -1;
           p.attackId        = null;
+        }
+        // ステップ攻撃終了：ダッシュ状態は解除して再ダッシュ要求にする（連発抑止）
+        if (atk.isStepAttack) {
+          p.dashActive   = false;
+          p.stepMomentum = 0;
+          p.dashCooldown = PHYSICS.DASH_COOLDOWN;
+        }
+        // ULT 終了：演出完全リセット・無敵解除・全敵を強制解凍
+        if (atk.isUlt) {
+          p.ultActive  = false;
+          p.invincible = false;
+          p.ultFrames  = 0;
+          ultDome.visible = false;
+          ultDome.material.opacity = 0;
+          ultDomeProgress = 0;
+          ultDarkenEl.style.opacity = '0';
+          camera.zoom = ultCamSavedZoom;
+          camera.updateProjectionMatrix();
+          // 時間停止していた敵を全員解除（AoE 範囲外で生き残ったケース・安全側）
+          for (const e of enemies) {
+            e.frozenByUlt = false;
+          }
         }
       }
     }
@@ -1895,20 +2360,86 @@
       }
     }
 
+    // === ガード入力処理（METEO L キー前方ガード）===
+    // 仕様: 長押しで持続消費・移動可・攻撃不可。離す or SP 切れで即解除→フェードアウト
+    function processGuardInput(p) {
+      // 「新規起動／SP 消費」はブロック対象だが、「フェードアウトの進行」は常に走らせる
+      // → ULT・グラブ・攻撃などで早期 return すると以前は bar/シールドが固まった
+      const blockNewInput = p.ultActive || (p.state === STATE.grabbing);
+      const lHeld = inp('KeyL');
+
+      if (!blockNewInput) {
+        const canStart =
+          lHeld &&
+          !p.guarding &&
+          p.isGrounded &&
+          p.state !== STATE.attacking &&
+          p.state !== STATE.hit_confirm &&
+          p.sp >= GUARD_CONFIG.MIN_SP_TO_START;
+        if (canStart) {
+          p.guarding       = true;
+          p.guardFadeTimer = 0;
+        }
+        if (p.guarding) {
+          // SP 消費 + 維持条件チェック
+          p.sp -= GUARD_CONFIG.SP_DRAIN;
+          if (p.sp <= 0) {
+            p.sp = 0;
+            p.guarding = false;
+          } else if (!lHeld) {
+            p.guarding = false;
+          }
+          // 攻撃で割り込まれた場合（将来用：被弾やメガクラ等が p.guarding を強制 false にする）
+          if (p.state === STATE.attacking) p.guarding = false;
+          // 解除した瞬間：フェードアウトタイマー始動
+          if (!p.guarding) p.guardFadeTimer = GUARD_CONFIG.FADE_OUT_FRAMES;
+        }
+      } else if (p.guarding) {
+        // ULT・グラブ等が発生 → ガード強制解除しフェードアウトへ
+        p.guarding = false;
+        p.guardFadeTimer = GUARD_CONFIG.FADE_OUT_FRAMES;
+      }
+
+      // 不透明度の更新（常に走らせる：フェード中に他状態へ遷移しても opacity を 0 まで完走させる）
+      if (p.guarding) {
+        // 発動中は素早く 1 へ
+        p.guardOpacity += (1 - p.guardOpacity) * GUARD_CONFIG.FADE_IN_LERP;
+      } else if (p.guardFadeTimer > 0) {
+        // フェードアウト中：線形に 0 へ
+        p.guardFadeTimer--;
+        p.guardOpacity = p.guardFadeTimer / GUARD_CONFIG.FADE_OUT_FRAMES;
+      } else {
+        p.guardOpacity = 0;
+      }
+    }
+
     // 攻撃入力処理（J キー押下 — 弱攻撃チェーン）
     let zKeyWasDown = false;
     function processAttackInput(p) {
+      // エッジ検出変数は常に更新（早期 return で取り残されると状態解除後に誤検出になるため）
       const zPressed = inp('KeyJ');
       const justPressed = zPressed && !zKeyWasDown;
       zKeyWasDown = zPressed;
+      if (p.guarding || p.ultActive) return;  // ガード中・ULT中は攻撃不可
+      if (p.state === STATE.grabbing) return; // グラブ中は processGrabInput 側で扱う
       if (!justPressed) return;
 
       if (p.state === STATE.wait01) {
+        // 地上ダッシュ中の派生：ステップJ（スライディング）
+        if (p.dashActive && p.isGrounded) {
+          startAttackById(p, pickStepAttackId(p, false), -1);
+          return;
+        }
         // 地上 / 空中でチェーンを切り替え
         if (p.isGrounded) startAttack(p, 0);
         else if (!p.aerialWhiffed) startAerialAttack(p, 0);
         // aerialWhiffed 中は入力を無視して落下させる
       } else if (p.state === STATE.hit_confirm) {
+        // c01_atk_s_01_step（ステップJ）ヒット後 → J で Jコンボ2発目（c01_atk_s_02）にキャンセル
+        if (p.attackId === 'c01_atk_s_01_step') {
+          startAttackFromChain(p, Z_CHAIN, 1);
+          return;
+        }
         if (p.attackChainIdx < 0) return; // K（チェーン外）後は何もしない
         // 同じチェーン配列を継続（地上 or 空中を自動維持）
         const chain = p.attackChainArr || Z_CHAIN;
@@ -1922,12 +2453,20 @@
     // 強攻撃入力処理（K キー押下）
     let kKeyWasDown = false;
     function processStrongAttackInput(p) {
+      // エッジ検出変数は常に更新
       const kPressed = inp('KeyK');
       const justPressed = kPressed && !kKeyWasDown;
       kKeyWasDown = kPressed;
+      if (p.guarding || p.ultActive) return;  // ガード中・ULT中は攻撃不可
+      if (p.state === STATE.grabbing) return; // グラブ中は processGrabInput 側で扱う
       if (!justPressed) return;
 
       if (p.state === STATE.wait01) {
+        // 地上ダッシュ中の派生：ステップK（ショルダータックル）
+        if (p.dashActive && p.isGrounded) {
+          startAttackById(p, pickStepAttackId(p, true), -1);
+          return;
+        }
         const upHeld = inp('ArrowUp') || inp('KeyW');
         const dnHeld = inp('ArrowDown') || inp('KeyS');
         startAttackById(p, pickStrongAttackId(p, upHeld, dnHeld), -1);
@@ -1959,40 +2498,503 @@
     let _dTapWasL = false, _dTapWasR = false;
     let _dTapWasU = false, _dTapWasD = false;
 
+    // 画面上に ULT 発動中のプレイヤーが居るか（マルチ対応見込み・誰かの ULT 中は他者の SP 技を遮断）
+    function anyPlayerUlting() {
+      for (const pp of players) {
+        if (pp.ultActive) return true;
+      }
+      return false;
+    }
+
     function triggerMegaCrash(p) {
+      if (anyPlayerUlting()) return; // 自他問わず ULT 演出中はメガクラ発動不可
       if (p.sp < SP_CONFIG.MEGA_CRASH_COST) return; // SP 不足 → 不発
       p.sp -= SP_CONFIG.MEGA_CRASH_COST;
-      // TODO Phase 2.3: 自機中心の円形攻撃・command/charge フラグリセット・ヒットストップ
+      // 演出中（スロー継続中）は完全無敵
+      p.invincible = true;
+
+      // --- 視覚演出 ---
+      // 画面暗転：瞬時に DARKEN_ALPHA まで上げ、リング展開後にゆっくりフェードアウト
+      megaDarkenEl.style.opacity = String(MEGA_CONFIG.DARKEN_ALPHA);
+      megaDarkenFade = MEGA_CONFIG.EXPAND_FRAMES + MEGA_CONFIG.DARKEN_FADE_OUT;
+      // 球体起動：player みぞおち位置にスポーン、progress 0 から
+      megaRing.position.set(p.x, p.y + 100, p.z);
+      megaRing.visible = true;
+      megaRingProgress = 0.001;  // updateMegaCrashFX で進める
+
+      // --- スローモーション ---
+      megaSlowFrames = MEGA_CONFIG.SLOW_FRAMES;
+      megaSlowCounter = 0;
+
+      // --- AoE ヒット判定（プレイヤー中心・半径 MEGA_CONFIG.RADIUS）---
+      // ATTACKS テーブルの c01_sp_mega01 を参照。atk_lv 2/2/5 で振り分け
+      const attack = ATTACKS.c01_sp_mega01;
+      for (const e of enemies) {
+        if (!e.isAlive) continue;
+        const dx = e.x - p.x;
+        const dz = e.z - p.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist > MEGA_CONFIG.RADIUS) continue;
+        // ダメージ適用
+        e.hp = Math.max(0, e.hp - attack.damage);
+        e.hitFlashTimer = 7;
+        e.frozenByUlt   = false;  // ULT 凍結解除（メガクラを ULT 中に発動した場合の安全側）
+        // 外向きノックバック方向（プレイヤー中心からの dx 符号）
+        const dir = dist > 0.1 ? Math.sign(dx) : (p.facing || 1);
+        e.fallDir     = dir;
+        e.knockbackVx = dir * (attack.knockback * 0.4);
+        // === atk_lv 駆動の振り分け（標準 dispatch を簡略化）===
+        const isDowned = (
+          e.state === STATE.down_bas_start ||
+          e.state === STATE.down_bas_loop ||
+          e.state === STATE.down_bas_end
+        );
+        // kbTimeMult：この攻撃で発生したフリンチ/バウンド時間の倍率（メガクラは 2.0）
+        const tMult = attack.kbTimeMult ?? 1.0;
+        if (isDowned) {
+          // ダウン中：lv5 → down_bound_start（拾い直し）
+          e.state       = STATE.down_bound_start;
+          e.vy          = KB_LV05_BOUNCE_VY;
+          e.downTimer   = Math.round(ENEMY_DOWN_BOUND_FRAMES * tMult);
+          e.knockbackVx = 0;
+        } else if (e.y > ENEMY_AIRBORNE_Y_THRESHOLD) {
+          // 空中敵：lv2 → knockback_air01
+          e.state    = STATE.knockback_air01;
+          e.downTimer = Math.round(ENEMY_KB_AIR_FRAMES * tMult);
+          e.kbFromMega = true;   // 重力半減フラグ（knockback_air01 終了時にリセット）
+        } else {
+          // 地上敵：lv2 → knockback02（軽フリンチ・コンボ繋ぎ）
+          e.state    = STATE.knockback02;
+          e.downTimer = Math.round(ENEMY_KB02_FRAMES * tMult);
+        }
+        applyHitInitialPitch(e);
+        // 演出
+        spawnHitParticles(e.x, e.y + 60, e.z, attack.hitColor, attack.hitCount,
+          { type: 'normal', dirX: dx, dirZ: dz });
+        bumpCombo(e);  // コンボ継続
+      }
+      triggerHitstop(attack.hitstop);
+      triggerShake(attack.shake, attack.shake * 2 + 4);
+      // 空中メガクラ：プレイヤーも aerialHop（各空中攻撃と同じ・次の行動につなげやすく）
+      if (!p.isGrounded) {
+        p.vy = Math.max(p.vy, PHYSICS.AERIAL_HOP_V);
+      }
+      // バッファクリア（メガクラ発動時に command/charge をリセット — 現状簡易版）
+      p.attackBuffered = false;
+      p.kBuffered      = false;
+
       console.log('[MEGA CRASH] SP残:', p.sp.toFixed(1));
     }
 
+    // メガクラ無敵解除：暗転フェードが終わったタイミング（演出終了 ≒ megaDarkenFade==0）で false
+    // ULT 中はそちらの管理に任せる
+    function maybeReleaseMegaInvincibility(p) {
+      if (!p.invincible) return;
+      if (p.ultActive) return;        // ULT 側で管理中
+      if (megaDarkenFade > 0) return; // メガクラ演出継続中
+      if (megaSlowFrames > 0) return; // スロー継続中
+      p.invincible = false;
+    }
+
+    // メガクラ視覚エフェクト更新（毎フレーム呼ぶ）
+    function updateMegaCrashFX() {
+      // 球体拡大：単位球を MEGA_CONFIG.RADIUS まで scale。完成と同時にフェードアウト
+      if (megaRingProgress > 0 && megaRingProgress < 1) {
+        megaRingProgress = Math.min(1, megaRingProgress + 1 / MEGA_CONFIG.EXPAND_FRAMES);
+        const radius = megaRingProgress * MEGA_CONFIG.RADIUS;
+        megaRing.scale.set(radius, radius, radius);
+        // 透明度カーブ：序盤くっきり、終盤フェード（球は薄め 0.5→0.1）
+        const t = megaRingProgress;
+        megaRing.material.opacity = (1 - t) * 0.45 + 0.08;  // 0.53 → 0.08
+        if (megaRingProgress >= 1) {
+          megaRing.visible = false;
+          megaRing.material.opacity = 0;
+        }
+      }
+      // 暗転フェードアウト
+      if (megaDarkenFade > 0) {
+        megaDarkenFade--;
+        // フェード曲線：拡大中はキープ、その後リニアに減衰
+        if (megaDarkenFade <= MEGA_CONFIG.DARKEN_FADE_OUT) {
+          const t = megaDarkenFade / MEGA_CONFIG.DARKEN_FADE_OUT;
+          megaDarkenEl.style.opacity = String(MEGA_CONFIG.DARKEN_ALPHA * t);
+        }
+        if (megaDarkenFade === 0) megaDarkenEl.style.opacity = '0';
+      }
+    }
+
+    // ULT 視覚エフェクト更新（毎フレーム呼ぶ）
+    // ULT 中（p.ultActive）に カメラズーム + 暗転 + 赤ドーム + 終盤フェードアウト を管理
+    function updateUltFX(p) {
+      if (!p.ultActive) return;
+      const atk = ATTACKS.c01_sp_ult01;
+      const elapsed   = atk.duration - p.stateTimer;   // 経過フレーム
+      const remaining = p.stateTimer;                  // 残フレーム
+
+      // === スローフェード起動：ヒット発生フレームでピーク→フェードへ ===
+      if (ultSlowPhase === 1 && elapsed >= atk.hitFrame) {
+        ultSlowPhase = 2;
+        ultSlowFadeRemaining = ULT_CONFIG.SLOW_FADE_FRAMES;
+      }
+
+      // === カメラズーム ===
+      // 序盤 CAM_ZOOM_FRAMES でズームイン → 中盤キープ → 終盤同フレームでズームアウト
+      const zoomTotal = ULT_CONFIG.CAM_ZOOM_FRAMES;
+      // 「ズーム比」を 1.0 → CAM_ZOOM_RATIO で寄せ、ULT 終盤に戻す
+      let zoomRatio;
+      if (elapsed < zoomTotal) {
+        const t = elapsed / zoomTotal;
+        zoomRatio = 1.0 + (ULT_CONFIG.CAM_ZOOM_RATIO - 1.0) * t;
+      } else if (remaining < zoomTotal) {
+        const t = remaining / zoomTotal;
+        zoomRatio = ULT_CONFIG.CAM_ZOOM_RATIO + (1.0 - ULT_CONFIG.CAM_ZOOM_RATIO) * (1 - t);
+      } else {
+        zoomRatio = ULT_CONFIG.CAM_ZOOM_RATIO;
+      }
+      // OrthographicCamera.zoom：大きいほど寄る（既存値 / ratio で換算）
+      camera.zoom = ultCamSavedZoom / zoomRatio;
+      camera.updateProjectionMatrix();
+
+      // === 赤ドーム拡大（hitFrame から DOME_EXPAND_FRAMES で 0→1）===
+      if (elapsed >= atk.hitFrame && ultDomeProgress < 1) {
+        const domeElapsed = elapsed - atk.hitFrame;
+        ultDomeProgress = Math.min(1, domeElapsed / ULT_CONFIG.DOME_EXPAND_FRAMES);
+        const radius = ultDomeProgress * ULT_CONFIG.DOME_MAX_RADIUS;
+        ultDome.scale.set(radius, radius, radius);
+        ultDome.position.set(p.x, p.y + 10, p.z);  // 足元追従
+        ultDome.material.opacity = (1 - ultDomeProgress) * ULT_CONFIG.DOME_MAX_OPACITY;
+      } else if (ultDomeProgress >= 1) {
+        // 完成後はフェードアウト維持
+        ultDome.material.opacity *= 0.92;
+        if (ultDome.material.opacity < 0.01) {
+          ultDome.visible = false;
+        }
+      }
+
+      // === 暗転フェードアウト（終盤 DARKEN_FADE_OUT フレーム）===
+      if (remaining <= ULT_CONFIG.DARKEN_FADE_OUT) {
+        const t = remaining / ULT_CONFIG.DARKEN_FADE_OUT;
+        ultDarkenEl.style.opacity = String(ULT_CONFIG.DARKEN_ALPHA * t);
+      }
+    }
+
+    // ============================================================
+    //  GRAB（くにおくん方式）
+    //  関数：tryGrabActivate / processGrabInput / executeGrabPunch / executeGrabThrow / endGrab
+    // ============================================================
+
+    // 密着判定 → 条件を満たせば即グラブ発動
+    function tryGrabActivate(p) {
+      if (p.state !== STATE.wait01) return;
+      if (!p.isGrounded)             return;
+      if (p.guarding || p.ultActive) return;
+      if (p.dashActive)              return; // ダッシュ中は発動させない（密着判定が暴発するため）
+      for (const e of enemies) {
+        if (!e.isAlive)                       continue;
+        if (e.state !== STATE.wait01)         continue; // 立ち/歩き相当のみ
+        if (e.frozenByUlt)                    continue;
+        const dx = e.x - p.x;
+        const dz = e.z - p.z;
+        if (Math.sign(dx) !== p.facing)       continue; // 前方のみ
+        if (Math.abs(dx) > GRAB_CONFIG.RANGE_X) continue;
+        if (Math.abs(dz) > GRAB_CONFIG.RANGE_Z) continue;
+        // 発動
+        p.state         = STATE.grabbing;
+        p.grabTarget    = e;
+        p.grabTimer     = GRAB_CONFIG.DURATION;
+        p.grabHitCount  = 0;
+        p.grabPunchActive = 0;
+        p._grabJWas     = inp('KeyJ');
+        p._grabKWas     = inp('KeyK');
+        e.state         = STATE.grabbed;
+        e.grabbedBy     = p;
+        e.knockbackVx   = 0;
+        e.vy            = 0;
+        e.y             = 0;
+        e.fallDir       = p.facing;  // 敵はプレイヤーの前方側にいる
+        // 敵をプレイヤー方向に向ける（rotation.y を直接セット・updateEnemies スキップ中なので必要）
+        e.mesh.rotation.y = -e.fallDir * Math.PI / 2;
+        // === Z 合わせ：奥/手前グラブ時も「左右で組み合う絵」を強制 ===
+        // 中央値に両者ワープして同じ Z レーンに揃える
+        const midZ = (p.z + e.z) / 2;
+        p.z = midZ;
+        e.z = midZ;
+        // === X 軸：ミッドポイントを基準に両者を対称ワープして HOLD_OFFSET_X を強制保持 ===
+        // 重なり防止＋見た目の一定距離を確保。プレイヤーが少し下がり、敵が少し前に出る形になる
+        const midX = (p.x + e.x) / 2;
+        const halfDist = GRAB_CONFIG.HOLD_OFFSET_X / 2;
+        p.x = midX - halfDist * p.facing;
+        e.x = midX + halfDist * p.facing;
+        // === 前傾姿勢（テスト運用・kb01 と同じ +10°）===
+        // 敵側：updateEnemies が grabbed をスキップするため rotation.x を直接セット
+        e.pitchAngle      = STATE_PITCH_INITIAL.grabbed;
+        e.mesh.rotation.x = e.pitchAngle;
+        // === 発動パーティクル（仮：緑色・将来は属性カラーで分岐）===
+        // 両キャラの腰辺りから外向きにポップさせて「組み合った」演出
+        const col = GRAB_CONFIG.ACTIVATE_PARTICLE_COLOR;
+        const cnt = GRAB_CONFIG.ACTIVATE_PARTICLE_COUNT;
+        const yPos = GRAB_CONFIG.ACTIVATE_PARTICLE_Y;
+        spawnHitParticles(p.x, p.y + yPos, p.z, col, cnt, { type: 'normal', dirX: -p.facing, dirZ: 0 });
+        spawnHitParticles(e.x, e.y + yPos, e.z, col, cnt, { type: 'normal', dirX: p.facing,  dirZ: 0 });
+        return;
+      }
+    }
+
+    // グラブ中の入力処理（毎フレーム呼ぶ）
+    function processGrabInput(p) {
+      if (p.state !== STATE.grabbing) return;
+      const e = p.grabTarget;
+      // ターゲットが消えた・状態変わった場合は即解除
+      if (!e || !e.isAlive || e.state !== STATE.grabbed) {
+        endGrab(p, false);
+        return;
+      }
+      // ホールド位置を強制維持
+      e.x = p.x + GRAB_CONFIG.HOLD_OFFSET_X * p.facing;
+      e.y = 0;
+      e.vy = 0;
+      e.knockbackVx = 0;
+
+      // つかみ攻撃のアクション中はタイマー停止＆入力受付スキップ
+      if (p.grabPunchActive > 0) {
+        p.grabPunchActive--;
+        // J/K の押下状態だけは更新しておく（アクション終了直後の連打誤検出防止）
+        p._grabJWas = inp('KeyJ');
+        p._grabKWas = inp('KeyK');
+        return;
+      }
+
+      // タイマー
+      p.grabTimer--;
+
+      // 入力エッジ検出（J / K いずれも攻撃ボタンとして扱う）
+      const jHeld = inp('KeyJ');
+      const kHeld = inp('KeyK');
+      const jJust = jHeld && !p._grabJWas;
+      const kJust = kHeld && !p._grabKWas;
+      p._grabJWas = jHeld;
+      p._grabKWas = kHeld;
+
+      const dirL = inp('ArrowLeft')  || inp('KeyA');
+      const dirR = inp('ArrowRight') || inp('KeyD');
+
+      if (jJust || kJust) {
+        if (dirL || dirR) {
+          const throwDir = dirR ? 1 : -1;
+          executeGrabThrow(p, e, throwDir);
+          return;
+        } else {
+          executeGrabPunch(p, e);
+          // ヒット上限到達なら即解除
+          if (p.grabHitCount >= GRAB_CONFIG.HIT_MAX || p.grabTimer <= 0) {
+            endGrab(p, true);
+            return;
+          }
+        }
+      }
+
+      // 時間切れ → 強制解除（互いに knockback02）
+      if (p.grabTimer <= 0) endGrab(p, true);
+    }
+
+    function executeGrabPunch(p, e) {
+      e.hp = Math.max(0, e.hp - GRAB_CONFIG.PUNCH_DAMAGE);
+      e.hitFlashTimer = 7;
+      spawnHitParticles(e.x, e.y + 80, e.z, 0xffee44, 8,
+        { type: 'normal', dirX: p.facing, dirZ: 0 });
+      triggerHitstop(3);
+      triggerShake(2, 5);
+      bumpCombo(e);
+      p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
+      p.grabHitCount++;
+      p.grabTimer = Math.max(0, p.grabTimer - GRAB_CONFIG.HIT_TIME_COST);
+      p.grabPunchActive = GRAB_CONFIG.PUNCH_ACTION_FRAMES;  // この間はタイマー停止＆入力スキップ
+    }
+
+    function executeGrabThrow(p, e, dir) {
+      e.hp = Math.max(0, e.hp - GRAB_CONFIG.THROW_DAMAGE);
+      e.hitFlashTimer = 7;
+      e.fallDir       = dir;
+      // lv03 相当の吹き飛ばし（指定方向へ）
+      e.vy            = KB_LV03_VY;
+      e.knockbackVx   = dir * GRAB_CONFIG.THROW_KB_VX;
+      e.state         = STATE.down_front_start;
+      e.downTimer     = ENEMY_DOWN_FRONT_FRAMES;
+      e.grabbedBy     = null;
+      spawnHitParticles(e.x, e.y + 80, e.z, 0xff8844, 16,
+        { type: 'normal', dirX: dir, dirZ: 0 });
+      triggerHitstop(8);
+      triggerShake(6, 12);
+      bumpCombo(e);
+      p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
+      // プレイヤー側を wait01 に戻す
+      p.state        = STATE.wait01;
+      p.grabTarget   = null;
+      p.grabTimer    = 0;
+      p.grabHitCount = 0;
+      p.grabPunchActive = 0;
+    }
+
+    // ============================================================
+    //  グラブからのキャンセル追撃（必殺技用エントリポイント）
+    //
+    //  仕様：グラブ中は通常攻撃・SP 技ではキャンセル不可。**必殺技のみ**
+    //        キャンセル追撃が可能。メガクラ・ULT は現状除外（将来検討）。
+    //
+    //  使い方：必殺技の発動関数（未実装）から、入力検出時に
+    //          if (p.state === STATE.grabbing) cancelGrabIntoAttack(p, '<id>');
+    //          のように呼んで、grab 状態を畳んで通常 dispatch にバトンタッチする
+    // ============================================================
+    function cancelGrabIntoAttack(p, attackId) {
+      if (p.state !== STATE.grabbing) return false;
+      if (!ATTACKS[attackId])         return false;
+      const e = p.grabTarget;
+      // 敵側：grabbed → wait01 に戻し、後続攻撃の dispatch を受けられる状態に
+      // （位置はホールド位置のまま残るので、必殺技がそのままヒットする想定）
+      if (e && e.isAlive && e.state === STATE.grabbed) {
+        e.state     = STATE.wait01;
+        e.grabbedBy = null;
+        // pitch は wait01 で 0 にリセットされる
+      }
+      // プレイヤー側：grab フィールドを掃除（state は startAttackById で attacking に切り替わる）
+      p.grabTarget      = null;
+      p.grabTimer       = 0;
+      p.grabHitCount    = 0;
+      p.grabPunchActive = 0;
+      p.state           = STATE.wait01; // startAttackById が attacking に上書き
+      startAttackById(p, attackId, -1);
+      return true;
+    }
+
+    // グラブ解除：releaseBoth=true なら時間切れ扱いで互いに knockback02 で離れる
+    function endGrab(p, releaseBoth) {
+      const e = p.grabTarget;
+      if (e) {
+        if (releaseBoth && e.isAlive && e.state === STATE.grabbed) {
+          e.state       = STATE.knockback02;
+          e.downTimer   = ENEMY_KB02_FRAMES;
+          e.fallDir     = p.facing;                              // 敵はプレイヤー前方側
+          e.knockbackVx = p.facing * GRAB_CONFIG.RELEASE_KB_VX;  // 前方（プレイヤーから離れる）へ
+          applyHitInitialPitch(e);
+        }
+        e.grabbedBy = null;
+      }
+      p.state        = STATE.wait01;
+      p.grabTarget   = null;
+      p.grabTimer    = 0;
+      p.grabHitCount = 0;
+      p.grabPunchActive = 0;
+      // プレイヤー自身の後ろ向き押し合い：簡易的に groundVx を逆方向に
+      p.groundVx     = -p.facing * GRAB_CONFIG.RELEASE_KB_VX;
+    }
+
     function triggerUlt(p) {
+      // 発動制限：空中不可 / やられ・ダウン中不可 / ガード中不可
+      // 自他問わず ULT 演出中は割り込み発動不可（マルチ対応見込み）
+      if (anyPlayerUlting()) return;
+      if (!p.isGrounded) return;
+      if (p.guarding)   return;
+      // 許可ステート：wait01 / attacking / hit_confirm（hit_confirm からキャンセル発動可）
+      if (p.state !== STATE.wait01 &&
+          p.state !== STATE.attacking &&
+          p.state !== STATE.hit_confirm) return;
       if (p.sp < SP_CONFIG.ULT_COST) {
         // SP 不足: J+K+L 入力の場合はメガクラへフォールバック
         triggerMegaCrash(p);
         return;
       }
       p.sp -= SP_CONFIG.ULT_COST;
-      // TODO Phase 2.3: 画面全体攻撃・無敵・演出
-      console.log('[ULT] SP残:', p.sp.toFixed(1));
+
+      // 既存攻撃を強制終了して ULT に切替
+      const ultAtk = ATTACKS.c01_sp_ult01;
+      p.state          = STATE.attacking;
+      p.attackId       = 'c01_sp_ult01';
+      p.attackChainIdx = -1;
+      p.stateTimer     = ultAtk.duration;
+      p.hitDelivered   = false;
+      p.cancelTimer    = 0;
+      p.attackBuffered = false;
+      p.kBuffered      = false;
+      p.ultActive      = true;
+      p.ultFrames      = ultAtk.duration;
+      p.invincible     = true;
+
+      // === 時間停止：画面上の全エネミー（および将来の味方）を凍結 ===
+      // 最初のヒットを受けた敵だけが個別に解除される（tryHitEnemies 内）
+      for (const e of enemies) {
+        if (e.isAlive) e.frozenByUlt = true;
+      }
+
+      // === 演出起動 ===
+      ultDarkenEl.style.opacity = String(ULT_CONFIG.DARKEN_ALPHA);
+      ultDarkenFade = ultAtk.duration;  // 全体長そのままで管理し、終盤フェードアウト
+      // ドーム：足元位置にスポーン、進度 0 から
+      ultDome.position.set(p.x, p.y + 10, p.z);
+      ultDome.visible = true;
+      ultDomeProgress = 0.001;
+      // スロー：ヒット前はピーク（divisor=4）、ヒット後にフェードで通常速度へ
+      ultSlowPhase = 1;
+      ultSlowAccum = 0;
+      ultSlowFadeRemaining = 0;
+      // カメラズーム
+      ultCamSavedZoom  = camera.zoom;
+      ultCamZoomFrames = ULT_CONFIG.CAM_ZOOM_FRAMES;
+      ultCamZoomTotal  = ULT_CONFIG.CAM_ZOOM_FRAMES;
+
+      console.log('[ULT] c01_sp_ult01 起動・SP残:', p.sp.toFixed(1));
     }
 
-    function processMegaCrashUltInput(p) {
-      // ULT 判定（優先）: I キー / R2 / J+K+L 同時押し
-      const jkl     = inp('KeyJ') && inp('KeyK') && inp('KeyL');
-      const ultDown  = action('ult') || jkl;
-      const ultJust  = ultDown && !ultWasDown;
-      ultWasDown     = ultDown;
+    // J+K ショートカット用の発動猶予：L が遅れて検出された場合に ULT へ昇格させるためのバッファ
+    const MEGA_TO_ULT_BUFFER_FRAMES = 5;   // ~83ms
+    let megaPendingFrames = 0;
 
-      // メガクラッシュ判定: U キー / R1 / J+K（L なし）同時押し
-      // ※ULT が発動する場合はメガクラ判定をスキップ
+    function processMegaCrashUltInput(p) {
+      // === エッジ検出は常に更新（早期 return で取り残されると状態解除後に誤検出になるため）===
+      const jkl     = inp('KeyJ') && inp('KeyK') && inp('KeyL');
+      const ultDown = action('ult') || jkl;
+      const ultJust = ultDown && !ultWasDown;
+      ultWasDown    = ultDown;
+
       const jkOnly  = inp('KeyJ') && inp('KeyK') && !inp('KeyL');
       const mcDown  = action('megaCrash') || jkOnly;
       const mcJust  = mcDown && !megaCrashWasDown;
       megaCrashWasDown = mcDown;
 
-      if (ultJust) { triggerUlt(p); return; }
-      if (mcJust)  { triggerMegaCrash(p); }
+      // === ブロック判定（トリガ行動のみ gate）===
+      const blocked = p.guarding || (p.state === STATE.grabbing) || anyPlayerUlting();
+      if (blocked) {
+        // 待機中のメガクラ猶予は取消（誤発動防止）
+        megaPendingFrames = 0;
+        return;
+      }
+
+      // ULT が先に確定 → 待機中の mega を取り消して ULT 発動
+      if (ultJust) {
+        megaPendingFrames = 0;
+        triggerUlt(p);
+        return;
+      }
+
+      if (mcJust) {
+        if (action('megaCrash')) {
+          // U / R1（専用ボタン）→ 即発動（猶予なし）
+          triggerMegaCrash(p);
+        } else {
+          // J+K ショートカット → MEGA_TO_ULT_BUFFER_FRAMES 後に発動。
+          // この間に L が検出されれば上の ultJust 分岐で ULT に昇格する
+          megaPendingFrames = MEGA_TO_ULT_BUFFER_FRAMES;
+        }
+      }
+
+      // 猶予の進行：J+K どちらかが離されたら取消／満了で mega 発動
+      if (megaPendingFrames > 0) {
+        if (!inp('KeyJ') || !inp('KeyK')) {
+          megaPendingFrames = 0;  // 入力解除 → 取消
+        } else {
+          megaPendingFrames--;
+          if (megaPendingFrames === 0) triggerMegaCrash(p);
+        }
+      }
     }
 
     // ============================================================
@@ -2088,6 +3090,8 @@
     // 仕様: J チェーン or 打ち上げ属性持ち技のみキャンセルジャンプ可
     //       K（強攻撃）は打ち上げ属性なし → 不可
     function tryCancelJump(p) {
+      if (p.guarding || p.ultActive) return false;  // ガード中・ULT中はキャンセルジャンプ不可
+      if (p.state === STATE.grabbing) return false; // グラブ中はキャンセルジャンプ不可
       if (p.state !== STATE.hit_confirm) return false;
       if (!inp('Space')) return false;
       // ※キャンセルジャンプは HIT_CONFIRM 中の意図的入力なので jumpConsumed では gating しない
@@ -2102,8 +3106,8 @@
       // 発動！
       p.vy               = PHYSICS.CANCEL_JUMP_V;
       p.isGrounded       = false;
-      p.thrustFramesLeft = PHYSICS.CANCEL_JUMP_FRAMES;
-      p.bigBurstTimer    = 14;  // 大噴射演出時間
+      p.thrustFramesLeft = PHYSICS.THRUST_FRAMES;  // 通常ジャンプと同じ持続（物理は控えめ）
+      p.bigBurstTimer    = 14;  // 大噴射演出時間（視覚専用・物理には作用しない）
       p.jumpConsumed     = true;
       // ステートは wait01 に戻す（空中でまた Z を押せばコンボ継続可能・将来空中攻撃で対応）
       p.state            = STATE.wait01;
@@ -2149,11 +3153,21 @@
       p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.REGEN_RATE);
       if (p.dashCooldown > 0) p.dashCooldown--;
 
+      // === ガード入力（最優先・他入力をブロック）===
+      processGuardInput(p);
+
+      // === グラブ自動発動／中の入力 ===
+      if (p.state === STATE.grabbing) {
+        processGrabInput(p);
+      } else {
+        tryGrabActivate(p);
+      }
+
       // === 攻撃入力処理（毎フレーム）===
       processMegaCrashUltInput(p);  // ULT / メガクラ（優先度高）
       processAttackInput(p);
       processStrongAttackInput(p);
-      processDashInput(p);          // ダッシュ（ダブルタップ検知）
+      if (!p.guarding && !p.ultActive && p.state !== STATE.grabbing) processDashInput(p);   // ガード・ULT・グラブ中はダッシュ起動不可
 
       // === キャンセルジャンプ判定 ===
       tryCancelJump(p);
@@ -2164,12 +3178,15 @@
       consumeAttackBuffer(p);
       consumeStrongAttackBuffer(p);
 
-      // === 攻撃中は地上移動を抑制 ===
-      const movementLocked = (p.state === STATE.attacking) && p.isGrounded;
+      // === 攻撃中・グラブ中は地上移動を抑制 ===
+      const movementLocked = ((p.state === STATE.attacking) || (p.state === STATE.grabbing)) && p.isGrounded;
 
-      // === 入力 → 移動ベクトル（空中慣性 → ダッシュ → 通常の優先順）===
+      // === 入力 → 移動ベクトル（空中慣性 → ステップ攻撃 → ダッシュ → 通常の優先順）===
       let mvx = 0, mvz = 0;
-      const isDashing = p.dashActive;
+      const curAtk = p.attackId ? ATTACKS[p.attackId] : null;
+      const isStepAttack = (p.state === STATE.attacking) && p.isGrounded && !!curAtk?.isStepAttack;
+      // ステップ攻撃中は dashActive を見せかけ落としておく（ダッシュ移動ロジックと干渉させない）
+      const isDashing = p.dashActive && !isStepAttack;
 
       if (!p.isGrounded) {
         // 空中入力方向
@@ -2212,6 +3229,16 @@
         p.z += p.airVz * PHYSICS.Z_SPEED_MULT;
         mvx = p.airVx;
         mvz = p.airVz;
+      } else if (isStepAttack) {
+        // ステップ攻撃：ダッシュ運動量を保持して前進（減衰しつつ）
+        // ヒット成立で stepMomentum=0 にされる仕組みなので、空振り中だけ進む
+        p.stepMomentum = (p.stepMomentum ?? 0) * (curAtk.momentumDecay ?? 0.95);
+        if (p.stepMomentum > 0.05) {
+          mvx = p.dashDirX;
+          mvz = p.dashDirZ;
+          p.x += mvx * PHYSICS.SPEED * p.stepMomentum;
+          p.z += mvz * PHYSICS.SPEED * p.stepMomentum * PHYSICS.Z_SPEED_MULT;
+        }
       } else if (isDashing) {
         // 全方向キーから移動ベクトル生成
         let dvx = 0, dvz = 0;
@@ -2254,8 +3281,10 @@
         const rawLen = Math.hypot(mvx, mvz);
         if (rawLen > 0) { mvx /= rawLen; mvz /= rawLen; }
         // 目標速度へ lerp → 方向転換時に少し膨らむ慣性
-        const tVx = mvx * PHYSICS.SPEED;
-        const tVz = mvz * PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT;
+        // ガード中は速度半減（仕様：ガードしながら歩ける、ただしゆっくり）
+        const speedMult = p.guarding ? GUARD_CONFIG.MOVE_SPEED_MULT : 1.0;
+        const tVx = mvx * PHYSICS.SPEED * speedMult;
+        const tVz = mvz * PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * speedMult;
         p.groundVx += (tVx - p.groundVx) * PHYSICS.GROUND_ACCEL;
         p.groundVz += (tVz - p.groundVz) * PHYSICS.GROUND_ACCEL;
         p.x += p.groundVx;
@@ -2268,8 +3297,9 @@
       p.x = Math.max(PHYSICS.STAGE_LEFT, Math.min(PHYSICS.STAGE_RIGHT, p.x));
       p.z = Math.max(-380, Math.min(700, p.z));
 
-      // === 向き（ダッシュ中は dash 方向に従う・攻撃中は固定）===
-      if (isDashing || !movementLocked) {
+      // === 向き（ダッシュ中は dash 方向に従う・攻撃中は固定・ガード中は固定）===
+      // 仕様：ガード中は振り向き不可（正面切って向き合う設計思想）
+      if ((isDashing || !movementLocked) && !p.guarding) {
         if (!p.isGrounded) {
           // 空中：ホーミング中は敵方向 / それ以外は入力方向（慣性ベースだと逆向きになる）
           if (p.homingFrames > 0 && p.homingTarget) {
@@ -2305,7 +3335,7 @@
       // 接地中にスペース → 初速付与＋ブースター点火
       // ※キャンセルジャンプ（tryCancelJump）で既に発動済みの場合は二重発動しない
       // ※jumpConsumed が true の間はエッジ未検出として再発動禁止
-      if (p.isGrounded && inp('Space') && !p.jumpConsumed && p.bigBurstTimer === 0) {
+      if (p.isGrounded && inp('Space') && !p.jumpConsumed && p.bigBurstTimer === 0 && !p.guarding && p.state !== STATE.grabbing) {
         // ジャンプ時に地上の速度を空中慣性として引き継ぐ
         if (p.dashActive) {
           // ダッシュ中ジャンプ：ダッシュ速度をそのまま慣性に
@@ -2334,11 +3364,9 @@
 
       if (!p.isGrounded) {
         if (thrustingNow) {
-          // キャンセルジャンプ中は推力UP
-          const force = (p.bigBurstTimer > 0)
-            ? PHYSICS.CANCEL_JUMP_THRUST
-            : PHYSICS.THRUST_FORCE;
-          p.vy += force;
+          // 推力は通常ジャンプ・キャンセルジャンプ共通（物理ブースト撤廃済み）
+          // bigBurstTimer は視覚専用に格下げされて物理には影響しない
+          p.vy += PHYSICS.THRUST_FORCE;
           p.thrustFramesLeft--;
         }
         // 急降下技ホバー：divePause F 間は重力を無効化して空中静止
@@ -2360,7 +3388,7 @@
           p.diveCountdown = 0;
           p.homingFrames  = 0;
           p.homingTarget  = null;
-          // 急降下技（ak_dn_meteo 等）の着地：技を強制終了して新規入力を即受付
+          // 急降下技（c01_atk_l_01_air_down 等）の着地：技を強制終了して新規入力を即受付
           if (p.attackId && ATTACKS[p.attackId]?.diveVy !== undefined &&
               (p.state === STATE.attacking || p.state === STATE.hit_confirm)) {
             p.state          = STATE.wait01;
@@ -2445,20 +3473,50 @@
       // 向き：右なら +Z、左なら -Z 方向に体を回す
       const targetRot = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
       p.mesh.rotation.y += (targetRot - p.mesh.rotation.y) * 0.2;
+      // ステップ攻撃の擬似モーション（テスト確認用・正式アニメ実装まで）
+      // playerMesh.rotation.order='YXZ' により +rx=前傾 / -rx=後傾。各技の tiltX で指定。
+      // 優先順位：攻撃の tiltX > ステート別 STATE_PITCH_TARGET > 0
+      const atkForTilt = (p.state === STATE.attacking && p.attackId) ? ATTACKS[p.attackId] : null;
+      let targetTiltX = 0;
+      if (atkForTilt?.tiltX !== undefined) {
+        targetTiltX = atkForTilt.tiltX;
+      } else if (STATE_PITCH_TARGET[p.state] !== undefined) {
+        targetTiltX = STATE_PITCH_TARGET[p.state];
+      }
+      p.mesh.rotation.x += (targetTiltX - p.mesh.rotation.x) * 0.35;
+
+      // === ガードシールド同期 ===
+      // 半球は +Z 側を覆う形状で生成済み。facing=+1（右向き）なら rotation.y=+π/2 で +X 側に回す
+      // facing=-1（左向き）なら rotation.y=-π/2 で -X 側を覆う
+      if (p.guardOpacity > 0.01) {
+        guardShield.visible      = true;
+        guardShield.position.set(p.x, p.y + GUARD_CONFIG.SHIELD_Y_OFFSET, p.z);
+        guardShield.rotation.y   = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+        guardShield.material.opacity = p.guardOpacity * GUARD_CONFIG.SHIELD_MAX_OPACITY;
+      } else {
+        guardShield.visible = false;
+      }
     }
 
     function updateEnemies() {
       for (const e of enemies) {
         if (!e.isAlive) continue;
-        // 死亡判定
+        // ULT 発動中の時間停止：最初のヒットを受けるまで凍結（state / vy / downTimer すべて維持）
+        if (e.frozenByUlt) continue;
+        // グラブ被害中：position・state は処理側（processGrabInput）で固定維持
+        if (e.state === STATE.grabbed) continue;
+        // 死亡判定（ダミーは即復活で無限練習用）
         if (e.hp <= 0) {
-          e.hp = e.maxHp;  // ダミーは即復活（無限練習用）
-          e.state = STATE.wait01; e.tiltAngle = 0; e.downTimer = 0; e.fallDir = 1;
-          e.mesh.rotation.set(0, -Math.PI / 2, 0); // 復活後は左向きリセット（fallDir=1）
+          e.hp = e.maxHp;
+          // ★ステートは上書きしない：ダウン誘発技で hp 0 にした場合も
+          //   そのフレームに dispatch された down_front_start 等のステートを残し、
+          //   ダウン animation を最後まで見せる。
+          //   各 down ステートは自分でタイマー満了して wait01 に戻るので
+          //   ダミーは「ダウン演出 → 立ち直り」の自然なサイクルでループ復活する
           spawnHitParticles(e.x, e.y + 100, e.z, 0xff8844, 24);
           triggerShake(8, 14);
         }
-        // ノックバック減衰（水平）— 攻撃側で e.kbDecay 上書き可（lv06 ak_meteo は 0.92 で直線軌道）
+        // ノックバック減衰（水平）— 攻撃側で e.kbDecay 上書き可（lv06 c01_atk_l_01_air は 0.92 で直線軌道）
         e.x += e.knockbackVx;
         e.knockbackVx *= (e.kbDecay ?? 0.78);
         if (Math.abs(e.knockbackVx) < 0.1) {
@@ -2509,6 +3567,10 @@
           } else {
             gravFactor = 1.0;
           }
+          // メガクラ被弾の knockback_air01 中は重力を半減（コンボ猶予を延ばす）
+          if (e.kbFromMega && e.state === STATE.knockback_air01) {
+            gravFactor *= 0.5;
+          }
           e.vy -= PHYSICS.GRAVITY * gravFactor;
           e.y  += e.vy;
           if (e.y <= 0) {
@@ -2525,6 +3587,7 @@
               // 空中フリンチ途中で着地 → land に直行
               e.state     = STATE.land;
               e.downTimer = ENEMY_LAND_FRAMES;
+              e.kbFromMega = false;  // 着地で重力半減フラグ解除
             } else if (e.state === STATE.fall_loop) {
               // 自由落下 → 着地 land
               e.state     = STATE.land;
@@ -2584,7 +3647,10 @@
             e.downTimer = ENEMY_DOWN_BAS_LOOP_FRAMES;
           }
         } else if (e.state === STATE.knockback_air01) {
-          if (--e.downTimer <= 0) e.state = STATE.fall_loop;
+          if (--e.downTimer <= 0) {
+            e.state = STATE.fall_loop;
+            e.kbFromMega = false;  // 通常フリンチ終了で重力半減フラグ解除
+          }
         } else if (e.state === STATE.fall_loop) {
           // 自由落下中（着地は y<=0 ブロック）
         } else if (e.state === STATE.land) {
@@ -2634,12 +3700,24 @@
           e.tiltAngle += (tiltTarget - e.tiltAngle) * STATE_TILT_LERP;
         }
         e.mesh.rotation.z = -e.fallDir * e.tiltAngle;
-        // あおむけ姿勢（lv05 rakka/bound 系）：X 軸で背中を下に向ける
+        // === rotation.x の用途分岐（優先順位：寝姿勢 > pitch system > リセット）===
+        // ZYX 順なので rx と rz が独立に作用する（YXZ/XYZ だと両方非ゼロで奇妙な傾きになる）
+        // pitch system の対象外ステートでは rx を 0 に固定して z-tilt の純粋な見た目を維持
         if (e.state === STATE.down_rakka_start ||
             e.state === STATE.down_rakka_loop ||
             e.state === STATE.down_bound_start) {
+          // あおむけ姿勢（lv05 系）：X 軸で背中を下に向ける
           e.mesh.rotation.x = -Math.PI / 2;
+          e.pitchAngle = 0;
+        } else if (STATE_PITCH_TARGET[e.state] !== undefined) {
+          // pitch system 対象ステート（knockback01/02/_air01）：rx 駆動の前後傾
+          const pitchTarget = STATE_PITCH_TARGET[e.state];
+          e.pitchAngle += (pitchTarget - e.pitchAngle) * STATE_PITCH_LERP;
+          e.mesh.rotation.x = e.pitchAngle;
         } else {
+          // それ以外（down_front_* / down_up_* / wait01 など）：rx は即 0 にして
+          // rotation.z の傾きを純粋に見せる
+          e.pitchAngle = 0;
           e.mesh.rotation.x = 0;
         }
 
@@ -2663,10 +3741,16 @@
     function updateCamera() {
       const p = players[0];
 
-      // デッドゾーン：中央帯では固定、端に達したら追従
-      const DEAD_ZONE = 220;
-      if (p.x > camTargetX + DEAD_ZONE) camTargetX = p.x - DEAD_ZONE;
-      if (p.x < camTargetX - DEAD_ZONE) camTargetX = p.x + DEAD_ZONE;
+      // ULT 中はデッドゾーンを無視してプレイヤー X に直接追従（ズーム時の被写体センター揃え）
+      // 終了後は通常デッドゾーンが自動的に再開
+      if (p.ultActive) {
+        camTargetX += (p.x - camTargetX) * 0.25;
+      } else {
+        // デッドゾーン：中央帯では固定、端に達したら追従
+        const DEAD_ZONE = 220;
+        if (p.x > camTargetX + DEAD_ZONE) camTargetX = p.x - DEAD_ZONE;
+        if (p.x < camTargetX - DEAD_ZONE) camTargetX = p.x + DEAD_ZONE;
+      }
       const baseX = camTargetX;
 
       // シェイク計算
@@ -2715,17 +3799,21 @@
       camera.updateProjectionMatrix();
     }
 
-    const spBarEl = document.getElementById('sp-bar');
+    // SP ゲージ：右→左に伸びる単一バー＋左側にストック数（カウントアップ）
+    const spBarEl      = document.getElementById('sp-bar');
+    const spStockNumEl = document.getElementById('sp-stock-num');
     function updateSPGauge() {
       const p = players[0];
-      const pct = p.sp / SP_CONFIG.MAX;
-      spBarEl.style.width = (pct * 100).toFixed(1) + '%';
-      // 残量が少ないと暗い青→シアンで点滅感
-      const brightness = 0.5 + pct * 0.5;
-      const r = Math.round(0   * brightness);
-      const g = Math.round(200 * brightness);
-      const b = Math.round(255 * brightness);
-      spBarEl.style.background = `rgb(${r},${g},${b})`;
+      const stockSize  = SP_CONFIG.STOCK_SIZE;    // 20
+      const maxStocks  = SP_CONFIG.MAX_STOCKS;    // 5
+      const fullStocks = Math.min(maxStocks, Math.floor(p.sp / stockSize));
+      // 現在充填中のバーの伸長量（次のストックに向けて 0→1）
+      const partial    = Math.max(0, Math.min(1, (p.sp - fullStocks * stockSize) / stockSize));
+      spBarEl.style.width = (partial * 100).toFixed(1) + '%';
+      if (spStockNumEl) spStockNumEl.textContent = fullStocks;
+      // MAX 到達時は色を変えて可視化（ULT 発動可サイン）
+      const atMax = (fullStocks >= maxStocks);
+      spBarEl.style.background = atMax ? '#00ffaa' : '#00ddff';
     }
 
     function updateDebug() {
@@ -2748,7 +3836,58 @@
       checkComboBreak();
       updateCamera();
       updateSPGauge();
+      updateMegaCrashFX();
+      players.forEach(updateUltFX);
+      players.forEach(maybeReleaseMegaInvincibility);
+      updateClockHud();
+      updateGrabGauge();
       updateDebug();
+    }
+
+    // デバッグ：グラブゲージ（敵頭上に world→screen 投影）
+    //   - グラブ中だけ表示
+    //   - 残り時間に応じて左→右に塗りつぶし、満杯で解除
+    //   - 本番リリース時は #grab-gauge の display を none 固定 or HTML 削除予定
+    const GRAB_GAUGE_EL      = document.getElementById('grab-gauge');
+    const GRAB_GAUGE_FILL_EL = document.getElementById('grab-gauge-fill');
+    const _grabGaugeProj     = new THREE.Vector3();
+    function updateGrabGauge() {
+      const p = players[0];
+      if (!p || p.state !== STATE.grabbing || !p.grabTarget) {
+        if (GRAB_GAUGE_EL) GRAB_GAUGE_EL.style.display = 'none';
+        return;
+      }
+      const e = p.grabTarget;
+      // 充填率：時間が経過/攻撃ヒットで grabTimer が減るほど fill が右へ
+      const fill = Math.max(0, Math.min(1, 1 - p.grabTimer / GRAB_CONFIG.DURATION));
+      GRAB_GAUGE_FILL_EL.style.width = (fill * 100).toFixed(1) + '%';
+      // 敵頭上を world→画面（1920x1080 フレーム座標）に投影
+      _grabGaugeProj.set(e.x, e.y + 220, e.z);
+      _grabGaugeProj.project(camera);
+      const frameX = (_grabGaugeProj.x * 0.5 + 0.5) * GAME_WIDTH;
+      const frameY = (-_grabGaugeProj.y * 0.5 + 0.5) * GAME_HEIGHT;
+      GRAB_GAUGE_EL.style.left = frameX + 'px';
+      GRAB_GAUGE_EL.style.top  = frameY + 'px';
+      GRAB_GAUGE_EL.style.display = 'block';
+    }
+
+    // デバッグ時計：update() の tick で 6° ずつ回す
+    //   - 通常：6°/F → 60F で 360°（≒1 秒で 1 回転 at 60fps）
+    //   - SLOWMO / メガクラスロー / ULT スロー：update が間引かれるので針も遅くなる
+    //   - ヒットストップ：update が止まるので針も止まる
+    //   - ULT 凍結中のエネミーがいる間：針を停止（時間停止演出の可視化）
+    let clockAngle = 0;
+    const CLOCK_HAND_EL = document.getElementById('clock-hand');
+    function updateClockHud() {
+      // 凍結エネミーが 1 体でもいれば「世界の時計」を止める
+      let worldFrozen = false;
+      for (const e of enemies) {
+        if (e.frozenByUlt) { worldFrozen = true; break; }
+      }
+      if (!worldFrozen) {
+        clockAngle = (clockAngle + 6) % 360;
+        if (CLOCK_HAND_EL) CLOCK_HAND_EL.setAttribute('transform', `rotate(${clockAngle})`);
+      }
     }
 
     function render() {
@@ -2998,6 +4137,42 @@
         }
         SLOWMO.counter = 0;
       }
+      // メガクラッシュ専用スロー（自動・約 0.5 秒）：上記ユーザー SLOWMO とは独立
+      // 残フレームをデクリメントしながら divisor 比で update をスキップ
+      if (megaSlowFrames > 0) {
+        megaSlowFrames--;
+        megaSlowCounter++;
+        if (megaSlowCounter < MEGA_CONFIG.SLOW_DIVISOR) {
+          render();
+          requestAnimationFrame(loop);
+          return;
+        }
+        megaSlowCounter = 0;
+      }
+      // ULT 専用スロー：phase 1=ピーク（divisor=SLOW_DIVISOR）／ phase 2=フェード（divisor SLOW_DIVISOR→1）
+      // accumulator 方式で fractional divisor に対応（ヒット後 1 秒で通常速度に滑らかに戻す）
+      if (ultSlowPhase > 0) {
+        let divisor;
+        if (ultSlowPhase === 1) {
+          divisor = ULT_CONFIG.SLOW_DIVISOR;
+        } else {
+          // フェード進度 t: 0→1 / divisor は SLOW_DIVISOR → 1.0
+          const t = 1 - (ultSlowFadeRemaining / ULT_CONFIG.SLOW_FADE_FRAMES);
+          divisor = ULT_CONFIG.SLOW_DIVISOR + (1 - ULT_CONFIG.SLOW_DIVISOR) * t;
+          ultSlowFadeRemaining--;
+          if (ultSlowFadeRemaining <= 0) {
+            ultSlowPhase = 0;
+            ultSlowAccum = 0;
+          }
+        }
+        ultSlowAccum += 1;
+        if (ultSlowAccum < divisor) {
+          render();
+          requestAnimationFrame(loop);
+          return;
+        }
+        ultSlowAccum -= divisor;
+      }
       update();
       render();
       requestAnimationFrame(loop);
@@ -3028,14 +4203,14 @@
       scene, camera, bgCamera, renderer, players, enemies,
       CHARACTER_ASSETS,
       PHYSICS, CAM_CONFIG, applyCamConfig,
-      SP_CONFIG, ATTACKS, STATE, Z_CHAIN, A_CHAIN,
+      SP_CONFIG, GUARD_CONFIG, MEGA_CONFIG, ULT_CONFIG, GRAB_CONFIG, ATTACKS, STATE, Z_CHAIN, A_CHAIN,
       KEY_CONFIG,
       PIXEL_SHADER,  // ピクセルシェーダー設定（P キーで ENABLED トグル / RT_W・RT_H で解像度調整）
       SLOWMO,        // スロー再生（T キーで 1x→1/2x→1/4x→1/8x サイクル）
       STATE_TILT_TARGET,  // ステート別 tilt 目標値（コンソールから上書き可）
       // 共通関数（コンソールから呼べる）
       triggerHitstop, triggerShake, spawnHitParticles,
-      triggerMegaCrash, triggerUlt,
+      triggerMegaCrash, triggerUlt, cancelGrabIntoAttack,
       // ダッシュ（例: SB.startDash(SB.players[0], 1, 0) で右ダッシュ強制発動）
       startDash,
     };
