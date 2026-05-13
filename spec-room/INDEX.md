@@ -3,6 +3,7 @@
 | トピック | status | 起票日 | 関連仕様書セクション | メモ |
 |---|---|---|---|---|
 | [傭兵モード（CPU 操作の味方機）](archive/mercenary-mode.md) | 昇格済 | 2026-05-14 | §25 マルチプレイ設計 | 案B 採用：Unreal 移行後に実装 |
+| [ターミナル「歩ける拠点」化案](discussions/terminal-walkable-hub.md) | 検討中 | 2026-05-14 | §5 / §13.2 / §15 / Phase 4 | 地下→宇宙公園跡地 + 歩ける空間化 |
 
 ## status 凡例
 - **検討中**: discussions/ に存在・議論進行中
