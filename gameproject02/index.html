@@ -599,6 +599,11 @@
     import {
       initEnemySystem, buildDummyMesh, spawnDummy, updateEnemies,
     } from './src/enemy-system.js';
+    // === fx-system（メガクラ/ULT/チャージリング/ホーミング矢印 演出更新）は src/fx-system.js に分離（Step E-5）===
+    import {
+      initFxSystem,
+      updateMegaCrashFX, updateChargeRingFX, updateHomingArrowFX, updateUltFX,
+    } from './src/fx-system.js';
     // === player-system（ガード / 必殺 / コンボホーミング / updatePlayer）は src/player-system.js に分離（Step E-4a/b）===
     import {
       initPlayerSystem,
@@ -1824,6 +1829,16 @@
       gameAspect: GAME_ASPECT,
     });
 
+    // fx-system 初期化（fxRefs は attack-engine と共有）
+    initFxSystem({
+      players, camera,
+      megaRing, megaDarkenEl,
+      ultDome, ultDarkenEl,
+      homingArrowMesh,
+      chargeReadyRing,
+      fxRefs,
+    });
+
     // hud-system 初期化（DOM refs はここで一括解決）
     {
       const _enemyAtkCdTemplate = document.getElementById('enemy-atk-cd');
@@ -2056,135 +2071,6 @@
     //  index.html 側に残置（直接 let を操作する都合）。
     // ============================================================
 
-    // メガクラ視覚エフェクト更新（毎フレーム呼ぶ）
-    function updateMegaCrashFX() {
-      // 球体拡大：単位球を MEGA_CONFIG.RADIUS まで scale。完成と同時にフェードアウト
-      if (megaRingProgress > 0 && megaRingProgress < 1) {
-        megaRingProgress = Math.min(1, megaRingProgress + 1 / MEGA_CONFIG.EXPAND_FRAMES);
-        const radius = megaRingProgress * MEGA_CONFIG.RADIUS;
-        megaRing.scale.set(radius, radius, radius);
-        // 透明度カーブ：序盤くっきり、終盤フェード（球は薄め 0.5→0.1）
-        const t = megaRingProgress;
-        megaRing.material.opacity = (1 - t) * 0.45 + 0.08;  // 0.53 → 0.08
-        if (megaRingProgress >= 1) {
-          megaRing.visible = false;
-          megaRing.material.opacity = 0;
-        }
-      }
-      // 暗転フェードアウト
-      if (megaDarkenFade > 0) {
-        megaDarkenFade--;
-        // フェード曲線：拡大中はキープ、その後リニアに減衰
-        if (megaDarkenFade <= MEGA_CONFIG.DARKEN_FADE_OUT) {
-          const t = megaDarkenFade / MEGA_CONFIG.DARKEN_FADE_OUT;
-          megaDarkenEl.style.opacity = String(MEGA_CONFIG.DARKEN_ALPHA * t);
-        }
-        if (megaDarkenFade === 0) megaDarkenEl.style.opacity = '0';
-      }
-    }
-
-    // チャージ成立リング視覚エフェクト更新（毎フレーム呼ぶ）
-    // chargeReady になった瞬間に発火（updateChargeJ 内で chargeRingFrames セット）
-    // CHARGE_RING_CONFIG.FRAMES から 0 へカウントダウン、START_RADIUS → END_RADIUS に収束、フェードアウト
-    function updateChargeRingFX() {
-      if (chargeRingState.frames <= 0) {
-        if (chargeReadyRing.visible) chargeReadyRing.visible = false;
-        return;
-      }
-      chargeRingState.frames--;
-      // 進行 t は 0→1（チャージ完了瞬間に発火し、外へ拡散）
-      const t = 1 - (chargeRingState.frames / CHARGE_RING_CONFIG.FRAMES);
-      const eased = 1 - (1 - t) * (1 - t); // ease-out（序盤一気に出て終盤緩む）
-      const radius = CHARGE_RING_CONFIG.START_RADIUS
-        + (CHARGE_RING_CONFIG.END_RADIUS - CHARGE_RING_CONFIG.START_RADIUS) * eased;
-      // プレイヤー追従
-      const p = players[0];
-      if (p) {
-        chargeRingState.x = p.x;
-        chargeRingState.y = p.y + CHARGE_RING_CONFIG.Y_OFFSET;
-        chargeRingState.z = p.z;
-      }
-      chargeReadyRing.position.set(chargeRingState.x, chargeRingState.y, chargeRingState.z);
-      // カメラは +Z 軸方向。TorusGeometry はデフォルトで XY 平面に円を描くので
-      // rotation 無回転でちょうどカメラに正対する（リングの輪が見える）
-      chargeReadyRing.rotation.set(0, 0, 0);
-      chargeReadyRing.scale.set(radius, radius, radius);
-      // 不透明度：序盤強く、終盤フェード
-      chargeReadyRing.material.opacity = (1 - eased) * 0.9 + 0.05;
-      if (chargeRingState.frames === 0) {
-        chargeReadyRing.visible = false;
-      }
-    }
-
-    // ホーミング対象矢印（デバッグ）更新
-    // p.comboTarget が存在し SHOW_DEBUG_ARROW が true の時、対象敵頭上に三角を浮かす
-    function updateHomingArrowFX() {
-      const p = players[0];
-      const target = p?.comboTarget;
-      if (!target || !HOMING_CONFIG.SHOW_DEBUG_ARROW) {
-        if (homingArrowMesh.visible) homingArrowMesh.visible = false;
-        return;
-      }
-      homingArrowMesh.visible = true;
-      // 頭上に浮かべて、上下に sin で揺らす（視認性のため）
-      const bob = Math.sin(gameFrameCounter * 0.18) * 6;
-      homingArrowMesh.position.set(target.x, target.y + 230 + bob, target.z);
-    }
-
-    // ULT 視覚エフェクト更新（毎フレーム呼ぶ）
-    // ULT 中（p.ultActive）に カメラズーム + 暗転 + 赤ドーム + 終盤フェードアウト を管理
-    function updateUltFX(p) {
-      if (!p.ultActive) return;
-      const atk = ATTACKS.c01_sp_ult01;
-      const elapsed   = atk.duration - p.stateTimer;   // 経過フレーム
-      const remaining = p.stateTimer;                  // 残フレーム
-
-      // === スローフェード起動：ヒット発生フレームでピーク→フェードへ ===
-      if (ultSlowPhase === 1 && elapsed >= atk.hitFrame) {
-        ultSlowPhase = 2;
-        ultSlowFadeRemaining = ULT_CONFIG.SLOW_FADE_FRAMES;
-      }
-
-      // === カメラズーム ===
-      // 序盤 CAM_ZOOM_FRAMES でズームイン → 中盤キープ → 終盤同フレームでズームアウト
-      const zoomTotal = ULT_CONFIG.CAM_ZOOM_FRAMES;
-      // 「ズーム比」を 1.0 → CAM_ZOOM_RATIO で寄せ、ULT 終盤に戻す
-      let zoomRatio;
-      if (elapsed < zoomTotal) {
-        const t = elapsed / zoomTotal;
-        zoomRatio = 1.0 + (ULT_CONFIG.CAM_ZOOM_RATIO - 1.0) * t;
-      } else if (remaining < zoomTotal) {
-        const t = remaining / zoomTotal;
-        zoomRatio = ULT_CONFIG.CAM_ZOOM_RATIO + (1.0 - ULT_CONFIG.CAM_ZOOM_RATIO) * (1 - t);
-      } else {
-        zoomRatio = ULT_CONFIG.CAM_ZOOM_RATIO;
-      }
-      // OrthographicCamera.zoom：大きいほど寄る（既存値 / ratio で換算）
-      camera.zoom = ultCamSavedZoom / zoomRatio;
-      camera.updateProjectionMatrix();
-
-      // === 赤ドーム拡大（hitFrame から DOME_EXPAND_FRAMES で 0→1）===
-      if (elapsed >= atk.hitFrame && ultDomeProgress < 1) {
-        const domeElapsed = elapsed - atk.hitFrame;
-        ultDomeProgress = Math.min(1, domeElapsed / ULT_CONFIG.DOME_EXPAND_FRAMES);
-        const radius = ultDomeProgress * ULT_CONFIG.DOME_MAX_RADIUS;
-        ultDome.scale.set(radius, radius, radius);
-        ultDome.position.set(p.x, p.y + 10, p.z);  // 足元追従
-        ultDome.material.opacity = (1 - ultDomeProgress) * ULT_CONFIG.DOME_MAX_OPACITY;
-      } else if (ultDomeProgress >= 1) {
-        // 完成後はフェードアウト維持
-        ultDome.material.opacity *= 0.92;
-        if (ultDome.material.opacity < 0.01) {
-          ultDome.visible = false;
-        }
-      }
-
-      // === 暗転フェードアウト（終盤 DARKEN_FADE_OUT フレーム）===
-      if (remaining <= ULT_CONFIG.DARKEN_FADE_OUT) {
-        const t = remaining / ULT_CONFIG.DARKEN_FADE_OUT;
-        ultDarkenEl.style.opacity = String(ULT_CONFIG.DARKEN_ALPHA * t);
-      }
-    }
 
     // ============================================================
     //  #section grab — GRAB（くにおくん方式・密着自動発動）
