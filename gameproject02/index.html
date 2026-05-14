@@ -352,6 +352,36 @@
       opacity: 0.9;
     }
     #clock-hud svg { display: block; }
+    /* 一時停止オーバーレイ（ESC キーで切替）*/
+    #pause-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      z-index: 200;
+      pointer-events: none;
+    }
+    #pause-overlay.show { display: flex; }
+    #pause-overlay .pause-text {
+      font-family: 'Courier New', monospace;
+      font-size: 84px;
+      font-weight: bold;
+      color: #ffffff;
+      letter-spacing: 14px;
+      text-shadow: 0 0 24px #ff8844, 4px 4px 0 #000;
+      margin-bottom: 16px;
+    }
+    #pause-overlay .pause-hint {
+      font-family: 'Courier New', monospace;
+      font-size: 22px;
+      color: #ffaa66;
+      letter-spacing: 4px;
+      text-shadow: 2px 2px 0 #000;
+    }
+
     /* ULT 用画面暗転オーバーレイ（メガクラより少し濃い） */
     #ult-darken {
       position: absolute;
@@ -368,6 +398,10 @@
   <div id="game-frame">
   <div id="mega-darken"></div>
   <div id="ult-darken"></div>
+  <div id="pause-overlay">
+    <div class="pause-text">PAUSED</div>
+    <div class="pause-hint">ESC で再開</div>
+  </div>
   <!-- デバッグ：時計 HUD（時間の停止/スロー視認用） -->
   <div id="clock-hud">
     <svg width="64" height="64" viewBox="-32 -32 64 64">
@@ -1795,6 +1829,15 @@
     // テスト切替フラグ（数字キー 5 でトグル）
     const TEST_CONFIG = { singleEnemyMode: false };
 
+    // 一時停止（ESC キーで切替）
+    // - paused=true で loop が render のみ走らせて update をスキップ
+    // - allowFullPause=false （マルチプレイ用想定）にすると ESC で時間停止せず別 UI 表示の枠に切り替えられる
+    //   現状は枠だけ用意・マルチ実装時に判定を追加
+    const PAUSE_CONFIG = {
+      paused:          false,
+      allowFullPause:  true,
+    };
+
     // 敵 AI ローテーション：攻撃許可トークン（1 体だけ enemy_attacking 遷移可能）
     // - null = 誰も持っていない（次に取れる敵が攻撃発動）
     // - 敵 e への参照 = 現在 e が攻撃中・他敵は待機
@@ -1917,6 +1960,18 @@
       keys[e.code] = true;
       if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) {
         e.preventDefault();
+      }
+      // 一時停止：ESC キー（キーリピート抑止）
+      if (e.code === 'Escape') {
+        if (e.repeat) return;
+        if (PAUSE_CONFIG.allowFullPause) {
+          PAUSE_CONFIG.paused = !PAUSE_CONFIG.paused;
+          const overlay = document.getElementById('pause-overlay');
+          if (overlay) overlay.classList.toggle('show', PAUSE_CONFIG.paused);
+          console.log('[PAUSE]', PAUSE_CONFIG.paused ? 'PAUSED' : 'RESUMED');
+        }
+        // マルチプレイ時（allowFullPause=false）は将来別 UI 表示
+        return;
       }
       // デバッグトグル（数字キー：1=ヒットボックス / 2=ピクセル / 3=スロー / 4=敵AI / 5=敵1体モード / ...）
       // キーリピート（OS の長押し連続発火）でトグルが連発しないようガード
@@ -5760,6 +5815,13 @@
       pollGamepad();
       updateHudHighlight();
       updateHitboxDebug();
+      // 一時停止：update を完全スキップ・render のみ継続（時間停止）
+      // マルチプレイ時は PAUSE_CONFIG.allowFullPause を false にして時間停止を抑止する想定
+      if (PAUSE_CONFIG.paused) {
+        render();
+        requestAnimationFrame(loop);
+        return;
+      }
       // ヒットストップ：更新スキップ・描画は継続
       if (hitstopTimer > 0) {
         hitstopTimer--;
@@ -5857,7 +5919,7 @@
       // Phase 2.4 被ダメージシステム
       HP_CONFIG, damagePlayer, revivePlayer, isHitstunState, resetCombo,
       DUMMY_ATK_CONFIG, ENEMY_AI, tryHitPlayer,
-      TEST_CONFIG,
+      TEST_CONFIG, PAUSE_CONFIG,
     };
     console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / pad / mega crash / ult) loaded.');
     console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG / SB.KEY_CONFIG');
