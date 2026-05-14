@@ -11,7 +11,7 @@
 | [HP ゲージの拡張表現 & 本番レイアウト](discussions/hp-bar-expansion.md) | 検討中（案B 合意済）| 2026-05-14 | §22 / §12 | HP_MAX 成長時の表現（複数ゲージ案B 採用）+ 本番は左上 HP / 左下 SP 配置 |
 | [マルチプレイ救助システム](discussions/multiplayer-rescue-system.md) | 検討中（案C：Unreal 移行後実装）| 2026-05-14 | §25 / §11 | 黒化中の救助受付→10% HP 復帰 or タイムアウトで爆散。Phase 2.4 で dead state 枠は確保済 |
 | [セーブシステム設計](discussions/save-system-design.md) | 検討中 | 2026-05-15 | §13 / §15 / §14 | 利確・不正取得対策。案A/B/C 比較済・案C 推奨叩き台 |
-| [簡易必殺技ボタン（；キー）](discussions/simple-special-button.md) | アイデア記録 | 2026-05-15 | §9.7 / §22.5 | スマブラ式・方向+；で必殺技。技数不足が懸念 |
+| [簡易必殺技ボタン（；→ K キー検討中）](discussions/simple-special-button.md) | アイデア記録 | 2026-05-15 | §9.2 / §9.7 / §22.5 | スマブラ式・方向+K で必殺技 / コマンド K で強化版。技数試算 16/キャラ |
 
 ## status 凡例
 - **検討中**: discussions/ に存在・議論進行中
