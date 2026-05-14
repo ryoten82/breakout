@@ -27,20 +27,51 @@
 // ============================================================
 
 import { ATTACKS, Z_CHAIN, A_CHAIN } from './attacks.js';
-import { STATE } from './states.js';
-import { PHYSICS } from './config.js';
-import { tryHitEnemies, tryHitEnemiesMultiHit } from './hit-engine.js';
+import {
+  STATE, applyHitInitialPitch,
+  KB_LV05_BOUNCE_VY,
+  ENEMY_DOWN_BOUND_FRAMES, ENEMY_AIRBORNE_Y_THRESHOLD,
+  ENEMY_KB_AIR_FRAMES, ENEMY_KB02_FRAMES,
+} from './states.js';
+import { PHYSICS, SP_CONFIG, MEGA_CONFIG, ULT_CONFIG } from './config.js';
+import {
+  tryHitEnemies, tryHitEnemiesMultiHit,
+  spawnHitParticles, bumpCombo, triggerHitstop, triggerShake,
+} from './hit-engine.js';
+import { isHitstunState, _cancelHitstunForReversal } from './damage-system.js';
 
 let _inp = null;
 let _dirMatchesForFacing = null;
 let _onUltEnd = null;
 let _hitCtx = null;
+// 特殊技（Step D-3-2）で使用する外部参照
+let _players = null;
+let _enemies = null;
+let _megaDarkenEl = null;
+let _megaRing = null;
+let _ultDarkenEl = null;
+let _ultDome = null;
+let _camera = null;
+// 演出 let 変数群への get/set アクセス（index.html ローカル let のため）
+//   fxRefs = { megaDarken, megaSlow, megaSlowCounter, megaRingProg,
+//              ultDarken, ultDomeProg, ultSlowPhase, ultSlowAccum,
+//              ultSlowFadeRemaining, ultCamSavedZoom, ultCamZoomFrames, ultCamZoomTotal }
+let _fxRefs = null;
 
 export function initAttackEngine(deps) {
   _inp = deps.inp;
   _dirMatchesForFacing = deps.dirMatchesForFacing;
   _onUltEnd = deps.onUltEnd;
   _hitCtx = deps.hitCtx;
+  // D-3-2 で追加された依存
+  _players = deps.players;
+  _enemies = deps.enemies;
+  _megaDarkenEl = deps.megaDarkenEl;
+  _megaRing = deps.megaRing;
+  _ultDarkenEl = deps.ultDarkenEl;
+  _ultDome = deps.ultDome;
+  _camera = deps.camera;
+  _fxRefs = deps.fxRefs;
 }
 
 // ============================================================
@@ -346,6 +377,181 @@ export function processAttackInput(p) {
   } else if (p.state === STATE.attacking) {
     p.attackBuffered = true;
   }
+}
+
+// ============================================================
+//  #section mega-ult — メガクラッシュ / ULT（Step D-3-2 で分離）
+// ============================================================
+
+// 画面上に ULT 発動中のプレイヤーが居るか（マルチ対応見込み・誰かの ULT 中は他者の SP 技を遮断）
+export function anyPlayerUlting() {
+  for (const pp of _players) {
+    if (pp.ultActive) return true;
+  }
+  return false;
+}
+
+export function triggerMegaCrash(p) {
+  if (anyPlayerUlting()) return; // 自他問わず ULT 演出中はメガクラ発動不可
+  if (p.sp < SP_CONFIG.MEGA_CRASH_COST) return; // SP 不足 → 不発
+  // 既にメガクラ演出進行中なら多重発動を禁止
+  //   - megaDarkenFade > 0: 暗転フェード中
+  //   - megaSlowFrames > 0: スロー継続中
+  //   - megaRingProgress 0<x<1: リング拡大中
+  // これらが全て 0 / 完了するまで再発動不可（連打抑止）
+  const _mDark = _fxRefs.megaDarken.get();
+  const _mSlow = _fxRefs.megaSlow.get();
+  const _mRing = _fxRefs.megaRingProg.get();
+  if (_mDark > 0 || _mSlow > 0 || (_mRing > 0 && _mRing < 1)) return;
+  // 被弾中だった場合は state を強制クリア（リバーサル発動）
+  if (isHitstunState(p)) _cancelHitstunForReversal(p);
+  p.sp -= SP_CONFIG.MEGA_CRASH_COST;
+  // 演出中（スロー継続中）は完全無敵
+  p.invincible = true;
+  // 必殺技使用済 ID 集合を全解除（メガクラで全必殺技を再使用可に）
+  p.specialUsedIds.clear();
+
+  // --- 視覚演出 ---
+  // 画面暗転：瞬時に DARKEN_ALPHA まで上げ、リング展開後にゆっくりフェードアウト
+  _megaDarkenEl.style.opacity = String(MEGA_CONFIG.DARKEN_ALPHA);
+  _fxRefs.megaDarken.set(MEGA_CONFIG.EXPAND_FRAMES + MEGA_CONFIG.DARKEN_FADE_OUT);
+  // 球体起動：player みぞおち位置にスポーン、progress 0 から
+  _megaRing.position.set(p.x, p.y + 100, p.z);
+  _megaRing.visible = true;
+  _fxRefs.megaRingProg.set(0.001);  // updateMegaCrashFX で進める
+
+  // --- スローモーション ---
+  _fxRefs.megaSlow.set(MEGA_CONFIG.SLOW_FRAMES);
+  _fxRefs.megaSlowCounter.set(0);
+
+  // --- AoE ヒット判定（プレイヤー中心・半径 MEGA_CONFIG.RADIUS）---
+  // ATTACKS テーブルの c01_sp_mega01 を参照。atk_lv 2/2/5 で振り分け
+  const attack = ATTACKS.c01_sp_mega01;
+  for (const e of _enemies) {
+    if (!e.isAlive) continue;
+    const dx = e.x - p.x;
+    const dz = e.z - p.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist > MEGA_CONFIG.RADIUS) continue;
+    // ダメージ適用
+    e.hp = Math.max(0, e.hp - attack.damage);
+    e.hitFlashTimer = 7;
+    e.frozenByUlt   = false;  // ULT 凍結解除（メガクラを ULT 中に発動した場合の安全側）
+    // 外向きノックバック方向（プレイヤー中心からの dx 符号）
+    const dir = dist > 0.1 ? Math.sign(dx) : (p.facing || 1);
+    e.fallDir     = dir;
+    e.knockbackVx = dir * (attack.knockback * 0.4);
+    // === atk_lv 駆動の振り分け（標準 dispatch を簡略化）===
+    const isDowned = (
+      e.state === STATE.down_bas_start ||
+      e.state === STATE.down_bas_loop ||
+      e.state === STATE.down_bas_end
+    );
+    // kbTimeMult：この攻撃で発生したフリンチ/バウンド時間の倍率（メガクラは 2.0）
+    const tMult = attack.kbTimeMult ?? 1.0;
+    if (isDowned) {
+      // ダウン中：lv5 → down_bound_start（拾い直し）
+      e.state       = STATE.down_bound_start;
+      e.vy          = KB_LV05_BOUNCE_VY;
+      e.downTimer   = Math.round(ENEMY_DOWN_BOUND_FRAMES * tMult);
+      e.knockbackVx = 0;
+    } else if (e.y > ENEMY_AIRBORNE_Y_THRESHOLD) {
+      // 空中敵：lv2 → knockback_air01
+      e.state    = STATE.knockback_air01;
+      e.downTimer = Math.round(ENEMY_KB_AIR_FRAMES * tMult);
+      e.kbFromMega = true;   // 重力半減フラグ（knockback_air01 終了時にリセット）
+    } else {
+      // 地上敵：lv2 → knockback02（軽フリンチ・コンボ繋ぎ）
+      e.state    = STATE.knockback02;
+      e.downTimer = Math.round(ENEMY_KB02_FRAMES * tMult);
+    }
+    applyHitInitialPitch(e);
+    // 演出
+    spawnHitParticles(e.x, e.y + 60, e.z, attack.hitColor, attack.hitCount,
+      { type: 'normal', dirX: dx, dirZ: dz });
+    bumpCombo(e);  // コンボ継続
+  }
+  triggerHitstop(attack.hitstop);
+  triggerShake(attack.shake, attack.shake * 2 + 4);
+  // 空中メガクラ：プレイヤーも aerialHop（各空中攻撃と同じ・次の行動につなげやすく）
+  if (!p.isGrounded) {
+    p.vy = Math.max(p.vy, PHYSICS.AERIAL_HOP_V);
+  }
+  // バッファクリア（メガクラ発動時に command/charge をリセット — 現状簡易版）
+  p.attackBuffered = false;
+  p.kBuffered      = false;
+
+  console.log('[MEGA CRASH] SP残:', p.sp.toFixed(1));
+}
+
+// メガクラ無敵解除：暗転フェードが終わったタイミング（演出終了 ≒ megaDarkenFade==0）で false
+// ULT 中はそちらの管理に任せる
+export function maybeReleaseMegaInvincibility(p) {
+  if (!p.invincible) return;
+  if (p.ultActive) return;                              // ULT 側で管理中
+  if (_fxRefs.megaDarken.get() > 0) return;             // メガクラ演出継続中
+  if (_fxRefs.megaSlow.get() > 0) return;               // スロー継続中
+  p.invincible = false;
+}
+
+export function triggerUlt(p) {
+  // 発動制限：空中不可 / ガード中不可
+  // 自他問わず ULT 演出中は割り込み発動不可（マルチ対応見込み）
+  if (anyPlayerUlting()) return;
+  if (!p.isGrounded) return;
+  if (p.guarding)   return;
+  // 被弾中だった場合は state を強制クリア（リバーサル発動）
+  if (isHitstunState(p)) _cancelHitstunForReversal(p);
+  // 許可ステート：wait01 / attacking / hit_confirm（hit_confirm からキャンセル発動可）
+  if (p.state !== STATE.wait01 &&
+      p.state !== STATE.attacking &&
+      p.state !== STATE.hit_confirm) return;
+  if (p.sp < SP_CONFIG.ULT_COST) {
+    // SP 不足: J+K+L 入力の場合はメガクラへフォールバック
+    triggerMegaCrash(p);
+    return;
+  }
+  p.sp -= SP_CONFIG.ULT_COST;
+  // 必殺技使用済 ID 集合を全解除（ULT で全必殺技を再使用可に）
+  p.specialUsedIds.clear();
+
+  // 既存攻撃を強制終了して ULT に切替
+  const ultAtk = ATTACKS.c01_sp_ult01;
+  p.state          = STATE.attacking;
+  p.attackId       = 'c01_sp_ult01';
+  p.attackChainIdx = -1;
+  p.stateTimer     = ultAtk.duration;
+  p.hitDelivered   = false;
+  p.cancelTimer    = 0;
+  p.attackBuffered = false;
+  p.kBuffered      = false;
+  p.ultActive      = true;
+  p.ultFrames      = ultAtk.duration;
+  p.invincible     = true;
+
+  // === 時間停止：画面上の全エネミー（および将来の味方）を凍結 ===
+  // 最初のヒットを受けた敵だけが個別に解除される（tryHitEnemies 内）
+  for (const e of _enemies) {
+    if (e.isAlive) e.frozenByUlt = true;
+  }
+
+  // === 演出起動 ===
+  _ultDarkenEl.style.opacity = String(ULT_CONFIG.DARKEN_ALPHA);
+  _fxRefs.ultDarken.set(ultAtk.duration);  // 全体長そのままで管理し、終盤フェードアウト
+  // ドーム：足元位置にスポーン、進度 0 から
+  _ultDome.position.set(p.x, p.y + 10, p.z);
+  _ultDome.visible = true;
+  _fxRefs.ultDomeProg.set(0.001);
+  // スロー：ヒット前はピーク（divisor=4）、ヒット後にフェードで通常速度へ
+  _fxRefs.ultSlowPhase.set(1);
+  _fxRefs.ultSlowAccum.set(0);
+  _fxRefs.ultSlowFadeRemaining.set(0);
+  // カメラズーム
+  _fxRefs.ultCamSavedZoom.set(_camera.zoom);
+  _fxRefs.ultCamZoomFrames.set(ULT_CONFIG.CAM_ZOOM_FRAMES);
+  _fxRefs.ultCamZoomTotal.set(ULT_CONFIG.CAM_ZOOM_FRAMES);
+
+  console.log('[ULT] c01_sp_ult01 起動・SP残:', p.sp.toFixed(1));
 }
 
 // バッファ消化（HIT_CONFIRM になった瞬間に Z バッファがあれば次段へ）
