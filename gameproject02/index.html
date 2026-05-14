@@ -432,6 +432,7 @@
     <div id="hk-secondary">L / L1: セカンダリ</div>
     <div id="hk-mega">U / R1 / J+K: メガクラッシュ</div>
     <div id="hk-ult">I / R2 / J+K+L: ULT（超必殺技）</div>
+    <div id="hk-pause" class="small">ESC / START: 一時停止</div>
     <div id="hk-hitbox" class="small">1: ヒットボックス / コリジョン [OFF]</div>
     <div id="hk-pixel"  class="small hk-toggle-on">2: ピクセルシェーダー [ON]</div>
     <div id="hk-slowmo" class="small">3: スロー再生 [OFF]</div>
@@ -1829,7 +1830,7 @@
     // テスト切替フラグ（数字キー 5 でトグル）
     const TEST_CONFIG = { singleEnemyMode: false };
 
-    // 一時停止（ESC キーで切替）
+    // 一時停止（ESC キー / パッド START で切替）
     // - paused=true で loop が render のみ走らせて update をスキップ
     // - allowFullPause=false （マルチプレイ用想定）にすると ESC で時間停止せず別 UI 表示の枠に切り替えられる
     //   現状は枠だけ用意・マルチ実装時に判定を追加
@@ -1837,6 +1838,17 @@
       paused:          false,
       allowFullPause:  true,
     };
+    // 一時停止トグルの共通エントリ（ESC / PAD START 両方から呼ぶ）
+    function togglePause(source = 'KB') {
+      if (!PAUSE_CONFIG.allowFullPause) {
+        // マルチプレイ時はここで別 UI（時間止めずにメニュー表示）を将来実装
+        return;
+      }
+      PAUSE_CONFIG.paused = !PAUSE_CONFIG.paused;
+      const overlay = document.getElementById('pause-overlay');
+      if (overlay) overlay.classList.toggle('show', PAUSE_CONFIG.paused);
+      console.log(`[PAUSE] ${PAUSE_CONFIG.paused ? 'PAUSED' : 'RESUMED'} (${source})`);
+    }
 
     // 敵 AI ローテーション：攻撃許可トークン（1 体だけ enemy_attacking 遷移可能）
     // - null = 誰も持っていない（次に取れる敵が攻撃発動）
@@ -1964,13 +1976,7 @@
       // 一時停止：ESC キー（キーリピート抑止）
       if (e.code === 'Escape') {
         if (e.repeat) return;
-        if (PAUSE_CONFIG.allowFullPause) {
-          PAUSE_CONFIG.paused = !PAUSE_CONFIG.paused;
-          const overlay = document.getElementById('pause-overlay');
-          if (overlay) overlay.classList.toggle('show', PAUSE_CONFIG.paused);
-          console.log('[PAUSE]', PAUSE_CONFIG.paused ? 'PAUSED' : 'RESUMED');
-        }
-        // マルチプレイ時（allowFullPause=false）は将来別 UI 表示
+        togglePause('KB');
         return;
       }
       // デバッグトグル（数字キー：1=ヒットボックス / 2=ピクセル / 3=スロー / 4=敵AI / 5=敵1体モード / ...）
@@ -2096,6 +2102,8 @@
       return !!(inp(cfg.kb) || (cfg.kb2 && inp(cfg.kb2)));
     }
     const PAD_AXIS_DEAD = 0.25; // スティックデッドゾーン
+    const PAD_START_BUTTON = 9; // 標準ゲームパッドの START ボタン（Options / Plus）
+    let _padStartWas = false;   // rising edge 検出用（一時停止トグル）
 
     function pollGamepad() {
       // padKeys をいったんリセット
@@ -2104,13 +2112,21 @@
       const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
       // インデックス固定だと再接続時にずれるため、最初の有効なパッドを使う
       const gp = Array.from(gamepads).find(g => g && g.connected);
-      if (!gp) return;
+      if (!gp) { _padStartWas = false; return; }
 
       // ボタン
       for (const [idx, code] of Object.entries(PAD_BUTTON_MAP)) {
         const btn = gp.buttons[idx];
         if (btn && btn.pressed) padKeys[code] = true;
       }
+
+      // START ボタン：一時停止トグル（rising edge 検出・押しっぱなしで連発しない）
+      const startBtn = gp.buttons[PAD_START_BUTTON];
+      const startPressed = !!(startBtn && startBtn.pressed);
+      if (startPressed && !_padStartWas) {
+        togglePause('PAD');
+      }
+      _padStartWas = startPressed;
 
       // 左スティック → 移動（Axis 0 = X, Axis 1 = Y）
       const ax = gp.axes[0] ?? 0;
