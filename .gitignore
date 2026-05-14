@@ -48,6 +48,9 @@ tmp/
 .claude/sessions/
 .claude/logs/
 .claude/settings.local.json
+.claude/launch.json
+# launch.json は環境依存（Python フルパス・ユーザー名含む）のためローカル限定
+# 再生成手順は memory/project_scrapblitz.md「再開時セットアップ」参照
 
 # === Test / Coverage ===
 coverage/
