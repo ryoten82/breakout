@@ -25,8 +25,26 @@
 export const HP_CONFIG = {
   MAX:                 100,
   INVINCIBLE_FRAMES:   12,   // 被弾直後の追加無敵F（連続ヒット防止）
-  DEAD_FRAMES:         180,  // dead 状態の長さ（3秒後 revive 自動）
-  REVIVE_INVINCIBLE:   60,   // リバイブ直後の無敵F
+  DEAD_FRAMES:         60,   // dying 演出終了後 dead で待機する長さ（演出時間とは別）
+  REVIVE_INVINCIBLE:   240,  // リバイブ後の無敵F（4秒・透明点滅）
+  // 死亡演出（dying state の中で時系列に切り替わる）
+  DEATH_FADE_FRAMES:   30,   // 体が黒くなる時間（0.5 秒）
+  DEATH_BLINK_FRAMES:  72,   // 黒↔赤の点滅時間（1.2 秒・周期は加速）
+  DEATH_BLINK_START_PERIOD: 12,  // 点滅開始時の周期F
+  DEATH_BLINK_END_PERIOD:   3,   // 点滅終了直前の周期F（加速ピーク）
+  // リスポーン演出
+  RESPAWN_FALL_HEIGHT: 600,  // 復活時の落下開始 Y（画面上部）
+  RESPAWN_FALL_FRAMES: 30,   // 落下時間（0.5 秒で着地）
+  RESPAWN_BLINK_PERIOD: 6,   // 無敵中の透明点滅周期F
+  // 危機状態（HP 30% 以下・p.inCrisis フラグで一元管理）
+  //   - HP HUD のバー点滅（赤橙↔赤）
+  //   - 機体本体から火花パーティクル
+  //   - ダッシュ中の追加火花（駆動限界の演出）
+  //   - 将来：BGM 切替・カメラ揺れ・ULT 強化など、危機状態に紐づく演出はここ起点
+  CRISIS_THRESHOLD:    0.3,  // hp/maxHp がこの値以下で危機状態に
+  CRISIS_SPARK_MIN:    14,   // 火花スポーン間隔の最小F
+  CRISIS_SPARK_MAX:    30,   // 火花スポーン間隔の最大F
+  CRISIS_DASH_SPARK:   6,    // ダッシュ中の追加火花スポーン間隔（短め）
 };
 // プレイヤー被弾 state 持続F（敵側 ENEMY_*_FRAMES と独立。メカは重め）
 export const PLAYER_KB01_FRAMES       = 28;
@@ -90,8 +108,9 @@ export const STATE = {
   //     同名 STATE をプレイヤー/敵で共有しても誤動作しない。
   //     将来「全 entity ループ」を作る場合は要再設計。
   guard_crash:      'guard_crash',       // ガードクラッシュ硬直（SP枯渇）
-  dying:            'dying',             // 死亡演出（60F）
-  dead:             'dead',              // 完全停止 → DEAD_FRAMES 後に revive
+  dying:            'dying',             // 死亡演出（黒化→点滅→爆散）
+  dead:             'dead',              // 完全消滅 → DEAD_FRAMES 後に respawning
+  respawning:       'respawning',        // 復活演出（落下→着地→無敵点滅）
   // ── 敵 AI 攻撃 state（Phase 2.4 ダミー敵ミニマム攻撃）────────
   enemy_attacking:  'enemy_attacking',   // 接近 → wind / active / recover の3段
 };

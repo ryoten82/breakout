@@ -1175,6 +1175,7 @@
     // （YXZ だと ry=±π/2 と rz が干渉して被弾で手前/奥に倒れてしまう・敵側と同じ問題）
     playerMesh.rotation.order = 'ZYX';
     scene.add(playerMesh);
+    // ※ cacheBodyColors(playerMesh) は _bodyColorCache 宣言後（後段）で呼ぶ（TDZ 回避）
 
     // アウトライン対象に playerMesh を登録（マスク描画パスでこのリストの可視性のみ true にする）
     OUTLINE_CONFIG.TARGETS.push(playerMesh);
@@ -1198,6 +1199,46 @@
         mat.emissive.setRGB(r, g, b);
       });
     }
+
+    // === 死亡演出用：body color の原色キャッシュ + tint 操作 ===
+    // 死亡時に体が「黒くなる」「黒↔赤点滅」を表現するために、
+    // mesh 各 material の元の color を記録しておき、lerp で書き換える。
+    // 解除時（リスポーン）は restoreBodyColor() で原色復元。
+    const _bodyColorCache = new WeakMap();   // material → 原色 {r,g,b}
+    function cacheBodyColors(playerMesh) {
+      playerMesh.traverse(obj => {
+        if (!obj.isMesh) return;
+        const mat = obj.material;
+        if (!mat || !mat.color) return;
+        if (_bodyColorCache.has(mat)) return;
+        _bodyColorCache.set(mat, { r: mat.color.r, g: mat.color.g, b: mat.color.b });
+      });
+    }
+    // mesh 全体の color を「原色 × (1-mix) + ターゲット × mix」に書き換え
+    // 死亡フェードでは target=(0,0,0)、mix=elapsed/fadeFrames で徐々に黒に
+    function tintBody(playerMesh, targetR, targetG, targetB, mix) {
+      const m = Math.max(0, Math.min(1, mix));
+      const visited = new Set();
+      playerMesh.traverse(obj => {
+        if (!obj.isMesh) return;
+        const mat = obj.material;
+        if (!mat || !mat.color) return;
+        if (visited.has(mat)) return;
+        visited.add(mat);
+        const orig = _bodyColorCache.get(mat);
+        if (!orig) return;
+        mat.color.setRGB(
+          orig.r * (1 - m) + targetR * m,
+          orig.g * (1 - m) + targetG * m,
+          orig.b * (1 - m) + targetB * m,
+        );
+      });
+    }
+    function restoreBodyColor(playerMesh) {
+      tintBody(playerMesh, 0, 0, 0, 0);   // mix=0 で完全に原色
+    }
+    // 起動時に playerMesh の原色をキャッシュ（TDZ 回避のため定義後にここで呼ぶ）
+    cacheBodyColors(playerMesh);
 
     // === 必殺技：チャージ成立リング（chargeReady になった瞬間に大きなリングが体に収束）===
     const chargeReadyRing = (() => {
@@ -1460,6 +1501,17 @@
       kbVx:             0,    // 被弾中の水平 KB（敵の knockbackVx と命名分離）
       kbVy:             0,    // 被弾中の垂直 KB（down_front_* 用）
       deadTimer:        0,    // dead state の残F
+      // === 危機状態（HP 20% 以下で体から火花が散る）===
+      inCrisis:         false,
+      crisisSparkTimer: 0,    // 体から火花スポーンまでの残F
+      crisisDashSparkTimer: 0,// ダッシュ追加火花の残F
+      // === 死亡演出（dying state 中のフェーズ管理）===
+      deathPhaseTimer:  0,    // dying 全体の残F（演出開始時にセット）
+      deathBlinkTimer:  0,    // 現在の点滅周期の残F
+      deathBlinkOn:     false,// 現フレ赤発光中か（点滅の現在値）
+      // === リスポーン演出（respawning state 中の落下＋無敵点滅）===
+      respawnFallTimer: 0,    // 落下の残F
+      respawnBlinkTimer:0,    // 透明点滅周期の残F
       ultActive:        false,// ULT 実行中フラグ（演出制御用）
       ultFrames:        0,    // ULT 残フレーム
       grabTarget:       null, // グラブ中の対象敵
@@ -2280,7 +2332,7 @@
       STATE.knockback01, STATE.knockback02,
       STATE.down_front_start, STATE.down_front_loop,
       STATE.down_bas_start, STATE.down_bas_loop, STATE.down_bas_end,
-      STATE.guard_crash, STATE.dying, STATE.dead,
+      STATE.guard_crash, STATE.dying, STATE.dead, STATE.respawning,
     ]);
     function isHitstunState(p) {
       return _HITSTUN_STATES.has(p.state);
@@ -2429,10 +2481,14 @@
         p.mesh.rotation.y = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
       }
 
-      // (7) HP 0 → dying 直行
+      // (7) HP 0 → dying 直行（黒化 → 黒↔赤点滅 → 爆散 → dead）
       if (p.hp <= 0) {
+        const totalF = HP_CONFIG.DEATH_FADE_FRAMES + HP_CONFIG.DEATH_BLINK_FRAMES;
         p.state = STATE.dying;
-        p.stateTimer = PLAYER_DYING_FRAMES;
+        p.stateTimer = totalF;
+        p.deathPhaseTimer = totalF;
+        p.deathBlinkTimer = HP_CONFIG.DEATH_BLINK_START_PERIOD;
+        p.deathBlinkOn = false;
         p.kbVx = facingFromAttacker * Math.min(knockback * 0.4, 12);
         p.kbVy = 8;
         spawnHitParticles(p.x, p.y + 80, p.z, 0xff2222, 24);
@@ -2557,36 +2613,77 @@
           p.state = STATE.wait01;
         }
       } else if (s === STATE.dying) {
-        // 倒れる演出（mesh を facing 逆に倒す）
+        // 死亡演出：黒化フェーズ A → 黒↔赤点滅フェーズ B → 爆散 → dead
+        const fadeF  = HP_CONFIG.DEATH_FADE_FRAMES;
+        const blinkF = HP_CONFIG.DEATH_BLINK_FRAMES;
+        const totalF = fadeF + blinkF;
+        const elapsed = totalF - p.deathPhaseTimer;
+        // 倒れる物理（既存）
         p.x += p.kbVx;
         p.kbVx *= 0.94;
         p.vy = p.kbVy;
         p.y += p.vy;
         p.kbVy -= PLAYER_KB_GRAV;
-        if (p.y <= 0) {
-          p.y = 0; p.kbVy = 0; p.vy = 0;
+        if (p.y <= 0) { p.y = 0; p.kbVy = 0; p.vy = 0; }
+        if (elapsed < fadeF) {
+          // フェーズ A：原色 → 黒 lerp
+          const mix = elapsed / fadeF;
+          if (p.mesh) tintBody(p.mesh, 0, 0, 0, mix);
+        } else {
+          // フェーズ B：黒↔赤点滅、周期加速
+          const phaseT = Math.min(1, (elapsed - fadeF) / blinkF);
+          const startP = HP_CONFIG.DEATH_BLINK_START_PERIOD;
+          const endP   = HP_CONFIG.DEATH_BLINK_END_PERIOD;
+          const curPeriod = Math.max(1, Math.round(startP + (endP - startP) * phaseT));
+          p.deathBlinkTimer--;
+          if (p.deathBlinkTimer <= 0) {
+            p.deathBlinkOn = !p.deathBlinkOn;
+            p.deathBlinkTimer = curPeriod;
+          }
+          if (p.mesh) {
+            if (p.deathBlinkOn) tintBody(p.mesh, 1.0, 0.15, 0.15, 1);  // 赤
+            else                 tintBody(p.mesh, 0, 0, 0, 1);          // 黒
+          }
         }
-        p.stateTimer--;
-        if (p.stateTimer <= 0) {
+        p.deathPhaseTimer--;
+        if (p.deathPhaseTimer <= 0) {
+          // 爆散 + 完全消滅
+          spawnHitParticles(p.x, p.y + 80, p.z, 0xff4422, 36, { type: 'omni' });
+          spawnHitParticles(p.x, p.y + 80, p.z, 0xffaa44, 24, { type: 'omni' });
+          triggerHitstop(10);
+          triggerShake(12, 20);
+          if (p.mesh) p.mesh.visible = false;
           p.state = STATE.dead;
           p.deadTimer = HP_CONFIG.DEAD_FRAMES;
         }
       } else if (s === STATE.dead) {
+        // 完全消滅で待機（DEAD_FRAMES 経過で respawning へ）
         p.deadTimer--;
         if (p.deadTimer <= 0) {
           revivePlayer(p);
+        }
+      } else if (s === STATE.respawning) {
+        // 落下演出：RESPAWN_FALL_HEIGHT → 0 へ補間
+        p.respawnFallTimer--;
+        const fallTotal = HP_CONFIG.RESPAWN_FALL_FRAMES;
+        const t = 1 - (p.respawnFallTimer / fallTotal);  // 0 → 1
+        p.y = HP_CONFIG.RESPAWN_FALL_HEIGHT * (1 - t);
+        // 着地
+        if (p.respawnFallTimer <= 0 || p.y <= 0) {
+          p.y = 0;
+          p.vy = 0;
+          p.state = STATE.wait01;
+          spawnHitParticles(p.x, 10, p.z, 0xaaccff, 24, { type: 'omni' });
+          triggerShake(5, 10);
+          // 無敵時間は invincibleFrames（REVIVE_INVINCIBLE）で継続
         }
       }
       // mesh 反映（updatePlayer の通常 mesh.position.set ブロックがスキップされるため）
       if (p.mesh) {
         p.mesh.position.set(p.x, p.y, p.z);
-        // 死亡演出：facing 逆方向に倒す
-        if (p.state === STATE.dying || p.state === STATE.dead) {
-          const targetTilt = p.facing * Math.PI / 2 * Math.min(1, 1 - (p.stateTimer / PLAYER_DYING_FRAMES));
-          p.mesh.rotation.z = targetTilt;
-        } else {
-          p.mesh.rotation.z = 0;
-        }
+        // 死亡演出は色（tintBody）と visibility で表現するので回転は使わない
+        // respawning も直立姿勢で落下
+        p.mesh.rotation.z = 0;
         // のけぞり（前後傾）：被弾系で軽く後傾
         if (s === STATE.knockback01 || s === STATE.knockback02) {
           p.mesh.rotation.x = -0.3 * Math.min(1, p.stateTimer / 12);
@@ -2598,6 +2695,70 @@
           p.mesh.rotation.x = 0.4;
         } else {
           p.mesh.rotation.x = 0;
+        }
+      }
+      // 無敵中の透明点滅（dying/dead/respawning は別演出が visibility を制御するので除外）
+      updateInvincibleBlink(p);
+    }
+
+    // 無敵中の透明点滅（リスポーン後・カウンター被弾防止無敵）
+    //   - state が dying/dead/respawning ならスキップ（演出側が visibility を握る）
+    //   - invincibleFrames > 0 の間 RESPAWN_BLINK_PERIOD ごとに mesh.visible トグル
+    //   - 無敵終了で visible=true に強制復帰
+    function updateInvincibleBlink(p) {
+      if (!p || !p.mesh) return;
+      if (p.state === STATE.dying || p.state === STATE.dead) return;
+      if (p.state === STATE.respawning) { p.mesh.visible = true; return; }
+      if (p.invincibleFrames > 0) {
+        p.respawnBlinkTimer--;
+        if (p.respawnBlinkTimer <= 0) {
+          p.mesh.visible = !p.mesh.visible;
+          p.respawnBlinkTimer = HP_CONFIG.RESPAWN_BLINK_PERIOD;
+        }
+      } else if (!p.mesh.visible) {
+        p.mesh.visible = true;
+      }
+    }
+
+    // 危機状態の更新と火花スポーン（HP CRISIS_THRESHOLD 以下で発動）
+    //   - 機体のバウンディング範囲内のランダム座標から定期的に火花
+    //   - ダッシュ中は追加火花（駆動限界の演出）
+    //   - 火花パーティクル自体は寿命で自然消滅するので、解除時は inCrisis=false にするだけ
+    const CRISIS_BODY_RANGE_X = 50;   // 機体水平範囲（±50wu）
+    const CRISIS_BODY_Y_MIN   = 20;   // 足元から
+    const CRISIS_BODY_Y_MAX   = 170;  // 頭部まで
+    const CRISIS_BODY_RANGE_Z = 25;   // 奥行き範囲（±25wu・メカ薄め）
+    const CRISIS_SPARK_COLORS = [0xff4422, 0xffaa44, 0xffee44];
+    function updateCrisisEffect(p) {
+      if (!p || !p.mesh) return;
+      // 危機状態判定（毎フレ・hp 回復で自動解除）
+      p.inCrisis = (p.hp > 0) && (p.hp / p.maxHp <= HP_CONFIG.CRISIS_THRESHOLD);
+      if (!p.inCrisis) {
+        // 解除時はタイマーもリセット（再突入時に即発火しないように）
+        p.crisisSparkTimer = 0;
+        p.crisisDashSparkTimer = 0;
+        return;
+      }
+      // 機体のバウンディング範囲内のランダム座標から火花（放射方向も全方向ランダム）
+      if (p.crisisSparkTimer <= 0) {
+        const ox = (Math.random() - 0.5) * (CRISIS_BODY_RANGE_X * 2);
+        const oy = CRISIS_BODY_Y_MIN + Math.random() * (CRISIS_BODY_Y_MAX - CRISIS_BODY_Y_MIN);
+        const oz = (Math.random() - 0.5) * (CRISIS_BODY_RANGE_Z * 2);
+        const col = CRISIS_SPARK_COLORS[Math.floor(Math.random() * CRISIS_SPARK_COLORS.length)];
+        spawnHitParticles(p.x + ox, p.y + oy, p.z + oz, col, 4, { type: 'omni' });
+        const range = HP_CONFIG.CRISIS_SPARK_MAX - HP_CONFIG.CRISIS_SPARK_MIN;
+        p.crisisSparkTimer = HP_CONFIG.CRISIS_SPARK_MIN + Math.floor(Math.random() * range);
+      } else {
+        p.crisisSparkTimer--;
+      }
+      // ダッシュ中の追加火花（トレイル根本に火花を多く出す・全方向ランダム）
+      if (p.dashActive && p.isGrounded) {
+        if (p.crisisDashSparkTimer <= 0) {
+          // 足元中心に全方向放射
+          spawnHitParticles(p.x, p.y + 10, p.z, 0xff6622, 6, { type: 'omni' });
+          p.crisisDashSparkTimer = HP_CONFIG.CRISIS_DASH_SPARK;
+        } else {
+          p.crisisDashSparkTimer--;
         }
       }
     }
@@ -2613,15 +2774,26 @@
     }
 
     function revivePlayer(p) {
+      // 復活演出：respawning state に遷移 → 画面上から落下 → 着地で wait01
       p.hp = p.maxHp;
-      p.state = STATE.wait01;
+      p.state = STATE.respawning;
       p.stateTimer = 0;
       p.kbVx = 0; p.kbVy = 0; p.vy = 0;
       p.deadTimer = 0;
+      p.deathPhaseTimer = 0;
+      p.deathBlinkTimer = 0;
+      p.deathBlinkOn = false;
+      p.respawnFallTimer = HP_CONFIG.RESPAWN_FALL_FRAMES;
+      p.respawnBlinkTimer = 0;
+      p.y = HP_CONFIG.RESPAWN_FALL_HEIGHT;
       p.invincibleFrames = HP_CONFIG.REVIVE_INVINCIBLE;
-      if (p.mesh) p.mesh.rotation.set(0, 0, 0);
-      // リバイブ演出
-      spawnHitParticles(p.x, p.y + 80, p.z, 0x66ffaa, 24);
+      // mesh：表示復活 + 原色復元 + 姿勢リセット
+      if (p.mesh) {
+        p.mesh.visible = true;
+        p.mesh.rotation.set(0, p.facing > 0 ? Math.PI * 0.5 : -Math.PI * 0.5, 0);
+        restoreBodyColor(p.mesh);
+      }
+      spawnHitParticles(p.x, HP_CONFIG.RESPAWN_FALL_HEIGHT, p.z, 0x66ffaa, 24, { type: 'omni' });
     }
 
     function tryHitEnemies(p, attack) {
@@ -4489,6 +4661,8 @@
         const canReverse = (p.state !== STATE.dying && p.state !== STATE.dead && p.state !== STATE.guard_crash);
         if (canReverse) processMegaCrashUltInput(p);
         updatePlayerHitstun(p);
+        // 危機状態の火花は被弾中も継続（駆動限界の演出は途切れない）
+        updateCrisisEffect(p);
         return;
       }
       // 被弾後の追加無敵F（hitstun 終わってからの残り）
@@ -4827,6 +5001,11 @@
         p.bobPhase += 0.05;
       }
       const bobY = isMoving ? Math.abs(Math.sin(p.bobPhase)) * 4 : Math.sin(p.bobPhase) * 2;
+
+      // === 危機状態（HP 20% 以下で体から火花が散る）===
+      updateCrisisEffect(p);
+      // === リスポーン後の無敵中：透明点滅 ===
+      updateInvincibleBlink(p);
 
       // === メッシュへ反映 ===
       p.mesh.position.set(p.x, p.y + bobY, p.z);
@@ -5521,9 +5700,9 @@
       const ratio = Math.max(0, Math.min(1, p.hp / p.maxHp));
       hpBarEl.style.width = (ratio * 100).toFixed(1) + '%';
       if (hpNumEl) hpNumEl.textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
-      // 30% 以下で点滅
-      if (ratio <= 0.3) hpBarEl.classList.add('low');
-      else hpBarEl.classList.remove('low');
+      // 危機状態（p.inCrisis）と連動して点滅
+      // → 機体本体の火花スポーンと同タイミングで切り替わる（HP_CONFIG.CRISIS_THRESHOLD 一元管理）
+      hpBarEl.classList.toggle('low', !!p.inCrisis);
     }
 
     function updateDebug() {
