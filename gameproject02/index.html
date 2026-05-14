@@ -2497,19 +2497,58 @@
         return true;
       }
 
-      // (8) lv → state dispatch
+      // (8) lv → state dispatch（lv 1-7 全対応）
+      // ステートは現状 down_front_start に集約（プレイヤー専用 down_chou / down_rakka は将来）。
+      // 差別化は kbVx / kbVy / 持続F の数値で表現する。
       const lv = incomingLv;
-      if (lv >= 3) {
+      const isPlayerDowned = (
+        p.state === STATE.down_bas_start ||
+        p.state === STATE.down_bas_loop ||
+        p.state === STATE.down_bas_end
+      );
+      if (lv === 7) {
+        // ダウン中専用フリンチ：プレイヤーがダウン中なら小バウンド、それ以外は lv1 降格
+        if (isPlayerDowned) {
+          p.state = STATE.down_bas_loop;          // 拾い直し（タイマーリフレッシュ）
+          p.stateTimer = PLAYER_DOWN_BAS_LOOP_FRAMES;
+          p.kbVy = 8;                              // 小バウンド
+        } else {
+          p.state = STATE.knockback01;
+          p.stateTimer = PLAYER_KB01_FRAMES;
+          p.kbVx = facingFromAttacker * (knockback * 0.3);
+          p.kbVy = 0;
+        }
+      } else if (lv === 6) {
+        // 超吹き飛ばし：水平を大きく強化（後方に長距離）
+        p.state = STATE.down_front_start;
+        p.stateTimer = PLAYER_DOWN_FRONT_START_FRAMES;
+        p.kbVx = facingFromAttacker * (knockback * 1.2);
+        p.kbVy = 16;
+      } else if (lv === 5) {
+        // 叩きつけ：低めの吹き飛び + 強めの水平
+        p.state = STATE.down_front_start;
+        p.stateTimer = PLAYER_DOWN_FRONT_START_FRAMES;
+        p.kbVx = facingFromAttacker * (knockback * 0.8);
+        p.kbVy = 6;
+      } else if (lv === 4) {
+        // 打ち上げ：水平控えめ、垂直を大きく
+        p.state = STATE.down_front_start;
+        p.stateTimer = PLAYER_DOWN_FRONT_START_FRAMES;
+        p.kbVx = facingFromAttacker * (knockback * 0.3);
+        p.kbVy = 22;
+      } else if (lv === 3) {
+        // 吹き飛び（標準）
         p.state = STATE.down_front_start;
         p.stateTimer = PLAYER_DOWN_FRONT_START_FRAMES;
         p.kbVx = facingFromAttacker * (knockback * 0.5);
         p.kbVy = 14;
-      } else if (lv >= 2) {
+      } else if (lv === 2) {
         p.state = STATE.knockback02;
         p.stateTimer = PLAYER_KB02_FRAMES;
         p.kbVx = facingFromAttacker * (knockback * 0.4);
         p.kbVy = 0;
       } else {
+        // lv 1 / 未定義
         p.state = STATE.knockback01;
         p.stateTimer = PLAYER_KB01_FRAMES;
         p.kbVx = facingFromAttacker * (knockback * 0.3);
