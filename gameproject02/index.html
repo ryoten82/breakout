@@ -594,6 +594,8 @@
       KB_LV05_VY, KB_LV05_VX_MULT, KB_LV05_BOUNCE_VY, KB_LV07_HOP_VY,
       KB_LV06_VY, KB_LV06_VX_MULT,
     } from './src/states.js';
+    // === i18n 雛形（B案・ja のみ・将来 en 追加）===
+    import { I18N, t as t_i18n } from './src/i18n.js';
 
     // ============================================================================
     //  SCRAP BLITZ — METEO プロトタイプ
@@ -5557,6 +5559,8 @@
       HP_CONFIG, damagePlayer, revivePlayer, isHitstunState, resetCombo,
       DUMMY_ATK_CONFIG, ENEMY_AI, tryHitPlayer,
       TEST_CONFIG, PAUSE_CONFIG, GAME_SPEED,
+      // i18n（B案・ja のみ。SB.I18N.t('chip.flavor.guardianModule') 等で参照）
+      I18N,
     };
     console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / pad / mega crash / ult) loaded.');
     console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG / SB.KEY_CONFIG');
