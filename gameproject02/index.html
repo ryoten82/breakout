@@ -586,6 +586,10 @@
       cancelGrabIntoAttack, endGrab,
       startDash, processDashInput, tryCancelJump,
     } from './src/attack-engine.js';
+    // === camera（追従・シェイク・時計 HUD）は src/camera.js に分離（Step E-1）===
+    import {
+      initCamera, updateCamera, applyCamConfig, updateClockHud,
+    } from './src/camera.js';
     // === ステート定数・被弾持続F・KB ベクトル定数は src/states.js に分離（Step B・ESM import）===
     import {
       STATE, STATE_TILT_TARGET, STATE_PITCH_TARGET, STATE_PITCH_INITIAL,
@@ -1543,8 +1547,6 @@
     //  HITSTOP / SHAKE は src/hit-engine.js に分離（fxState.hitstopTimer 等で参照）
     //  camFollowY / camTargetX のみここに残す（カメラ専用）
     // ============================================================
-    let camFollowY    = 0;  // Y追従の遅延用（lerp）
-    let camTargetX    = 0;  // デッドゾーンカメラ用X目標
 
     // ============================================================
     //  DASH TRAIL（後方テールランプ帯）
@@ -1869,6 +1871,14 @@
       combo,
       comboEl,
       players,
+    });
+
+    // camera 初期化（clock-hand は DOM ready 時点で取得可能）
+    initCamera({
+      camera, bgCamera,
+      players, enemies,
+      clockHandEl: document.getElementById('clock-hand'),
+      gameAspect: GAME_ASPECT,
     });
 
     // ============================================================
@@ -3679,70 +3689,6 @@
       }
     }
 
-    // ============================================================
-    //  #section camera-update — updateCamera / applyCamConfig / シェイク
-    //  デッドゾーン追従 + ULT 中はプレイヤー直接追従
-    // ============================================================
-    function updateCamera() {
-      const p = players[0];
-
-      // ULT 中はデッドゾーンを無視してプレイヤー X に直接追従（ズーム時の被写体センター揃え）
-      // 終了後は通常デッドゾーンが自動的に再開
-      if (p.ultActive) {
-        camTargetX += (p.x - camTargetX) * 0.25;
-      } else {
-        // デッドゾーン：中央帯では固定、端に達したら追従
-        const DEAD_ZONE = 220;
-        if (p.x > camTargetX + DEAD_ZONE) camTargetX = p.x - DEAD_ZONE;
-        if (p.x < camTargetX - DEAD_ZONE) camTargetX = p.x + DEAD_ZONE;
-      }
-      const baseX = camTargetX;
-
-      // シェイク計算（fxState は hit-engine の単一オブジェクト参照）
-      if (fxState.shakeTimer > 0) {
-        fxState.shakeOffsetX = (Math.random() - 0.5) * fxState.shakeStrength * 2;
-        fxState.shakeOffsetY = (Math.random() - 0.5) * fxState.shakeStrength * 2;
-        fxState.shakeTimer--;
-        if (fxState.shakeTimer <= 0) {
-          fxState.shakeStrength = 0;
-          fxState.shakeOffsetX  = 0;
-          fxState.shakeOffsetY  = 0;
-        }
-      } else {
-        fxState.shakeOffsetX = 0;
-        fxState.shakeOffsetY = 0;
-      }
-
-      // Y追従：デッドゾーン付きlerp（低ジャンプではカメラ動かさない）
-      const Y_DEAD_ZONE = 100;
-      const yTarget = Math.max(0, p.y - Y_DEAD_ZONE);
-      camFollowY += (yTarget - camFollowY) * 0.08;
-      camFollowY = Math.max(0, Math.min(camFollowY, 150));
-      // ピクセルシェーダーON時はシェイクをブリット側（UV）で処理するのでカメラに乗せない
-      const sx = PIXEL_SHADER.ENABLED ? 0 : fxState.shakeOffsetX;
-      const sy = PIXEL_SHADER.ENABLED ? 0 : fxState.shakeOffsetY;
-      camera.position.x = baseX + sx;
-      camera.position.y = CAM_CONFIG.CAM_Y + camFollowY + sy;
-      camera.position.z = CAM_CONFIG.CAM_Z;
-      camera.lookAt(baseX, CAM_CONFIG.LOOK_Y + camFollowY, 0);
-
-      // 背景カメラ：XはデッドゾーンbaseX追従、YはメインカメラのcamFollowYと同期
-      const bgX = baseX * 1.0;
-      bgCamera.position.x = bgX;
-      bgCamera.position.y = CAM_CONFIG.BG_CAM_Y + camFollowY;
-      bgCamera.position.z = CAM_CONFIG.BG_CAM_Z;
-      bgCamera.lookAt(bgX, CAM_CONFIG.BG_LOOK_Y + camFollowY, 0);
-    }
-
-    // FOV変更はupdateProjectionMatrix()が必要なためヘルパー経由
-    function applyCamConfig() {
-      const h = CAM_CONFIG.ORTHO_H / 2;
-      camera.left   = -h * GAME_ASPECT;
-      camera.right  =  h * GAME_ASPECT;
-      camera.top    =  h;
-      camera.bottom = -h;
-      camera.updateProjectionMatrix();
-    }
 
     // ============================================================
     //  #section hud-update — SP ゲージ / デバッグ HUD / グラブゲージ / 時計 / コンボ HUD
@@ -3956,19 +3902,6 @@
     //   - SLOWMO / メガクラスロー / ULT スロー：update が間引かれるので針も遅くなる
     //   - ヒットストップ：update が止まるので針も止まる
     //   - ULT 凍結中のエネミーがいる間：針を停止（時間停止演出の可視化）
-    let clockAngle = 0;
-    const CLOCK_HAND_EL = document.getElementById('clock-hand');
-    function updateClockHud() {
-      // 凍結エネミーが 1 体でもいれば「世界の時計」を止める
-      let worldFrozen = false;
-      for (const e of enemies) {
-        if (e.frozenByUlt) { worldFrozen = true; break; }
-      }
-      if (!worldFrozen) {
-        clockAngle = (clockAngle + 6) % 360;
-        if (CLOCK_HAND_EL) CLOCK_HAND_EL.setAttribute('transform', `rotate(${clockAngle})`);
-      }
-    }
 
     // ============================================================
     //  #section render — 2 パスレンダリング + アウトライン合成 + ピクセル shader blit
