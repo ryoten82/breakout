@@ -20,12 +20,79 @@
 //    → 単一オブジェクトに集約することで ESM 経由でも参照を共有できる
 // ============================================================
 
+import { STATE } from './states.js';
+import { COMBO_LEVELS, getComboLevel } from './config.js';
+
 let _THREE = null;
 let _scene = null;
+let _comboEl = null;
+let _comboNumEl = null;
+let _players = null;
 
 export function initHitEngine(deps) {
-  _THREE = deps.THREE;
-  _scene = deps.scene;
+  _THREE      = deps.THREE;
+  _scene      = deps.scene;
+  _comboEl    = deps.comboEl;
+  _comboNumEl = deps.comboNumEl;
+  _players    = deps.players;
+}
+
+// ============================================================
+//  コンボ状態（hit-engine 内に集約）
+// ============================================================
+export const combo = {
+  count:        0,
+  lastHitEnemy: null,
+};
+
+export function bumpCombo(hitEnemy) {
+  // コンボ初回ヒット：最初に殴った敵を各プレイヤーの comboTarget としてロック
+  if (combo.count === 0) {
+    for (const pp of _players) {
+      pp.comboTarget = hitEnemy;
+      pp.oppositeInputFrames = 0;
+    }
+  }
+  combo.count += 1;
+  combo.lastHitEnemy = hitEnemy;
+  _comboEl.style.opacity = '1';
+  _comboNumEl.textContent = combo.count;
+  // レベルに応じた色・演出
+  const lv = getComboLevel(combo.count);
+  _comboNumEl.style.color = lv.numColor;
+  _comboEl.dataset.level = COMBO_LEVELS.indexOf(lv);
+  // ポップアニメ
+  _comboNumEl.style.transform = 'scale(1.3)';
+  setTimeout(() => { _comboNumEl.style.transform = 'scale(1)'; }, 80);
+}
+
+// 最後に殴った敵が wait01 に戻ったら（または不在になったら）コンボ終了
+// ただしプレイヤーが攻撃継続中（attacking/hit_confirm）はコンボを保持
+export function checkComboBreak() {
+  const p = _players[0];
+  // 空振りクリーンアップ
+  if (combo.count === 0) {
+    if (p && p.state !== STATE.attacking && p.state !== STATE.hit_confirm) {
+      for (const pp of _players) {
+        if (pp.specialUsedIds.size > 0) pp.specialUsedIds.clear();
+        pp.comboTarget = null;
+        pp.oppositeInputFrames = 0;
+      }
+    }
+    return;
+  }
+  if (p && (p.state === STATE.attacking || p.state === STATE.hit_confirm)) return;
+  const e = combo.lastHitEnemy;
+  if (!e || e.state === STATE.wait01) {
+    combo.count = 0;
+    combo.lastHitEnemy = null;
+    _comboEl.style.opacity = '0';
+    for (const pp of _players) {
+      pp.specialUsedIds.clear();
+      pp.comboTarget = null;
+      pp.oppositeInputFrames = 0;
+    }
+  }
 }
 
 // ============================================================
