@@ -1,16 +1,19 @@
 // ============================================================
-//  SCRAP BLITZ — 中核 CONFIG 群（分離 Phase: Step C-1）
+//  SCRAP BLITZ — CONFIG 群（分離 Phase: Step C-1 中核 + C-2 周辺）
 //
 //  ES Module として index.html から import される：
 //    import {
 //      PHYSICS, SP_CONFIG, ULT_CONFIG, GRAB_CONFIG, MEGA_CONFIG,
 //      SPECIAL_CONFIG, HOMING_CONFIG, GUARD_CONFIG,
 //      ENEMY_AI, DUMMY_ATK_CONFIG,
+//      CAM_CONFIG, PIXEL_SHADER, OUTLINE_CONFIG,
+//      CHARGE_RING_CONFIG, CHARGE_PARTICLE_CONFIG,
+//      COMBO_LEVELS, getComboLevel, SLOWMO, KEY_CONFIG,
 //    } from './src/config.js';
 //
 //  純データ層：他データ（ATTACKS / STATE / 関数）への参照は持たない。
-//  外部 (CAM_CONFIG / PIXEL_SHADER / OUTLINE_CONFIG / KEY_CONFIG /
-//  COMBO_LEVELS / CHARGE_*_CONFIG / SLOWMO) は本ファイル外（C-2 候補）。
+//  Three.js 依存を持つフィールドは数値（hex 等）で保持し、利用側で THREE.* 化する。
+//    例：OUTLINE_CONFIG.COLOR は 0xffffff（数値）／使用側で new THREE.Color(...)
 // ============================================================
 
 // ============================================================
@@ -254,4 +257,120 @@ export const DUMMY_ATK_CONFIG = {
   hitstop:          5,
   shake:            4,
   hitColor:         0xff8844,
+};
+
+// ============================================================
+//  #section周辺 CONFIG（Step C-2 分離分）
+//  - CAM_CONFIG / PIXEL_SHADER / OUTLINE_CONFIG / CHARGE_*_CONFIG
+//  - COMBO_LEVELS / getComboLevel / SLOWMO / KEY_CONFIG
+// ============================================================
+
+// ============================================================
+//  カメラ設定（デュアルカメラ：メイン Ortho + 背景 Perspective）
+// ============================================================
+export const CAM_CONFIG = {
+  // メインカメラ（正投影・キャラ用）
+  ORTHO_H: 700,  // 正投影フラスタム高さ（小さいほど拡大）
+  CAM_Y:   400,  // カメラ基準高さ
+  CAM_Z:   1000, // カメラZ（傾きに影響）
+  LOOK_Y:  0,    // 注視点Y（床面）
+  // 背景カメラ（Perspective・俯瞰パース用）
+  BG_FOV:   5,    // 背景FOV（超望遠・透視収束を最小化）
+  BG_CAM_Y: 500,  // 背景カメラ高さ
+  BG_CAM_Z: 6000, // 背景カメラZ（遠くに引いてOrthoに近づける）
+  BG_LOOK_Y: 0,  // 背景注視点Y
+};
+
+// ============================================================
+//  ピクセルシェーダー設定（P キーで ENABLED トグル）
+// ============================================================
+export const PIXEL_SHADER = {
+  ENABLED: true,
+  RT_W: 640,  // 1920/3 — 細かめのドット感（480より1段上）
+  RT_H: 360,  // 1080/3 — 16:9 比率を維持
+};
+
+// ============================================================
+//  アウトライン（ポストエフェクト方式）
+//  - 別 RT に「対象オブジェクトだけ白マスク」を描き、最終ブリット時に
+//    マスクの隣接ピクセル比較でシルエット外側 1〜2 px に色を載せる方式
+//  - TARGETS には playerMesh をプレイヤー初期化後に push する（後段で実行）
+//  - COLOR は hex 数値（純データ）。利用側で new THREE.Color(...) 化
+// ============================================================
+export const OUTLINE_CONFIG = {
+  ENABLED:        true,
+  COLOR:          0xffffff,  // 数値：利用側で new THREE.Color() に変換
+  THICKNESS_PX:   2,         // 検出窓（マスク RT 上の px 単位）
+  MASK_W:         960,       // マスク RT 解像度（半解像度で十分にクリア）
+  MASK_H:         540,
+  TARGETS:        [],
+};
+
+// ============================================================
+//  チャージリング設定（必殺技チャージ成立時の収束リング）
+// ============================================================
+export const CHARGE_RING_CONFIG = {
+  FRAMES:        20,   // 拡散に掛けるフレーム数
+  START_RADIUS:  40,   // 体内側スタート（小）
+  END_RADIUS:    280,  // 外へ広がる終端（大）
+  Y_OFFSET:      100,  // プレイヤー Y からの中心オフセット（みぞおち位置）
+};
+
+// ============================================================
+//  チャージ収束粒子設定（ロックマン式チャージ中の吸い込み粒子）
+// ============================================================
+export const CHARGE_PARTICLE_CONFIG = {
+  SPAWN_PER_FRAME:  2,      // 毎フレームのスポーン数
+  SPAWN_RADIUS:     180,    // スポーン距離
+  LERP:             0.18,   // プレイヤーへの引き寄せ係数
+  ARRIVE_DIST:      30,     // 到達判定距離
+  COLOR:            0xffee44,
+  SIZE:             5,
+};
+
+// ============================================================
+//  コンボレベル定義（ヒット数 → 演出強度）
+//  - 将来: glowColor / shakeScale 等の追加で各 lv の演出を増やす想定
+// ============================================================
+export const COMBO_LEVELS = [
+  { threshold:  1, barColor: '#ffaa44', numColor: '#ffffff' },  // lv1: 白
+  { threshold: 10, barColor: '#ffdd00', numColor: '#ffff44' },  // lv2: 黄
+  { threshold: 20, barColor: '#ff8800', numColor: '#ff8800' },  // lv3: オレンジ
+  { threshold: 30, barColor: '#cc44ff', numColor: '#ff44ff' },  // lv4: 紫（フレンジー）
+];
+
+// ヒット数からレベルを引く（最後にしきい値を超えたレベルを返す）
+export function getComboLevel(count) {
+  let lv = COMBO_LEVELS[0];
+  for (const l of COMBO_LEVELS) { if (count >= l.threshold) lv = l; }
+  return lv;
+}
+
+// ============================================================
+//  スロー再生（デバッグ用・数字キー 3 でサイクル）
+//    divisor: 1=通常 / 2=半速 / 4=1/4速 / 8=1/8速
+//    counter < divisor の間は update をスキップし render のみ → スロー感
+// ============================================================
+export const SLOWMO = {
+  LEVELS:   [1, 2, 4, 8],
+  levelIdx: 0,
+  divisor:  1,
+  counter:  0,
+};
+
+// ============================================================
+//  キーコンフィグ（将来オプション画面でリバインド可能な設計）
+//  PAD_BUTTON_MAP の kb 値と対応させることで pad も自動追従する
+// ============================================================
+export const KEY_CONFIG = {
+  moveLeft:     { kb: 'ArrowLeft',  kb2: 'KeyA'  },
+  moveRight:    { kb: 'ArrowRight', kb2: 'KeyD'  },
+  moveUp:       { kb: 'ArrowUp',    kb2: 'KeyW'  },
+  moveDown:     { kb: 'ArrowDown',  kb2: 'KeyS'  },
+  jump:         { kb: 'Space'                     },
+  weakAttack:   { kb: 'KeyJ'                      },
+  strongAttack: { kb: 'KeyK'                      },
+  secondary:    { kb: 'KeyL'                      },
+  megaCrash:    { kb: 'KeyU'                      }, // U / R1（J+K同時も発動）
+  ult:          { kb: 'KeyI'                      }, // I / R2（J+K+L同時も発動）
 };

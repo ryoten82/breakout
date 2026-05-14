@@ -546,11 +546,14 @@
     import * as THREE from 'three';
     // === 攻撃データは src/attacks.js に分離（Step A・ESM import）===
     import { ATTACKS, ATTACK_ATTRS, resolveAttackAttr, getHitWindowEnd, Z_CHAIN, A_CHAIN } from './src/attacks.js';
-    // === 中核 CONFIG 群は src/config.js に分離（Step C-1・ESM import）===
+    // === CONFIG 群は src/config.js に分離（Step C-1 中核 + C-2 周辺・ESM import）===
     import {
       PHYSICS, SP_CONFIG, ULT_CONFIG, GRAB_CONFIG, MEGA_CONFIG,
       SPECIAL_CONFIG, HOMING_CONFIG, GUARD_CONFIG,
       ENEMY_AI, DUMMY_ATK_CONFIG,
+      CAM_CONFIG, PIXEL_SHADER, OUTLINE_CONFIG,
+      CHARGE_RING_CONFIG, CHARGE_PARTICLE_CONFIG,
+      COMBO_LEVELS, getComboLevel, SLOWMO, KEY_CONFIG,
     } from './src/config.js';
     // === ステート定数・被弾持続F・KB ベクトル定数は src/states.js に分離（Step B・ESM import）===
     import {
@@ -651,18 +654,7 @@
     scene.fog = new THREE.Fog(0x0a0a1f, 2800, 5000);
 
     // === カメラ設定（正投影・2Dベルスク方式）— カメラ初期化より前に定義必須 ===
-    const CAM_CONFIG = {
-      // メインカメラ（正投影・キャラ用）
-      ORTHO_H: 700,  // 正投影フラスタム高さ（小さいほど拡大）
-      CAM_Y:   400,  // カメラ基準高さ
-      CAM_Z:   1000, // カメラZ（傾きに影響）
-      LOOK_Y:  0,    // 注視点Y（床面）
-      // 背景カメラ（Perspective・俯瞰パース用）
-      BG_FOV:   5,    // 背景FOV（超望遠・透視収束を最小化）
-      BG_CAM_Y: 500,  // 背景カメラ高さ
-      BG_CAM_Z: 6000, // 背景カメラZ（遠くに引いてOrthoに近づける）
-      BG_LOOK_Y: 0,  // 背景注視点Y
-    };
+    // CAM_CONFIG は src/config.js に分離（import 済）
 
     {
       const h = CAM_CONFIG.ORTHO_H / 2;
@@ -691,11 +683,7 @@
     //  #section postfx — ピクセルシェーダー / アウトライン RT
     //  P キーで ON/OFF トグル。SB.PIXEL_SHADER でランタイム調整可能。
     // ============================================================
-    const PIXEL_SHADER = {
-      ENABLED: true,
-      RT_W: 640,  // 1920/3 — 細かめのドット感（480より1段上）
-      RT_H: 360,  // 1080/3 — 16:9 比率を維持
-    };
+    // PIXEL_SHADER は src/config.js に分離（import 済）
 
     // 低解像度レンダーターゲット（両カメラパスの出力先）
     const pixelRT = new THREE.WebGLRenderTarget(PIXEL_SHADER.RT_W, PIXEL_SHADER.RT_H, {
@@ -710,14 +698,7 @@
     // 別 RT に「対象オブジェクトだけ白マスク」を描き、最終ブリット時にマスクの
     // 隣接ピクセル比較でシルエットの外側 1〜2 px に色を載せる方式。
     // TARGETS には playerMesh をプレイヤー初期化後に push する（後段で実行）
-    const OUTLINE_CONFIG = {
-      ENABLED:        true,
-      COLOR:          new THREE.Color(0xffffff),
-      THICKNESS_PX:   2,         // 検出窓（マスク RT 上の px 単位）
-      MASK_W:         960,       // マスク RT 解像度（半解像度で十分にクリア）
-      MASK_H:         540,
-      TARGETS:        [],
-    };
+    // OUTLINE_CONFIG は src/config.js に分離（import 済・COLOR は数値 0xffffff）
     const outlineRT = new THREE.WebGLRenderTarget(OUTLINE_CONFIG.MASK_W, OUTLINE_CONFIG.MASK_H, {
       minFilter: THREE.LinearFilter,
       magFilter: THREE.LinearFilter,
@@ -738,7 +719,7 @@
         uMask:         { value: outlineRT.texture },
         uColorOffset:  { value: new THREE.Vector2(0, 0) },
         uMaskTexel:    { value: new THREE.Vector2(1 / OUTLINE_CONFIG.MASK_W, 1 / OUTLINE_CONFIG.MASK_H) },
-        uOutlineColor: { value: OUTLINE_CONFIG.COLOR },
+        uOutlineColor: { value: new THREE.Color(OUTLINE_CONFIG.COLOR) },
         uOutlinePx:    { value: OUTLINE_CONFIG.THICKNESS_PX },
         uOutlineOn:    { value: OUTLINE_CONFIG.ENABLED ? 1.0 : 0.0 },
       },
@@ -1256,12 +1237,7 @@
       scene.add(mesh);
       return mesh;
     })();
-    const CHARGE_RING_CONFIG = {
-      FRAMES:        20,   // 拡散に掛けるフレーム数
-      START_RADIUS:  40,   // 体内側スタート（小）
-      END_RADIUS:    280,  // 外へ広がる終端（大）
-      Y_OFFSET:      100,  // プレイヤー Y からの中心オフセット（みぞおち位置）
-    };
+    // CHARGE_RING_CONFIG は src/config.js に分離（import 済）
     let chargeRingFrames = 0; // 進行フレーム（FRAMES から 0 へカウントダウン）
     let chargeRingX = 0, chargeRingY = 0, chargeRingZ = 0;
 
@@ -1269,14 +1245,7 @@
     // チャージ進行中ずっとプレイヤー周囲からホーミングで吸い込まれる小粒
     // 寿命なし・プレイヤーに到達 or チャージ解除で破棄
     const chargeParticles = [];
-    const CHARGE_PARTICLE_CONFIG = {
-      SPAWN_PER_FRAME:  2,      // 毎フレームのスポーン数
-      SPAWN_RADIUS:     180,    // スポーン距離
-      LERP:             0.18,   // プレイヤーへの引き寄せ係数
-      ARRIVE_DIST:      30,     // 到達判定距離
-      COLOR:            0xffee44,
-      SIZE:             5,
-    };
+    // CHARGE_PARTICLE_CONFIG は src/config.js に分離（import 済）
     function spawnChargeParticle(px, py, pz) {
       const angle = Math.random() * Math.PI * 2;
       const yOffset = (Math.random() - 0.5) * 120;
@@ -1949,18 +1918,7 @@
     // ヒット数 → レベル変換（演出強度の一元管理）
     // 将来: 各レベルでバー色・コンボ数字エフェクト・グロー強度を変えやすいよう抽出
     // レベル定義: { threshold, barColor, numColor, /* 将来: glowColor, shakeScale, etc */ }
-    const COMBO_LEVELS = [
-      { threshold:  1, barColor: '#ffaa44', numColor: '#ffffff' },  // lv1: 白
-      { threshold: 10, barColor: '#ffdd00', numColor: '#ffff44' },  // lv2: 黄
-      { threshold: 20, barColor: '#ff8800', numColor: '#ff8800' },  // lv3: オレンジ
-      { threshold: 30, barColor: '#cc44ff', numColor: '#ff44ff' },  // lv4: 紫（フレンジー）
-    ];
-
-    function getComboLevel(count) {
-      let lv = COMBO_LEVELS[0];
-      for (const l of COMBO_LEVELS) { if (count >= l.threshold) lv = l; }
-      return lv;
-    }
+    // COMBO_LEVELS / getComboLevel は src/config.js に分離（import 済）
     const comboEl        = document.getElementById('combo');
     const comboNumEl     = document.getElementById('combo-num');
     const dummyHpEl      = document.getElementById('dummy-hp-num');
@@ -2030,12 +1988,7 @@
     //   divisor: 1=通常 / 2=半速 / 4=1/4速 / 8=1/8速
     //   counter < divisor の間は update をスキップし render のみ → スロー感
     // ============================================================
-    const SLOWMO = {
-      LEVELS:   [1, 2, 4, 8],
-      levelIdx: 0,
-      divisor:  1,
-      counter:  0,
-    };
+    // SLOWMO は src/config.js に分離（import 済）
     const _hkSlowmoEl = document.getElementById('hk-slowmo');
 
     // ============================================================
@@ -2156,18 +2109,7 @@
 
     // === キーコンフィグ（将来オプション画面でリバインド可能な設計）===
     // PAD_BUTTON_MAP の kb 値と対応させることで pad も自動追従する
-    const KEY_CONFIG = {
-      moveLeft:     { kb: 'ArrowLeft',  kb2: 'KeyA'  },
-      moveRight:    { kb: 'ArrowRight', kb2: 'KeyD'  },
-      moveUp:       { kb: 'ArrowUp',    kb2: 'KeyW'  },
-      moveDown:     { kb: 'ArrowDown',  kb2: 'KeyS'  },
-      jump:         { kb: 'Space'                     },
-      weakAttack:   { kb: 'KeyJ'                      },
-      strongAttack: { kb: 'KeyK'                      },
-      secondary:    { kb: 'KeyL'                      },
-      megaCrash:    { kb: 'KeyU'                      }, // U / R1（J+K同時も発動）
-      ult:          { kb: 'KeyI'                      }, // I / R2（J+K+L同時も発動）
-    };
+    // KEY_CONFIG は src/config.js に分離（import 済）
 
     // アクション判定（KEY_CONFIG 参照・将来リバインド対応の統合口）
     function action(name) {
