@@ -582,6 +582,9 @@
       matchCommand, pickSpecialAttackId,
       processAttackInput, consumeAttackBuffer,
       anyPlayerUlting, triggerMegaCrash, maybeReleaseMegaInvincibility, triggerUlt,
+      tryGrabActivate, processGrabInput, executeGrabPunch, executeGrabThrow,
+      cancelGrabIntoAttack, endGrab,
+      startDash, processDashInput, tryCancelJump,
     } from './src/attack-engine.js';
     // === ステート定数・被弾持続F・KB ベクトル定数は src/states.js に分離（Step B・ESM import）===
     import {
@@ -2375,8 +2378,6 @@
     let ultWasDown = false;
 
     // ダッシュ用：前フレームの方向キー状態（ダブルタップ検知）
-    let _dTapWasL = false, _dTapWasR = false;
-    let _dTapWasU = false, _dTapWasD = false;
 
     // ============================================================
     //  #section mega-ult — メガクラッシュ / ULT / 関連演出
@@ -2523,220 +2524,6 @@
     //        executeGrabThrow / cancelGrabIntoAttack / endGrab
     // ============================================================
 
-    // 密着判定 → 条件を満たせば即グラブ発動
-    function tryGrabActivate(p) {
-      if (p.state !== STATE.wait01) return;
-      if (!p.isGrounded)             return;
-      if (p.guarding || p.ultActive) return;
-      if (p.dashActive)              return; // ダッシュ中は発動させない（密着判定が暴発するため）
-      for (const e of enemies) {
-        if (!e.isAlive)                       continue;
-        if (e.state !== STATE.wait01)         continue; // 立ち/歩き相当のみ
-        if (e.frozenByUlt)                    continue;
-        const dx = e.x - p.x;
-        const dz = e.z - p.z;
-        if (Math.sign(dx) !== p.facing)       continue; // 前方のみ
-        if (Math.abs(dx) > GRAB_CONFIG.RANGE_X) continue;
-        if (Math.abs(dz) > GRAB_CONFIG.RANGE_Z) continue;
-        // 発動
-        p.state         = STATE.grabbing;
-        p.grabTarget    = e;
-        p.grabTimer     = GRAB_CONFIG.DURATION;
-        p.grabHitCount  = 0;
-        p.grabPunchActive = 0;
-        p._grabJWas     = inp('KeyJ');
-        p._grabKWas     = inp('KeyK');
-        e.state         = STATE.grabbed;
-        e.grabbedBy     = p;
-        e.knockbackVx   = 0;
-        e.vy            = 0;
-        e.y             = 0;
-        e.fallDir       = p.facing;  // 敵はプレイヤーの前方側にいる
-        // 敵をプレイヤー方向に向ける（rotation.y を直接セット・updateEnemies スキップ中なので必要）
-        e.mesh.rotation.y = -e.fallDir * Math.PI / 2;
-        // === Z 合わせ：奥/手前グラブ時も「左右で組み合う絵」を強制 ===
-        // 中央値に両者ワープして同じ Z レーンに揃える
-        const midZ = (p.z + e.z) / 2;
-        p.z = midZ;
-        e.z = midZ;
-        // === X 軸：ミッドポイントを基準に両者を対称ワープして HOLD_OFFSET_X を強制保持 ===
-        // 重なり防止＋見た目の一定距離を確保。プレイヤーが少し下がり、敵が少し前に出る形になる
-        const midX = (p.x + e.x) / 2;
-        const halfDist = GRAB_CONFIG.HOLD_OFFSET_X / 2;
-        p.x = midX - halfDist * p.facing;
-        e.x = midX + halfDist * p.facing;
-        // === 前傾姿勢（テスト運用・kb01 と同じ +10°）===
-        // 敵側：updateEnemies が grabbed をスキップするため rotation.x を直接セット
-        e.pitchAngle      = STATE_PITCH_INITIAL.grabbed;
-        e.mesh.rotation.x = e.pitchAngle;
-        // === 発動パーティクル（仮：緑色・将来は属性カラーで分岐）===
-        // 両キャラの腰辺りから外向きにポップさせて「組み合った」演出
-        const col = GRAB_CONFIG.ACTIVATE_PARTICLE_COLOR;
-        const cnt = GRAB_CONFIG.ACTIVATE_PARTICLE_COUNT;
-        const yPos = GRAB_CONFIG.ACTIVATE_PARTICLE_Y;
-        spawnHitParticles(p.x, p.y + yPos, p.z, col, cnt, { type: 'normal', dirX: -p.facing, dirZ: 0 });
-        spawnHitParticles(e.x, e.y + yPos, e.z, col, cnt, { type: 'normal', dirX: p.facing,  dirZ: 0 });
-        return;
-      }
-    }
-
-    // グラブ中の入力処理（毎フレーム呼ぶ）
-    function processGrabInput(p) {
-      if (p.state !== STATE.grabbing) return;
-      const e = p.grabTarget;
-      // ターゲットが消えた・状態変わった場合は即解除
-      if (!e || !e.isAlive || e.state !== STATE.grabbed) {
-        endGrab(p, false);
-        return;
-      }
-      // ホールド位置を強制維持
-      e.x = p.x + GRAB_CONFIG.HOLD_OFFSET_X * p.facing;
-      e.y = 0;
-      e.vy = 0;
-      e.knockbackVx = 0;
-
-      // つかみ攻撃のアクション中はタイマー停止＆入力受付スキップ
-      if (p.grabPunchActive > 0) {
-        p.grabPunchActive--;
-        // J/K の押下状態だけは更新しておく（アクション終了直後の連打誤検出防止）
-        p._grabJWas = inp('KeyJ');
-        p._grabKWas = inp('KeyK');
-        return;
-      }
-
-      // タイマー
-      p.grabTimer--;
-
-      // 入力エッジ検出（J / K いずれも攻撃ボタンとして扱う）
-      const jHeld = inp('KeyJ');
-      const kHeld = inp('KeyK');
-      const jJust = jHeld && !p._grabJWas;
-      const kJust = kHeld && !p._grabKWas;
-      p._grabJWas = jHeld;
-      p._grabKWas = kHeld;
-
-      const dirL = inp('ArrowLeft')  || inp('KeyA');
-      const dirR = inp('ArrowRight') || inp('KeyD');
-
-      if (jJust || kJust) {
-        if (dirL || dirR) {
-          const throwDir = dirR ? 1 : -1;
-          executeGrabThrow(p, e, throwDir);
-          return;
-        } else {
-          executeGrabPunch(p, e);
-          // ヒット上限到達なら即解除
-          if (p.grabHitCount >= GRAB_CONFIG.HIT_MAX || p.grabTimer <= 0) {
-            endGrab(p, true);
-            return;
-          }
-        }
-      }
-
-      // 時間切れ → 強制解除（互いに knockback02）
-      if (p.grabTimer <= 0) endGrab(p, true);
-    }
-
-    function executeGrabPunch(p, e) {
-      e.hp = Math.max(0, e.hp - GRAB_CONFIG.PUNCH_DAMAGE);
-      e.hitFlashTimer = 7;
-      spawnHitParticles(e.x, e.y + 80, e.z, 0xffee44, 8,
-        { type: 'normal', dirX: p.facing, dirZ: 0 });
-      triggerHitstop(3);
-      triggerShake(2, 5);
-      bumpCombo(e);
-      p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
-      p.grabHitCount++;
-      p.grabTimer = Math.max(0, p.grabTimer - GRAB_CONFIG.HIT_TIME_COST);
-      p.grabPunchActive = GRAB_CONFIG.PUNCH_ACTION_FRAMES;  // この間はタイマー停止＆入力スキップ
-    }
-
-    function executeGrabThrow(p, e, dir) {
-      e.hp = Math.max(0, e.hp - GRAB_CONFIG.THROW_DAMAGE);
-      e.hitFlashTimer = 7;
-      e.fallDir       = dir;
-      // 投げ初速：通常 lv03 より上に持ち上げてから飛ばす（打ち上げ気味）
-      // kbDecay も緩めて飛距離 1.5 倍程度に
-      e.vy            = GRAB_CONFIG.THROW_INITIAL_VY;
-      e.knockbackVx   = dir * GRAB_CONFIG.THROW_KB_VX;
-      e.kbDecay       = GRAB_CONFIG.THROW_KB_DECAY;
-      e.state         = STATE.down_front_start;
-      e.downTimer     = ENEMY_DOWN_FRONT_FRAMES;
-      e.grabbedBy     = null;
-      // === 投擲弾フラグ：飛んでいる間、他敵との衝突判定を持たせる ===
-      // 1 回当たったら消費（多重ヒット防止）。着地で自動解除
-      e.thrownProjectile = true;
-      e.thrownByPlayer   = p;     // ダメージ帰属（コンボ・SP 加算用）
-      e.thrownDir        = dir;
-      spawnHitParticles(e.x, e.y + 80, e.z, 0xff8844, 16,
-        { type: 'normal', dirX: dir, dirZ: 0 });
-      triggerHitstop(8);
-      triggerShake(6, 12);
-      bumpCombo(e);
-      p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
-      // プレイヤー側を wait01 に戻す
-      p.state        = STATE.wait01;
-      p.grabTarget   = null;
-      p.grabTimer    = 0;
-      p.grabHitCount = 0;
-      p.grabPunchActive = 0;
-    }
-
-    // tryThrownChainHit / THROW_CHAIN_CONFIG は src/hit-engine.js に分離（Step D-2c-3・import 済・hitCtx 経由で呼び出し）
-
-    // ============================================================
-    //  グラブからのキャンセル追撃（必殺技用エントリポイント）
-    //
-    //  仕様：グラブ中は通常攻撃・SP 技ではキャンセル不可。**必殺技のみ**
-    //        キャンセル追撃が可能。メガクラ・ULT は現状除外（将来検討）。
-    //
-    //  使い方：必殺技の発動関数（未実装）から、入力検出時に
-    //          if (p.state === STATE.grabbing) cancelGrabIntoAttack(p, '<id>');
-    //          のように呼んで、grab 状態を畳んで通常 dispatch にバトンタッチする
-    // ============================================================
-    function cancelGrabIntoAttack(p, attackId) {
-      if (p.state !== STATE.grabbing) return false;
-      if (!ATTACKS[attackId])         return false;
-      const e = p.grabTarget;
-      // 敵側：grabbed → wait01 に戻し、後続攻撃の dispatch を受けられる状態に
-      // （位置はホールド位置のまま残るので、必殺技がそのままヒットする想定）
-      if (e && e.isAlive && e.state === STATE.grabbed) {
-        e.state     = STATE.wait01;
-        e.grabbedBy = null;
-        // pitch は wait01 で 0 にリセットされる
-      }
-      // プレイヤー側：grab フィールドを掃除（state は startAttackById で attacking に切り替わる）
-      p.grabTarget      = null;
-      p.grabTimer       = 0;
-      p.grabHitCount    = 0;
-      p.grabPunchActive = 0;
-      p.state           = STATE.wait01; // startAttackById が attacking に上書き
-      startAttackById(p, attackId, -1);
-      return true;
-    }
-
-    // グラブ解除：releaseBoth=true なら時間切れ扱いで互いに knockback02 で離れる
-    function endGrab(p, releaseBoth) {
-      const e = p.grabTarget;
-      if (e) {
-        if (releaseBoth && e.isAlive && e.state === STATE.grabbed) {
-          e.state       = STATE.knockback02;
-          e.downTimer   = ENEMY_KB02_FRAMES;
-          e.fallDir     = p.facing;                              // 敵はプレイヤー前方側
-          e.knockbackVx = p.facing * GRAB_CONFIG.RELEASE_KB_VX;  // 前方（プレイヤーから離れる）へ
-          applyHitInitialPitch(e);
-        }
-        e.grabbedBy = null;
-      }
-      p.state        = STATE.wait01;
-      p.grabTarget   = null;
-      p.grabTimer    = 0;
-      p.grabHitCount = 0;
-      p.grabPunchActive = 0;
-      // プレイヤー自身の後ろ向き押し合い：簡易的に groundVx を逆方向に
-      p.groundVx     = -p.facing * GRAB_CONFIG.RELEASE_KB_VX;
-    }
-
 
     // J+K ショートカット用の発動猶予：L が遅れて検出された場合に ULT へ昇格させるためのバッファ
     const MEGA_TO_ULT_BUFFER_FRAMES = 5;   // ~83ms
@@ -2821,68 +2608,6 @@
     //  #section dash — ダッシュ（同方向2回タップ・板野式噴射付き）
     //  startDash / processDashInput
     // ============================================================
-    function startDash(p, dx, dz) {
-      p.dashActive    = true;
-      p.dashTriggerDx = dx;
-      p.dashTriggerDz = dz;
-      p.dashDirX      = dx;
-      p.dashDirZ      = dz;
-      p.lastTapDir    = null;
-      p.lastTapTimer  = 0;
-
-      // 板野的演出：対側スラスター噴射で加速理由を可視化
-      if (dx !== 0) {
-        p.yawBurstSide  = -dx;
-        p.yawBurstTimer = PHYSICS.YAW_BURST_FRAMES;
-      } else {
-        // Z方向ダッシュ → 両肩同時噴射（yawBurstSide=0 で両側表示）
-        p.yawBurstSide  = 0;
-        p.yawBurstTimer = PHYSICS.YAW_BURST_FRAMES;
-      }
-
-      // ダッシュ開始のオレンジ粒子
-      spawnHitParticles(p.x, p.y + 20, p.z, 0xff8800, 12);
-    }
-
-    function processDashInput(p) {
-      const nowL = inp('ArrowLeft')  || inp('KeyA');
-      const nowR = inp('ArrowRight') || inp('KeyD');
-      const nowU = inp('ArrowUp')    || inp('KeyW');
-      const nowD = inp('ArrowDown')  || inp('KeyS');
-
-      const justL = nowL && !_dTapWasL;
-      const justR = nowR && !_dTapWasR;
-      const justU = nowU && !_dTapWasU;
-      const justD = nowD && !_dTapWasD;
-
-      _dTapWasL = nowL;  _dTapWasR = nowR;
-      _dTapWasU = nowU;  _dTapWasD = nowD;
-
-      // ダッシュ可能条件（タイマー判定より先にチェック）
-      const canDash = p.dashCooldown <= 0
-                   && !p.dashActive
-                   && p.state !== STATE.attacking;
-
-      // ダブルタップ判定（デクリメント前に確認してウィンドウを正確に保つ）
-      if (canDash && p.lastTapTimer > 0 && p.lastTapDir) {
-        const d = p.lastTapDir;
-        if (justL && d.x === -1) { startDash(p, -1,  0); return; }
-        if (justR && d.x ===  1) { startDash(p,  1,  0); return; }
-        if (justU && d.z === -1) { startDash(p,  0, -1); return; }
-        if (justD && d.z ===  1) { startDash(p,  0,  1); return; }
-      }
-
-      // タイマーを1フレーム進める（攻撃中も進める）
-      if (p.lastTapTimer > 0) p.lastTapTimer--;
-
-      if (!canDash) return;
-
-      // 最初のタップを記録（優先: L > R > U > D）
-      if      (justL) { p.lastTapDir = {x:-1, z: 0}; p.lastTapTimer = PHYSICS.DASH_TAP_WINDOW; }
-      else if (justR) { p.lastTapDir = {x: 1, z: 0}; p.lastTapTimer = PHYSICS.DASH_TAP_WINDOW; }
-      else if (justU) { p.lastTapDir = {x: 0, z:-1}; p.lastTapTimer = PHYSICS.DASH_TAP_WINDOW; }
-      else if (justD) { p.lastTapDir = {x: 0, z: 1}; p.lastTapTimer = PHYSICS.DASH_TAP_WINDOW; }
-    }
 
 
     // ATTACKING中にバッファされたK入力をHIT_CONFIRM移行時に消費
@@ -2903,39 +2628,6 @@
     //  仕様: J チェーン or 打ち上げ属性持ち技のみキャンセルジャンプ可
     //        K（強攻撃）は打ち上げ属性なし → 不可
     // ============================================================
-    function tryCancelJump(p) {
-      if (p.guarding || p.ultActive) return false;  // ガード中・ULT中はキャンセルジャンプ不可
-      if (p.state === STATE.grabbing) return false; // グラブ中はキャンセルジャンプ不可
-      if (p.state !== STATE.hit_confirm) return false;
-      if (!inp('Space')) return false;
-      // ※キャンセルジャンプは HIT_CONFIRM 中の意図的入力なので jumpConsumed では gating しない
-      //   （SPACE 押しっぱなしのまま J 連打でも cancel jump を発火させたい）
-      //   再ジャンプ防止は発動時の jumpConsumed=true で着地後の auto-jump を抑えれば十分
-      // 地上Jチェーン中 or 打ち上げ属性持ち技のみ許可
-      // A_CHAIN（空中Jコンボ）は対象外 → 空中J→SPACE→空中J の無限ループを防止
-      const atk = ATTACKS[p.attackId];
-      const isGroundChain = p.attackChainArr === Z_CHAIN && p.attackChainIdx >= 0;
-      const isLauncher    = atk && atk.launcher === true;
-      if (!isGroundChain && !isLauncher) return false;
-      // 発動！
-      p.vy               = PHYSICS.CANCEL_JUMP_V;
-      p.isGrounded       = false;
-      p.thrustFramesLeft = PHYSICS.THRUST_FRAMES;  // 通常ジャンプと同じ持続（物理は控えめ）
-      p.bigBurstTimer    = 14;  // 大噴射演出時間（視覚専用・物理には作用しない）
-      p.jumpConsumed     = true;
-      // ステートは wait01 に戻す（空中でまた Z を押せばコンボ継続可能・将来空中攻撃で対応）
-      p.state            = STATE.wait01;
-      p.attackChainIdx   = -1;
-      p.attackId         = null;
-      // 打ち上げ技からのキャンセルジャンプ：ホーミング起動
-      if (isLauncher && p.homingTarget) {
-        p.homingFrames = 22;
-      }
-      // 視覚的フィードバック：大きめのシェイクとスローパーティクル
-      triggerShake(4, 8);
-      spawnHitParticles(p.x, p.y + 20, p.z, 0x00ddff, 16);
-      return true;
-    }
 
     // ============================================================
     //  コンボホーミング（最初に殴った敵への自動接近）
