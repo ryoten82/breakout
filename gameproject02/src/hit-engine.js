@@ -607,6 +607,103 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
   return anyHit;
 }
 
+// ============================================================
+//  投擲ヒット（投げ敵 → 他敵への衝突連鎖）
+//  Final Fight 系の定番。複数敵戦のクラウドコントロール手段。
+//  - 投擲弾（e.thrownProjectile=true）は飛行中に他敵との距離をチェック
+//  - 衝突したら受け手を atk_lv 3（down_front_start）にし、投げ手はその場で停止
+//  - ヒットストップ強め（FF 風）・1 回当てたら投擲弾フラグ消費
+//
+//  Step D-2c-3 で分離。enemyAttackToken は ctx 経由。
+// ============================================================
+const THROW_CHAIN_CONFIG = {
+  hitRangeX:    80,   // 衝突判定距離（X 軸）
+  hitRangeY:    120,  // Y 軸（投げ手はある程度上空にいるので広め）
+  hitRangeZ:    60,   // Z 軸
+  damage:       12,   // 受け手のダメージ
+  kbVy:         12,   // 受け手の打ち上げ初速（KB_LV03_VY と同等）
+  kbVxMult:     1.2,  // 投げ手の knockbackVx に対する受け手の倍率（少し弱め）
+  hitstop:      12,   // FF 風強めヒットストップ（18→12 にトーンダウン）
+  shake:        10,
+  hitColor:     0xffaa44,
+  hitCount:     20,
+};
+
+export function tryThrownChainHit(thrower, ctx) {
+  const { enemies, enemyAttackToken } = ctx;
+  if (!thrower.thrownProjectile) return;
+  if (!thrower.isAlive) return;
+  // 着地したら投擲弾フラグ解除
+  if (thrower.y <= 0 && thrower.vy <= 0 &&
+      (thrower.state === STATE.down_front_start || thrower.state === STATE.down_front_loop)) {
+    // まだ飛行中の判定は y>0 ベース。y<=0 になったら投擲解除
+  }
+  for (const other of enemies) {
+    if (other === thrower) continue;
+    if (!other.isAlive || other.frozenByUlt) continue;
+    if (other.state === STATE.grabbed) continue;
+    // ダウン中・既に吹き飛び中の敵は対象外（巻き込みすぎ防止）
+    if (other.state === STATE.down_front_start || other.state === STATE.down_front_loop ||
+        other.state === STATE.down_bas_start || other.state === STATE.down_bas_loop ||
+        other.state === STATE.down_bas_end ||
+        other.state === STATE.down_chou_start || other.state === STATE.down_chou_loop ||
+        other.state === STATE.down_roll_start ||
+        other.state === STATE.down_rakka_start || other.state === STATE.down_rakka_loop ||
+        other.state === STATE.down_bound_start ||
+        other.state === STATE.down_burst_start || other.state === STATE.down_burst_loop) continue;
+    const dx = Math.abs(other.x - thrower.x);
+    const dy = Math.abs(other.y - thrower.y);
+    const dz = Math.abs(other.z - thrower.z);
+    if (dx > THROW_CHAIN_CONFIG.hitRangeX) continue;
+    if (dy > THROW_CHAIN_CONFIG.hitRangeY) continue;
+    if (dz > THROW_CHAIN_CONFIG.hitRangeZ) continue;
+    // === 衝突発生 ===
+    const dir = thrower.thrownDir;
+    // 受け手：投げ手と同方向に吹き飛び
+    other.hp = Math.max(0, other.hp - THROW_CHAIN_CONFIG.damage);
+    other.hitFlashTimer = 7;
+    other.fallDir       = dir;
+    other.vy            = THROW_CHAIN_CONFIG.kbVy;
+    other.knockbackVx   = dir * THROW_CHAIN_CONFIG.hitRangeX * 0.5; // 投げ手より少し弱い
+    // 内部的に knockbackVx の参照値は thrower の現速度を流用
+    other.knockbackVx   = thrower.knockbackVx * THROW_CHAIN_CONFIG.kbVxMult * 0.6;
+    other.state         = STATE.down_front_start;
+    other.downTimer     = ENEMY_DOWN_FRONT_FRAMES;
+    other.peakHangTimer    = 0;
+    other.launcherAirborne = false;
+    // AI 攻撃中だった場合のクリーンアップ + トークン解放
+    if (other.state === STATE.enemy_attacking) { /* 既に上書き済 */ }
+    other.atkPhase    = null;
+    other.atkTimer    = 0;
+    other.atkCooldown = 30;
+    other.hitDelivered = false;
+    if (enemyAttackToken.get() === other) enemyAttackToken.set(null);
+    applyHitInitialPitch(other);
+
+    // 投げ手：投擲弾フラグ消費 + 軽くストップ（連鎖防止・1 ヒットで消費）
+    thrower.thrownProjectile = false;
+    thrower.knockbackVx *= 0.35;  // 一気には止めない（自然な減速）
+
+    // 演出：強めのヒットストップ + シェイク + パーティクル
+    const midX = (thrower.x + other.x) / 2;
+    const midY = (thrower.y + other.y) / 2 + 50;
+    const midZ = (thrower.z + other.z) / 2;
+    spawnHitParticles(midX, midY, midZ, THROW_CHAIN_CONFIG.hitColor, THROW_CHAIN_CONFIG.hitCount,
+      { type: 'normal' });
+    triggerHitstop(THROW_CHAIN_CONFIG.hitstop);
+    triggerShake(THROW_CHAIN_CONFIG.shake, THROW_CHAIN_CONFIG.shake * 2 + 4);
+
+    // コンボ +1（投げ手のオーナーに帰属）
+    if (thrower.thrownByPlayer) {
+      bumpCombo(other);
+      thrower.thrownByPlayer.sp = Math.min(SP_CONFIG.MAX,
+        thrower.thrownByPlayer.sp + SP_CONFIG.GAIN_ON_HIT);
+    }
+    // 1 ヒットで終わり（多重ヒット防止）
+    break;
+  }
+}
+
 // 毎フレームの粒子更新（位置進行・寿命減・スケール縮小・消滅）
 export function updateParticles() {
   for (let i = particles.length - 1; i >= 0; i--) {
