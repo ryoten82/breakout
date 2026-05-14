@@ -406,6 +406,25 @@ export function triggerMegaCrash(p) {
   if (_mDark > 0 || _mSlow > 0 || (_mRing > 0 && _mRing < 1)) return;
   // 被弾中だった場合は state を強制クリア（リバーサル発動）
   if (isHitstunState(p)) _cancelHitstunForReversal(p);
+  // 通常攻撃・ステップ攻撃・必殺技進行中なら強制キャンセルして wait01 へ戻す
+  //   （ダッシュ中メガクラでスライディング姿勢のまま発動する事故を防ぐ）
+  if (p.state === STATE.attacking || p.state === STATE.hit_confirm) {
+    p.state           = STATE.wait01;
+    p.attackId        = null;
+    p.attackChainIdx  = -1;
+    p.stateTimer      = 0;
+    p.cancelTimer     = 0;
+    p.hitDelivered    = false;
+    p.attackBuffered  = false;
+    p.kBuffered       = false;
+    p.lungeMomentum   = 0;
+    p.stepMomentum    = 0;
+  }
+  // ダッシュ姿勢解除（純ダッシュ中の発動・ステップ攻撃中の発動どちらも対象）
+  if (p.dashActive) {
+    p.dashActive   = false;
+    p.dashCooldown = PHYSICS.DASH_COOLDOWN;
+  }
   p.sp -= SP_CONFIG.MEGA_CRASH_COST;
   // 演出中（スロー継続中）は完全無敵
   p.invincible = true;
@@ -577,9 +596,21 @@ export function tryGrabActivate(p) {
   if (!p.isGrounded)             return;
   if (p.guarding || p.ultActive) return;
   if (p.dashActive)              return; // ダッシュ中は発動させない（密着判定が暴発するため）
+  // 掴み発動 readiness：wait01 中に自分の意思で移動したフレーム以降のみ true。
+  // hitstun / attacking / grabbing 等を経由すると updatePlayer の冒頭で false にリセットされる。
+  // → ノックバックからの復帰直後・攻撃終了直後に「キーが押しっぱなし」「速度残留」等で
+  //    意図せず発動する事故を完全に防ぐ（updatePlayer 内で p._grabReady を管理）
+  if (!p._grabReady) return;
   for (const e of _enemies) {
     if (!e.isAlive)                       continue;
-    if (e.state !== STATE.wait01)         continue; // 立ち/歩き相当のみ
+    // === 敵の被掴み可状態 ===
+    // - wait01：立ち/歩き（意思はあるがまだ攻撃モーションに入っていない）
+    // - enemy_attacking かつ atkPhase === 'wind'：カウントダウン中（攻撃意思を見せている段階）
+    // 実際に攻撃モーション中（active / recover）は掴めない
+    const _grabbable =
+      e.state === STATE.wait01 ||
+      (e.state === STATE.enemy_attacking && e.atkPhase === 'wind');
+    if (!_grabbable)                      continue;
     if (e.frozenByUlt)                    continue;
     const dx = e.x - p.x;
     const dz = e.z - p.z;
@@ -594,6 +625,13 @@ export function tryGrabActivate(p) {
     p.grabPunchActive = 0;
     p._grabJWas     = _inp('KeyJ');
     p._grabKWas     = _inp('KeyK');
+    // 敵 AI 状態クリーンアップ（wind 中をキャンセル奪取した時用・他敵がトークン取れるよう解放）
+    if (e.atkPhase) {
+      e.atkPhase     = null;
+      e.atkTimer     = 0;
+      e.hitDelivered = false;
+      if (_hitCtx && _hitCtx.enemyAttackToken.get() === e) _hitCtx.enemyAttackToken.set(null);
+    }
     e.state         = STATE.grabbed;
     e.grabbedBy     = p;
     e.knockbackVx   = 0;

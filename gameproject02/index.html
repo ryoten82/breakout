@@ -1769,7 +1769,7 @@
     // hit-engine 初期化（依存注入：THREE / scene / DOM / players）
     initHitEngine({ THREE, scene, comboEl, comboNumEl, players });
 
-    // hit-engine 関数群に渡す共有 ctx（enemyAttackToken / gameFrameCounter は index.html のグローバル let）
+    // hit-engine 関数群に渡す共有 ctx（enemyAttackToken は index.html のグローバル let、gameFrameCounter は player-system.js 内）
     const hitCtx = {
       enemies,
       enemyAttackToken: {
@@ -2044,20 +2044,22 @@
 
     function processMegaCrashUltInput(p) {
       // === 鍵ごとの rising-edge 時刻を追跡（同時押し判定用）===
+      // gameFrameCounter は player-system.js 内に移動済 → getGameFrame() 経由で参照
+      const _gf = getGameFrame();
       const jHeld = inp('KeyJ');
       const kHeld = inp('KeyK');
       const lHeld = inp('KeyL');
-      if (jHeld && !_mcJWasDown) _mcJPressedAt = gameFrameCounter;
-      if (kHeld && !_mcKWasDown) _mcKPressedAt = gameFrameCounter;
-      if (lHeld && !_mcLWasDown) _mcLPressedAt = gameFrameCounter;
+      if (jHeld && !_mcJWasDown) _mcJPressedAt = _gf;
+      if (kHeld && !_mcKWasDown) _mcKPressedAt = _gf;
+      if (lHeld && !_mcLWasDown) _mcLPressedAt = _gf;
       _mcJWasDown = jHeld; _mcKWasDown = kHeld; _mcLWasDown = lHeld;
 
       // 「両方が直近 JK_SIMUL_WINDOW フレーム以内に押し直された状態」を本物の同時押しとみなす
       const _bothJKRecent = jHeld && kHeld
-        && (gameFrameCounter - _mcJPressedAt) <= JK_SIMUL_WINDOW
-        && (gameFrameCounter - _mcKPressedAt) <= JK_SIMUL_WINDOW;
+        && (_gf - _mcJPressedAt) <= JK_SIMUL_WINDOW
+        && (_gf - _mcKPressedAt) <= JK_SIMUL_WINDOW;
       const _jklAllRecent = _bothJKRecent && lHeld
-        && (gameFrameCounter - _mcLPressedAt) <= JK_SIMUL_WINDOW;
+        && (_gf - _mcLPressedAt) <= JK_SIMUL_WINDOW;
 
       // === エッジ検出は常に更新（早期 return で取り残されると状態解除後に誤検出になるため）===
       const jkl     = _jklAllRecent;
@@ -2225,10 +2227,10 @@
       renderOutlineMask();
 
       // === 最終ブリット：色 + マスクをシェーダーで合成して画面へ ===
-      // シェイクは色テクスチャの UV オフセットで適用（アウトラインはぶらさない）
-      const uvX =  fxState.shakeOffsetX / (CAM_CONFIG.ORTHO_H * GAME_ASPECT);
-      const uvY = -fxState.shakeOffsetY / CAM_CONFIG.ORTHO_H;
-      _blitMat.uniforms.uColorOffset.value.set(uvX, uvY);
+      // シェイクは常にカメラ側で適用（updateCamera 内）→ pixelRT / outlineRT 両方に
+      // 同じ projection で乗るため color と outline が同期する。
+      // → blit 側の UV シフトは不要（常に (0, 0)）
+      _blitMat.uniforms.uColorOffset.value.set(0, 0);
       _blitMat.uniforms.uOutlineOn.value = OUTLINE_CONFIG.ENABLED ? 1.0 : 0.0;
       // ピクセルシェーダー OFF 時は color テクスチャを Linear サンプリングしたい
       // pixelRT は NearestFilter で生成しているのでドット感が出る。
@@ -2431,9 +2433,16 @@
         requestAnimationFrame(loop);
         return;
       }
-      // ヒットストップ：更新スキップ・描画は継続
+      // ヒットストップ：物理・state machine は停止、描画は継続。
+      // ただし「キャンセル系入力（メガクラ / ULT / 必殺技）」だけは検出を続行。
+      // ← タックル等の多段ヒット中に hitstop が累積してキャンセル不可になる事故を防ぐ
       if (fxState.hitstopTimer > 0) {
         fxState.hitstopTimer--;
+        for (const _p of players) {
+          if (isHitstunState(_p)) continue;
+          processMegaCrashUltInput(_p);
+          processSpecialInput(_p);
+        }
         render();
         requestAnimationFrame(loop);
         return;

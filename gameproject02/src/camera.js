@@ -81,9 +81,12 @@ export function updateCamera() {
   const yTarget = Math.max(0, p.y - Y_DEAD_ZONE);
   camFollowY += (yTarget - camFollowY) * 0.08;
   camFollowY = Math.max(0, Math.min(camFollowY, 150));
-  // ピクセルシェーダー ON 時はシェイクをブリット側（UV）で処理するのでカメラに乗せない
-  const sx = PIXEL_SHADER.ENABLED ? 0 : fxState.shakeOffsetX;
-  const sy = PIXEL_SHADER.ENABLED ? 0 : fxState.shakeOffsetY;
+  // シェイクは常にカメラへ直接適用：両 RT（pixelRT / outlineRT）が同じ projection で
+  // レンダリングされるので color と outline が同期する。
+  // （旧コード：PIXEL_SHADER ON 時は blit shader の uColorOffset 経由で color のみ揺らしていたが、
+  //  ULT 等の強シェイク中に outline と color が分離して見える問題があったため廃止）
+  const sx = fxState.shakeOffsetX;
+  const sy = fxState.shakeOffsetY;
   _camera.position.x = baseX + sx;
   _camera.position.y = CAM_CONFIG.CAM_Y + camFollowY + sy;
   _camera.position.z = CAM_CONFIG.CAM_Z;

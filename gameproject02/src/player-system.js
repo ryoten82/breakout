@@ -271,6 +271,9 @@ function canStartSpecial(p) {
   if (p.guarding) return false;
   if (p.ultActive) return false;
   if (anyPlayerUlting()) return false;
+  // 空中 1 回チャージ制：ジャンプ中に必殺技を一度撃つと、着地までもう撃てない
+  // → sp_02 等を空中で連発して滞空し続ける問題への対策
+  if (!p.isGrounded && p.airSpecialUsed) return false;
   // grab 中は OK（cancelGrabIntoAttack 経由で発動）
   if (p.state === STATE.grabbing) return true;
   if (p.state === STATE.wait01) return true;
@@ -283,10 +286,21 @@ function canStartSpecial(p) {
 function specialBaseId(id) {
   return id.endsWith('_air') ? id.slice(0, -4) : id;
 }
+// 必殺技の短期連発抑止クールダウン（コンボ未確立中のみ適用）
+//   コンボ中はクールダウン無視（同 base ID 再ヒットで down_burst 誘発する仕様を保持）
+const _SPECIAL_COOLDOWN_FRAMES = 30;   // 0.5 秒（60fps 換算）
+
 function startSpecial(p, id) {
   // 重複検出：specialUsedIds.add する前に判定して flag に保存。
   // 重複ヒットすると敵が down_burst_* に強制遷移（tryHitEnemies が参照）。
   const baseId = specialBaseId(id);
+  // === 短期連発抑止 ===
+  // 直近 _SPECIAL_COOLDOWN_FRAMES 以内に同 base ID を撃ったなら拒否。
+  // ただしコンボ中（comboTarget あり）はスルー → きりもみダウン誘発のため重複発動を許可。
+  if (!p.comboTarget) {
+    const _lastFire = p._specialFireFrames?.[baseId] ?? -Infinity;
+    if (getGameFrame() - _lastFire < _SPECIAL_COOLDOWN_FRAMES) return false;
+  }
   p.specialIsDuplicate = p.specialUsedIds.has(baseId);
   const wasGrabbing = (p.state === STATE.grabbing);
   if (wasGrabbing) {
@@ -298,6 +312,13 @@ function startSpecial(p, id) {
   //    発動瞬間ではなく「攻撃が出る瞬間（パイルバンカー射出など）の反動」として表現するため。
   // 使用済 ID は地上/空中で共有するため base ID で記録（重複時も add は冪等）
   p.specialUsedIds.add(baseId);
+  // 短期連発抑止用：base ID ごとに「技終了時刻」を記録（cooldown はそこから開始）
+  // → 技 duration が長い必殺技でも、終了してから一定 F 経過しないと再発動できない
+  if (!p._specialFireFrames) p._specialFireFrames = {};
+  const _atkDur = ATTACKS[id]?.duration ?? 0;
+  p._specialFireFrames[baseId] = getGameFrame() + _atkDur;
+  // 空中で発動したら airSpecialUsed フラグを立てる（着地で false 復帰・連発抑止）
+  if (!p.isGrounded) p.airSpecialUsed = true;
   p.specialFlashTimer  = SPECIAL_CONFIG.FLASH_FRAMES;
   // チャージ消費
   p.chargeJFrames = 0;
@@ -553,6 +574,13 @@ function updatePartAnims(p) {
 //  Step E-4b で player-system.js に分離
 // ============================================================
 export function updatePlayer(p) {
+  // === 掴み発動 readiness フラグ ===
+  // 仕様：「wait01 中に自分の意思で移動した」状態でのみ tryGrabActivate を許可。
+  // wait01 以外（hitstun / attacking / grabbing 等）に入った瞬間に false へリセット。
+  // 物理移動セクション後（mvx/mvz 確定後）に「実際に動いていた」なら true に立てる。
+  // → 被弾のけぞり後・攻撃終了後にユーザーが新規に移動を入力するまで掴めない。
+  if (p.state !== STATE.wait01) p._grabReady = false;
+
   // === 被弾中：入力一切受け付けず、hitstun の自動進行のみ走らせて return ===
   if (isHitstunState(p)) {
     const canReverse = (p.state !== STATE.dying && p.state !== STATE.dead && p.state !== STATE.guard_crash);
@@ -696,6 +724,12 @@ export function updatePlayer(p) {
   }
   const len = Math.hypot(mvx, mvz);
 
+  // 掴み readiness：wait01 中に意思入力で動いたフレームでフラグ立て
+  // （tryGrabActivate は次フレームの早い段階で読む）
+  if (p.state === STATE.wait01 && p.isGrounded && (mvx !== 0 || mvz !== 0)) {
+    p._grabReady = true;
+  }
+
   p.x = Math.max(PHYSICS.STAGE_LEFT, Math.min(PHYSICS.STAGE_RIGHT, p.x));
   p.z = Math.max(-380, Math.min(700, p.z));
 
@@ -798,6 +832,7 @@ export function updatePlayer(p) {
         }
         p.airWasDash = false;
       }
+      p.airSpecialUsed = false;  // 着地で空中必殺チャージ復活
       p.airVx = 0;
       p.airVz = 0;
     }
