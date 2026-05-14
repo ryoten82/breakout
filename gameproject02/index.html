@@ -603,6 +603,10 @@
     import {
       initInputSystem, inp, action, pollGamepad,
     } from './src/input-system.js';
+    // === debug-overlay（updateDebug / updateHudHighlight）は src/debug-overlay.js に分離（Step E-7）===
+    import {
+      initDebugOverlay, updateDebug, updateHudHighlight,
+    } from './src/debug-overlay.js';
     // === fx-system（メガクラ/ULT/チャージリング/ホーミング矢印 演出更新）は src/fx-system.js に分離（Step E-5）===
     import {
       initFxSystem,
@@ -1754,6 +1758,7 @@
     // === HUD 参照 ===
     const comboEl        = document.getElementById('combo');
     const comboNumEl     = document.getElementById('combo-num');
+    const debug          = document.getElementById('debug');
     const dummyHpEl      = document.getElementById('dummy-hp-num');
     const stateHudPlayerEl = document.getElementById('state-hud-player');
     const stateHudEnemyEl  = document.getElementById('state-hud-enemy');
@@ -1831,6 +1836,15 @@
       players, enemies,
       clockHandEl: document.getElementById('clock-hand'),
       gameAspect: GAME_ASPECT,
+    });
+
+    // debug-overlay 初期化
+    initDebugOverlay({
+      inp, action,
+      players, enemies,
+      debugEl: debug,
+      dummyHpEl, stateHudPlayerEl, stateHudEnemyEl,
+      dbgDirHistEl, dbgChargeEl, dbgSpUsedEl,
     });
 
     // fx-system 初期化（fxRefs は attack-engine と共有）
@@ -1971,7 +1985,6 @@
     // ============================================================
     //  GAME LOOP
     // ============================================================
-    const debug = document.getElementById('debug');
 
     // ============================================================
     //  #section attack-engine — 攻撃の発動・ヒット判定・進行管理
@@ -2116,35 +2129,6 @@
     // ============================================================
 
 
-    function updateDebug() {
-      const p = players[0];
-      debug.textContent =
-        `x:${p.x.toFixed(0)} z:${p.z.toFixed(0)} y:${p.y.toFixed(0)} | ` +
-        `state:${p.state} chain:${p.attackChainIdx} | ` +
-        `grounded:${p.isGrounded ? 'Y' : 'N'}`;
-      dummyHpEl.textContent = `${enemies[0].hp}/${enemies[0].maxHp}`;
-      // ステートHUD更新（未設定の場合は「未設定」表示）
-      stateHudPlayerEl.textContent = players[0]?.state ?? '未設定';
-      stateHudEnemyEl.textContent  = enemies[0]?.state ?? '未設定';
-      // 必殺技デバッグ HUD：直近 6 エントリの dir + chargeJFrames + 使用済 ID 集合
-      if (dbgDirHistEl) {
-        const hist = players[0]?.dirHistory ?? [];
-        const recent = hist.slice(-6).map(e => e.dir).join(' ');
-        dbgDirHistEl.textContent = recent || '-';
-      }
-      if (dbgChargeEl) {
-        const cj = players[0]?.chargeJFrames ?? 0;
-        const ready = players[0]?.chargeReady;
-        dbgChargeEl.textContent = `${cj}/${SPECIAL_CONFIG.CHARGE_FRAMES}${ready ? ' [READY]' : ''}`;
-        dbgChargeEl.style.color = ready ? '#ffff66' : '#cfffaa';
-      }
-      if (dbgSpUsedEl) {
-        const used = players[0]?.specialUsedIds;
-        dbgSpUsedEl.textContent = (used && used.size > 0)
-          ? Array.from(used).map(id => id.replace('c01_sp_', '')).join(',')
-          : '-';
-      }
-    }
 
     // ============================================================
     //  #section main-update — 毎フレームの集中ディスパッチ
@@ -2263,28 +2247,6 @@
     //  #section debug-tools — HUD ハイライト / ヒットボックス可視化（Q トグル）
     //  押されているボタンに対応する説明行を黄色くハイライトする
     // ============================================================
-    const HUD_HIGHLIGHT_MAP = [
-      { id: 'hk-move',      check: () => inp('ArrowLeft') || inp('ArrowRight') || inp('ArrowUp') || inp('ArrowDown') || inp('KeyA') || inp('KeyD') || inp('KeyW') || inp('KeyS') },
-      { id: 'hk-dash',      check: () => players[0]?.dashActive },
-      { id: 'hk-jump',      check: () => action('jump') },
-      { id: 'hk-weak',      check: () => action('weakAttack') },
-      { id: 'hk-strong',    check: () => action('strongAttack') },
-      { id: 'hk-cancel',    check: () => action('jump') && players[0]?.state === STATE.hit_confirm },
-      { id: 'hk-secondary', check: () => action('secondary') },
-      { id: 'hk-mega',      check: () => action('megaCrash') || (inp('KeyJ') && inp('KeyK') && !inp('KeyL')) },
-      { id: 'hk-ult',       check: () => action('ult')      || (inp('KeyJ') && inp('KeyK') &&  inp('KeyL')) },
-      { id: 'hk-pixel',     check: () => inp('KeyP') },
-    ];
-    const _hkEls = {};
-    HUD_HIGHLIGHT_MAP.forEach(({ id }) => { _hkEls[id] = document.getElementById(id); });
-
-    function updateHudHighlight() {
-      HUD_HIGHLIGHT_MAP.forEach(({ id, check }) => {
-        const el = _hkEls[id];
-        if (!el) return;
-        el.classList.toggle('hk-active', check());
-      });
-    }
 
     // ============================================================
     //  デバッグ：ヒットボックス可視化（Q トグル）
