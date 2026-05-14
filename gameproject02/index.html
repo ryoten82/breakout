@@ -523,6 +523,8 @@
     //    #section combo             — bumpCombo / checkComboBreak / COMBO_LEVELS / HUD refs
     //    #section input             — keys / pad / action() / inp() / KEY_CONFIG
     //    #section attack-engine     — startAttackById / tryHitEnemies / updateAttack
+    //    #section damage-system     — damagePlayer / tryHitPlayer / updatePlayerHitstun /
+    //                                 revivePlayer / isHitstunState / resetCombo（Phase 2.4）
     //    #section guard             — processGuardInput / guardShield
     //    #section special-system    — readDirInput / matchCommand / processSpecialInput
     //    #section mega-ult          — triggerMegaCrash / triggerUlt / 演出制御
@@ -530,10 +532,11 @@
     //    #section dash              — processDashInput / startDash
     //    #section cancel-jump       — tryCancelJump
     //    #section update-player     — updatePlayer（毎フレームのプレイヤー処理本体）
-    //    #section update-enemies    — updateEnemies（敵の状態遷移・物理）
+    //    #section update-enemies    — updateEnemies（敵の状態遷移・物理 / 敵 AI ループ）
+    //    #section enemy-ai-dummy    — ENEMY_AI / DUMMY_ATK_CONFIG（Phase 2.4 ダミー敵）
     //    #section camera-update     — updateCamera / applyCamConfig
-    //    #section hud-update        — updateSPGauge / updateDebug / updateClockHud /
-    //                                 updateGrabGauge / spawnSPStockRing
+    //    #section hud-update        — updateSPGauge / updateHpHud / updateDebug /
+    //                                 updateClockHud / updateGrabGauge / updateEnemyAtkCountdown
     //    #section main-update       — update() メインディスパッチ
     //    #section render            — render / renderOutlineMask / アウトラインシェーダ
     //    #section debug-tools       — toggleHitbox / updateHitboxDebug / HUD ハイライト
@@ -547,10 +550,17 @@
     //    - プレイヤー処理本体：#section update-player（移動・ジャンプ・空中慣性）
     //    - 敵の被弾遷移：#section update-enemies
     //    - ヒット判定・lv 振り分け：#section attack-engine（tryHitEnemies 内）
+    //    - プレイヤー被ダメ：#section damage-system（Phase 2.4・damagePlayer）
+    //    - 敵 AI 攻撃発動：#section update-enemies の AI ブロック / #section enemy-ai-dummy 定数
+    //    - ガード演出調整：GUARD_CONFIG（#section physics-config 付近）
     //
     //  ▼ ファイル長メモ
-    //    現状 5000+ 行。Single HTML 維持中。7000 行超 or 編集ミス頻発時に
-    //    ES Modules 分割を検討する（仕様書 § 技術スタック参照）
+    //    現状 6500+ 行。Single HTML 維持中。7000 行超 or 編集ミス頻発時に
+    //    分割対象候補（優先順）：
+    //      1. ATTACKS テーブル → attacks.js（約 600 行・最大の塊・触る頻度高）
+    //      2. STATE / STATE_TILT_TARGET / 持続F定数群 → states.js（約 200 行）
+    //      3. 各種 *_CONFIG 群 → config.js（約 300 行・横断的）
+    //    ES Modules 分割は仕様書 §技術スタック参照
     // ============================================================================
 
     // ============================================================
@@ -1955,9 +1965,11 @@
     const ENEMY_AIRBORNE_Y_THRESHOLD = 10;
 
     // ============================================================
-    //  ダミー敵ミニマム攻撃（Phase 2.4・テスト用 AI）
-    //  - SB.ENEMY_AI.enabled で全敵 AI をトグル
-    //  - 接近 → wind / active / recover の3段 → cooldown → 接近...
+    //  #section enemy-ai-dummy — ダミー敵ミニマム攻撃（Phase 2.4・テスト用 AI）
+    //  - SB.ENEMY_AI.enabled で全敵 AI をトグル（数字キー 4 で切替）
+    //  - 接近 → wind(180F = 3秒カウントダウン) → active(8F) → recover(30F) → cooldown(45F) → 接近...
+    //  - wind 中もプレイヤー追跡 / approachRange 超過でキャンセル
+    //  - active 中だけ赤 AABB のヒットボックスを可視化（enemyHitboxMesh）
     // ============================================================
     const ENEMY_AI = { enabled: true };
     const DUMMY_ATK_CONFIG = {
@@ -2807,6 +2819,9 @@
         e.preventDefault();
       }
       // デバッグトグル（数字キー：1=ヒットボックス / 2=ピクセル / 3=スロー / 4=敵AI / ...）
+      // キーリピート（OS の長押し連続発火）でトグルが連発しないようガード
+      const _isDebugKey = (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3' || e.code === 'Digit4');
+      if (_isDebugKey && e.repeat) return;
       if (e.code === 'Digit1') toggleHitbox();
       if (e.code === 'Digit2') {
         PIXEL_SHADER.ENABLED = !PIXEL_SHADER.ENABLED;
