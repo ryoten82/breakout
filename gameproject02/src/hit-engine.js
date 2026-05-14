@@ -501,6 +501,112 @@ export function tryHitEnemies(p, attack, ctx) {
   return anyHit;
 }
 
+// ============================================================
+//  連続ヒット技：1 ティックぶんのヒット判定（中間ヒット / 最終ヒット）
+//  - 中間：軽フリンチ（knockback01 短）+ damagePerHit 適用 + コンボ +1
+//  - 最終：通常の atk_lv 振り分け（tryHitEnemies 経由）+ damageLastHit
+//  - 同一敵への再ヒットは p.multiHitNextHit Map で間隔制御
+//  - 巻き込み複数敵：それぞれ独立タイマーで管理
+//
+//  Step D-2c-2 で分離。gameFrameCounter は ctx.getFrame() 経由で参照。
+// ============================================================
+export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
+  const { enemies } = ctx;
+  const facing = p.facing;
+  // 最終ヒットは通常 dispatch に委譲（damage を一時差し替え）
+  if (isLastHit) {
+    const savedDamage = attack.damage;
+    attack.damage = attack.damageLastHit ?? (attack.damagePerHit * 2);
+    const hit = tryHitEnemies(p, attack, ctx);
+    attack.damage = savedDamage;
+    // 最終ヒット適用後はトラッキングクリア（次以降の管理をリセット）
+    p.multiHitNextHit.clear();
+    return hit;
+  }
+  const gameFrame = ctx.getFrame();
+  // 中間ヒット：状態は軽フリンチで保持・dispatch list は通さない
+  let anyHit = false;
+  for (const e of enemies) {
+    if (!e.isAlive) continue;
+    if (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop) continue;
+    // 同一敵への hitInterval ガード
+    const nextHitFrame = p.multiHitNextHit.get(e) ?? -Infinity;
+    if (gameFrame < nextHitFrame) continue;
+    // 範囲判定（comboTarget は range ボーナス適用）
+    const dx = e.x - p.x;
+    const dz = e.z - p.z;
+    if (!attack.omni && Math.sign(dx) === -facing) continue;
+    const _isLockedTarget = (e === p.comboTarget);
+    const _bonusX = _isLockedTarget ? HOMING_CONFIG.HIT_RANGE_BONUS_X : 0;
+    const _bonusZ = _isLockedTarget ? HOMING_CONFIG.HIT_RANGE_BONUS_Z : 0;
+    if (Math.abs(dx) > attack.rangeX + _bonusX) continue;
+    if (Math.abs(dz) > attack.rangeZ + _bonusZ) continue;
+    if (attack.rangeY !== undefined) {
+      const dy = e.y - p.y;
+      const maxDown = attack.rangeYDown ?? attack.rangeY;
+      if (dy > attack.rangeY) continue;
+      if (dy < -maxDown)      continue;
+    }
+    // ダウン中敵への中間ヒットは原則空振り（lv 5/7 のみ拾える既存ルールを踏襲）
+    const _downedForWhiff = (
+      e.state === STATE.down_bas_start ||
+      e.state === STATE.down_bas_loop ||
+      e.state === STATE.down_bas_end
+    );
+    if (_downedForWhiff) {
+      const _lv = (attack.atk_lv_down !== undefined) ? attack.atk_lv_down : (attack.atk_lv ?? 1);
+      if (_lv !== 5 && _lv !== 7) continue;
+    }
+    // ヒット適用（中間）
+    e.hp = Math.max(0, e.hp - (attack.damagePerHit ?? 5));
+    e.hitFlashTimer = 7;
+    e.frozenByUlt = false;
+    e.fallDir = (e.x !== p.x) ? Math.sign(e.x - p.x) : p.facing;
+    if (e.state === STATE.wait01) {
+      e.mesh.rotation.y = -e.fallDir * Math.PI / 2;
+    }
+    // 軽フリンチ：hitInterval よりやや長めに固定して中間ヒット間で「外れない」よう保持
+    const flinchFrames = Math.max(ENEMY_KB01_FRAMES, (attack.hitInterval ?? 6) + 4);
+    // ダウン系・打ち上げ系には上書きしない（_slamState 等で動かない方が良いケースも考慮）
+    const _preserveState = (
+      e.state === STATE.down_chou_start ||
+      e.state === STATE.down_chou_loop  ||
+      e.state === STATE.down_front_start||
+      e.state === STATE.down_rakka_start||
+      e.state === STATE.down_rakka_loop ||
+      e.state === STATE.down_bound_start
+    );
+    if (!_preserveState) {
+      e.state    = STATE.knockback01;
+      e.downTimer = flinchFrames;
+      applyHitInitialPitch(e);
+    }
+    // 中間ノックバック：敵を facing 方向に少し押して「引き連れる」形にする
+    //   通過させないために中間ヒットでも water-flow 程度の押し量を入れる
+    //   毎ヒットで refresh するので、ヒット間隔の間に少しずつ前進し続ける
+    const iKbVx = attack.intermediateKnockbackVx ?? Math.max(6, Math.floor((attack.knockback ?? 40) * 0.12));
+    e.knockbackVx = facing * iKbVx;
+    e.kbDecay     = attack.intermediateKbDecay ?? 0.92;  // 緩い減衰で「ライドアロング」
+    // 演出：中間ヒットでも hitstop / shake をやや重めに（攻撃の手応えを優先）
+    const hitColor = attack.hitColor ?? 0xffee44;
+    spawnHitParticles(e.x, e.y + 60, e.z, hitColor,
+      Math.max(6, Math.floor((attack.hitCount ?? 10) * 0.6)),
+      { type: 'normal', dirX: dx, dirZ: dz });
+    triggerHitstop(Math.max(2, Math.floor((attack.hitstop ?? 5) * 0.7)));
+    triggerShake(Math.max(2, Math.floor((attack.shake ?? 4) * 0.6)),
+                 Math.max(3, Math.floor((attack.shake ?? 4))));
+    // 次ヒット可能フレーム記録
+    p.multiHitNextHit.set(e, gameFrame + (attack.hitInterval ?? 6));
+    // コンボ +1（ヒットごと）
+    bumpCombo(e);
+    if (!attack.noSpGain) {
+      p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
+    }
+    anyHit = true;
+  }
+  return anyHit;
+}
+
 // 毎フレームの粒子更新（位置進行・寿命減・スケール縮小・消滅）
 export function updateParticles() {
   for (let i = particles.length - 1; i >= 0; i--) {
