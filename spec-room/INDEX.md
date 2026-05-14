@@ -8,6 +8,7 @@
 | [プロップ種類カタログ + 命名規則](archive/prop-catalog-and-naming.md) | 昇格済（再相談前提） | 2026-05-14 | §26.5（新設） | 7カテゴリ・日本語呼び名・`dest_crate_wood_01` 形式 |
 | [メニューの決定・キャンセルボタン設計](archive/menu-decide-cancel-buttons.md) | 昇格済 | 2026-05-14 | §22.5（新設） | 案B+ 採用：下ボタン=決定 / 右=キャンセル / KEY_CONFIG 系統分離 |
 | [ヒット数表示のメリハリ設計（雑魚 / ボス / SCRAP THEM）](discussions/hit-count-tiering.md) | 検討中 | 2026-05-14 | §22 / §9 / §11 | 雑魚 40-100hits の派手さ vs SCRAP THEM の肩透かしリスク。案A〜C 比較済・ユーザー思案中 |
+| [HP ゲージの拡張表現 & 本番レイアウト](discussions/hp-bar-expansion.md) | 検討中（案B 合意済）| 2026-05-14 | §22 / §12 | HP_MAX 成長時の表現（複数ゲージ案B 採用）+ 本番は左上 HP / 左下 SP 配置 |
 
 ## status 凡例
 - **検討中**: discussions/ に存在・議論進行中
