@@ -564,6 +564,13 @@
       revivePlayer, _cancelHitstunForReversal, resetCombo,
       cacheBodyColors, tintBody, restoreBodyColor,
     } from './src/damage-system.js';
+    // === hit-engine（演出系：パーティクル/hitstop/shake）は src/hit-engine.js に分離（Step D-2a）===
+    import {
+      initHitEngine,
+      fxState, particles,
+      triggerHitstop, triggerShake,
+      spawnHitParticles, spawnLaunchSmoke, updateParticles,
+    } from './src/hit-engine.js';
     // === ステート定数・被弾持続F・KB ベクトル定数は src/states.js に分離（Step B・ESM import）===
     import {
       STATE, STATE_TILT_TARGET, STATE_PITCH_TARGET, STATE_PITCH_INITIAL,
@@ -658,6 +665,8 @@
     const GAME_ASPECT = GAME_WIDTH / GAME_HEIGHT;  // 16/9
 
     const scene = new THREE.Scene();
+    // hit-engine 初期化（THREE と scene を渡す）
+    initHitEngine({ THREE, scene });
     // scene.background はデュアルパスレンダリングで2パス目に上書きされるため削除。
     // クリアカラーはrenderer.setClearColor()で管理する。
     scene.fog = new THREE.Fog(0x0a0a1f, 2800, 5000);
@@ -1517,23 +1526,11 @@
     players.push(player);
 
     // ============================================================
-    //  HITSTOP / SHAKE 機構（プランの共通関数）
+    //  HITSTOP / SHAKE は src/hit-engine.js に分離（fxState.hitstopTimer 等で参照）
+    //  camFollowY / camTargetX のみここに残す（カメラ専用）
     // ============================================================
-    let hitstopTimer  = 0;
-    let shakeTimer    = 0;
-    let shakeStrength = 0;
-    let shakeOffsetX  = 0;
-    let shakeOffsetY  = 0;
     let camFollowY    = 0;  // Y追従の遅延用（lerp）
     let camTargetX    = 0;  // デッドゾーンカメラ用X目標
-
-    function triggerHitstop(frames) {
-      if (frames > hitstopTimer) hitstopTimer = frames;
-    }
-    function triggerShake(strength, frames) {
-      if (strength > shakeStrength) shakeStrength = strength;
-      if (frames > shakeTimer) shakeTimer = frames;
-    }
 
     // ============================================================
     //  DASH TRAIL（後方テールランプ帯）
@@ -1640,105 +1637,6 @@
       }
     }
 
-    // ============================================================
-    //  #section particles — PARTICLE SYSTEM（ヒット時の火花 / 打ち上げ煙）
-    // ============================================================
-    const particles = [];
-
-    // opts.type : 'normal'(攻撃方向放射) | 'launch'(Y軸上方) | 'slam'(叩きつけ放射) | 'omni'(全方向・旧来)
-    // opts.dirX / opts.dirZ : 攻撃方向（normal 時に使用・正規化不要）
-    function spawnHitParticles(x, y, z, color = 0xffee44, count = 10, opts = {}) {
-      const { type = 'omni', dirX = 1, dirZ = 0 } = opts;
-      const geom = new THREE.BoxGeometry(7, 7, 7);
-
-      // 攻撃方向の正規化と垂直ベクトル（XZ平面）
-      const dLen = Math.sqrt(dirX * dirX + dirZ * dirZ) || 1;
-      const nx = dirX / dLen;
-      const nz = dirZ / dLen;
-      const perpX = -nz;   // XZ平面での垂直方向
-      const perpZ =  nx;
-
-      for (let i = 0; i < count; i++) {
-        const mat = new THREE.MeshBasicMaterial({ color });
-        const mesh = new THREE.Mesh(geom, mat);
-        mesh.position.set(x, y, z);
-        scene.add(mesh);
-
-        let vx, vy, vz;
-        const r = Math.random;
-
-        if (type === 'normal') {
-          // 攻撃方向に前方コーンで放射（前方強め + 左右散らし + 上方向小さめ）
-          const fwd = 7 + r() * 9;
-          const lat = (r() - 0.5) * 11;
-          vx = nx * fwd + perpX * lat;
-          vz = nz * fwd + perpZ * lat;
-          vy = 0.5 + r() * 3;
-        } else if (type === 'launch') {
-          // 打ち上げ：Y軸上方向に強く広がる
-          vx = (r() - 0.5) * 8;
-          vy = 9 + r() * 13;
-          vz = (r() - 0.5) * 8;
-        } else if (type === 'slam') {
-          // 叩きつけ：XZ全方向に放射 + わずかに下方向（地面への叩き落とし感）
-          const angle = r() * Math.PI * 2;
-          const speed = 5 + r() * 8;
-          vx = Math.cos(angle) * speed;
-          vz = Math.sin(angle) * speed;
-          vy = -(r() * 4);
-        } else {
-          // omni（全方向・旧来動作）
-          vx = (r() - 0.5) * 14;
-          vy = 4 + r() * 10;
-          vz = (r() - 0.5) * 14;
-        }
-
-        particles.push({ mesh, vx, vy, vz, life: 22 + r() * 10 });
-      }
-    }
-
-    // 打ち上げヒット時の足元から吹き上がる土煙エフェクト
-    function spawnLaunchSmoke(x, y, z) {
-      const count = 30;
-      for (let i = 0; i < count; i++) {
-        const col = Math.random() > 0.5 ? 0xeedd99 : 0xfff4cc; // 土埃・砂煙
-        const size = 12 + Math.random() * 10;
-        const geom = new THREE.BoxGeometry(size, size, size);
-        const mat  = new THREE.MeshBasicMaterial({ color: col });
-        const mesh = new THREE.Mesh(geom, mat);
-        // 足元から少し散らしてスポーン
-        mesh.position.set(
-          x + (Math.random() - 0.5) * 50,
-          y + Math.random() * 20,
-          z + (Math.random() - 0.5) * 25
-        );
-        scene.add(mesh);
-        particles.push({
-          mesh,
-          vx: (Math.random() - 0.5) * 5,
-          vy: 12 + Math.random() * 18,  // 強い上方向
-          vz: (Math.random() - 0.5) * 5,
-          life: 32 + Math.random() * 14,
-        });
-      }
-    }
-
-    function updateParticles() {
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.mesh.position.x += p.vx;
-        p.mesh.position.y += p.vy;
-        p.mesh.position.z += p.vz;
-        p.vy -= 0.7;
-        p.life--;
-        const lifeRatio = Math.max(0, p.life / 22);
-        p.mesh.scale.setScalar(lifeRatio);
-        if (p.life <= 0 || p.mesh.position.y < 0) {
-          scene.remove(p.mesh);
-          particles.splice(i, 1);
-        }
-      }
-    }
 
     // ============================================================
     //  #section dummy-enemy — DUMMY ENEMY mesh / enemies[]
@@ -5040,19 +4938,19 @@
       }
       const baseX = camTargetX;
 
-      // シェイク計算
-      if (shakeTimer > 0) {
-        shakeOffsetX = (Math.random() - 0.5) * shakeStrength * 2;
-        shakeOffsetY = (Math.random() - 0.5) * shakeStrength * 2;
-        shakeTimer--;
-        if (shakeTimer <= 0) {
-          shakeStrength = 0;
-          shakeOffsetX  = 0;
-          shakeOffsetY  = 0;
+      // シェイク計算（fxState は hit-engine の単一オブジェクト参照）
+      if (fxState.shakeTimer > 0) {
+        fxState.shakeOffsetX = (Math.random() - 0.5) * fxState.shakeStrength * 2;
+        fxState.shakeOffsetY = (Math.random() - 0.5) * fxState.shakeStrength * 2;
+        fxState.shakeTimer--;
+        if (fxState.shakeTimer <= 0) {
+          fxState.shakeStrength = 0;
+          fxState.shakeOffsetX  = 0;
+          fxState.shakeOffsetY  = 0;
         }
       } else {
-        shakeOffsetX = 0;
-        shakeOffsetY = 0;
+        fxState.shakeOffsetX = 0;
+        fxState.shakeOffsetY = 0;
       }
 
       // Y追従：デッドゾーン付きlerp（低ジャンプではカメラ動かさない）
@@ -5061,8 +4959,8 @@
       camFollowY += (yTarget - camFollowY) * 0.08;
       camFollowY = Math.max(0, Math.min(camFollowY, 150));
       // ピクセルシェーダーON時はシェイクをブリット側（UV）で処理するのでカメラに乗せない
-      const sx = PIXEL_SHADER.ENABLED ? 0 : shakeOffsetX;
-      const sy = PIXEL_SHADER.ENABLED ? 0 : shakeOffsetY;
+      const sx = PIXEL_SHADER.ENABLED ? 0 : fxState.shakeOffsetX;
+      const sy = PIXEL_SHADER.ENABLED ? 0 : fxState.shakeOffsetY;
       camera.position.x = baseX + sx;
       camera.position.y = CAM_CONFIG.CAM_Y + camFollowY + sy;
       camera.position.z = CAM_CONFIG.CAM_Z;
@@ -5375,8 +5273,8 @@
 
       // === 最終ブリット：色 + マスクをシェーダーで合成して画面へ ===
       // シェイクは色テクスチャの UV オフセットで適用（アウトラインはぶらさない）
-      const uvX =  shakeOffsetX / (CAM_CONFIG.ORTHO_H * GAME_ASPECT);
-      const uvY = -shakeOffsetY / CAM_CONFIG.ORTHO_H;
+      const uvX =  fxState.shakeOffsetX / (CAM_CONFIG.ORTHO_H * GAME_ASPECT);
+      const uvY = -fxState.shakeOffsetY / CAM_CONFIG.ORTHO_H;
       _blitMat.uniforms.uColorOffset.value.set(uvX, uvY);
       _blitMat.uniforms.uOutlineOn.value = OUTLINE_CONFIG.ENABLED ? 1.0 : 0.0;
       // ピクセルシェーダー OFF 時は color テクスチャを Linear サンプリングしたい
@@ -5603,8 +5501,8 @@
         return;
       }
       // ヒットストップ：更新スキップ・描画は継続
-      if (hitstopTimer > 0) {
-        hitstopTimer--;
+      if (fxState.hitstopTimer > 0) {
+        fxState.hitstopTimer--;
         render();
         requestAnimationFrame(loop);
         return;
