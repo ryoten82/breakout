@@ -29,22 +29,42 @@
 //    - chargeReadyRing: THREE.Mesh     チャージ完成リング mesh
 // ============================================================
 
-import { STATE } from './states.js';
+import { STATE, STATE_PITCH_TARGET } from './states.js';
 import {
+  PHYSICS, SP_CONFIG,
   GUARD_CONFIG, SPECIAL_CONFIG, HOMING_CONFIG,
   CHARGE_PARTICLE_CONFIG, CHARGE_RING_CONFIG,
+  DUMMY_ATK_CONFIG,
 } from './config.js';
-import { ATTACKS } from './attacks.js';
+import { ATTACKS, getHitWindowEnd } from './attacks.js';
 import {
   anyPlayerUlting, cancelGrabIntoAttack, startAttackById,
   pickStepAttackId, pickStrongAttackId, pickSpecialAttackId,
   matchCommand,
+  processGrabInput, tryGrabActivate, processAttackInput,
+  consumeAttackBuffer,
+  processDashInput, tryCancelJump,
+  updateAttack, updateHitConfirm,
 } from './attack-engine.js';
+import {
+  isHitstunState, updatePlayerHitstun,
+  updateCrisisEffect, updateInvincibleBlink,
+} from './damage-system.js';
+import { spawnHitParticles } from './hit-engine.js';
 
 let _inp = null;
 let _spawnChargeParticle = null;
 let _clearChargeParticles = null;
 let _chargeReadyRing = null;
+// E-4b 追加 deps（updatePlayer 用）
+let _enemies = null;
+let _processMegaCrashUltInput = null;
+let _applyBodyEmissive = null;
+let _getEnemyHitboxMesh = null;
+let _guardShield = null;
+let _specialHitboxMesh = null;
+let _PART_REST = null;
+let _PART_ANIMS = null;
 
 // 内部 module state（旧 index.html の let を移管）
 let gameFrameCounter = 0;
@@ -65,6 +85,15 @@ export function initPlayerSystem(deps) {
   _spawnChargeParticle = deps.spawnChargeParticle;
   _clearChargeParticles = deps.clearChargeParticles;
   _chargeReadyRing = deps.chargeReadyRing;
+  // E-4b 追加
+  _enemies = deps.enemies;
+  _processMegaCrashUltInput = deps.processMegaCrashUltInput;
+  _applyBodyEmissive = deps.applyBodyEmissive;
+  _getEnemyHitboxMesh = deps.getEnemyHitboxMesh;
+  _guardShield = deps.guardShield;
+  _specialHitboxMesh = deps.specialHitboxMesh;
+  _PART_REST = deps.PART_REST;
+  _PART_ANIMS = deps.PART_ANIMS;
 }
 
 // ============================================================
@@ -485,5 +514,434 @@ export function updateComboHoming(p) {
     if (Math.abs(gapY) > HOMING_CONFIG.DEADZONE_Y_MARGIN) {
       p.y += gapY * HOMING_CONFIG.WINDUP_LERP_Y * falloff;
     }
+  }
+}
+
+// ============================================================
+//  パーツアニメーション（Step E-4b で分離）
+//  攻撃の意思を四肢の動きで表現：PART_ANIMS データテーブル駆動
+// ============================================================
+function updatePartAnims(p) {
+  const parts = p.mesh.userData.parts;
+  if (!parts) return;
+  const LERP_SPD = 0.30;
+
+  const inAttack = (p.state === STATE.attacking || p.state === STATE.hit_confirm) && p.attackId;
+  const atk      = inAttack ? ATTACKS[p.attackId] : null;
+  const animKey  = atk?.partsAnim;
+  const animDef  = animKey ? _PART_ANIMS[animKey] : null;
+  const elapsed  = atk ? (atk.duration - p.stateTimer) : 0;
+  // 多段ヒット技は窓全体でアタックポーズを保持する（hitDuration だけで切らない）
+  const inHit    = atk && elapsed >= atk.hitFrame && elapsed < getHitWindowEnd(atk) + 2;
+
+  for (const [name, rest] of Object.entries(_PART_REST)) {
+    const part = parts[name];
+    if (!part) continue;
+    const delta = (inHit && animDef) ? animDef[name] : null;
+    const tx = rest.x + (delta?.x ?? 0);
+    const ty = rest.y + (delta?.y ?? 0);
+    const tz = rest.z + (delta?.z ?? 0);
+    part.position.x += (tx - part.position.x) * LERP_SPD;
+    part.position.y += (ty - part.position.y) * LERP_SPD;
+    part.position.z += (tz - part.position.z) * LERP_SPD;
+  }
+}
+
+// ============================================================
+//  #section update-player — updatePlayer（毎フレームのプレイヤー処理本体）
+//  入力 → 移動 → ステート遷移 → メッシュ反映 まで一気通貫
+//  Step E-4b で player-system.js に分離
+// ============================================================
+export function updatePlayer(p) {
+  // === 被弾中：入力一切受け付けず、hitstun の自動進行のみ走らせて return ===
+  if (isHitstunState(p)) {
+    const canReverse = (p.state !== STATE.dying && p.state !== STATE.dead && p.state !== STATE.guard_crash);
+    if (canReverse) _processMegaCrashUltInput(p);
+    updatePlayerHitstun(p);
+    updateCrisisEffect(p);
+    return;
+  }
+  if (p.invincibleFrames > 0) p.invincibleFrames--;
+
+  // === SP 自然回復 ===
+  p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.REGEN_RATE);
+  if (p.dashCooldown > 0) p.dashCooldown--;
+
+  // === ガード入力（最優先・他入力をブロック）===
+  processGuardInput(p);
+
+  // === グラブ自動発動／中の入力 ===
+  if (p.state === STATE.grabbing) {
+    processGrabInput(p);
+  } else {
+    tryGrabActivate(p);
+  }
+
+  // === 攻撃入力処理（毎フレーム）===
+  _processMegaCrashUltInput(p);
+  processSpecialInput(p);
+  processAttackInput(p);
+  processStrongAttackInput(p);
+
+  if (p.specialFlashTimer > 0) p.specialFlashTimer--;
+  if (!p.guarding && !p.ultActive && p.state !== STATE.grabbing) processDashInput(p);
+
+  tryCancelJump(p);
+  updateComboHoming(p);
+
+  // === ステート更新 ===
+  updateAttack(p);
+  updateHitConfirm(p);
+  consumeAttackBuffer(p);
+  consumeStrongAttackBuffer(p);
+
+  const movementLocked = ((p.state === STATE.attacking) || (p.state === STATE.grabbing)) && p.isGrounded;
+
+  let mvx = 0, mvz = 0;
+  const curAtk = p.attackId ? ATTACKS[p.attackId] : null;
+  const isStepAttack = (p.state === STATE.attacking) && p.isGrounded && !!curAtk?.isStepAttack;
+  const isDashing = p.dashActive && !isStepAttack;
+
+  if (!p.isGrounded) {
+    let ix = 0, iz = 0;
+    if (_inp('ArrowLeft')  || _inp('KeyA')) ix -= 1;
+    if (_inp('ArrowRight') || _inp('KeyD')) ix += 1;
+    if (_inp('ArrowUp')    || _inp('KeyW')) iz -= 1;
+    if (_inp('ArrowDown')  || _inp('KeyS')) iz += 1;
+    const ilen = Math.hypot(ix, iz);
+    if (ilen > 0) { ix /= ilen; iz /= ilen; }
+
+    if (p.homingFrames > 0 && p.homingTarget) {
+      const tgt = p.homingTarget;
+      const sideOffset = (p.x <= tgt.x) ? -80 : 80;
+      const dx = (tgt.x + sideOffset) - p.x;
+      const dz = tgt.z - p.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist > 1) {
+        const spd = Math.min(dist * 0.25, 12);
+        p.airVx += ((dx / dist) * spd - p.airVx) * 0.35;
+        p.airVz += ((dz / dist) * spd - p.airVz) * 0.35;
+      }
+      const faceDx = tgt.x - p.x;
+      if (Math.abs(faceDx) > 5) p.facing = faceDx > 0 ? 1 : -1;
+      p.homingFrames--;
+    } else if (p.airWasDash) {
+      p.airVx = p.airVx * PHYSICS.AIR_FRICTION + ix * PHYSICS.AIR_CONTROL;
+      p.airVz = p.airVz * PHYSICS.AIR_FRICTION + iz * PHYSICS.AIR_CONTROL;
+    } else {
+      const tVx = ix * PHYSICS.SPEED;
+      const tVz = iz * PHYSICS.SPEED;
+      p.airVx += (tVx - p.airVx) * PHYSICS.GROUND_ACCEL;
+      p.airVz += (tVz - p.airVz) * PHYSICS.GROUND_ACCEL;
+    }
+    p.x += p.airVx;
+    p.z += p.airVz * PHYSICS.Z_SPEED_MULT;
+    mvx = p.airVx;
+    mvz = p.airVz;
+  } else if (isStepAttack) {
+    p.stepMomentum = (p.stepMomentum ?? 0) * (curAtk.momentumDecay ?? 0.95);
+    if (p.stepMomentum > 0.05) {
+      mvx = p.dashDirX;
+      mvz = p.dashDirZ;
+      p.x += mvx * PHYSICS.SPEED * p.stepMomentum;
+      p.z += mvz * PHYSICS.SPEED * p.stepMomentum * PHYSICS.Z_SPEED_MULT;
+    }
+  } else if (movementLocked && (p.lungeMomentum ?? 0) > 0.1) {
+    const decay = curAtk?.lungeDecay ?? 0.85;
+    p.x += p.facing * p.lungeMomentum;
+    mvx = p.facing;
+    p.lungeMomentum *= decay;
+  } else if (isDashing) {
+    let dvx = 0, dvz = 0;
+    if (_inp('ArrowLeft')  || _inp('KeyA')) dvx -= 1;
+    if (_inp('ArrowRight') || _inp('KeyD')) dvx += 1;
+    if (_inp('ArrowUp')    || _inp('KeyW')) dvz -= 1;
+    if (_inp('ArrowDown')  || _inp('KeyS')) dvz += 1;
+    const anyKey = dvx !== 0 || dvz !== 0;
+
+    if (!anyKey || movementLocked) {
+      p.dashActive   = false;
+      p.dashCooldown = PHYSICS.DASH_COOLDOWN;
+    } else {
+      const dvlen = Math.hypot(dvx, dvz);
+      if (dvlen > 0) { dvx /= dvlen; dvz /= dvlen; }
+      const prevAngle = Math.atan2(p.dashDirZ, p.dashDirX);
+      const currAngle = Math.atan2(dvz, dvx);
+      let angleDiff = Math.abs(currAngle - prevAngle);
+      if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+      if (angleDiff > PHYSICS.DASH_SPARK_ANGLE && p.isGrounded) {
+        spawnHitParticles(p.x, p.y + 5, p.z, p.dashSparkColor, 10);
+      }
+      p.dashDirX = dvx;
+      p.dashDirZ = dvz;
+      mvx = dvx;
+      mvz = dvz;
+      p.x += mvx * PHYSICS.SPEED * PHYSICS.DASH_SPEED_MULT;
+      p.z += mvz * PHYSICS.SPEED * PHYSICS.DASH_SPEED_MULT * PHYSICS.Z_SPEED_MULT;
+    }
+  } else if (!movementLocked) {
+    if (_inp('ArrowLeft')  || _inp('KeyA')) mvx -= 1;
+    if (_inp('ArrowRight') || _inp('KeyD')) mvx += 1;
+    if (_inp('ArrowUp')    || _inp('KeyW')) mvz -= 1;
+    if (_inp('ArrowDown')  || _inp('KeyS')) mvz += 1;
+    const rawLen = Math.hypot(mvx, mvz);
+    if (rawLen > 0) { mvx /= rawLen; mvz /= rawLen; }
+    const speedMult = p.guarding ? GUARD_CONFIG.MOVE_SPEED_MULT : 1.0;
+    const tVx = mvx * PHYSICS.SPEED * speedMult;
+    const tVz = mvz * PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * speedMult;
+    p.groundVx += (tVx - p.groundVx) * PHYSICS.GROUND_ACCEL;
+    p.groundVz += (tVz - p.groundVz) * PHYSICS.GROUND_ACCEL;
+    p.x += p.groundVx;
+    p.z += p.groundVz;
+  }
+  const len = Math.hypot(mvx, mvz);
+
+  p.x = Math.max(PHYSICS.STAGE_LEFT, Math.min(PHYSICS.STAGE_RIGHT, p.x));
+  p.z = Math.max(-380, Math.min(700, p.z));
+
+  // === 向き ===
+  if ((isDashing || !movementLocked) && !p.guarding) {
+    if (!p.isGrounded) {
+      if (p.homingFrames > 0 && p.homingTarget) {
+        const faceDx = p.homingTarget.x - p.x;
+        if (Math.abs(faceDx) > 5) p.facing = faceDx > 0 ? 1 : -1;
+      } else {
+        const inL = _inp('ArrowLeft')  || _inp('KeyA');
+        const inR = _inp('ArrowRight') || _inp('KeyD');
+        if (inR && !inL) p.facing = 1;
+        else if (inL && !inR) p.facing = -1;
+      }
+    } else {
+      if (mvx > 0) p.facing = 1;
+      else if (mvx < 0) p.facing = -1;
+    }
+  }
+
+  // === 方向転換 yaw thruster ===
+  if (!isDashing) {
+    const curMoveDir = (mvx > 0) ? 1 : (mvx < 0 ? -1 : 0);
+    if (curMoveDir !== 0 && p.prevMoveDir !== 0 && curMoveDir !== p.prevMoveDir) {
+      p.yawBurstSide  = p.prevMoveDir;
+      p.yawBurstTimer = PHYSICS.YAW_BURST_FRAMES;
+    }
+    if (curMoveDir !== 0) p.prevMoveDir = curMoveDir;
+  }
+
+  // === ジャンプ・ブースター・重力 ===
+  if (!_inp('Space')) p.jumpConsumed = false;
+  if (p.isGrounded && _inp('Space') && !p.jumpConsumed && p.bigBurstTimer === 0 && !p.guarding && p.state !== STATE.grabbing && p.state !== STATE.attacking) {
+    if (p.dashActive) {
+      p.airVx = p.dashDirX * PHYSICS.SPEED * PHYSICS.DASH_SPEED_MULT;
+      p.airVz = p.dashDirZ * PHYSICS.SPEED * PHYSICS.DASH_SPEED_MULT;
+      p.dashActive  = false;
+      p.airWasDash  = true;
+    } else {
+      p.airVx = mvx * PHYSICS.SPEED;
+      p.airVz = mvz * PHYSICS.SPEED;
+      p.airWasDash  = false;
+    }
+    p.vy = PHYSICS.JUMP_V;
+    p.isGrounded = false;
+    p.thrustFramesLeft = PHYSICS.THRUST_FRAMES;
+    p.jumpConsumed = true;
+  }
+
+  const thrustingNow =
+    !p.isGrounded &&
+    _inp('Space') &&
+    p.thrustFramesLeft > 0 &&
+    p.vy >= 0;
+
+  if (!p.isGrounded) {
+    if (thrustingNow) {
+      p.vy += PHYSICS.THRUST_FORCE;
+      p.thrustFramesLeft--;
+    }
+    if (p.diveCountdown > 0) {
+      p.vy = 0;
+      p.diveCountdown--;
+      if (p.diveCountdown === 0) p.vy = ATTACKS[p.attackId]?.diveVy ?? -22;
+    } else {
+      const pGravFactor = (!p.isGrounded) ? PHYSICS.AERIAL_GRAV_FACTOR : 1.0;
+      p.vy -= PHYSICS.GRAVITY * pGravFactor;
+    }
+    p.y += p.vy;
+    if (p.y <= 0) {
+      p.y = 0;
+      p.vy = 0;
+      p.isGrounded    = true;
+      p.aerialWhiffed = false;
+      p.thrustFramesLeft = 0;
+      p.diveCountdown = 0;
+      p.homingFrames  = 0;
+      p.homingTarget  = null;
+      if (p.attackId && ATTACKS[p.attackId]?.diveVy !== undefined &&
+          (p.state === STATE.attacking || p.state === STATE.hit_confirm)) {
+        p.state          = STATE.wait01;
+        p.attackChainIdx = -1;
+        p.attackId       = null;
+        p.stateTimer     = 0;
+        p.cancelTimer    = 0;
+        p.kBuffered      = false;
+        p.attackBuffered = false;
+      }
+      { let ldx = 0, ldz = 0;
+        if (_inp('ArrowLeft')  || _inp('KeyA')) ldx -= 1;
+        if (_inp('ArrowRight') || _inp('KeyD')) ldx += 1;
+        if (_inp('ArrowUp')    || _inp('KeyW')) ldz -= 1;
+        if (_inp('ArrowDown')  || _inp('KeyS')) ldz += 1;
+        const llen = Math.hypot(ldx, ldz);
+        if (llen > 0 && p.dashCooldown === 0 && p.airWasDash) {
+          p.dashActive   = true;
+          p.dashDirX     = ldx / llen;
+          p.dashDirZ     = ldz / llen;
+        }
+        p.airWasDash = false;
+      }
+      p.airVx = 0;
+      p.airVz = 0;
+    }
+  }
+
+  if (p.bigBurstTimer > 0) p.bigBurstTimer--;
+
+  const parts = p.mesh.userData.parts;
+
+  const thrustOrDash = thrustingNow;
+  parts.thrusterL.visible = thrustOrDash;
+  parts.thrusterR.visible = thrustOrDash;
+  if (thrustOrDash) {
+    const isBig  = p.bigBurstTimer > 0;
+    const isDash = isDashing && !thrustingNow;
+    const col  = isBig ? 0xffff66 : isDash ? 0xff8800 : 0x00ddff;
+    const sz   = isBig ? 1.8 : isDash ? 1.4 : 1.0;
+    const pulse = (isBig ? 1.6 : isDash ? 1.3 : 0.85)
+                + Math.random() * (isBig ? 0.7 : isDash ? 0.5 : 0.4);
+    parts.thrusterL.scale.set(sz, pulse, sz);
+    parts.thrusterR.scale.set(sz, pulse, sz);
+    parts.thrusterL.material.color.setHex(col);
+    parts.thrusterR.material.color.setHex(col);
+  } else {
+    parts.thrusterL.material.color.setHex(0x00ddff);
+    parts.thrusterR.material.color.setHex(0x00ddff);
+  }
+
+  if (p.yawBurstTimer > 0) p.yawBurstTimer--;
+  const yawActive = p.yawBurstTimer > 0;
+  parts.yawL.visible = yawActive && (p.yawBurstSide <= 0);
+  parts.yawR.visible = yawActive && (p.yawBurstSide >= 0);
+  if (yawActive) {
+    const yawPulse = 0.6 + Math.random() * 0.6;
+    const target = (p.yawBurstSide < 0) ? parts.yawL : parts.yawR;
+    target.scale.set(1, yawPulse, 1);
+  }
+
+  updatePartAnims(p);
+
+  const isMoving = (len > 0);
+  if (isMoving && p.isGrounded) {
+    p.bobPhase += 0.3;
+  } else if (p.isGrounded) {
+    p.bobPhase += 0.05;
+  }
+  const bobY = isMoving ? Math.abs(Math.sin(p.bobPhase)) * 4 : Math.sin(p.bobPhase) * 2;
+
+  updateCrisisEffect(p);
+  updateInvincibleBlink(p);
+
+  // === メッシュへ反映 ===
+  p.mesh.position.set(p.x, p.y + bobY, p.z);
+  const targetRot = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+  p.mesh.rotation.y += (targetRot - p.mesh.rotation.y) * 0.2;
+  const atkForTilt = (p.state === STATE.attacking && p.attackId) ? ATTACKS[p.attackId] : null;
+  let targetTiltX = 0;
+  if (atkForTilt?.tiltX !== undefined) {
+    targetTiltX = atkForTilt.tiltX;
+  } else if (STATE_PITCH_TARGET[p.state] !== undefined) {
+    targetTiltX = STATE_PITCH_TARGET[p.state];
+  }
+  p.mesh.rotation.x += (targetTiltX - p.mesh.rotation.x) * 0.35;
+
+  // === 必殺技：本体 emissive 制御 ===
+  const flashing = p.specialFlashTimer > 0;
+  const pulsing  = p.chargeReady && !flashing;
+  if (flashing) {
+    const t = p.specialFlashTimer / SPECIAL_CONFIG.FLASH_FRAMES;
+    _applyBodyEmissive(p.mesh, t, t, t);
+  } else if (pulsing) {
+    const pulse = 0.25 + 0.50 * (0.5 + 0.5 * Math.sin(gameFrameCounter * 0.21));
+    _applyBodyEmissive(p.mesh, pulse, pulse * 0.85, pulse * 0.10);
+  } else if (p._bodyEmissiveWasOn) {
+    _applyBodyEmissive(p.mesh, 0, 0, 0);
+  }
+  p._bodyEmissiveWasOn = flashing || pulsing;
+
+  // === 必殺技：当たり判定可視化 ===
+  const curAtkVis = (p.state === STATE.attacking && p.attackId) ? ATTACKS[p.attackId] : null;
+  const showHb = curAtkVis && curAtkVis.isSpecial && curAtkVis.showHitbox && SPECIAL_CONFIG.SHOW_HITBOX;
+  if (showHb) {
+    const elapsedVis = curAtkVis.duration - p.stateTimer;
+    const hitEnd = getHitWindowEnd(curAtkVis);
+    const inHitFrame = elapsedVis >= curAtkVis.hitFrame && elapsedVis < hitEnd;
+    if (inHitFrame) {
+      const rx = curAtkVis.rangeX ?? 100;
+      const ryUp   = curAtkVis.rangeY ?? 100;
+      const ryDown = curAtkVis.rangeYDown ?? ryUp;
+      const rz = curAtkVis.rangeZ ?? 100;
+      const yHeight = ryUp + ryDown;
+      const yCenter = p.y + (ryUp - ryDown) * 0.5;
+      _specialHitboxMesh.visible = true;
+      _specialHitboxMesh.position.set(p.x + p.facing * (rx * 0.5), yCenter, p.z);
+      _specialHitboxMesh.scale.set(rx, yHeight, rz * 2);
+    } else {
+      _specialHitboxMesh.visible = false;
+    }
+  } else {
+    _specialHitboxMesh.visible = false;
+  }
+
+  // === 敵攻撃の当たり判定可視化 ===
+  for (let i = 0; i < _enemies.length; i++) {
+    const e = _enemies[i];
+    const mesh = _getEnemyHitboxMesh(i);
+    if (!e.isAlive || e.state !== STATE.enemy_attacking || e.atkPhase !== 'active') {
+      mesh.visible = false;
+      continue;
+    }
+    const cfg = DUMMY_ATK_CONFIG;
+    const rx = cfg.hitboxRangeX, ry = cfg.hitboxRangeY, rz = cfg.hitboxRangeZ;
+    mesh.visible = true;
+    mesh.position.set(e.x + e.facing * (rx * 0.5), e.y + ry * 0.5, e.z);
+    mesh.scale.set(rx, ry * 2, rz * 2);
+  }
+
+  // === ガードシールド同期 ===
+  if (p.guardOpacity > 0.01) {
+    _guardShield.visible      = true;
+    _guardShield.position.set(p.x, p.y + GUARD_CONFIG.SHIELD_Y_OFFSET, p.z);
+    _guardShield.rotation.y   = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+    const flashT = (p.guardFlashTimer > 0) ? (p.guardFlashTimer / GUARD_CONFIG.FLASH_FRAMES) : 0;
+    const baseOp = p.guardOpacity * GUARD_CONFIG.SHIELD_MAX_OPACITY;
+    _guardShield.material.opacity = baseOp + (GUARD_CONFIG.FLASH_OPACITY - baseOp) * flashT;
+    if (flashT > 0) {
+      _guardShield.material.color.setHex(GUARD_CONFIG.FLASH_COLOR);
+    } else {
+      _guardShield.material.color.setHex(GUARD_CONFIG.SHIELD_COLOR);
+    }
+  } else if (p.guardFailFlashTimer > 0) {
+    _guardShield.visible    = true;
+    _guardShield.position.set(p.x, p.y + GUARD_CONFIG.SHIELD_Y_OFFSET, p.z);
+    _guardShield.rotation.y = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+    const t = 1 - (p.guardFailFlashTimer / GUARD_CONFIG.FAIL_FLASH_FRAMES);
+    const envelope = 1 - t;
+    const pulse = Math.abs(Math.sin(t * Math.PI * 2));
+    _guardShield.material.opacity = GUARD_CONFIG.FAIL_FLASH_OPACITY * pulse * envelope;
+    _guardShield.material.color.setHex(GUARD_CONFIG.FAIL_FLASH_COLOR);
+    p.guardFailFlashTimer--;
+    if (p.guardFailFlashTimer <= 0) {
+      _guardShield.material.color.setHex(GUARD_CONFIG.SHIELD_COLOR);
+    }
+  } else {
+    _guardShield.visible = false;
   }
 }
