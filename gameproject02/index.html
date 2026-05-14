@@ -502,6 +502,28 @@
     import * as THREE from 'three';
     // === 攻撃データは src/attacks.js に分離（Step A・ESM import）===
     import { ATTACKS, ATTACK_ATTRS, resolveAttackAttr, getHitWindowEnd, Z_CHAIN, A_CHAIN } from './src/attacks.js';
+    // === ステート定数・被弾持続F・KB ベクトル定数は src/states.js に分離（Step B・ESM import）===
+    import {
+      STATE, STATE_TILT_TARGET, STATE_PITCH_TARGET, STATE_PITCH_INITIAL,
+      STATE_TILT_LERP, STATE_PITCH_LERP, applyHitInitialPitch,
+      HP_CONFIG,
+      PLAYER_KB01_FRAMES, PLAYER_KB02_FRAMES,
+      PLAYER_DOWN_FRONT_START_FRAMES,
+      PLAYER_DOWN_BAS_START_FRAMES, PLAYER_DOWN_BAS_LOOP_FRAMES, PLAYER_DOWN_BAS_END_FRAMES,
+      PLAYER_DYING_FRAMES, PLAYER_KB_GRAV, PLAYER_KB_VX_DECAY,
+      ENEMY_FALL_FRAMES, ENEMY_RISE_FRAMES,
+      ENEMY_DOWN_BAS_START_FRAMES, ENEMY_DOWN_BAS_LOOP_FRAMES,
+      ENEMY_KB01_FRAMES, ENEMY_KB02_FRAMES, ENEMY_KB_AIR_FRAMES, ENEMY_KB03_FRAMES,
+      ENEMY_LAND_FRAMES, ENEMY_DOWN_FRONT_FRAMES,
+      ENEMY_DOWN_CHOU_FRAMES, ENEMY_WALL_START_FRAMES, ENEMY_ROLL_FRAMES,
+      ENEMY_DOWN_BURST_START_FRAMES, ENEMY_DOWN_BURST_LOOP_FRAMES,
+      KB_BURST_VY, KB_BURST_VX, KB_BURST_VX_DECAY, KB_BURST_SPIN_RATE, KB_BURST_GRAV_MULT,
+      ENEMY_DOWN_RAKKA_FRAMES, ENEMY_DOWN_BOUND_FRAMES,
+      ENEMY_AIRBORNE_Y_THRESHOLD,
+      KB_LV03_VY, KB_LV03_VX_MULT,
+      KB_LV05_VY, KB_LV05_VX_MULT, KB_LV05_BOUNCE_VY, KB_LV07_HOP_VY,
+      KB_LV06_VY, KB_LV06_VX_MULT,
+    } from './src/states.js';
 
     // ============================================================================
     //  SCRAP BLITZ — METEO プロトタイプ
@@ -1259,186 +1281,9 @@
       FRONT_ONLY:            true, // 前方からの攻撃のみガード成立
     };
 
-    // ============================================================
-    //  HP / 被ダメージシステム（Phase 2.4）
-    //  - damagePlayer / revivePlayer から参照されるベース定数
-    //  - 被弾 state（knockback01/02/down_front_*/down_bas_*/dying/dead）の持続Fは
-    //    別途 PLAYER_*_FRAMES で管理（敵側と独立）
-    // ============================================================
-    const HP_CONFIG = {
-      MAX:                 100,
-      INVINCIBLE_FRAMES:   12,   // 被弾直後の追加無敵F（連続ヒット防止）
-      DEAD_FRAMES:         180,  // dead 状態の長さ（3秒後 revive 自動）
-      REVIVE_INVINCIBLE:   60,   // リバイブ直後の無敵F
-    };
-    // プレイヤー被弾 state 持続F（敵側 ENEMY_*_FRAMES と独立。メカは重め）
-    const PLAYER_KB01_FRAMES       = 28;
-    const PLAYER_KB02_FRAMES       = 40;
-    const PLAYER_DOWN_FRONT_START_FRAMES = 28;
-    const PLAYER_DOWN_BAS_START_FRAMES   = 22;
-    const PLAYER_DOWN_BAS_LOOP_FRAMES    = 50;
-    const PLAYER_DOWN_BAS_END_FRAMES     = 32;
-    const PLAYER_DYING_FRAMES      = 60;
-    const PLAYER_KB_GRAV           = 0.55;  // 被弾中の落下重力
-    const PLAYER_KB_VX_DECAY       = 0.92;  // 被弾中の水平減衰
-
-    // === 攻撃データは冒頭 import で取り込み済（src/attacks.js）===
-
-    // ============================================================
-    //  #section state-table — ステート定数 / tilt / pitch テーブル
-    //   プレイヤーは p.state、敵は e.state に文字列を入れる。
-    //   ロジック（state machine の遷移）は updatePlayer / updateEnemies 内に別途持つ。
-    // ============================================================
-    const STATE = {
-      // ── 通常 ───────────────────────────────────────────────────
-      wait01:           'wait01',            // 立ち・通常待機
-      // ── プレイヤー行動（敵が攻撃するようになったら共用予定）─────────
-      attacking:        'attacking',         // 攻撃モーション中
-      hit_confirm:      'hit_confirm',       // ヒット確認後のキャンセル受付中
-      grabbing:         'grabbing',          // グラブ実行側（敵を掴んでいる）
-      grabbed:          'grabbed',           // グラブ被害側（掴まれている）
-      // ── 被弾フリンチ（atk_lv 駆動）─────────────────────────────
-      knockback01:      'knockback01',       // lv01 地上ヒット・小フリンチ → wait01
-      knockback02:      'knockback02',       // lv02 地上ヒット・大フリンチ → wait01
-      knockback_air01:  'knockback_air01',   // lv01/lv02 空中ヒット → fall_loop
-      knockback03:      'knockback03',       // ダウン中ヒット用フリンチ（45F → down_bas_loop）
-      fall_loop:        'fall_loop',         // 自由落下 → 着地で land
-      land:             'land',              // 着地モーション → wait01
-      // ── 吹き飛び（lv03）────────────────────────────────────────
-      down_front_start: 'down_front_start',  // 後方へ吹き飛び開始 → down_front_loop
-      down_front_loop:  'down_front_loop',   // 吹き飛び中 → 着地で down_bas_end
-      // ── 打ち上げ（lv04・既存）─────────────────────────────────
-      down_up_start:    'down_up_start',     // 打ち上げ後・傾き開始（tiltAngle 0→π/2）
-      down_up_loop:     'down_up_loop',      // 横倒し姿勢のまま落下継続
-      // ── 超吹き飛ばし（lv06）─────────────────────────────────
-      down_chou_start:  'down_chou_start',   // 高速で吹っ飛び開始（地上/空中共用）→ down_chou_loop ／ 壁: down_wall_start ／ 地面: down_roll_start
-      down_chou_loop:   'down_chou_loop',    // 吹き飛び中ループ ／ 壁: down_wall_start ／ 地面: down_roll_start
-      down_wall_start:  'down_wall_start',   // 壁に張り付き → down_wall_loop
-      down_wall_loop:   'down_wall_loop',    // うつ伏せ落下 → 着地で down_bas_start
-      down_roll_start:  'down_roll_start',   // 転がり → down_bas_loop
-      // ── 叩きつけ（lv05）─────────────────────────────────
-      down_rakka_start: 'down_rakka_start',  // 真下に高速落下開始（地上/空中共用）→ down_rakka_loop ／ 地面: down_bound_start
-      down_rakka_loop:  'down_rakka_loop',   // 真下落下ループ ／ 地面: down_bound_start
-      down_bound_start: 'down_bound_start',  // 着地後の1回バウンド → 再着地で down_bas_loop
-      // ── バースト離脱（重複必殺技ヒット時の完全無敵スピン）─────────────
-      // ダメージは通常通り入るが、敵は無敵で派手にぐるぐる回りながら後方へ吹き飛ぶ。
-      // 着地で down_bas_start に合流。コンボは +1 してから自然消滅。
-      // 重複検出は p.specialIsDuplicate フラグ経由（startSpecial で立つ）。
-      down_burst_start: 'down_burst_start',  // 12F イントロ → down_burst_loop
-      down_burst_loop:  'down_burst_loop',   // 空中スピン中（完全無敵）→ 着地で down_bas_start
-      // ── ダウン静止・起き上がり ─────────────────────────────────
-      down_bas_start:   'down_bas_start',    // 着地直後（イントロ） → down_bas_loop
-      down_bas_loop:    'down_bas_loop',     // ダウン静止ループ → down_bas_end
-      down_bas_end:     'down_bas_end',      // 起き上がり
-      // ── プレイヤー被ダメ専用（Phase 2.4）─────────────────────────
-      // 注：updatePlayer / updateEnemies は配列が分離されているため、
-      //     同名 STATE をプレイヤー/敵で共有しても誤動作しない。
-      //     将来「全 entity ループ」を作る場合は要再設計。
-      guard_crash:      'guard_crash',       // ガードクラッシュ硬直（SP枯渇）
-      dying:            'dying',             // 死亡演出（60F）
-      dead:             'dead',              // 完全停止 → DEAD_FRAMES 後に revive
-      // ── 敵 AI 攻撃 state（Phase 2.4 ダミー敵ミニマム攻撃）────────
-      enemy_attacking:  'enemy_attacking',   // 接近 → wind / active / recover の3段
-    };
-    const ENEMY_FALL_FRAMES = 36; // 0.6s：倒れ終わるまで（down_up_start）
-    const ENEMY_RISE_FRAMES = 30; // 0.5s：起き上がり（down_bas_end）
-    // ダウン静止（down_bas_start イントロ + down_bas_loop ループ）
-    const ENEMY_DOWN_BAS_START_FRAMES = 20;  // 着地直後イントロ
-    const ENEMY_DOWN_BAS_LOOP_FRAMES  = 40;  // ダウン静止ループ
-    // 新規ステートの持続F
-    const ENEMY_KB01_FRAMES         = 24;  // knockback01（2026-05-13 12→24）
-    const ENEMY_KB02_FRAMES         = 35;  // knockback02（01 より長く・35F に統一）
-    const ENEMY_KB_AIR_FRAMES       = 24;  // knockback_air01（2026-05-13 12→24）
-    const ENEMY_KB03_FRAMES         = 45;  // knockback03（ダウン中ヒット用フリンチ）
-    const ENEMY_LAND_FRAMES         = 12;  // land
-    const ENEMY_DOWN_FRONT_FRAMES   = 24;  // down_front_start（吹き飛び傾き）
-    // 超吹き飛ばし系（lv06）
-    const ENEMY_DOWN_CHOU_FRAMES    = 12;  // down_chou_start イントロ
-    const ENEMY_WALL_START_FRAMES   = 15;  // down_wall_start（壁張り付き）
-    const ENEMY_ROLL_FRAMES         = 30;  // down_roll_start（転がり）
-    // バースト離脱（重複必殺技）
-    const ENEMY_DOWN_BURST_START_FRAMES = 12;  // down_burst_start イントロ
-    const ENEMY_DOWN_BURST_LOOP_FRAMES  = 60;  // down_burst_loop 空中スピン持続
-    const KB_BURST_VY        = 18;     // 上向き初速（軽め）
-    const KB_BURST_VX        = 15;     // 後方水平初速
-    const KB_BURST_VX_DECAY  = 0.95;   // 緩い減衰（遠くまで飛ぶ）
-    const KB_BURST_SPIN_RATE = 0.40;   // 毎フレーム rotation.z 増分（≒ 23°/F・ぐるぐる）
-    const KB_BURST_GRAV_MULT = 0.6;    // gravFactor（既存 launcherAirborne と同じ・滞空延長）
-    // 叩きつけ系（lv05）
-    const ENEMY_DOWN_RAKKA_FRAMES   = 12;  // down_rakka_start（落下開始イントロ）
-    const ENEMY_DOWN_BOUND_FRAMES   = 60;  // down_bound_start（バウンド効果時間・着地で早期終了可）
-
-    // ============================================================
-    //  ステート別の傾き（tiltAngle）目標テーブル
-    //  ステート機械からは tiltAngle 設定を撤去し、ここを単一の真とする。
-    //  rotation.z = -fallDir * tiltAngle で実反映。
-    //  ランプ系（down_up_start / down_bas_end）は別途タイマー駆動で計算（後段で特殊処理）。
-    // ============================================================
-    const STATE_TILT_TARGET = {
-      // 立ち姿勢（0）
-      wait01:           0,
-      attacking:        0,
-      hit_confirm:      0,
-      knockback01:      0,
-      knockback02:      0,
-      knockback_air01:  0,
-      knockback03:      Math.PI / 2,    // 横倒し（ダウン中フリンチ）
-      fall_loop:        0,
-      land:             0,
-      // down_front_start はランプ系（0→π/2）— STATE_TILT_TARGET 経由ではなく後段で個別計算
-      down_chou_start:  0,
-      down_chou_loop:   0,
-      down_wall_start:  0,                // 壁張り付き（うつ伏せ姿勢は将来 rotation.x で）
-      // 横倒し姿勢（π/2）
-      down_front_loop:  Math.PI / 2,      // 吹き飛び落下中は横倒し
-      down_wall_loop:   Math.PI / 2,      // うつ伏せ落下（暫定的に横倒し）
-      down_roll_start:  Math.PI / 2,      // 転がり
-      down_up_loop:     Math.PI / 2,
-      down_bas_start:   Math.PI / 2,
-      down_bas_loop:    Math.PI / 2,
-      // 叩きつけ（lv05）— Z tilt は使わず X 軸であおむけ姿勢にする（後段で別途処理）
-      down_rakka_start: 0,
-      down_rakka_loop:  0,
-      down_bound_start: 0,
-      // バースト離脱（重複必殺技）— tilt 補間は使わず updateEnemies で直接 rotation.z を回す
-      down_burst_start: 0,
-      down_burst_loop:  0,
-    };
-    const STATE_TILT_LERP = 0.25;          // 補間係数（0.25 で約12F でほぼ目標到達）
-
-    // ============================================================
-    //  ステート別の前後傾（rotation.x ピッチ）
-    //  rotation.order='ZYX' により rx の符号で「敵から見た前/後傾」を表現できる：
-    //    +rx → プレイヤー方向（手前・前傾）／ -rx → 反対側（後傾・のけぞり）
-    //  TARGET = フレーム毎の lerp 目標値
-    //  INITIAL = ヒット遷移瞬間に強制セットする値（未定義なら lerp に任せる）
-    // ============================================================
-    const STATE_PITCH_TARGET = {
-      knockback01:     +0.175,   // ≈ +10°（おなか抑えうずくまり・継続）
-      knockback02:     -0.524,   // ≈ -30°（のけぞり・継続）
-      knockback_air01: 0,        // 立ち直り（INITIAL から 0 へ徐々に lerp）
-      grabbing:        +0.175,   // ≈ +10°（敵を掴んで前傾・kb01 と同じ見た目）
-      grabbed:         +0.175,   // ≈ +10°（掴まれて前傾・kb01 と同じ見た目）
-    };
-    const STATE_PITCH_INITIAL = {
-      knockback01:     +0.175,   // 即座に前傾の姿勢へ
-      knockback02:     -0.524,   // 即座にのけぞる姿勢へ
-      knockback_air01: +0.262,   // ≈ +15° 開始（徐々に立ち直る）
-      grabbing:        +0.175,
-      grabbed:         +0.175,
-    };
-    // 被弾ステート遷移時に呼ぶ：状態に応じた pitch 初期値をセット
-    function applyHitInitialPitch(e) {
-      const v = STATE_PITCH_INITIAL[e.state];
-      if (v !== undefined) e.pitchAngle = v;
-    }
-    const STATE_PITCH_LERP = 0.18;
-    // ============================================================
-    //  #section state-constants — ENEMY_*_FRAMES / KB_LV* / しきい値定数
-    // ============================================================
-    // atk_lv_air 判定のしきい値：これ以下の y は接地扱い（バウンド瞬間や落下直前の微小値で
-    // 誤って空中ルートに入るのを防ぐ。c01_atk_l_01_air を地上敵に当てた時の挙動安定化）
-    const ENEMY_AIRBORNE_Y_THRESHOLD = 10;
+    // === 攻撃データ:        冒頭 import で取り込み（src/attacks.js）===
+    // === ステート定数群:    冒頭 import で取り込み（src/states.js）===
+    //     STATE / TILT / PITCH / *_FRAMES / KB_LV* / HP_CONFIG / applyHitInitialPitch
 
     // ============================================================
     //  #section enemy-ai-dummy — ダミー敵ミニマム攻撃（Phase 2.4・テスト用 AI）
@@ -1466,17 +1311,6 @@
       shake:            4,
       hitColor:         0xff8844,
     };
-    // lv03（吹き飛び）打ち上げパラメータ
-    const KB_LV03_VY      = 12;
-    const KB_LV03_VX_MULT = 1.5;
-    // lv05（叩きつけ）パラメータ — 真下に高速落下 + 着地後 1回バウンド
-    const KB_LV05_VY        = -18;  // 下向き初速（高速で真下）
-    const KB_LV05_VX_MULT   = 0.1;  // 水平ノックバックはほぼ殺す（真下落下）
-    const KB_LV05_BOUNCE_VY = 20;   // 着地後の 1回バウンド上向き初速（14 × 1.4 ≒ 拾い直しが狙える高さ）
-    const KB_LV07_HOP_VY    = 8;    // ダウン中ヒット時の小バウンド（knockback03 開始時 vy）
-    // lv06（超吹き飛ばし）打ち上げパラメータ — down_front_* を共用し倍率だけ強化
-    const KB_LV06_VY      = 18;
-    const KB_LV06_VX_MULT = 2.5;
 
     // ============================================================
     //  パーツアニメーション定義（仮アニメーション・本番素材差し替えで削除）
@@ -2975,8 +2809,16 @@
           e.state === STATE.down_up_loop ||
           e.state === STATE.down_rakka_start ||
           e.state === STATE.down_rakka_loop ||
-          e.state === STATE.down_bound_start
+          e.state === STATE.down_bound_start ||
+          e.state === STATE.enemy_attacking  // Phase 2.4：敵 AI 攻撃中もカウンター被弾を受け付ける
         ) {
+          // 敵 AI 攻撃中の被弾：AI 内部状態をクリーンアップしてからフリンチへ遷移
+          if (e.state === STATE.enemy_attacking) {
+            e.atkPhase     = null;
+            e.atkTimer     = 0;
+            e.atkCooldown  = DUMMY_ATK_CONFIG.cooldownFrames;
+            e.hitDelivered = false;
+          }
           // === atk_lv 駆動の被弾ステート振り分け ===
           // 再発火許可ステート：
           //  - wait01（初動）
