@@ -590,6 +590,11 @@
     import {
       initCamera, updateCamera, applyCamConfig, updateClockHud,
     } from './src/camera.js';
+    // === hud-system（SP/HP/コンボ/グラブゲージ/敵CD）は src/hud-system.js に分離（Step E-2）===
+    import {
+      initHudSystem,
+      updateSPGauge, updateHpHud, updateGrabGauge, updateEnemyAtkCountdown,
+    } from './src/hud-system.js';
     // === ステート定数・被弾持続F・KB ベクトル定数は src/states.js に分離（Step B・ESM import）===
     import {
       STATE, STATE_TILT_TARGET, STATE_PITCH_TARGET, STATE_PITCH_INITIAL,
@@ -1880,6 +1885,26 @@
       clockHandEl: document.getElementById('clock-hand'),
       gameAspect: GAME_ASPECT,
     });
+
+    // hud-system 初期化（DOM refs はここで一括解決）
+    {
+      const _enemyAtkCdTemplate = document.getElementById('enemy-atk-cd');
+      if (_enemyAtkCdTemplate) _enemyAtkCdTemplate.style.display = 'none';
+      initHudSystem({
+        THREE,
+        players, enemies,
+        camera,
+        spBarEl:        document.getElementById('sp-bar'),
+        spStockNumEl:   document.getElementById('sp-stock-num'),
+        hpBarEl:        document.getElementById('hp-bar'),
+        hpNumEl:        document.getElementById('hp-num'),
+        grabGaugeEl:    document.getElementById('grab-gauge'),
+        grabGaugeFillEl: document.getElementById('grab-gauge-fill'),
+        hudLayerEl:     document.getElementById('hud-layer'),
+        gameWidth:  GAME_WIDTH,
+        gameHeight: GAME_HEIGHT,
+      });
+    }
 
     // ============================================================
     //  デバッグ：スロー再生モード
@@ -3693,74 +3718,7 @@
     // ============================================================
     //  #section hud-update — SP ゲージ / デバッグ HUD / グラブゲージ / 時計 / コンボ HUD
     // ============================================================
-    // SP ゲージ：右→左に伸びる単一バー＋左側にストック数（カウントアップ）
-    const spBarEl      = document.getElementById('sp-bar');
-    const spStockNumEl = document.getElementById('sp-stock-num');
-    let _prevFullStocks = -1;
-    function updateSPGauge() {
-      const p = players[0];
-      const stockSize  = SP_CONFIG.STOCK_SIZE;    // 20
-      const maxStocks  = SP_CONFIG.MAX_STOCKS;    // 5
-      const fullStocks = Math.min(maxStocks, Math.floor(p.sp / stockSize));
-      // 現在充填中のバーの伸長量（次のストックに向けて 0→1）
-      const partial    = Math.max(0, Math.min(1, (p.sp - fullStocks * stockSize) / stockSize));
-      const atMax = (fullStocks >= maxStocks);
-      // MAX 到達時はバーを満タン表示（空白だと「ゲージが空」と誤認されるため）
-      const barW = atMax ? 100 : (partial * 100);
-      spBarEl.style.width = barW.toFixed(1) + '%';
-      if (spStockNumEl) spStockNumEl.textContent = fullStocks;
-      // MAX 到達時は色を変えて可視化（ULT 発動可サイン）
-      spBarEl.style.background = atMax ? '#00ffaa' : '#00ddff';
-      // ストック充填エッジ：fullStocks が前フレームより増えたタイミングでリング放射
-      if (_prevFullStocks >= 0 && fullStocks > _prevFullStocks) {
-        spawnSPStockRing();
-      }
-      _prevFullStocks = fullStocks;
-    }
 
-    // SP ストック 1 つ充填毎の演出（派手版）：
-    //   - 二重リング（シアン本体 + 遅延の黄色 = 余韻）
-    //   - 数字本体のスケール＆発光パルス
-    //   - 8 方向の放射スパーク
-    // 全要素は CSS animation 完了時に DOM から自動削除される
-    function spawnSPStockRing() {
-      const host = document.getElementById('sp-stock-num');
-      if (!host) return;
-      const addAnimEl = (className, extraStyles) => {
-        const el = document.createElement('div');
-        el.className = className;
-        if (extraStyles) Object.assign(el.style, extraStyles);
-        host.appendChild(el);
-        el.addEventListener('animationend', () => el.remove(), { once: true });
-        return el;
-      };
-      // 二重リング
-      addAnimEl('sp-stock-ring');
-      addAnimEl('sp-stock-ring delay');
-      // 8 方向スパーク
-      for (let i = 0; i < 8; i++) {
-        const angle = (i / 8) * 360;
-        addAnimEl('sp-stock-spark', { '--angle': `${angle}deg` });
-      }
-      // 数字パルス（既存クラスを一旦剥がして再付与でアニメ再起動）
-      host.classList.remove('sp-stock-num-pulse');
-      void host.offsetWidth; // reflow を強制してアニメ再起動を担保
-      host.classList.add('sp-stock-num-pulse');
-    }
-
-    // HP HUD：プレイヤーごとの HP バー更新（将来 P2/P3/P4 拡張用に forEach 構造）
-    const hpBarEl = document.getElementById('hp-bar');
-    const hpNumEl = document.getElementById('hp-num');
-    function updateHpHud() {
-      const p = players[0];
-      if (!p || !hpBarEl) return;
-      const ratio = Math.max(0, Math.min(1, p.hp / p.maxHp));
-      hpBarEl.style.width = (ratio * 100).toFixed(1) + '%';
-      if (hpNumEl) hpNumEl.textContent = `${Math.ceil(p.hp)} / ${p.maxHp}`;
-      // 危機状態（p.inCrisis）と連動して点滅
-      // → 機体本体の火花スポーンと同タイミングで切り替わる（HP_CONFIG.CRISIS_THRESHOLD 一元管理）
-      hpBarEl.classList.toggle('low', !!p.inCrisis);
-    }
 
     function updateDebug() {
       const p = players[0];
@@ -3817,85 +3775,7 @@
       updateDebug();
     }
 
-    // デバッグ：敵攻撃カウントダウン（敵ごとに頭上 world→screen 投影）
-    //   - カウントダウン中（wind フェーズ）だけ「3 / 2 / 1」を大きく表示
-    //   - 敵ごとに DOM 要素を動的生成・プール管理
-    //   - 元の #enemy-atk-cd はテンプレ的に残す（hidden）
-    const ENEMY_ATK_CD_TEMPLATE = document.getElementById('enemy-atk-cd');
-    if (ENEMY_ATK_CD_TEMPLATE) ENEMY_ATK_CD_TEMPLATE.style.display = 'none';
-    const _enemyCdProj  = new THREE.Vector3();
-    const _enemyCdPool  = [];  // 動的生成された CD 要素のプール（敵 index に対応）
-    function _getEnemyCdEl(idx) {
-      while (_enemyCdPool.length <= idx) {
-        const el = document.createElement('div');
-        el.id = `enemy-atk-cd-${_enemyCdPool.length}`;
-        el.style.position = 'absolute';
-        el.style.transform = 'translate(-50%, -50%)';
-        el.style.pointerEvents = 'none';
-        el.style.zIndex = '81';
-        el.style.fontFamily = "'Courier New', monospace";
-        el.style.fontSize = '56px';
-        el.style.fontWeight = 'bold';
-        el.style.textShadow = '0 0 10px #000, 3px 3px 0 #000';
-        el.style.whiteSpace = 'nowrap';
-        el.style.display = 'none';
-        el.style.lineHeight = '1';
-        // 既存 CSS の cd-1/2/3 クラスで色付け（既存スタイル流用）
-        const hudLayer = document.getElementById('hud-layer');
-        (hudLayer ?? document.body).appendChild(el);
-        _enemyCdPool.push(el);
-      }
-      return _enemyCdPool[idx];
-    }
-    function updateEnemyAtkCountdown() {
-      for (let i = 0; i < enemies.length; i++) {
-        const e = enemies[i];
-        const el = _getEnemyCdEl(i);
-        if (!e.isAlive || !ENEMY_AI.enabled || !e.aiEnabled ||
-            e.state !== STATE.enemy_attacking || e.atkPhase !== 'wind') {
-          el.style.display = 'none';
-          continue;
-        }
-        // 残F → 秒（切り上げ）：180..121=3 / 120..61=2 / 60..1=1
-        const sec = Math.ceil(e.atkTimer / 60);
-        el.textContent = sec;
-        el.className = 'cd-' + sec;
-        _enemyCdProj.set(e.x, e.y + 260, e.z);
-        _enemyCdProj.project(camera);
-        const frameX = (_enemyCdProj.x * 0.5 + 0.5) * GAME_WIDTH;
-        const frameY = (-_enemyCdProj.y * 0.5 + 0.5) * GAME_HEIGHT;
-        el.style.left = frameX + 'px';
-        el.style.top  = frameY + 'px';
-        el.style.display = 'block';
-      }
-    }
 
-    // デバッグ：グラブゲージ（敵頭上に world→screen 投影）
-    //   - グラブ中だけ表示
-    //   - 残り時間に応じて左→右に塗りつぶし、満杯で解除
-    //   - 本番リリース時は #grab-gauge の display を none 固定 or HTML 削除予定
-    const GRAB_GAUGE_EL      = document.getElementById('grab-gauge');
-    const GRAB_GAUGE_FILL_EL = document.getElementById('grab-gauge-fill');
-    const _grabGaugeProj     = new THREE.Vector3();
-    function updateGrabGauge() {
-      const p = players[0];
-      if (!p || p.state !== STATE.grabbing || !p.grabTarget) {
-        if (GRAB_GAUGE_EL) GRAB_GAUGE_EL.style.display = 'none';
-        return;
-      }
-      const e = p.grabTarget;
-      // 充填率：時間が経過/攻撃ヒットで grabTimer が減るほど fill が右へ
-      const fill = Math.max(0, Math.min(1, 1 - p.grabTimer / GRAB_CONFIG.DURATION));
-      GRAB_GAUGE_FILL_EL.style.width = (fill * 100).toFixed(1) + '%';
-      // 敵頭上を world→画面（1920x1080 フレーム座標）に投影
-      _grabGaugeProj.set(e.x, e.y + 220, e.z);
-      _grabGaugeProj.project(camera);
-      const frameX = (_grabGaugeProj.x * 0.5 + 0.5) * GAME_WIDTH;
-      const frameY = (-_grabGaugeProj.y * 0.5 + 0.5) * GAME_HEIGHT;
-      GRAB_GAUGE_EL.style.left = frameX + 'px';
-      GRAB_GAUGE_EL.style.top  = frameY + 'px';
-      GRAB_GAUGE_EL.style.display = 'block';
-    }
 
     // デバッグ時計：update() の tick で 6° ずつ回す
     //   - 通常：6°/F → 60F で 360°（≒1 秒で 1 回転 at 60fps）
