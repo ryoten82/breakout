@@ -599,6 +599,10 @@
     import {
       initEnemySystem, buildDummyMesh, spawnDummy, updateEnemies,
     } from './src/enemy-system.js';
+    // === input-system（keys / padKeys / inp / action / pollGamepad）は src/input-system.js に分離（Step E-6）===
+    import {
+      initInputSystem, inp, action, pollGamepad,
+    } from './src/input-system.js';
     // === fx-system（メガクラ/ULT/チャージリング/ホーミング矢印 演出更新）は src/fx-system.js に分離（Step E-5）===
     import {
       initFxSystem,
@@ -1868,14 +1872,14 @@
     const _hkSlowmoEl = document.getElementById('hk-slowmo');
 
     // ============================================================
-    //  #section input — INPUT (keys / gamepad / action() / inp() / KEY_CONFIG)
+    //  #section input — INPUT
+    //  keys / padKeys / inp / action / pollGamepad は src/input-system.js に分離（Step E-6）
+    //  ここではアプリ固有のキー処理（ESC 一時停止 / 数字キー Digit1-5 のデバッグトグル）のみ残置
     // ============================================================
-    const keys = {};
+    initInputSystem({
+      onPadStartPressed: () => togglePause('PAD'),
+    });
     addEventListener('keydown', (e) => {
-      keys[e.code] = true;
-      if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) {
-        e.preventDefault();
-      }
       // 一時停止：ESC キー（キーリピート抑止）
       if (e.code === 'Escape') {
         if (e.repeat) return;
@@ -1963,74 +1967,6 @@
         console.log('[ENEMY_AI] enabled =', ENEMY_AI.enabled);
       }
     });
-    addEventListener('keyup', (e) => { keys[e.code] = false; });
-
-    // === ゲームパッド入力（標準マッピング）===
-    // キーボードと並列動作。padKeys に書き込み、inp() で統合参照する。
-    const padKeys = {};
-
-    // 標準ゲームパッドボタン → keys コード変換テーブル
-    const PAD_BUTTON_MAP = {
-      0:  'Space',     // A / Cross    → ジャンプ
-      2:  'KeyJ',      // X / Square   → 弱攻撃
-      3:  'KeyK',      // Y / Triangle → 強攻撃
-      4:  'KeyL',      // LB / L1      → セカンダリ（Lキー）
-      5:  'KeyU',      // RB / R1      → メガクラッシュ専用
-      7:  'KeyI',      // RT / R2      → ULT専用
-      12: 'ArrowUp',   // D-pad ↑
-      13: 'ArrowDown', // D-pad ↓
-      14: 'ArrowLeft', // D-pad ←
-      15: 'ArrowRight',// D-pad →
-    };
-
-    // === キーコンフィグ（将来オプション画面でリバインド可能な設計）===
-    // PAD_BUTTON_MAP の kb 値と対応させることで pad も自動追従する
-    // KEY_CONFIG は src/config.js に分離（import 済）
-
-    // アクション判定（KEY_CONFIG 参照・将来リバインド対応の統合口）
-    function action(name) {
-      const cfg = KEY_CONFIG[name];
-      if (!cfg) return false;
-      return !!(inp(cfg.kb) || (cfg.kb2 && inp(cfg.kb2)));
-    }
-    const PAD_AXIS_DEAD = 0.25; // スティックデッドゾーン
-    const PAD_START_BUTTON = 9; // 標準ゲームパッドの START ボタン（Options / Plus）
-    let _padStartWas = false;   // rising edge 検出用（一時停止トグル）
-
-    function pollGamepad() {
-      // padKeys をいったんリセット
-      for (const k in padKeys) padKeys[k] = false;
-
-      const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
-      // インデックス固定だと再接続時にずれるため、最初の有効なパッドを使う
-      const gp = Array.from(gamepads).find(g => g && g.connected);
-      if (!gp) { _padStartWas = false; return; }
-
-      // ボタン
-      for (const [idx, code] of Object.entries(PAD_BUTTON_MAP)) {
-        const btn = gp.buttons[idx];
-        if (btn && btn.pressed) padKeys[code] = true;
-      }
-
-      // START ボタン：一時停止トグル（rising edge 検出・押しっぱなしで連発しない）
-      const startBtn = gp.buttons[PAD_START_BUTTON];
-      const startPressed = !!(startBtn && startBtn.pressed);
-      if (startPressed && !_padStartWas) {
-        togglePause('PAD');
-      }
-      _padStartWas = startPressed;
-
-      // 左スティック → 移動（Axis 0 = X, Axis 1 = Y）
-      const ax = gp.axes[0] ?? 0;
-      const ay = gp.axes[1] ?? 0;
-      if (ax < -PAD_AXIS_DEAD) padKeys['ArrowLeft']  = true;
-      if (ax >  PAD_AXIS_DEAD) padKeys['ArrowRight'] = true;
-      if (ay < -PAD_AXIS_DEAD) padKeys['ArrowUp']    = true;
-      if (ay >  PAD_AXIS_DEAD) padKeys['ArrowDown']  = true;
-    }
-
-    // キーボード OR ゲームパッドの統合参照
-    function inp(code) { return !!(keys[code] || padKeys[code]); }
 
     // ============================================================
     //  GAME LOOP
