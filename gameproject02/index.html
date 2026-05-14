@@ -76,7 +76,7 @@
        hud-layer の transform: scale() で window スケールに自動追従する */
     #hud {
       position: absolute;
-      top: var(--sp-lg); left: var(--sp-lg);
+      top: 120px; left: var(--sp-lg);   /* HP ゲージとかぶらないよう下に */
       padding: var(--sp-md) var(--fs-md);
       background: rgba(0, 20, 40, 0.55);
       border-left: var(--hud-accent-w) solid #00ddff;
@@ -142,25 +142,28 @@
       pointer-events: none;
     }
 
-    /* HP ゲージ（SP ゲージの上に配置）*/
+    /* HP ゲージ（本番レイアウト：左上配置・SP より大きく・デバッグHUDより上）*/
     #hp-gauge-wrap {
       position: absolute;
-      bottom: calc(var(--sp-xl) + 32px); left: var(--sp-lg);
+      top: 40px; left: var(--sp-lg);
+      width: 700px;           /* バー(600) + ラベル + gap を含めた固定幅 */
+      padding-top: 32px;      /* 数字をバー上に置くためのスペース */
       display: flex;
       align-items: center;
       gap: var(--sp-md);
       pointer-events: none;
     }
+    /* バーを wrap 内の右端に寄せる（margin-left:auto で flex 右寄せ）*/
+    #hp-bar-bg { margin-left: auto; }
     #hp-label {
       font-family: 'Courier New', monospace;
-      font-size: var(--fs-sm);
+      font-size: var(--fs-md);
       color: #ff4444;
       letter-spacing: var(--ls-wide);
-      width: 33px;
     }
     #hp-bar-bg {
-      width: 200px;
-      height: var(--sp-md);
+      width: 600px;
+      height: 24px;
       background: rgba(60, 0, 0, 0.7);
       border: 2px solid #882222;
       border-radius: 3px;
@@ -169,7 +172,7 @@
     }
     #hp-bar {
       position: absolute;
-      left: 0;
+      right: 0;           /* 右端起点：右→左に溜まる（SP と作法統一）*/
       top: 0;
       height: 100%;
       width: 100%;
@@ -183,40 +186,45 @@
       0%   { background: #ffaa44; }
       100% { background: #ff6644; }
     }
+    /* HP 数字：バーの上・右端揃え（wrap.padding-top のスペースに配置）*/
     #hp-num {
+      position: absolute;
+      right: 0;
+      top: 0;
       font-family: 'Courier New', monospace;
-      font-size: var(--fs-md);
+      font-size: var(--fs-lg);
       font-weight: bold;
       color: #ff8888;
-      min-width: 70px;
-      text-align: left;
+      text-align: right;
       text-shadow: 0 0 6px rgba(255, 80, 80, 0.5);
+      pointer-events: none;
     }
 
     #sp-gauge-wrap {
       position: absolute;
       bottom: var(--sp-xl); left: var(--sp-lg);
+      width: 500px;           /* HP wrap と同じ固定幅。バーを margin-left:auto で右寄せして右端揃え */
       display: flex;
       align-items: center;
       gap: var(--sp-md);
       pointer-events: none;
     }
+    #sp-bar-bg { margin-left: auto; }
     #sp-label {
       font-family: 'Courier New', monospace;
-      font-size: var(--fs-sm);
+      font-size: var(--fs-md);
       color: #00ddff;
       letter-spacing: var(--ls-wide);
-      width: 33px;
     }
-    /* SP ストック数（ゲージの左に表示・カウントアップ） */
+    /* SP ストック数（ゲージの左に表示・カウントアップ・2倍サイズ） */
     #sp-stock-num {
       font-family: 'Courier New', monospace;
-      font-size: var(--fs-lg);
+      font-size: var(--fs-xl);
       font-weight: bold;
       color: #00ffaa;
-      min-width: 28px;
+      min-width: 56px;
       text-align: center;
-      text-shadow: 0 0 6px rgba(0, 255, 170, 0.5);
+      text-shadow: 0 0 8px rgba(0, 255, 170, 0.6);
       /* リング放射の基準位置にするため relative */
       position: relative;
     }
@@ -274,10 +282,10 @@
       50%  { transform: translate(0, 0) rotate(var(--angle, 0deg)) translateY(-26px) scaleY(1.0); opacity: 0.9; }
       100% { transform: translate(0, 0) rotate(var(--angle, 0deg)) translateY(-46px) scaleY(0.5); opacity: 0; }
     }
-    /* SP ゲージ：右→左に溜まる単一バー（フル到達でストック数 +1） */
+    /* SP ゲージ：右→左に溜まる単一バー（HP と作法統一・2倍サイズ・フル到達でストック数 +1） */
     #sp-bar-bg {
-      width: 200px;
-      height: var(--sp-md);
+      width: 400px;
+      height: 20px;
       background: rgba(0, 30, 60, 0.7);
       border: 2px solid #006688;
       border-radius: 3px;
@@ -286,7 +294,7 @@
     }
     #sp-bar {
       position: absolute;
-      right: 0;          /* 右端から伸びる（右→左に溜まる） */
+      right: 0;          /* 右端起点：右→左に溜まる（HP と作法統一）*/
       top: 0;
       height: 100%;
       width: 0%;
@@ -1823,6 +1831,10 @@
         atkTimer:         0,
         atkCooldown:      opts.atkCooldown ?? 90,  // 初期は少し溜め（同時カウントを避けるため敵ごとに変える）
         hitDelivered:     false,
+        // === 投擲弾（グラブ投げ → 他敵衝突連鎖）===
+        thrownProjectile: false,  // 飛行中フラグ（true なら他敵との衝突判定が走る）
+        thrownByPlayer:   null,   // ダメージ帰属（コンボ・SP 加算用）
+        thrownDir:        0,      // 飛行方向（+1=右 / -1=左）
       };
       enemies.push(e);
       return e;
@@ -1838,6 +1850,16 @@
       paused:          false,
       allowFullPause:  true,
     };
+    // ゲーム全体の再生速度スケール（SLOWMO / 各種スローとは独立した「本番調整」用）
+    // - scale < 1.0：全体スロー（テストプレイ向け・体感「速すぎる」対策）
+    // - scale = 1.0：通常
+    // - scale > 1.0：倍速（SCRAP THEM 等のフィニッシャー演出で一時的に上げる想定）
+    // - メインループで accumulator 方式で 1F あたりの update 回数を分数制御
+    const GAME_SPEED = {
+      scale: 1.0,
+    };
+    let _gameSpeedAccum = 0;  // 累積（update 呼出回数の小数管理）
+
     // 一時停止トグルの共通エントリ（ESC / PAD START 両方から呼ぶ）
     function togglePause(source = 'KB') {
       if (!PAUSE_CONFIG.allowFullPause) {
@@ -3879,12 +3901,19 @@
       e.hp = Math.max(0, e.hp - GRAB_CONFIG.THROW_DAMAGE);
       e.hitFlashTimer = 7;
       e.fallDir       = dir;
-      // lv03 相当の吹き飛ばし（指定方向へ）
-      e.vy            = KB_LV03_VY;
+      // 投げ初速：通常 lv03 より上に持ち上げてから飛ばす（打ち上げ気味）
+      // kbDecay も緩めて飛距離 1.5 倍程度に
+      e.vy            = GRAB_CONFIG.THROW_INITIAL_VY;
       e.knockbackVx   = dir * GRAB_CONFIG.THROW_KB_VX;
+      e.kbDecay       = GRAB_CONFIG.THROW_KB_DECAY;
       e.state         = STATE.down_front_start;
       e.downTimer     = ENEMY_DOWN_FRONT_FRAMES;
       e.grabbedBy     = null;
+      // === 投擲弾フラグ：飛んでいる間、他敵との衝突判定を持たせる ===
+      // 1 回当たったら消費（多重ヒット防止）。着地で自動解除
+      e.thrownProjectile = true;
+      e.thrownByPlayer   = p;     // ダメージ帰属（コンボ・SP 加算用）
+      e.thrownDir        = dir;
       spawnHitParticles(e.x, e.y + 80, e.z, 0xff8844, 16,
         { type: 'normal', dirX: dir, dirZ: 0 });
       triggerHitstop(8);
@@ -3897,6 +3926,99 @@
       p.grabTimer    = 0;
       p.grabHitCount = 0;
       p.grabPunchActive = 0;
+    }
+
+    // ============================================================
+    //  投擲ヒット（投げ敵 → 他敵への衝突連鎖）
+    //  Final Fight 系の定番。複数敵戦のクラウドコントロール手段。
+    //  - 投擲弾（e.thrownProjectile=true）は飛行中に他敵との距離をチェック
+    //  - 衝突したら受け手を atk_lv 3（down_front_start）にし、投げ手はその場で停止
+    //  - ヒットストップ強め（FF 風）・1 回当てたら投擲弾フラグ消費
+    // ============================================================
+    const THROW_CHAIN_CONFIG = {
+      hitRangeX:    80,   // 衝突判定距離（X 軸）
+      hitRangeY:    120,  // Y 軸（投げ手はある程度上空にいるので広め）
+      hitRangeZ:    60,   // Z 軸
+      damage:       12,   // 受け手のダメージ
+      kbVy:         12,   // 受け手の打ち上げ初速（KB_LV03_VY と同等）
+      kbVxMult:     1.2,  // 投げ手の knockbackVx に対する受け手の倍率（少し弱め）
+      hitstop:      12,   // FF 風強めヒットストップ（18→12 にトーンダウン）
+      shake:        10,
+      hitColor:     0xffaa44,
+      hitCount:     20,
+    };
+    function tryThrownChainHit(thrower) {
+      if (!thrower.thrownProjectile) return;
+      if (!thrower.isAlive) return;
+      // 着地したら投擲弾フラグ解除
+      if (thrower.y <= 0 && thrower.vy <= 0 &&
+          (thrower.state === STATE.down_front_start || thrower.state === STATE.down_front_loop)) {
+        // まだ飛行中の判定は y>0 ベース。y<=0 になったら投擲解除
+      }
+      for (const other of enemies) {
+        if (other === thrower) continue;
+        if (!other.isAlive || other.frozenByUlt) continue;
+        if (other.state === STATE.grabbed) continue;
+        // ダウン中・既に吹き飛び中の敵は対象外（巻き込みすぎ防止）
+        if (other.state === STATE.down_front_start || other.state === STATE.down_front_loop ||
+            other.state === STATE.down_bas_start || other.state === STATE.down_bas_loop ||
+            other.state === STATE.down_bas_end ||
+            other.state === STATE.down_chou_start || other.state === STATE.down_chou_loop ||
+            other.state === STATE.down_roll_start ||
+            other.state === STATE.down_rakka_start || other.state === STATE.down_rakka_loop ||
+            other.state === STATE.down_bound_start ||
+            other.state === STATE.down_burst_start || other.state === STATE.down_burst_loop) continue;
+        const dx = Math.abs(other.x - thrower.x);
+        const dy = Math.abs(other.y - thrower.y);
+        const dz = Math.abs(other.z - thrower.z);
+        if (dx > THROW_CHAIN_CONFIG.hitRangeX) continue;
+        if (dy > THROW_CHAIN_CONFIG.hitRangeY) continue;
+        if (dz > THROW_CHAIN_CONFIG.hitRangeZ) continue;
+        // === 衝突発生 ===
+        const dir = thrower.thrownDir;
+        // 受け手：投げ手と同方向に吹き飛び
+        other.hp = Math.max(0, other.hp - THROW_CHAIN_CONFIG.damage);
+        other.hitFlashTimer = 7;
+        other.fallDir       = dir;
+        other.vy            = THROW_CHAIN_CONFIG.kbVy;
+        other.knockbackVx   = dir * THROW_CHAIN_CONFIG.hitRangeX * 0.5; // 投げ手より少し弱い
+        // 内部的に knockbackVx の参照値は thrower の現速度を流用
+        other.knockbackVx   = thrower.knockbackVx * THROW_CHAIN_CONFIG.kbVxMult * 0.6;
+        other.state         = STATE.down_front_start;
+        other.downTimer     = ENEMY_DOWN_FRONT_FRAMES;
+        other.peakHangTimer    = 0;
+        other.launcherAirborne = false;
+        // AI 攻撃中だった場合のクリーンアップ + トークン解放
+        if (other.state === STATE.enemy_attacking) { /* 既に上書き済 */ }
+        other.atkPhase    = null;
+        other.atkTimer    = 0;
+        other.atkCooldown = 30;
+        other.hitDelivered = false;
+        if (enemyAttackToken === other) enemyAttackToken = null;
+        applyHitInitialPitch(other);
+
+        // 投げ手：投擲弾フラグ消費 + 軽くストップ（連鎖防止・1 ヒットで消費）
+        thrower.thrownProjectile = false;
+        thrower.knockbackVx *= 0.35;  // 一気には止めない（自然な減速）
+
+        // 演出：強めのヒットストップ + シェイク + パーティクル
+        const midX = (thrower.x + other.x) / 2;
+        const midY = (thrower.y + other.y) / 2 + 50;
+        const midZ = (thrower.z + other.z) / 2;
+        spawnHitParticles(midX, midY, midZ, THROW_CHAIN_CONFIG.hitColor, THROW_CHAIN_CONFIG.hitCount,
+          { type: 'normal' });
+        triggerHitstop(THROW_CHAIN_CONFIG.hitstop);
+        triggerShake(THROW_CHAIN_CONFIG.shake, THROW_CHAIN_CONFIG.shake * 2 + 4);
+
+        // コンボ +1（投げ手のオーナーに帰属）
+        if (thrower.thrownByPlayer) {
+          bumpCombo(other);
+          thrower.thrownByPlayer.sp = Math.min(SP_CONFIG.MAX,
+            thrower.thrownByPlayer.sp + SP_CONFIG.GAIN_ON_HIT);
+        }
+        // 1 ヒットで終わり（多重ヒット防止）
+        break;
+      }
     }
 
     // ============================================================
@@ -4849,6 +4971,16 @@
         if (Math.abs(e.knockbackVx) < 0.1) {
           e.knockbackVx = 0;
           e.kbDecay = 0.78;  // ノックバック終了で減衰率を既定値に戻す
+        }
+        // === 投擲弾の衝突判定（Final Fight 風・グラブ投げ → 他敵連鎖）===
+        // 飛行中（thrownProjectile=true）の敵が他敵に当たると両者吹き飛び
+        if (e.thrownProjectile) {
+          tryThrownChainHit(e);
+          // 着地で投擲フラグ自動解除
+          if (e.y <= 0) {
+            e.thrownProjectile = false;
+            e.thrownByPlayer   = null;
+          }
         }
         // ステージバウンド壁ヒット
         // 超吹き飛ばし中（down_chou_start/loop）に壁に到達 → 強制 down_wall_start
@@ -5891,7 +6023,24 @@
         }
         ultSlowAccum -= divisor;
       }
-      update();
+      // ゲーム全体の再生速度スケール（GAME_SPEED.scale）
+      // accumulator で 1F あたりの update 回数を分数制御
+      //   scale < 1.0 → 一部フレームで update スキップ（render のみ）
+      //   scale > 1.0 → 1 フレームに複数 update（while ループ）
+      _gameSpeedAccum += GAME_SPEED.scale;
+      if (_gameSpeedAccum < 1.0) {
+        render();
+        requestAnimationFrame(loop);
+        return;
+      }
+      let _updateSafety = 0;  // 暴走防止：1F に最大 8 update まで
+      while (_gameSpeedAccum >= 1.0 && _updateSafety < 8) {
+        update();
+        _gameSpeedAccum -= 1.0;
+        _updateSafety++;
+      }
+      // 異常時の安全策：累積が大きく溜まったら破棄
+      if (_gameSpeedAccum > 4.0) _gameSpeedAccum = 0;
       render();
       requestAnimationFrame(loop);
     }
@@ -5935,7 +6084,7 @@
       // Phase 2.4 被ダメージシステム
       HP_CONFIG, damagePlayer, revivePlayer, isHitstunState, resetCombo,
       DUMMY_ATK_CONFIG, ENEMY_AI, tryHitPlayer,
-      TEST_CONFIG, PAUSE_CONFIG,
+      TEST_CONFIG, PAUSE_CONFIG, GAME_SPEED,
     };
     console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / pad / mega crash / ult) loaded.');
     console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG / SB.KEY_CONFIG');

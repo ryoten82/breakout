@@ -116,7 +116,9 @@ export const GRAB_CONFIG = {
   PUNCH_ACTION_FRAMES: 20, // つかみ攻撃のアクション持続(この間はタイマー停止・入力スキップ)
   PUNCH_DAMAGE:     6,
   THROW_DAMAGE:     15,
-  THROW_KB_VX:      45,    // 投げ時の水平ノックバック速度（元 30 の 1.5 倍・飛距離増）
+  THROW_KB_VX:      50,    // 投げ時の水平ノックバック速度
+  THROW_INITIAL_VY: 22,    // 投げ初速 Y（上に持ち上げてから飛ばす・打ち上げ気味）
+  THROW_KB_DECAY:   0.88,  // 投げの水平減衰（既定 0.78 より緩めて飛距離 1.5 倍に）
   HOLD_OFFSET_X:    110,   // プレイヤー〜被害者の中心間距離（重なり回避のためやや広め）
   RELEASE_KB_VX:    6,     // 時間切れ時の互いの押し合い速度
   ACTIVATE_PARTICLE_COLOR: 0x66ff44, // 発動時パーティクル色（仮：将来は属性ベース）
