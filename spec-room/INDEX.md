@@ -12,6 +12,7 @@
 | [マルチプレイ救助システム](discussions/multiplayer-rescue-system.md) | 検討中（案C：Unreal 移行後実装）| 2026-05-14 | §25 / §11 | 黒化中の救助受付→10% HP 復帰 or タイムアウトで爆散。Phase 2.4 で dead state 枠は確保済 |
 | [セーブシステム設計](discussions/save-system-design.md) | 検討中 | 2026-05-15 | §13 / §15 / §14 | 利確・不正取得対策。案A/B/C 比較済・案C 推奨叩き台 |
 | [簡易必殺技ボタン（；→ K キー検討中）](discussions/simple-special-button.md) | アイデア記録 | 2026-05-15 | §9.2 / §9.7 / §22.5 | スマブラ式・方向+K で必殺技 / コマンド K で強化版。技数試算 16/キャラ |
+| [コンボ広がりの設計：技数 vs 状況数](discussions/combo-depth-axis.md) | 検討中（設計指針） | 2026-05-15 | §4 / §9 / §17 | ベアナックル 4 観察から。技を増やす前に状況軸を増やす方針 |
 
 ## status 凡例
 - **検討中**: discussions/ に存在・議論進行中
