@@ -124,6 +124,7 @@ export function _cancelPlayerAction(p) {
   p.specialFlashTimer  = 0;
   p.chargeJFrames      = 0;
   p.chargeReady        = false;
+  p.chargeLevel        = 0;
   p.jHeldDuringCharge  = false;
   p.attackBuffered     = false;
   p.kBuffered          = false;

@@ -29,9 +29,13 @@ import { fxState } from './hit-engine.js';
 // Y は「絶対位置（地面 y=0）基準」で運用：プレイヤーが y > Y_UP の時のみ camFollowY 追従、
 // それ以外は camFollowY = 0 に戻す。ジャンプ降下後カメラが地面に自動で戻る
 const DEAD_ZONE_X = 380;        // 画像の赤枠サイズに合わせて再拡張
-const DEAD_ZONE_Y_UP = 200;     // ジャンプ早期に追従発動・最高点でも画面に収まる（516-200=316 < 350）
+const DEAD_ZONE_Y_UP = 200;     // 物理 Y 軸（既存ロジック互換のため残置・現在は screenY 基準）
 const DEAD_ZONE_Y_DOWN = 500;   // 地下ステージ対応・下方向の許容
 const DEAD_ZONE_Z = 420;
+// screenY のデッドゾーン上端：camera 動き始めの境界を上げて「ブヨブヨ」を抑制
+//   100 → 200 : ジャンプ中空までは camera 動かない
+const SCREEN_Y_UP = 200;
+const SCREEN_Y_DOWN = -250;
 
 let _camera = null;
 let _bgCamera = null;
@@ -208,38 +212,32 @@ export function updateCamera() {
   const screenY = (CAM_CONFIG.CAM_Z * dy - CAM_CONFIG.CAM_Y * dz) / camDist;
   // screenY のデッドゾーン（上 100 / 下 -250）。これを超えたら camFollowY で補正
   // 上端側は控えめにしてプレイヤー身体（中心から +150wu の頭部）まで画面内に収める
-  const SCREEN_Y_UP = 100;
-  const SCREEN_Y_DOWN = -250;
   // 目標 camFollowY を「screenY がちょうど境界に来る値」として絶対計算する。
   // screenY = (CAM_Z*(p.y - camFollowY) - CAM_Y*dz) / camDist = 境界値 を解くと：
   //   camFollowY = p.y - (CAM_Y/CAM_Z)*dz - 境界値 * (camDist/CAM_Z)
   // これで targetY が camFollowY に依存しなくなり、lerp がスプリング振動しない
   const Y_RATIO = CAM_CONFIG.CAM_Y / CAM_CONFIG.CAM_Z;     // 0.4
   const SCREEN_SCALE = camDist / CAM_CONFIG.CAM_Z;          // 1.077
-  // 「2D 認識」モード：プレイヤーの画面 Y 位置 (screenY) を境界に保つ camFollowY を target として、
-  // 線形定速 (12wu/F) で target に追従する。境界判定に MARGIN=STEP_BASE のヒステリシス。
-  // MARGIN < STEP だと「境界モード ON ⇄ OFF」を毎フレ切り替えて STEP 分の振動が出るため、
-  // MARGIN は STEP 以上にする（落下はじめのガタつき対策）
-  const MARGIN = 12;
+  // 「2D 認識」モード：境界判定を連続関数化（target が 0 から滑らかに立ち上がる）。
+  //   閾値方式だと、screenY が境界を細かく跨ぐ中間地点ジャンプで target が「0 ⇄ 大きな値」に
+  //   スナップしてカメラがグラグラする。upTarget/downTarget をそのまま使えば境界で連続。
+  const upTarget   = p.y - Y_RATIO * dz - SCREEN_Y_UP   * SCREEN_SCALE;
+  const downTarget = p.y - Y_RATIO * dz - SCREEN_Y_DOWN * SCREEN_SCALE;
   let targetCamY;
-  if (screenY > SCREEN_Y_UP - MARGIN) {
-    targetCamY = p.y - Y_RATIO * dz - SCREEN_Y_UP * SCREEN_SCALE;
-  } else if (screenY < SCREEN_Y_DOWN + MARGIN) {
-    targetCamY = p.y - Y_RATIO * dz - SCREEN_Y_DOWN * SCREEN_SCALE;
+  if (upTarget > 0) {
+    targetCamY = upTarget;     // 上端を越えた分だけ追従
+  } else if (downTarget < 0) {
+    targetCamY = downTarget;   // 下端を越えた分だけ追従
   } else {
-    targetCamY = 0;
+    targetCamY = 0;            // デッドゾーン内：camera は地上ベース
   }
-  // 線形定速で target へ追従（指数 lerp ではなく一定速 → 動きにムラがなく滑らか）
-  // 下方向（camFollowY を下げる）は、空中で降下中ならプレイヤーの落下速度に同期させて
-  // 3 段ジャンプの「カメラ遅延」を解消する。上方向は STEP_BASE で抑制（ガタつき対策）
-  const STEP_BASE = 12;
+  // 線形定速で target へ追従（上下とも一定速 10wu/F）
+  // 重力加速を camera に持ち込まない（target が p.y に追従する性質上、step を遅くすることで
+  // 「camera 側の加速感」を構造的に出さない設計）。プレイヤーは画面内で多少動く
+  const STEP = 10;
   const diff = targetCamY - camFollowY;
-  let step = STEP_BASE;
-  if (diff < 0 && !p.isGrounded && p.vy < 0) {
-    step = Math.max(STEP_BASE, Math.abs(p.vy));  // 落下速度に同期
-  }
-  if (Math.abs(diff) > step) {
-    camFollowY += Math.sign(diff) * step;
+  if (Math.abs(diff) > STEP) {
+    camFollowY += Math.sign(diff) * STEP;
   } else {
     camFollowY = targetCamY;
   }

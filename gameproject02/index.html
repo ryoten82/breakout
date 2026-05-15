@@ -574,6 +574,48 @@
       min-width: 220px;
     ">DIR: <span id="dbg-dir-hist">-</span><br>CHARGE: <span id="dbg-charge">0</span> | SP_USED: <span id="dbg-sp-used">false</span></div>
   </div>
+  <!-- コンボ履歴パネル（画面中央下・トレーニング用 HUD 候補）
+       2 段構成：上段に BURST 演出（burst 発火時 3 秒）／下段にルートチップ。
+       ルート：S / L / SP / MC / ULT カテゴリ表記、空中版は a プレフィクス（aS / aL / aSP）。
+       ループ検出時は末尾を赤枠で囲む。 -->
+  <div id="combo-history-panel" style="
+    position: absolute;
+    bottom: 200px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+    z-index: 50;
+  ">
+    <div id="combo-burst-banner" style="
+      font-family: 'Consolas', 'Source Code Pro', monospace;
+      font-size: 44px;
+      font-weight: bold;
+      color: #ff3366;
+      letter-spacing: 6px;
+      text-shadow: 0 0 14px #ff3366, 0 0 4px #fff;
+      min-height: 0;
+      opacity: 0;
+      transition: opacity 0.15s;
+    "></div>
+    <div id="combo-route-row" style="
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      font-family: 'Consolas', 'Source Code Pro', monospace;
+      font-size: 22px;
+      font-weight: bold;
+      color: #cfffaa;
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 4px;
+      text-shadow: 0 0 6px rgba(0,0,0,0.9);
+      min-height: 36px;
+    "></div>
+  </div>
   </div><!-- /#hud-layer -->
   </div><!-- /#game-frame -->
 
@@ -625,7 +667,7 @@
       updateAttack, updateHitConfirm,
       matchCommand, pickSpecialAttackId,
       processAttackInput, consumeAttackBuffer,
-      anyPlayerUlting, triggerMegaCrash, maybeReleaseMegaInvincibility, triggerUlt,
+      anyPlayerUlting, isMegaSlowActive, isMegaComboGrace, triggerMegaCrash, maybeReleaseMegaInvincibility, triggerUlt,
       tryGrabActivate, processGrabInput, executeGrabPunch, executeGrabThrow,
       cancelGrabIntoAttack, endGrab,
       startDash, processDashInput, tryCancelJump,
@@ -680,7 +722,7 @@
       ENEMY_DOWN_BAS_START_FRAMES, ENEMY_DOWN_BAS_LOOP_FRAMES,
       ENEMY_KB01_FRAMES, ENEMY_KB02_FRAMES, ENEMY_KB_AIR_FRAMES, ENEMY_KB03_FRAMES,
       ENEMY_LAND_FRAMES, ENEMY_DOWN_FRONT_FRAMES,
-      ENEMY_DOWN_CHOU_FRAMES, ENEMY_WALL_START_FRAMES, ENEMY_ROLL_FRAMES,
+      ENEMY_DOWN_SUPER_FRAMES, ENEMY_WALL_START_FRAMES, ENEMY_ROLL_FRAMES,
       ENEMY_DOWN_BURST_START_FRAMES, ENEMY_DOWN_BURST_LOOP_FRAMES,
       KB_BURST_VY, KB_BURST_VX, KB_BURST_VX_DECAY, KB_BURST_SPIN_RATE, KB_BURST_GRAV_MULT,
       ENEMY_DOWN_RAKKA_FRAMES, ENEMY_DOWN_BOUND_FRAMES,
@@ -1320,7 +1362,7 @@
     // 寿命なし・プレイヤーに到達 or チャージ解除で破棄
     const chargeParticles = [];
     // CHARGE_PARTICLE_CONFIG は src/config.js に分離（import 済）
-    function spawnChargeParticle(px, py, pz) {
+    function spawnChargeParticle(px, py, pz, colorOverride) {
       const angle = Math.random() * Math.PI * 2;
       const yOffset = (Math.random() - 0.5) * 120;
       const r = CHARGE_PARTICLE_CONFIG.SPAWN_RADIUS * (0.85 + Math.random() * 0.3);
@@ -1333,7 +1375,7 @@
         CHARGE_PARTICLE_CONFIG.SIZE
       );
       const mat = new THREE.MeshBasicMaterial({
-        color:       CHARGE_PARTICLE_CONFIG.COLOR,
+        color:       colorOverride ?? CHARGE_PARTICLE_CONFIG.COLOR,
         transparent: true,
         opacity:     0.9,
       });
@@ -1580,7 +1622,8 @@
       // === 必殺技（コマンド・溜め）===
       dirHistory:           [],    // 方向入力履歴 [{dir, frame}, ...]・新しい順で push
       chargeJFrames:        0,     // J 長押し蓄積フレーム
-      chargeReady:          false, // 0.8 秒到達フラグ
+      chargeReady:          false, // チャージ成立フラグ（stage1 以上）
+      chargeLevel:          0,     // 0:未成立 / 1:stage1（30F）/ 2:stage2 MAX（60F）— OC/チップで stage3+ 拡張余地
       jHeldDuringCharge:    false, // 直近で J 押下開始してチャージ蓄積中か
       specialUsedIds:       new Set(), // 同コンボ中に発動済みの必殺技 ID 集合（ID 単位で 1 回制限）
       specialIsDuplicate:   false,     // 今回発動した必殺技が「既に使用済 ID の再発動」かどうか
@@ -1735,15 +1778,28 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-15 / 通常K → 派生K キャンセル追加';
+    const LAST_UPDATE = '2026-05-16 / burst 中メガクラで COMBO RESET バナー表示';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
         const now = new Date();
         const loadStr = now.toLocaleString('ja-JP', { hour12: false });
-        _buildInfoEl.innerHTML =
-          `<span class="lbl">UPDATE</span><br>${LAST_UPDATE}<br>` +
-          `<span class="lbl">LOAD</span><br>${loadStr}`;
+        // innerHTML 回避：textContent + createElement で安全に組み立てる
+        const mkLabel = (t) => {
+          const s = document.createElement('span');
+          s.className = 'lbl';
+          s.textContent = t;
+          return s;
+        };
+        _buildInfoEl.replaceChildren(
+          mkLabel('UPDATE'), document.createElement('br'),
+          document.createTextNode(LAST_UPDATE), document.createElement('br'),
+          mkLabel('LOAD'), document.createElement('br'),
+          document.createTextNode(loadStr),
+        );
+        // コンソールにも区切りを出す（リロードごとに「ここから」が分かるように）
+        console.log(`%c=== プログラム起動 ===\nUPDATE: ${LAST_UPDATE}\nLOAD:   ${loadStr}`,
+          'background:#ffee44;color:#000;padding:4px 8px;font-weight:bold;');
       }
     }
 
@@ -1825,6 +1881,8 @@
     const dbgDirHistEl     = document.getElementById('dbg-dir-hist');
     const dbgChargeEl      = document.getElementById('dbg-charge');
     const dbgSpUsedEl      = document.getElementById('dbg-sp-used');
+    const comboBurstBanner = document.getElementById('combo-burst-banner');
+    const comboRouteRow    = document.getElementById('combo-route-row');
 
     // hit-engine 初期化（依存注入：THREE / scene / DOM / players）
     initHitEngine({ THREE, scene, comboEl, comboNumEl, players });
@@ -1865,6 +1923,7 @@
       ultDarkenEl, ultDome,
       camera,
       fxRefs,
+      getGameFrame,
       onUltEnd: (p) => {
         ultDome.visible = false;
         ultDome.material.opacity = 0;
@@ -1909,6 +1968,7 @@
       debugEl: debug,
       dummyHpEl, stateHudPlayerEl, stateHudEnemyEl,
       dbgDirHistEl, dbgChargeEl, dbgSpUsedEl,
+      comboBurstBanner, comboRouteRow,
     });
 
     // fx-system 初期化（fxRefs は attack-engine と共有）
@@ -2127,7 +2187,11 @@
     // J+K / J+K+L ショートカット用「両方が rising edge した時刻」追跡
     //   J 押しっぱなしのまま K を後追いで押した時のメガクラ誤発動を防ぐため、
     //   両方が直近 JK_SIMUL_WINDOW フレーム以内に押し直されている時だけ同時押し判定
-    const JK_SIMUL_WINDOW = 2;
+    const JK_SIMUL_WINDOW = 2;   // 同時押し検出ウィンドウ（≈33ms）
+    // J が長く押されている時（sp_03 チャージ中）の mega 暴発防止しきい値
+    //   J 押下から N F 超えていたら「J は溜め用にホールド中」とみなして JK 同時押し mega を発動しない
+    //   ULT 側（J+K+L）はこの制約を受けない（L が trigger なので意図がはっきりしている）
+    const J_CHARGE_GUARD_FRAMES = 10;
     let _mcJWasDown   = false;
     let _mcKWasDown   = false;
     let _mcLWasDown   = false;
@@ -2147,31 +2211,45 @@
       if (lHeld && !_mcLWasDown) _mcLPressedAt = _gf;
       _mcJWasDown = jHeld; _mcKWasDown = kHeld; _mcLWasDown = lHeld;
 
-      // 「両方が直近 JK_SIMUL_WINDOW フレーム以内に押し直された状態」を本物の同時押しとみなす
+      // 同時押し判定（緩和版・2026-05-15）：
+      //   旧仕様は J/K/L すべてが直近 JK_SIMUL_WINDOW 以内に押し直されたことを要求していたが、
+      //   sp_03 チャージで J ホールド中だと J が「古すぎる」とみなされて mega/ULT が出なかった。
+      //   新仕様：それぞれの判定で **trigger キー** だけが直近押下を要求される：
+      //     mega = K trigger（J held + K just）／ ULT = L trigger（J+K held + L just）
+      //   これで「J 押しっぱ → K で mega」「J+K 押しっぱ → L で ULT」も成立。
+      //   特に ULT は、mega pending 中（5F バッファ）に L を入れた時、K が 2F より古くても拾えるよう
+      //   K の recent 要件を外す（L のみ trigger）。これが効かないと「J+K → ちょっと遅れて L」で
+      //   mega が暴発して ULT が出ない事象が出る。
+      // mega 用 JK 同時押し判定：K trigger 直近 + J も J_CHARGE_GUARD_FRAMES 以内に押されている。
+      //   J を長押しチャージ中（>10F）に K で攻撃したい時、mega が暴発しないようにする。
       const _bothJKRecent = jHeld && kHeld
-        && (_gf - _mcJPressedAt) <= JK_SIMUL_WINDOW
-        && (_gf - _mcKPressedAt) <= JK_SIMUL_WINDOW;
-      const _jklAllRecent = _bothJKRecent && lHeld
+        && (_gf - _mcKPressedAt) <= JK_SIMUL_WINDOW
+        && (_gf - _mcJPressedAt) <= J_CHARGE_GUARD_FRAMES;
+      const _jklAllRecent = jHeld && kHeld && lHeld
         && (_gf - _mcLPressedAt) <= JK_SIMUL_WINDOW;
 
-      // === エッジ検出は常に更新（早期 return で取り残されると状態解除後に誤検出になるため）===
+      // === エッジ検出 ===
       const jkl     = _jklAllRecent;
       const ultDown = action('ult') || jkl;
       const ultJust = ultDown && !ultWasDown;
-      ultWasDown    = ultDown;
 
       const jkOnly  = _bothJKRecent && !lHeld;
       const mcDown  = action('megaCrash') || jkOnly;
       const mcJust  = mcDown && !megaCrashWasDown;
-      megaCrashWasDown = mcDown;
 
       // === ブロック判定（トリガ行動のみ gate）===
+      //   block 中は wasDown を「false」に保つことで、block 解除の瞬間に押下中のキーが
+      //   そのまま新規 edge として扱われるようにする（ULT 中 → 終了の瞬間に L 押しっぱで
+      //   次の ULT が即発動できる）。block 外では従来通り毎フレーム更新する。
       const blocked = p.guarding || (p.state === STATE.grabbing) || anyPlayerUlting();
       if (blocked) {
-        // 待機中のメガクラ猶予は取消（誤発動防止）
+        ultWasDown = false;
+        megaCrashWasDown = false;
         megaPendingFrames = 0;
         return;
       }
+      ultWasDown       = ultDown;
+      megaCrashWasDown = mcDown;
 
       // ULT が先に確定 → 待機中の mega を取り消して ULT 発動
       if (ultJust) {
@@ -2234,7 +2312,7 @@
       updateEnemies(hitCtx);
       updateParticles();
       players.forEach(p => updateDashTrail(p));
-      checkComboBreak();
+      checkComboBreak({ megaSlow: isMegaComboGrace() });
       updateCamera();
       updateSPGauge();
       updateHpHud();
@@ -2527,14 +2605,17 @@
         return;
       }
       // ヒットストップ：物理・state machine は停止、描画は継続。
-      // ただし「キャンセル系入力（メガクラ / ULT / 必殺技）」だけは検出を続行。
-      // ← タックル等の多段ヒット中に hitstop が累積してキャンセル不可になる事故を防ぐ
+      // ただし「キャンセル系入力（メガクラ / ULT / 必殺技 / 通常 J/K キャンセル）」は検出を続行。
+      // ← hitstop 中に派生 K 入力できないと、ユーザーの「間が空く」体感が出る
       if (fxState.hitstopTimer > 0) {
         fxState.hitstopTimer--;
         for (const _p of players) {
           if (isHitstunState(_p)) continue;
           processMegaCrashUltInput(_p);
           processSpecialInput(_p);
+          // J/K キャンセル入力も受け付け（hit_confirm からの派生キャンセル発動を hitstop で阻害しない）
+          processAttackInput(_p);
+          processStrongAttackInput(_p);
         }
         render();
         requestAnimationFrame(loop);

@@ -60,8 +60,8 @@ export const PHYSICS = {
   DASH_SPARK_ANGLE: Math.PI / 6, // 足元火花を出す方向変化の閾値（30°）
 
   // === 空中慣性 ===
-  AIR_FRICTION:  0.90,  // 空中の水平速度減衰率（毎フレーム）
-  AIR_CONTROL:   1.2,   // 空中での方向修正力（SPEED より小さく・空中は足場がない）
+  AIR_FRICTION:  0.95,  // 空中の水平速度減衰率（毎フレーム）0.90→0.95：慣性をより長く残す
+  AIR_CONTROL:   0.6,   // 空中での方向修正力 1.2→0.6：制動を弱めて「らしい」挙動に
 };
 
 // ============================================================
@@ -151,7 +151,9 @@ export const MEGA_CONFIG = {
 // ============================================================
 export const SPECIAL_CONFIG = {
   DIR_BUFFER_FRAMES: 30,    // 方向入力履歴の保持長
-  CHARGE_FRAMES:     48,    // J 長押し閾値（0.8秒）
+  CHARGE_FRAMES:     50,     // [legacy] sp_03 stage1 成立 F（後方互換用）
+  CHARGE_FRAMES_STAGE1: 50,  // sp_04 第1段階成立（≈0.83秒）→ c01_sp_04 発動（旧 sp_03 from 2026-05-16 rename）
+  CHARGE_FRAMES_STAGE2: 120, // sp_04 第2段階成立（2.0秒）→ c01_sp_04_max 発動。OC/チップで延長可能
   FLASH_FRAMES:      12,    // 発動時の白フラッシュ長
   FLASH_COLOR:       0xffffff,
   SHOW_HITBOX:       true,  // 必殺技ヒットボックス可視化（本番では false）
@@ -167,10 +169,10 @@ export const SPECIAL_CONFIG = {
 // ============================================================
 export const HOMING_CONFIG = {
   MAX_DISTANCE:        400,   // XZ 合算距離での解除（フェイルセーフ）
-  MAX_DISTANCE_X:      200,   // X 軸単独での解除（横方向に逃げ過ぎたら諦める・Z は強く効かせるので別管理）
+  MAX_DISTANCE_X:      300,   // X 軸単独での解除（200→300：mega RADIUS と揃え、AoE 後の追撃ロックを維持しやすく）
   // 補間係数（距離スケーリングで実効値は減算される）
-  WINDUP_LERP_X:       0.22,  // 水平 X：標準
-  WINDUP_LERP_Y:       0.18,  // 空中 Y：標準（コンボ繋がりやすさ優先で据置）
+  WINDUP_LERP_X:       0.22,  // 水平 X：標準（個別調整は ATTACKS[id].homingLerpMult で）
+  WINDUP_LERP_Y:       0.18,  // 空中 Y：標準
   WINDUP_LERP_Z:       0.32,  // 奥行き Z：強め（2.5D 圧縮で最もズレやすい軸・コマンド ↓ 入力で誤って動きやすい）
   // 目標位置のオフセット
   AIM_OFFSET_X_RATIO:  0.55,  // hitFrame 時の理想 X 距離 = rangeX × この係数
@@ -192,7 +194,7 @@ export const HOMING_CONFIG = {
   BREAK_INPUT_FRAMES:  18,    // 反対方向入力で解除されるまでの累積 F（0.3 秒）
   OPPOSITE_DECAY:      0.5,   // 反対入力していないフレームでのカウンタ減衰
   // デバッグ
-  SHOW_DEBUG_ARROW:    true,  // 対象敵に矢印デバッグ表示（本番では false）
+  SHOW_DEBUG_ARROW:    true,  // 対象敵に矢印表示（旧称 debug。ターゲットの重要性上昇で本番採用候補・2026-05-16）
 };
 
 // ============================================================

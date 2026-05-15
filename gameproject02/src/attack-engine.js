@@ -37,7 +37,7 @@ import {
 import { PHYSICS, SP_CONFIG, MEGA_CONFIG, ULT_CONFIG, GRAB_CONFIG } from './config.js';
 import {
   tryHitEnemies, tryHitEnemiesMultiHit,
-  spawnHitParticles, bumpCombo, triggerHitstop, triggerShake,
+  spawnHitParticles, bumpCombo, triggerHitstop, triggerShake, fxState, combo,
 } from './hit-engine.js';
 import { isHitstunState, _cancelHitstunForReversal } from './damage-system.js';
 
@@ -73,6 +73,8 @@ export function initAttackEngine(deps) {
   _ultDome = deps.ultDome;
   _camera = deps.camera;
   _fxRefs = deps.fxRefs;
+  // mega コンボ猶予で gameFrame を参照するため、provider をセット
+  if (deps.getGameFrame) setMegaGraceFrameProvider(deps.getGameFrame);
 }
 
 // ============================================================
@@ -80,6 +82,11 @@ export function initAttackEngine(deps) {
 // ============================================================
 export function startAttackById(p, id, chainIdx) {
   if (!ATTACKS[id]) return;
+  // キャンセル時（hit 成立済の攻撃からの遷移：hit_confirm または attacking）は
+  // ヒットストップを即解除して「間」を消す。コンボのテンポを優先する設計
+  if (p.hitDelivered && fxState.hitstopTimer > 0) {
+    fxState.hitstopTimer = 0;
+  }
   p.state           = STATE.attacking;
   p.attackId        = id;
   p.attackChainIdx  = chainIdx;   // -1 = チェーン外（K など）
@@ -91,8 +98,20 @@ export function startAttackById(p, id, chainIdx) {
   p.hitDelivered    = false;
   p.cancelTimer     = 0;
   p.attackBuffered  = false;
+  // K バッファもクリア（空振り中に積まれた K 入力が次攻撃ヒット時に誤発動する事故を防ぐ）
+  p.kBuffered       = false;
+  p.kBufferUp       = false;
+  p.kBufferDn       = false;
   // 連続ヒット技：敵ごとの次ヒット可能フレーム管理を毎攻撃ごとにリセット
   p.multiHitNextHit.clear();
+  // ホーミング判定のスナップショット：攻撃開始時にロックがあったか記録。
+  // requireLockForHoming 属性の技は、開始時にロックが無ければ攻撃中の homing を一切無効化する
+  // （sp_03 地上版：ノーロックで使うときは位置取りスキルを要求する意図）。
+  p._homingPreLocked = !!p.comboTarget;
+  // 新攻撃開始 → 「この攻撃で route を追加した敵」セットをクリア（同敵への再 append を許可）
+  if (p._routeAppendedFor) p._routeAppendedFor.clear();
+  // 集約 route 用：新攻撃インスタンスにつき 1 回だけ aggregate に push するためのフラグ
+  p._aggregateRouteAppended = false;
   // 急降下技：発動時はホバー（vy=0）→ divePause F 後に急降下
   if (ATTACKS[id].diveVy !== undefined && !p.isGrounded) {
     p.vy = 0;
@@ -158,7 +177,8 @@ export function startAerialAttack(p, chainIdx) {
 // 接地状態と方向入力で発動技を決定（空中は方向問わず c01_atk_l_01_air 一択）
 export function pickStrongAttackId(p, upHeld, dnHeld) {
   if (!p.isGrounded) {
-    if (dnHeld) return 'c01_atk_l_01_air_down';
+    // 空中 K は方向問わず c01_atk_l_01_air 一択。
+    // ↓K は廃止：sp_03（↓↓K）必殺技へ移行（2026-05-16）
     return 'c01_atk_l_01_air';
   }
   if (upHeld) return 'c01_atk_l_01_up';
@@ -193,6 +213,15 @@ export function updateAttack(p) {
       elapsed === atk.plyrLiftVyDelay) {
     p.vy = Math.max(p.vy, atk.plyrLiftVy);
     if (p.isGrounded) p.isGrounded = false;
+  }
+
+  // === 遅延 dive 発火（地上発動で leap → 頂点で溜め → 急降下するパターン用）===
+  //   diveStartFrame に到達したフレームで vy を 0 にして divePause を開始。
+  //   その後 divePause F 経過で diveVy が p.vy にセットされ急降下する（player-system 側既存ロジック）。
+  if (atk.diveStartFrame !== undefined && elapsed === atk.diveStartFrame &&
+      atk.diveVy !== undefined) {
+    p.vy = 0;
+    p.diveCountdown = atk.divePause ?? 0;
   }
 
   // === 空中必殺技のホップ：攻撃発生フレームで一度だけ適用 ===
@@ -234,7 +263,7 @@ export function updateAttack(p) {
           // 中間ヒット中は stepMomentum / lungeMomentum を切らない（突進を続ける）
           // 最終ヒット時のみ止める（オーバーシュート防止）
           if (isLast) {
-            if (atk.isStepAttack) p.stepMomentum = 0;
+            if (atk.isStepAttack && !atk.keepMomentumOnHit) p.stepMomentum = 0;
             if (atk.lungeVx !== undefined) p.lungeMomentum = 0;
           }
         }
@@ -250,7 +279,8 @@ export function updateAttack(p) {
       if (tryHitEnemies(p, atk, _hitCtx)) {
         p.hitDelivered = true;
         // ステップ攻撃のヒット時は前進運動量を即停止（ぶつかって止まる重量感）
-        if (atk.isStepAttack) p.stepMomentum = 0;
+        // ただし keepMomentumOnHit:true の技は慣性を維持して敵に潜り込む（ダッシュJ等）
+        if (atk.isStepAttack && !atk.keepMomentumOnHit) p.stepMomentum = 0;
         // 踏み込み攻撃のヒット時も同様：当てたら止まる（オーバーシュート抑止）
         if (atk.lungeVx !== undefined) p.lungeMomentum = 0;
       }
@@ -384,6 +414,29 @@ export function processAttackInput(p) {
 //  #section mega-ult — メガクラッシュ / ULT（Step D-3-2 で分離）
 // ============================================================
 
+// メガクラ・スロー中か（フェードアウトは含まない・hit 直後の "間" のみ）
+//   ホーミング 2x 等、mega 後の追撃補助で参照する。
+export function isMegaSlowActive() {
+  return !!(_fxRefs && _fxRefs.megaSlow.get() > 0);
+}
+
+// メガクラ・コンボ猶予中か（スロー＋追加 grace）。target lock / state-break 緩和に使う。
+//   _megaComboGraceUntil はメガクラ発動時にセット（gameFrame + slow + grace）。
+let _megaComboGraceUntil = -Infinity;
+let _getGameFrameFnForMegaGrace = null;
+export function setMegaGraceFrameProvider(fn) { _getGameFrameFnForMegaGrace = fn; }
+const MEGA_COMBO_GRACE_AFTER_SLOW = 90;   // スロー終了後さらに追撃可能な余韻 F
+export function markMegaComboGrace() {
+  const gf = _getGameFrameFnForMegaGrace ? _getGameFrameFnForMegaGrace() : 0;
+  const slow = _fxRefs ? _fxRefs.megaSlow.get() : 0;
+  _megaComboGraceUntil = gf + slow + MEGA_COMBO_GRACE_AFTER_SLOW;
+}
+export function isMegaComboGrace() {
+  if (isMegaSlowActive()) return true;
+  const gf = _getGameFrameFnForMegaGrace ? _getGameFrameFnForMegaGrace() : 0;
+  return gf < _megaComboGraceUntil;
+}
+
 // 画面上に ULT 発動中のプレイヤーが居るか（マルチ対応見込み・誰かの ULT 中は他者の SP 技を遮断）
 export function anyPlayerUlting() {
   for (const pp of _players) {
@@ -430,6 +483,10 @@ export function triggerMegaCrash(p) {
   p.invincible = true;
   // 必殺技使用済 ID 集合を全解除（メガクラで全必殺技を再使用可に）
   p.specialUsedIds.clear();
+  // route 重複 append 防止 Set もクリア（mega は startAttackById を経由しないため手動）
+  if (p._routeAppendedFor) p._routeAppendedFor.clear();
+  // 集約 route：mega を 1 エントリとして HUD に追加（複数敵ヒットでも 1 つ）
+  combo.aggregateRoute.push('c01_sp_mega01');
 
   // --- 視覚演出 ---
   // 画面暗転：瞬時に DARKEN_ALPHA まで上げ、リング展開後にゆっくりフェードアウト
@@ -443,10 +500,15 @@ export function triggerMegaCrash(p) {
   // --- スローモーション ---
   _fxRefs.megaSlow.set(MEGA_CONFIG.SLOW_FRAMES);
   _fxRefs.megaSlowCounter.set(0);
+  // mega コンボ猶予：スロー + 追加 grace の間は target lock / state-break を緩める
+  markMegaComboGrace();
 
   // --- AoE ヒット判定（プレイヤー中心・半径 MEGA_CONFIG.RADIUS）---
   // ATTACKS テーブルの c01_sp_mega01 を参照。atk_lv 2/2/5 で振り分け
   const attack = ATTACKS.c01_sp_mega01;
+  // burst HUD 中にメガクラがヒットしたら BURST バナーを「COMBO RESET」へ差し替える（後段で判定）
+  const _burstActiveAtMegaStart = combo.burstHudFrames > 0;
+  let _megaConnected = false;
   for (const e of _enemies) {
     if (!e.isAlive) continue;
     const dx = e.x - p.x;
@@ -489,7 +551,18 @@ export function triggerMegaCrash(p) {
     // 演出
     spawnHitParticles(e.x, e.y + 60, e.z, attack.hitColor, attack.hitCount,
       { type: 'normal', dirX: dx, dirZ: dz });
+    // メガクラッシュは「コンボルートをリセットして再度ループ余地を作る」設計
+    //   route には MC エントリを追加（HUD では MC として可視化）。
+    //   detectComboLoop 側で「最後の MC より前は検出対象外」とすることで MC が境界となり、
+    //   MC を挟めばループ判定がリセットされる（プレイヤー視点での "MC で救済" を維持）。
+    if (!e.comboRoute) e.comboRoute = [];
+    e.comboRoute.push('c01_sp_mega01');
     bumpCombo(e);  // コンボ継続
+    _megaConnected = true;
+  }
+  // burst 表示中に mega がヒット → 「COMBO RESET」バナーを 3 秒表示（BURST 表記を上書き）
+  if (_burstActiveAtMegaStart && _megaConnected) {
+    combo.resetBannerFrames = 180;
   }
   triggerHitstop(attack.hitstop);
   triggerShake(attack.shake, attack.shake * 2 + 4);
@@ -527,13 +600,16 @@ export function triggerUlt(p) {
       p.state !== STATE.attacking &&
       p.state !== STATE.hit_confirm) return;
   if (p.sp < SP_CONFIG.ULT_COST) {
-    // SP 不足: J+K+L 入力の場合はメガクラへフォールバック
-    triggerMegaCrash(p);
+    // SP 不足 → 何もせず失敗（旧版はメガクラへフォールバックしていたが、ULT 入力で残り SP を
+    // 食い潰される暴発の原因となるため撤去・2026-05-15）。mega を撃ちたい時は U / J+K で。
     return;
   }
   p.sp -= SP_CONFIG.ULT_COST;
   // 必殺技使用済 ID 集合を全解除（ULT で全必殺技を再使用可に）
   p.specialUsedIds.clear();
+  // route 重複 append 防止 Set もクリア（ULT は startAttackById を経由しないため手動）
+  if (p._routeAppendedFor) p._routeAppendedFor.clear();
+  p._aggregateRouteAppended = false;
 
   // 既存攻撃を強制終了して ULT に切替
   const ultAtk = ATTACKS.c01_sp_ult01;
@@ -727,9 +803,18 @@ export function processGrabInput(p) {
   if (jJust || kJust) {
     if (dirL || dirR) {
       const throwDir = dirR ? 1 : -1;
+      // route 追加（HUD カテゴリ：TH）。executeGrabThrow 自身は tryHitEnemies を通らないので手動。
+      if (!e.comboRoute) e.comboRoute = [];
+      e.comboRoute.push('grab_throw');
+      combo.aggregateRoute.push('grab_throw');
       executeGrabThrow(p, e, throwDir);
       return;
     } else {
+      // route 追加（J → cS / K → cL）。grab punch も tryHitEnemies 経由でないので手動。
+      const _grabId = jJust ? 'grab_punch_s' : 'grab_punch_l';
+      if (!e.comboRoute) e.comboRoute = [];
+      e.comboRoute.push(_grabId);
+      combo.aggregateRoute.push(_grabId);
       executeGrabPunch(p, e);
       // ヒット上限到達なら即解除
       if (p.grabHitCount >= GRAB_CONFIG.HIT_MAX || p.grabTimer <= 0) {

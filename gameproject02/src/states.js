@@ -84,8 +84,8 @@ export const STATE = {
   down_up_start:    'down_up_start',     // 打ち上げ後・傾き開始（tiltAngle 0→π/2）
   down_up_loop:     'down_up_loop',      // 横倒し姿勢のまま落下継続
   // ── 超吹き飛ばし（lv06）─────────────────────────────────
-  down_chou_start:  'down_chou_start',   // 高速で吹っ飛び開始（地上/空中共用）→ down_chou_loop ／ 壁: down_wall_start ／ 地面: down_roll_start
-  down_chou_loop:   'down_chou_loop',    // 吹き飛び中ループ ／ 壁: down_wall_start ／ 地面: down_roll_start
+  down_super_start:  'down_super_start',   // 高速で吹っ飛び開始（地上/空中共用）→ down_super_loop ／ 壁: down_wall_start ／ 地面: down_roll_start
+  down_super_loop:   'down_super_loop',    // 吹き飛び中ループ ／ 壁: down_wall_start ／ 地面: down_roll_start
   down_wall_start:  'down_wall_start',   // 壁に張り付き → down_wall_loop
   down_wall_loop:   'down_wall_loop',    // うつ伏せ落下 → 着地で down_bas_start
   down_roll_start:  'down_roll_start',   // 転がり → down_bas_loop
@@ -129,7 +129,7 @@ export const ENEMY_KB03_FRAMES         = 45;  // knockback03（ダウン中ヒ�
 export const ENEMY_LAND_FRAMES         = 12;  // land
 export const ENEMY_DOWN_FRONT_FRAMES   = 24;  // down_front_start（吹き飛び傾き）
 // 超吹き飛ばし系（lv06）
-export const ENEMY_DOWN_CHOU_FRAMES    = 12;  // down_chou_start イントロ
+export const ENEMY_DOWN_SUPER_FRAMES    = 12;  // down_super_start イントロ
 export const ENEMY_WALL_START_FRAMES   = 15;  // down_wall_start（壁張り付き）
 export const ENEMY_ROLL_FRAMES         = 30;  // down_roll_start（転がり）
 // バースト離脱（重複必殺技）
@@ -162,8 +162,8 @@ export const STATE_TILT_TARGET = {
   fall_loop:        0,
   land:             0,
   // down_front_start はランプ系（0→π/2）— STATE_TILT_TARGET 経由ではなく後段で個別計算
-  down_chou_start:  0,
-  down_chou_loop:   0,
+  down_super_start:  0,
+  down_super_loop:   0,
   down_wall_start:  0,                // 壁張り付き（うつ伏せ姿勢は将来 rotation.x で）
   // 横倒し姿勢（π/2）
   down_front_loop:  Math.PI / 2,      // 吹き飛び落下中は横倒し

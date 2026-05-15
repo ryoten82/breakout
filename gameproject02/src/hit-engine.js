@@ -23,7 +23,7 @@
 import {
   STATE, applyHitInitialPitch,
   ENEMY_FALL_FRAMES, ENEMY_DOWN_FRONT_FRAMES,
-  ENEMY_DOWN_CHOU_FRAMES, ENEMY_DOWN_RAKKA_FRAMES, ENEMY_DOWN_BOUND_FRAMES,
+  ENEMY_DOWN_SUPER_FRAMES, ENEMY_DOWN_RAKKA_FRAMES, ENEMY_DOWN_BOUND_FRAMES,
   ENEMY_DOWN_BURST_START_FRAMES,
   ENEMY_KB01_FRAMES, ENEMY_KB02_FRAMES, ENEMY_KB_AIR_FRAMES, ENEMY_KB03_FRAMES,
   ENEMY_AIRBORNE_Y_THRESHOLD,
@@ -34,7 +34,7 @@ import {
 } from './states.js';
 import {
   COMBO_LEVELS, getComboLevel,
-  PHYSICS, SP_CONFIG, HOMING_CONFIG, DUMMY_ATK_CONFIG,
+  PHYSICS, SP_CONFIG, HOMING_CONFIG, DUMMY_ATK_CONFIG, SPECIAL_CONFIG,
 } from './config.js';
 import { resolveAttackAttr } from './attacks.js';
 
@@ -58,18 +58,103 @@ export function initHitEngine(deps) {
 export const combo = {
   count:        0,
   lastHitEnemy: null,
+  framesSinceLastHit: 0,   // 直近ヒットからの経過 F（タイムアウト break 用）
+  burstHudFrames: 0,       // burst 発火直後に大きく BURST 表示するための残 F（HUD 用・180=3s）
+  burstHudRoute:  null,    // burst 発火瞬間の route スナップショット
+  burstHudReason: null,    // 'loop' / 'sp_dup'：HUD の枠色判定に使う
+  burstHudSpBaseId: null,  // sp_dup 由来時の必殺技 base id（同 id 履歴を青枠で囲うため）
+  burstHudLoopLen: 0,      // loop 由来時のループ長（L 単位で赤枠を区切るため）
+  lastNonEmptyRoute: null, // 直近の非空 route のスナップショット（コンボ break 時の HUD 用）
+  aggregateRoute: [],      // プレイヤー視点の集約 route（ターゲット切替を跨いで継続・1 攻撃 1 エントリ）
+  resetBannerFrames: 0,    // burst 中にメガクラを当てた際の COMBO RESET バナー残 F（180=3s）
 };
 
+// コンボルート ループ検出：同じパターン（長さ 1〜MAX_LOOP_LEN）が 3 回連続で繰り返されたら burst。
+//   例：「空中 J1 → 空中 J2 → 立ち J1」を 3 回繰り返すと検出。
+//   ヒット数では制限しない（工夫で 30+ ヒットも狙える設計）が、純粋なループだけ確実に切る。
+const COMBO_LOOP_MAX_LEN = 8;   // 検出する最大ループ長
+const COMBO_LOOP_REPEAT  = 3;   // この回数連続で同パターン → burst
+// 末尾 L 個の attack id 配列が直前の L 個（×REPEAT-1 セット）と一致するか判定。
+//   一致するループ長を返す（無ければ 0）。最短ループを優先（L=1 から走査）。
+//   メガクラッシュ（_sp_mega）は意図的な「リセット」要素なので、最後の MC より前は検出対象外。
+//   MC を跨いだループは loop 扱いにしない（プレイヤーがコンボリセットを挟めば免責）。
+export function detectComboLoop(route) {
+  const N = route.length;
+  // 最後の MC 位置を探し、それ以降の subroute のみで検出
+  let postMC = 0;
+  for (let i = N - 1; i >= 0; i--) {
+    if (route[i] && route[i].includes('_sp_mega')) { postMC = i + 1; break; }
+  }
+  const subLen = N - postMC;
+  const maxLen = Math.min(COMBO_LOOP_MAX_LEN, Math.floor(subLen / COMBO_LOOP_REPEAT));
+  for (let L = 1; L <= maxLen; L++) {
+    let match = true;
+    let containsGrabPunch = false;
+    for (let i = 0; i < L && match; i++) {
+      const base = route[N - 1 - i];
+      // つかみ中の打撃（連打で簡単にループするため）はループ検出対象外。
+      // パターン自体に含まれていればそのループ長は無効扱い。
+      if (base === 'grab_punch_s' || base === 'grab_punch_l') {
+        containsGrabPunch = true; break;
+      }
+      for (let r = 1; r < COMBO_LOOP_REPEAT; r++) {
+        const idx = N - 1 - r * L - i;
+        if (idx < postMC) { match = false; break; }   // MC 境界を跨がない
+        if (route[idx] !== base) { match = false; break; }
+      }
+    }
+    if (match && !containsGrabPunch) return L;
+  }
+  return 0;
+}
+// コンボ最大空白：直近ヒットから N F 経過したらプレイヤー状態に関わらず強制 break
+//   通常 J/K キャンセルは 10-20F 以内に次ヒット成立するので 90F でも十分安全マージン。
+//   50→90F：地上 mega の knockback02（kbTimeMult 2.0 適用で 70F）を完走させてから
+//   state-based break に拾わせる（target が長時間ロックされた状態を活かす）。
+//   SP02 無限ループは敵単位 specialHitBy（1 コンボ 1 回制限）で別途抑止済みなので影響なし。
+const COMBO_MAX_GAP_FRAMES = 90;
+
+// コンボ break 対象の「起き上がり／復帰」ステート集合：
+//   それぞれのやられルートが「立ち上がり」アニメに入った瞬間にコンボを切る。
+//   wait01 までは待たず尺を詰めるため、起き上がり再生開始でリセット。
+//   knockback01/02 は専用「起き上がり」ステートを持たず直接 wait01 へ行くので、
+//   保険として wait01 も break 条件に維持する（checkComboBreak 側で or 評価）。
+//   起き上がり：全ダウンルートが down_bas_loop → down_bas_end → wait01 に合流するため down_bas_end が網羅的
+//   着地復帰：fall_loop → land → wait01 のパス用
+//   保険：knockback01/02 → 直 wait01 経路
+const COMBO_BREAK_STATES = new Set([
+  STATE.down_bas_end,
+  STATE.land,
+  STATE.wait01,
+]);
+
 export function bumpCombo(hitEnemy) {
-  // コンボ初回ヒット：最初に殴った敵を各プレイヤーの comboTarget としてロック
-  if (combo.count === 0) {
-    for (const pp of _players) {
+  // コンボ初回ヒット：最初に殴った敵を各プレイヤーの comboTarget としてロック。
+  // また、コンボ継続中でも comboTarget が解除済（距離超過・反対入力で null になった等）
+  // のプレイヤーには今ヒットした敵を再ロックする。これにより mega/ULT 等の AoE 攻撃が
+  // ターゲット復活のチャンスになり、ヒット後の追撃ホーミングが効きやすくなる（2026-05-16）。
+  for (const pp of _players) {
+    if (!pp.comboTarget) {
       pp.comboTarget = hitEnemy;
       pp.oppositeInputFrames = 0;
     }
   }
   combo.count += 1;
   combo.lastHitEnemy = hitEnemy;
+  combo.framesSinceLastHit = 0;
+  // route スナップショット更新（コンボ break 時に "直前の最終 route" を HUD で 3 秒保持するため）
+  if (combo.aggregateRoute.length > 0) {
+    combo.lastNonEmptyRoute = combo.aggregateRoute.slice();
+  }
+  // burst HUD 表示中に新ヒットが来たら即座に HUD を畳んで新しい route 表示へ移す
+  //   （burst を呼び出した bumpCombo そのものはまだ burstHudFrames=0 なのでこの分岐に入らない）
+  if (combo.burstHudFrames > 0) {
+    combo.burstHudFrames = 0;
+    combo.burstHudRoute = null;
+    combo.burstHudReason = null;
+    combo.burstHudSpBaseId = null;
+    combo.burstHudLoopLen = 0;
+  }
   _comboEl.style.opacity = '1';
   _comboNumEl.textContent = combo.count;
   // レベルに応じた色・演出
@@ -83,7 +168,9 @@ export function bumpCombo(hitEnemy) {
 
 // 最後に殴った敵が wait01 に戻ったら（または不在になったら）コンボ終了
 // ただしプレイヤーが攻撃継続中（attacking/hit_confirm）はコンボを保持
-export function checkComboBreak() {
+//   opts.megaSlow=true なら state による break をスキップ（mega 後のスロー中はコンボ繋ぎ補助）
+export function checkComboBreak(opts) {
+  const _megaSlow = !!(opts && opts.megaSlow);
   const p = _players[0];
   // 空振りクリーンアップ
   if (combo.count === 0) {
@@ -96,16 +183,35 @@ export function checkComboBreak() {
     }
     return;
   }
-  if (p && (p.state === STATE.attacking || p.state === STATE.hit_confirm)) return;
+  // ヒット空白カウンタ：bumpCombo で 0 リセットされる
+  combo.framesSinceLastHit++;
+  // タイムアウト強制 break：プレイヤー攻撃中でも、最後のヒットから COMBO_MAX_GAP_FRAMES 超でリセット
+  //   SP02 → ダウン → 起き上がり → SP02 のような無限ループを切るための保険。
+  //   通常キャンセル（10-20F 内に次ヒット）は影響を受けない。
+  const _timedOut = combo.framesSinceLastHit > COMBO_MAX_GAP_FRAMES;
+  if (!_timedOut && p && (p.state === STATE.attacking || p.state === STATE.hit_confirm)) return;
+  // mega スロー中はターゲットが break ステートに入ってもコンボを維持（追撃繋ぎ補助・2026-05-16）
+  if (!_timedOut && _megaSlow) return;
   const e = combo.lastHitEnemy;
-  if (!e || e.state === STATE.wait01) {
+  if (_timedOut || !e || COMBO_BREAK_STATES.has(e.state)) {
+    // burst HUD が走っていなければ、break 履歴 HUD を 3 秒分セット（直近 route の snapshot を保持）
+    if (combo.burstHudFrames === 0 && combo.lastNonEmptyRoute && combo.lastNonEmptyRoute.length > 0) {
+      // 次の新規コンボ開始まで無制限保持（bumpCombo で 0 にクリアされる）
+      combo.burstHudFrames = Infinity;
+      combo.burstHudRoute  = combo.lastNonEmptyRoute.slice();
+      combo.burstHudReason = 'break';
+      combo.burstHudSpBaseId = null;
+      combo.burstHudLoopLen = 0;
+    }
     combo.count = 0;
     combo.lastHitEnemy = null;
+    combo.aggregateRoute.length = 0;  // 次コンボに備えて集約 route をクリア
     _comboEl.style.opacity = '0';
     for (const pp of _players) {
       pp.specialUsedIds.clear();
       pp.comboTarget = null;
       pp.oppositeInputFrames = 0;
+      pp._aggregateRouteAppended = false;
     }
   }
 }
@@ -282,7 +388,38 @@ export function tryHitEnemies(p, attack, ctx) {
     //  - lv 振り分けはスキップ・通常ステートには遷移させない
     //  - +1 コンボしてから自然消滅（着地で down_bas_start に合流）
     // ====================================================================
-    if (attack.isSpecial && p.specialIsDuplicate) {
+    // === 必殺技 重複判定：敵単位 ===
+    //   この敵が同 baseId の必殺技で既にヒットを受けていたら burst。
+    //   別の敵への切替（A→B）は B 視点で「初撃」になるので burst しない。
+    //   敵の specialHitBy は updateEnemies 側で wait01 復帰時にクリアされる。
+    let _spDuplicateOnThisEnemy = false;
+    let _spBaseIdForMark = null;
+    if (attack.isSpecial && p.attackId) {
+      const _aid = p.attackId;
+      _spBaseIdForMark = _aid.endsWith('_air') ? _aid.slice(0, -4) : _aid;
+      _spDuplicateOnThisEnemy = !!(e.specialHitBy && e.specialHitBy.has(_spBaseIdForMark));
+    }
+    // === コンボルートのループ検出（永久コンボ抑止） ===
+    //   この敵に対する初撃時のみ attack id を route に追加。
+    //   同じパターンが COMBO_LOOP_REPEAT 回連続で繰り返されたら burst。
+    //   route のクリア：敵 wait01 復帰時 / メガクラ被弾時（mega は意図的なリセット手段）。
+    let _loopDetectedLen = 0;
+    if (p.attackId) {
+      if (!p._routeAppendedFor) p._routeAppendedFor = new Set();
+      if (!p._routeAppendedFor.has(e)) {
+        if (!e.comboRoute) e.comboRoute = [];
+        e.comboRoute.push(p.attackId);
+        p._routeAppendedFor.add(e);
+      }
+      // 集約 route：1 攻撃インスタンスにつき 1 回だけ push（複数敵ヒットでも 1 エントリに集約）
+      if (!p._aggregateRouteAppended) {
+        combo.aggregateRoute.push(p.attackId);
+        p._aggregateRouteAppended = true;
+        _loopDetectedLen = detectComboLoop(combo.aggregateRoute);
+      }
+    }
+    const _loopDetected = _loopDetectedLen > 0;
+    if (_spDuplicateOnThisEnemy || _loopDetected) {
       // 後方斜め上に吹き飛び・facing と反対方向（プレイヤーから離れる）
       e.vy            = KB_BURST_VY;
       e.knockbackVx   = facing * KB_BURST_VX;          // facing 方向 = プレイヤーから遠ざかる
@@ -294,16 +431,39 @@ export function tryHitEnemies(p, attack, ctx) {
       e.burstRollAngle = 0;                             // ロール角を 0 から開始
       e.peakHangTimer    = 0;
       e.launcherAirborne = false;
+      // きりもみ突入瞬間：紫フラッシュ（プレイヤー必殺技 flashOnStart のロジック流用・1.5倍持続）
+      e.burstFlashTimer = Math.round(SPECIAL_CONFIG.FLASH_FRAMES * 1.5);
       applyHitInitialPitch(e);
       // 演出（通常ヒットエフェクト）
       spawnHitParticles(e.x, e.y + 60, e.z, attack.hitColor ?? 0xffffff,
         attack.hitCount ?? 24, { type: 'omni' });
       // コンボ +1（その後敵が wait01 に戻るまで切断されない）
       bumpCombo(e);
+      // burst HUD 表示：3 秒（180F）BURST を route の上に大きく表示。
+      // route 自体は wait01 復帰時に自然にクリアされるのでここでは触らない。
+      // 「どこで burst が起きたか」プレイヤーに見せたいので snapshot を取って HUD で固定表示する。
+      // 次の新規コンボ開始まで無制限保持（bumpCombo で 0 にクリアされる）
+      combo.burstHudFrames = Infinity;
+      combo.burstHudRoute  = combo.aggregateRoute.slice();
+      // 理由を記録（HUD の枠色を切り替える）：SP duplicate を loop より優先（より具体的）
+      if (_spDuplicateOnThisEnemy) {
+        combo.burstHudReason = 'sp_dup';
+        combo.burstHudSpBaseId = _spBaseIdForMark;
+        combo.burstHudLoopLen = 0;
+      } else {
+        combo.burstHudReason = 'loop';
+        combo.burstHudSpBaseId = null;
+        combo.burstHudLoopLen = _loopDetectedLen;
+      }
       triggerHitstop(attack.hitstop);
       triggerShake(attack.shake, attack.shake * 2 + 4);
       anyHit = true;
       continue;  // 通常 dispatch ツリーをスキップ
+    }
+    // 通常 SP ヒット：この敵に「このベース ID で当てた」マークを残す（次回 burst トリガー用）
+    if (_spBaseIdForMark) {
+      if (!e.specialHitBy) e.specialHitBy = new Set();
+      e.specialHitBy.add(_spBaseIdForMark);
     }
     const _isAnyDowned = (
       e.state === STATE.down_bas_start ||
@@ -376,22 +536,22 @@ export function tryHitEnemies(p, attack, ctx) {
       //  - fall_loop / land（空中→落下→着地モーション中も拾う）
       //  - down_up_start / down_up_loop（**打ち上げ juggle 中の追撃でフリンチへ移行**）
       // 再発火しない（既存ダウン保護）：
-      //  - down_front_* / down_chou_* / down_wall_* / down_roll_* / down_bas_*
+      //  - down_front_* / down_super_* / down_wall_* / down_roll_* / down_bas_*
       // 実効 lv：敵が空中（y > しきい値）かつ atk_lv_air が定義されていれば優先（例: c01_atk_l_01_air は空中ヒットで lv06）
       // しきい値で接地寸前の敵を地上扱いに固定し、バウンド瞬間や微小 y 値で誤って空中ルートに入るのを防ぐ
       const lv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
         ? attack.atk_lv_air
         : (attack.atk_lv ?? 1);
       if (lv === 6) {
-        // 超吹き飛ばし — 専用ステート down_chou_start（地上/空中共用）
+        // 超吹き飛ばし — 専用ステート down_super_start（地上/空中共用）
         // 着地で down_roll_start、壁ヒットで down_wall_start に強制遷移
         // 攻撃側で kb_vy_lv6 / kb_vx_mult_lv6 / kb_vx_decay_lv6 を上書き可能（lv6 専用）
         // フォールバック：legacy 共通フィールド kb_vy / kb_vx_mult / kb_vx_decay → 既定 KB_LV06_*
         e.vy           = attack.kb_vy_lv6 ?? attack.kb_vy ?? KB_LV06_VY;
         e.knockbackVx *= attack.kb_vx_mult_lv6 ?? attack.kb_vx_mult ?? KB_LV06_VX_MULT;
         e.kbDecay      = attack.kb_vx_decay_lv6 ?? attack.kb_vx_decay ?? 0.78;
-        e.state       = STATE.down_chou_start;
-        e.downTimer    = ENEMY_DOWN_CHOU_FRAMES;
+        e.state       = STATE.down_super_start;
+        e.downTimer    = ENEMY_DOWN_SUPER_FRAMES;
       } else if (lv === 5) {
         // 叩きつけ — 真下に高速落下、着地で 1回バウンド
         // 連鎖抑止ガード（§4.1c）：叩きつけシーケンス中（rakka_start/_loop または
@@ -438,10 +598,10 @@ export function tryHitEnemies(p, attack, ctx) {
     }
     // 空中の敵へのヒット：敵もホップで浮遊継続(非打ち上げ技共通・地上技でも適用)
     // ※叩きつけ/吹き飛ばし系はホップで vy を上書きされたくないので除外
-    //   対象：down_chou_start（lv6）／ down_front_start（lv3）／ down_rakka_*（lv5・kb_vy 維持必須）
+    //   対象：down_super_start（lv6）／ down_front_start（lv3）／ down_rakka_*（lv5・kb_vy 維持必須）
     //   ／ down_bound_start（バウンド上向き vy 維持）
     const _slamState = (
-      e.state === STATE.down_chou_start  ||
+      e.state === STATE.down_super_start  ||
       e.state === STATE.down_front_start ||
       e.state === STATE.down_rakka_start ||
       e.state === STATE.down_rakka_loop  ||
@@ -477,8 +637,19 @@ export function tryHitEnemies(p, attack, ctx) {
     //   （例：c01_sp_02 を空中ヒットさせて、打ち上げた敵を上から拾うためにホップしたい）
     const _customHop = attack.aerialHopVy !== undefined;
     if (attack.aerialHop && !p.isGrounded && (!attack.launchVy || _customHop)) {
-      const hopVy = attack.aerialHopVy ?? PHYSICS.AERIAL_HOP_V;
-      p.vy = Math.max(p.vy, hopVy);
+      // 対地上敵：hop 量を抑える（プレイヤーが自然に降下しつつ少し跳ねる感じ）
+      //   空中敵への juggle 時は通常通り full hop。
+      //   連続ホップ減衰：着地までに何回ホップしたか追跡し、回数に応じて hopVy を減らす。
+      //   ベース 9wu の場合、地上敵 = 5.4 / 2.4 / 0、空中敵 = 9 / 6 / 3 / 0。
+      const targetAirborne = e.y > ENEMY_AIRBORNE_Y_THRESHOLD;
+      // 既定の対地上 hop 倍率は 0.6（中程度の減衰）。attack.aerialHopGroundMult で個別上書き可。
+      const groundHopMult = attack.aerialHopGroundMult ?? 0.6;
+      const baseHopVy = (attack.aerialHopVy ?? PHYSICS.AERIAL_HOP_V) * (targetAirborne ? 1.0 : groundHopMult);
+      const count = p.aerialHopCount ?? 0;
+      const AERIAL_HOP_DECAY = 3;
+      const decayedHopVy = Math.max(0, baseHopVy - count * AERIAL_HOP_DECAY);
+      if (decayedHopVy > 0) p.vy = Math.max(p.vy, decayedHopVy);
+      p.aerialHopCount = count + 1;
     }
     // 演出
     triggerHitstop(attack.hitstop);
@@ -513,12 +684,17 @@ export function tryHitEnemies(p, attack, ctx) {
 export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
   const { enemies } = ctx;
   const facing = p.facing;
-  // 最終ヒットは通常 dispatch に委譲（damage を一時差し替え）
+  // 最終ヒットは通常 dispatch に委譲（damage / hitstop を一時差し替え）
   if (isLastHit) {
     const savedDamage = attack.damage;
+    const savedHitstop = attack.hitstop;
     attack.damage = attack.damageLastHit ?? (attack.damagePerHit * 2);
+    if (attack.hitstopLastHit !== undefined) {
+      attack.hitstop = attack.hitstopLastHit;  // 最終段のみ重めの hitstop を適用可能
+    }
     const hit = tryHitEnemies(p, attack, ctx);
     attack.damage = savedDamage;
+    attack.hitstop = savedHitstop;
     // 最終ヒット適用後はトラッキングクリア（次以降の管理をリセット）
     p.multiHitNextHit.clear();
     return hit;
@@ -569,8 +745,8 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     const flinchFrames = Math.max(ENEMY_KB01_FRAMES, (attack.hitInterval ?? 6) + 4);
     // ダウン系・打ち上げ系には上書きしない（_slamState 等で動かない方が良いケースも考慮）
     const _preserveState = (
-      e.state === STATE.down_chou_start ||
-      e.state === STATE.down_chou_loop  ||
+      e.state === STATE.down_super_start ||
+      e.state === STATE.down_super_loop  ||
       e.state === STATE.down_front_start||
       e.state === STATE.down_rakka_start||
       e.state === STATE.down_rakka_loop ||
@@ -646,7 +822,7 @@ export function tryThrownChainHit(thrower, ctx) {
     if (other.state === STATE.down_front_start || other.state === STATE.down_front_loop ||
         other.state === STATE.down_bas_start || other.state === STATE.down_bas_loop ||
         other.state === STATE.down_bas_end ||
-        other.state === STATE.down_chou_start || other.state === STATE.down_chou_loop ||
+        other.state === STATE.down_super_start || other.state === STATE.down_super_loop ||
         other.state === STATE.down_roll_start ||
         other.state === STATE.down_rakka_start || other.state === STATE.down_rakka_loop ||
         other.state === STATE.down_bound_start ||
@@ -695,6 +871,10 @@ export function tryThrownChainHit(thrower, ctx) {
 
     // コンボ +1（投げ手のオーナーに帰属）
     if (thrower.thrownByPlayer) {
+      // route 追加：投げ巻き込みヒットは ETC カテゴリで表示（弱攻撃と区別）
+      if (!other.comboRoute) other.comboRoute = [];
+      other.comboRoute.push('thrown_chain_hit');
+      combo.aggregateRoute.push('thrown_chain_hit');
       bumpCombo(other);
       thrower.thrownByPlayer.sp = Math.min(SP_CONFIG.MAX,
         thrower.thrownByPlayer.sp + SP_CONFIG.GAIN_ON_HIT);

@@ -29,7 +29,7 @@
 //    - chargeReadyRing: THREE.Mesh     チャージ完成リング mesh
 // ============================================================
 
-import { STATE, STATE_PITCH_TARGET } from './states.js';
+import { STATE, STATE_PITCH_TARGET, ENEMY_AIRBORNE_Y_THRESHOLD } from './states.js';
 import {
   PHYSICS, SP_CONFIG,
   GUARD_CONFIG, SPECIAL_CONFIG, HOMING_CONFIG,
@@ -38,7 +38,7 @@ import {
 } from './config.js';
 import { ATTACKS, getHitWindowEnd } from './attacks.js';
 import {
-  anyPlayerUlting, cancelGrabIntoAttack, startAttackById,
+  anyPlayerUlting, isMegaSlowActive, isMegaComboGrace, cancelGrabIntoAttack, startAttackById,
   pickStepAttackId, pickStrongAttackId, pickSpecialAttackId,
   matchCommand,
   processGrabInput, tryGrabActivate, processAttackInput,
@@ -113,7 +113,11 @@ export function processGuardInput(p) {
       p.isGrounded &&
       p.state !== STATE.attacking &&
       p.state !== STATE.hit_confirm;
-    const canStart = lHeld && baseEligible && p.sp >= GUARD_CONFIG.MIN_SP_TO_START;
+    // J+K 同時押し中の L 押下は ULT 入力候補なのでガードに入らない（誤発動防止・2026-05-15）
+    // 旧版だと L 押した瞬間にガード起動 → p.guarding=true → ULT 入力 blocked で ULT が出なかった
+    const _jkAlsoHeld = _inp('KeyJ') && _inp('KeyK');
+    const canStart = lHeld && baseEligible && p.sp >= GUARD_CONFIG.MIN_SP_TO_START
+      && !_jkAlsoHeld;
     if (canStart) {
       p.guarding       = true;
       p.guardFadeTimer = 0;
@@ -224,40 +228,60 @@ export function dirMatchesForFacing(actual, expected, facing) {
 
 export function updateChargeJ(p) {
   const jHeld = _inp('KeyJ');
-  // 攻撃中・グラブ中・ガード中・ULT 中はチャージしない（独立行動中のみ）
-  // ※ specialUsedIds に c01_sp_03 が含まれていてもチャージ可（重複は down_burst_* 経由で表現する設計）
-  const canCharge = p.isGrounded
-    && p.state === STATE.wait01
+  // チャージ可能条件：グラブ/ガード/ULT 中でない。
+  // 攻撃中（attacking / hit_confirm）でも蓄積する：J 押しっぱなしで他 SP を撃ったり
+  // 通常コンボの最中に裏で sp_03 を溜めるパターンを許可（プレイヤー側の主体的キャンセル繋ぎ）。
+  // 空中でも蓄積可：難度高めだが「裏で溜めて空中 sp_03_air に繋ぐ」ルートをプレイヤー裁量で開放。
+  const canCharge =
+    (p.state === STATE.wait01 || p.state === STATE.attacking || p.state === STATE.hit_confirm)
     && !p.guarding && !p.ultActive
     && p.state !== STATE.grabbing;
   const wasReady = p.chargeReady;
+  const wasLevel = p.chargeLevel ?? 0;
   const wasCharging = p.chargeJFrames > 0;
   if (jHeld && canCharge) {
     p.chargeJFrames++;
     p.jHeldDuringCharge = true;
-    if (p.chargeJFrames >= SPECIAL_CONFIG.CHARGE_FRAMES) p.chargeReady = true;
+    // 2 段階成立：STAGE2 で level=2（→ sp_03_max）、STAGE1 で level=1（→ sp_03）
+    // 将来 OC/チップで stage3+ を追加する場合は閾値配列化を検討。
+    if (p.chargeJFrames >= SPECIAL_CONFIG.CHARGE_FRAMES_STAGE2) {
+      p.chargeLevel = 2;
+      p.chargeReady = true;
+    } else if (p.chargeJFrames >= SPECIAL_CONFIG.CHARGE_FRAMES_STAGE1) {
+      p.chargeLevel = 1;
+      p.chargeReady = true;
+    }
   } else if (!jHeld) {
     // J 離した：jHeldDuringCharge を下げ、チャージ未完成なら蓄積も破棄
     // （完成済みは chargeReady=true のまま残し、processSpecialInput 側でリリースを技発動に使う）
     p.jHeldDuringCharge = false;
     if (!p.chargeReady && p.chargeJFrames > 0) {
       p.chargeJFrames = 0;
+      p.chargeLevel = 0;
     }
   } else {
     // 押下中だがチャージ条件を満たさない（攻撃中など）→ 蓄積停止だがリセットはしない
   }
-  // 収束粒子：チャージ進行中（>0 かつ未完了）に毎フレーム放出
-  if (p.chargeJFrames > 0 && !p.chargeReady) {
+  // 収束粒子：チャージ進行中（stage2 未到達まで）毎フレーム放出
+  //   level 0（0-30F 充填中）→ 黄色（既定）
+  //   level 1（30-60F 充填中・stage2 へ向けて高温化）→ 白
+  //   level 2 到達後はスポーン停止（MAX 表現）
+  const curLevel = p.chargeLevel ?? 0;
+  if (p.chargeJFrames > 0 && curLevel < 2) {
+    const partColor = curLevel >= 1 ? 0xffffff : CHARGE_PARTICLE_CONFIG.COLOR;
     for (let i = 0; i < CHARGE_PARTICLE_CONFIG.SPAWN_PER_FRAME; i++) {
-      _spawnChargeParticle(p.x, p.y, p.z);
+      _spawnChargeParticle(p.x, p.y, p.z, partColor);
     }
   }
-  // チャージ成立瞬間（false → true）：拡散リング合図 + 残った収束粒子はクリア
-  if (!wasReady && p.chargeReady) {
+  // チャージ成立瞬間（level 上昇）：拡散リング合図 + 残った収束粒子はクリア
+  // stage1 成立時（0→1）と stage2 成立時（1→2）の両方で発火。色も段階で切替。
+  if (curLevel > wasLevel && curLevel >= 1) {
     chargeRingState.frames = CHARGE_RING_CONFIG.FRAMES;
     chargeRingState.x = p.x;
     chargeRingState.y = p.y + CHARGE_RING_CONFIG.Y_OFFSET;
     chargeRingState.z = p.z;
+    // リング色：stage2 は白（高温の炎イメージ）、stage1 は従来の黄
+    _chargeReadyRing.material.color.setHex(curLevel >= 2 ? 0xffffff : 0xffee44);
     _chargeReadyRing.visible = true;
     _clearChargeParticles();
   }
@@ -267,13 +291,15 @@ export function updateChargeJ(p) {
   }
 }
 
-function canStartSpecial(p) {
+function canStartSpecial(p, opts) {
   if (p.guarding) return false;
   if (p.ultActive) return false;
   if (anyPlayerUlting()) return false;
   // 空中 1 回チャージ制：ジャンプ中に必殺技を一度撃つと、着地までもう撃てない
   // → sp_02 等を空中で連発して滞空し続ける問題への対策
-  if (!p.isGrounded && p.airSpecialUsed) return false;
+  // 例外：チャージ消費（sp_03）は事前蓄積が必要な技なので 1 回制限から除外。
+  //   「空中 J → K → sp_02 → 溜め解放 sp_03」のような長いキャンセルチェインを許可する。
+  if (!p.isGrounded && p.airSpecialUsed && !opts?.forCharge) return false;
   // grab 中は OK（cancelGrabIntoAttack 経由で発動）
   if (p.state === STATE.grabbing) return true;
   if (p.state === STATE.wait01) return true;
@@ -284,24 +310,31 @@ function canStartSpecial(p) {
 // 必殺技 ID の正規化：地上/空中の派生は同じ base として 1 コンボ 1 回ルールを共有する
 //   例: 'c01_sp_01' と 'c01_sp_01_air' は同じ base 'c01_sp_01' として扱う
 function specialBaseId(id) {
-  return id.endsWith('_air') ? id.slice(0, -4) : id;
+  // 派生サフィックスを順に剥がす：_air → _max → ... → 基底 ID
+  // 例: c01_sp_04_max_air → c01_sp_04_max → c01_sp_04
+  // burst トリガ（敵単位 1 回制限）は基底 ID で共有させたいので
+  // チャージ段階別の sp_03 系も同じ ID にまとめる
+  let s = id;
+  if (s.endsWith('_air')) s = s.slice(0, -4);
+  if (s.endsWith('_max')) s = s.slice(0, -4);
+  return s;
 }
 // 必殺技の短期連発抑止クールダウン（コンボ未確立中のみ適用）
 //   コンボ中はクールダウン無視（同 base ID 再ヒットで down_burst 誘発する仕様を保持）
-const _SPECIAL_COOLDOWN_FRAMES = 30;   // 0.5 秒（60fps 換算）
+const _SPECIAL_COOLDOWN_FRAMES = 30;   // 0.5 秒。同 ID の連発のみ適用、地上⇄空中の派生切替は無視
 
 function startSpecial(p, id) {
   // 重複検出：specialUsedIds.add する前に判定して flag に保存。
   // 重複ヒットすると敵が down_burst_* に強制遷移（tryHitEnemies が参照）。
   const baseId = specialBaseId(id);
   // === 短期連発抑止 ===
-  // 直近 _SPECIAL_COOLDOWN_FRAMES 以内に同 base ID を撃ったなら拒否。
-  // ただしコンボ中（comboTarget あり）はスルー → きりもみダウン誘発のため重複発動を許可。
-  if (!p.comboTarget) {
-    const _lastFire = p._specialFireFrames?.[baseId] ?? -Infinity;
-    if (getGameFrame() - _lastFire < _SPECIAL_COOLDOWN_FRAMES) return false;
-  }
-  p.specialIsDuplicate = p.specialUsedIds.has(baseId);
+  // 「同じ id」を _SPECIAL_COOLDOWN_FRAMES 以内に再発動するなら拒否（地上ループ防止）。
+  // 「地上 SP2 → 空中 SP2」のような地上⇄空中の派生切替は別 id なので cooldown 無視 → 繋がる
+  const _lastFire = p._specialFireFrames?.[baseId] ?? -Infinity;
+  const _lastFireId = p._specialFireIds?.[baseId];
+  if (_lastFireId === id && getGameFrame() - _lastFire < _SPECIAL_COOLDOWN_FRAMES) return false;
+  // 重複判定はヒット時に「敵単位」で行うようになったため、ここでは発動可否判定をしない
+  // （p.specialUsedIds は debug HUD 表示・将来 UI 用に維持。burst トリガには不使用）
   const wasGrabbing = (p.state === STATE.grabbing);
   if (wasGrabbing) {
     if (!cancelGrabIntoAttack(p, id)) return false;
@@ -315,18 +348,23 @@ function startSpecial(p, id) {
   // 短期連発抑止用：base ID ごとに「技終了時刻」を記録（cooldown はそこから開始）
   // → 技 duration が長い必殺技でも、終了してから一定 F 経過しないと再発動できない
   if (!p._specialFireFrames) p._specialFireFrames = {};
+  if (!p._specialFireIds) p._specialFireIds = {};
   const _atkDur = ATTACKS[id]?.duration ?? 0;
   p._specialFireFrames[baseId] = getGameFrame() + _atkDur;
+  p._specialFireIds[baseId] = id;  // 地上⇄空中クロス判定用：直近の発動 id を記録
+  // 必殺技終了直後の振り向き禁止：duration + 40F の間 facing を固定
+  // SP2 等は着地余韻まで「キャラが前向きのまま」見せたい（最終ヒット失敗の振り向き混乱対策）
+  p._facingLockUntil = getGameFrame() + _atkDur + 40;
   // 空中で発動したら airSpecialUsed フラグを立てる（着地で false 復帰・連発抑止）
   if (!p.isGrounded) p.airSpecialUsed = true;
   p.specialFlashTimer  = SPECIAL_CONFIG.FLASH_FRAMES;
-  // チャージ消費
-  p.chargeJFrames = 0;
-  p.chargeReady   = false;
+  // チャージは消費しない：J 押しっぱなしで他 SP を撃った場合に蓄積を保持して
+  // 後から J リリースで sp_03 を連結できるようにする。sp_03 自身を J リリース
+  // 経路から発動する際はそちら（processSpecialInput 内）で chargeReady/Frames を 0 にする。
   // 方向入力履歴クリア：同じコマンドが連打で再成立しないように
   // （1 コマンド = 1 発動。次に出すには方向を再入力する必要がある）
   p.dirHistory.length = 0;
-  console.log('[SPECIAL]', id, p.specialIsDuplicate ? '重複（→burst）' : '発動');
+  console.log('[SPECIAL]', id, '発動');
   return true;
 }
 
@@ -349,11 +387,15 @@ export function processSpecialInput(p) {
   // リリースは必ず chargeReady を消費する（発動不可でも畳む。さもないと明滅が残り続ける）
   // 重複（specialUsedIds に既出）でも発動は通す → ヒット時に敵側を down_burst_* に強制遷移
   if (jReleasedEdge && p.chargeReady) {
-    const fireable = canStartSpecial(p);
+    const fireable = canStartSpecial(p, { forCharge: true });
+    const level = p.chargeLevel ?? 1;
     p.chargeReady   = false;
+    p.chargeLevel   = 0;
     p.chargeJFrames = 0;
     if (fireable) {
-      startSpecial(p, pickSpecialAttackId('c01_sp_03', p.isGrounded));
+      // 2 段階分岐：level 2 で sp_03_max、level 1 で sp_03（地上/空中は pickSpecialAttackId で振り分け）
+      const baseId = level >= 2 ? 'c01_sp_04_max' : 'c01_sp_04';
+      startSpecial(p, pickSpecialAttackId(baseId, p.isGrounded));
     }
     return;
   }
@@ -366,10 +408,20 @@ export function processSpecialInput(p) {
   // 注意：コマンドが成立しなかった場合は通常 J / K の処理に流す
   //       （早期 return せず、後続の processAttackInput / processStrongAttackInput を生かす）
   const triggerJust = jJust || kJust;
+  // K 系の attacking 中（hit 未成立）は SP 判定スキップ → 空振り SP2 暴発防止
+  // hit_confirm（ヒット成立済）中は SP を通す → 通常 K → SP キャンセルは可能
+  // 多段ヒット技の attacking + hitDelivered=true も SP を通す
+  const isKAttackingPreHit = p.state === STATE.attacking && !p.hitDelivered && (
+    p.attackId === 'c01_atk_l_01' ||
+    p.attackId === 'c01_atk_l_01_up' ||
+    p.attackId === 'c01_atk_l_01_down'
+  );
+  if (triggerJust && isKAttackingPreHit) return;
   if (triggerJust) {
     // チャージ未満で J を離す前提：J 押下時点でチャージはリセット扱い（連打優先）
     if (jJust && !p.chargeReady) {
       p.chargeJFrames = 0;
+      p.chargeLevel = 0;
     }
     // ↓↘→ （波動）地上/空中で別 ID にディスパッチ・使用済管理は base で共有
     if (matchCommand(p, ['D', 'DR', 'R'])) {
@@ -379,6 +431,11 @@ export function processSpecialInput(p) {
     // ↑↑ （対空）[TEST 2026-05-15] ↓↑から変更。指の負担軽減トライアル
     if (matchCommand(p, ['U', 'U'])) {
       startSpecial(p, pickSpecialAttackId('c01_sp_02', p.isGrounded));
+      return;
+    }
+    // ↓↓ （急降下踏みつけ）J/K どちらでも受付・地上版は前方跳躍 → 急降下
+    if (matchCommand(p, ['D', 'D'])) {
+      startSpecial(p, pickSpecialAttackId('c01_sp_03', p.isGrounded));
       return;
     }
   }
@@ -408,19 +465,38 @@ export function processStrongAttackInput(p) {
   } else if (p.state === STATE.hit_confirm) {
     const upHeld = _inp('ArrowUp') || _inp('KeyW');
     const dnHeld = _inp('ArrowDown') || _inp('KeyS');
+    const newId = pickStrongAttackId(p, upHeld, dnHeld);
     // 弱 → 強キャンセル（Jチェーン中のみ ↑+K / ↓+K / 通常K を分岐）
     if (p.attackChainIdx >= 0) {
-      startAttackById(p, pickStrongAttackId(p, upHeld, dnHeld), -1);
+      startAttackById(p, newId, -1);
     }
-    // 通常 K → 派生 K キャンセル：↑または↓押下時のみ（無方向だと K→K で自分自身に戻ってしまうため）
-    else if (p.attackId === 'c01_atk_l_01' && (upHeld || dnHeld)) {
-      startAttackById(p, pickStrongAttackId(p, upHeld, dnHeld), -1);
+    // K 系（通常K / ↑K / ↓K）→ 派生 K 相互キャンセル：方向キー必須・同 ID への自己ループ防止
+    else if ((p.attackId === 'c01_atk_l_01' ||
+              p.attackId === 'c01_atk_l_01_up' ||
+              p.attackId === 'c01_atk_l_01_down') && (upHeld || dnHeld)) {
+      if (newId !== p.attackId) {
+        startAttackById(p, newId, -1);
+      }
     }
   } else if (p.state === STATE.attacking) {
-    // ATTACKING 中はバッファに積む（方向状態を保存）
+    const upHeld = _inp('ArrowUp') || _inp('KeyW');
+    const dnHeld = _inp('ArrowDown') || _inp('KeyS');
+    // ヒット成立済の K 系 attacking 中なら、hit_confirm を待たずに即派生 K キャンセル発動
+    // （ヒットストップ期間中も発動 → 静止フレームを skip して「空白」を消す）
+    if (p.hitDelivered && (upHeld || dnHeld) && (
+        p.attackId === 'c01_atk_l_01' ||
+        p.attackId === 'c01_atk_l_01_up' ||
+        p.attackId === 'c01_atk_l_01_down')) {
+      const newId = pickStrongAttackId(p, upHeld, dnHeld);
+      if (newId !== p.attackId) {
+        startAttackById(p, newId, -1);
+        return;
+      }
+    }
+    // それ以外は従来通りバッファに積む（hit_confirm 移行時に消化）
     p.kBuffered  = true;
-    p.kBufferUp  = _inp('ArrowUp') || _inp('KeyW');
-    p.kBufferDn  = _inp('ArrowDown') || _inp('KeyS');
+    p.kBufferUp  = upHeld;
+    p.kBufferDn  = dnHeld;
   }
 }
 
@@ -433,14 +509,19 @@ export function consumeStrongAttackBuffer(p) {
   p.kBuffered  = false;
   p.kBufferUp  = false;
   p.kBufferDn  = false;
+  const newId = pickStrongAttackId(p, wasUp, wasDn);
   // Jチェーン中：従来通り ↑+K / ↓+K / 通常K に派生
   if (p.attackChainIdx >= 0) {
-    startAttackById(p, pickStrongAttackId(p, wasUp, wasDn), -1);
+    startAttackById(p, newId, -1);
     return;
   }
-  // 通常 K（c01_atk_l_01）中：↑または↓押下時のみ派生 K にキャンセル
-  if (p.attackId === 'c01_atk_l_01' && (wasUp || wasDn)) {
-    startAttackById(p, pickStrongAttackId(p, wasUp, wasDn), -1);
+  // K 系（通常K / ↑K / ↓K）→ 派生 K 相互キャンセル：方向キー必須・同 ID 自己ループ防止
+  if ((p.attackId === 'c01_atk_l_01' ||
+       p.attackId === 'c01_atk_l_01_up' ||
+       p.attackId === 'c01_atk_l_01_down') && (wasUp || wasDn)) {
+    if (newId !== p.attackId) {
+      startAttackById(p, newId, -1);
+    }
   }
 }
 
@@ -453,6 +534,10 @@ export function consumeStrongAttackBuffer(p) {
 // ============================================================
 export function updateComboHoming(p) {
   if (!p.comboTarget) return;
+  // 攻撃側に requireLockForHoming があり、攻撃開始時にロックが無かった場合はホーミング全停止。
+  // sp_03 地上版：ノーロック発動時は「コツが必要」な技として位置取りで当てる設計（2026-05-16）。
+  const _curAtkForHoming = p.attackId ? ATTACKS[p.attackId] : null;
+  if (_curAtkForHoming?.requireLockForHoming && !p._homingPreLocked) return;
   const t = p.comboTarget;
   // === ロック解除条件 ===
   // 1) 対象が死亡・グラブ被害中・きりもみ離脱中
@@ -467,13 +552,17 @@ export function updateComboHoming(p) {
   //    Z は 2.5D 圧縮軸なので別管理（強めの追従）・合算は最終フェイルセーフ
   const dx = t.x - p.x;
   const dz = t.z - p.z;
-  if (Math.abs(dx) > HOMING_CONFIG.MAX_DISTANCE_X) {
+  // mega コンボ猶予中は距離判定を緩める（mega knockback で target が押されても lock 維持）
+  const _megaGrace = isMegaComboGrace();
+  const _maxX  = _megaGrace ? HOMING_CONFIG.MAX_DISTANCE_X * 2 : HOMING_CONFIG.MAX_DISTANCE_X;
+  const _maxXZ = _megaGrace ? HOMING_CONFIG.MAX_DISTANCE   * 2 : HOMING_CONFIG.MAX_DISTANCE;
+  if (Math.abs(dx) > _maxX) {
     p.comboTarget = null;
     p.oppositeInputFrames = 0;
     return;
   }
   const distXZ = Math.hypot(dx, dz);
-  if (distXZ > HOMING_CONFIG.MAX_DISTANCE) {
+  if (distXZ > _maxXZ) {
     p.comboTarget = null;
     p.oppositeInputFrames = 0;
     return;
@@ -488,7 +577,8 @@ export function updateComboHoming(p) {
   } else {
     p.oppositeInputFrames = Math.max(0, p.oppositeInputFrames - HOMING_CONFIG.OPPOSITE_DECAY);
   }
-  if (p.oppositeInputFrames >= HOMING_CONFIG.BREAK_INPUT_FRAMES) {
+  // mega コンボ猶予中は反対入力での解除も無効化（追撃方向転換で誤解除しない）
+  if (!_megaGrace && p.oppositeInputFrames >= HOMING_CONFIG.BREAK_INPUT_FRAMES) {
     p.comboTarget = null;
     p.oppositeInputFrames = 0;
     return;
@@ -502,12 +592,12 @@ export function updateComboHoming(p) {
   const elapsed = atk.duration - p.stateTimer;
   if (elapsed >= atk.hitFrame) return;
   // === 「吹き飛び中の敵 × 前方向入力なし」では自動接近を抑止 ===
-  //   敵がコンボ的に逃げていく状態（down_front_* / down_chou_* / down_wall_* / down_roll_* / down_rakka_* / down_bound_*）で、
+  //   敵がコンボ的に逃げていく状態（down_front_* / down_super_* / down_wall_* / down_roll_* / down_rakka_* / down_bound_*）で、
   //   プレイヤーが明示的に前方向を押していないなら、追わない（吸い込まれ感の軽減）
   //   ※ wait01・knockback01/02・down_up_*（打ち上げ juggle）は引き続き追跡する
   const _isFlungState = (
     t.state === STATE.down_front_start  || t.state === STATE.down_front_loop  ||
-    t.state === STATE.down_chou_start   || t.state === STATE.down_chou_loop   ||
+    t.state === STATE.down_super_start   || t.state === STATE.down_super_loop   ||
     t.state === STATE.down_wall_start   || t.state === STATE.down_wall_loop   ||
     t.state === STATE.down_roll_start   ||
     t.state === STATE.down_rakka_start  || t.state === STATE.down_rakka_loop  ||
@@ -518,7 +608,11 @@ export function updateComboHoming(p) {
     return; // 自動接近をスキップ（ロック自体は維持・前入力で復活）
   }
   // facing 自動反転：FACING_FLIP_DIST より遠い時のみ強制反転（近距離は維持）
-  if (Math.abs(dx) > HOMING_CONFIG.FACING_FLIP_DIST) p.facing = targetDirX;
+  // 必殺技中は facing 固定（SP2 等で敵が後ろにいると反転して最終ヒットが当たらない）
+  const _curAtkFacing = p.attackId ? ATTACKS[p.attackId] : null;
+  if (!_curAtkFacing?.isSpecial && Math.abs(dx) > HOMING_CONFIG.FACING_FLIP_DIST) {
+    p.facing = targetDirX;
+  }
   // 距離スケーリング：近い時 100%・FALLOFF_FAR で FALLOFF_FAR_RATIO まで線形減衰
   const falloff = (() => {
     if (distXZ <= HOMING_CONFIG.FALLOFF_NEAR) return 1.0;
@@ -527,24 +621,33 @@ export function updateComboHoming(p) {
               / (HOMING_CONFIG.FALLOFF_FAR - HOMING_CONFIG.FALLOFF_NEAR);
     return 1.0 + (HOMING_CONFIG.FALLOFF_FAR_RATIO - 1.0) * t01;
   })();
+  // 個別倍率：攻撃側に homingLerpMult が指定されていれば各軸 LERP に乗算
+  //   既定 1.0（既存挙動維持）。空中 J 系などホーミングを弱めたい技で 0.6 等を設定。
+  //   ただし対象敵が空中なら mult は無効化（juggle 中は他攻撃と同等の追従が必要・2026-05-15）。
+  const _targetAirborne = t.y > ENEMY_AIRBORNE_Y_THRESHOLD;
+  let homingMult = _targetAirborne ? 1.0 : (atk.homingLerpMult ?? 1.0);
+  // メガクラ・スロー中はターゲットへのホーミングを 2x に強化（追撃繋ぎ補助・2026-05-16）
+  //   ヒット後の "間" にプレイヤーを敵まで強く引き寄せて、コンボ継続をしやすくする。
+  if (isMegaSlowActive()) homingMult *= 2.0;
   // X 補正：圏内デッドゾーン外なら寄せる
   const rangeX = atk.rangeX ?? 120;
   const desiredX = t.x - targetDirX * (rangeX * HOMING_CONFIG.AIM_OFFSET_X_RATIO);
   const gapX = desiredX - p.x;
   const deadX = rangeX * HOMING_CONFIG.AIM_OFFSET_X_RATIO + HOMING_CONFIG.DEADZONE_X_MARGIN;
   if (Math.abs(t.x - p.x) > deadX) {
-    p.x += gapX * HOMING_CONFIG.WINDUP_LERP_X * falloff;
+    p.x += gapX * HOMING_CONFIG.WINDUP_LERP_X * falloff * homingMult;
   }
   // Z 補正：強めに寄せる（2.5D 圧縮軸の救済）。デッドゾーンは狭く
   if (Math.abs(dz) > HOMING_CONFIG.DEADZONE_Z_MARGIN) {
-    p.z += dz * HOMING_CONFIG.WINDUP_LERP_Z * falloff;
+    p.z += dz * HOMING_CONFIG.WINDUP_LERP_Z * falloff * homingMult;
   }
   // Y 補正：空中時のみ（コンボ繋がりやすさ優先・据置）
-  if (!p.isGrounded) {
+  // 攻撃側に noHomingY が立っていれば Y 補正をスキップ（sp_03 等の dive 系で Y を固定したい技用）
+  if (!p.isGrounded && !atk.noHomingY) {
     const desiredY = t.y + HOMING_CONFIG.AIM_Y_OFFSET;
     const gapY = desiredY - p.y;
     if (Math.abs(gapY) > HOMING_CONFIG.DEADZONE_Y_MARGIN) {
-      p.y += gapY * HOMING_CONFIG.WINDUP_LERP_Y * falloff;
+      p.y += gapY * HOMING_CONFIG.WINDUP_LERP_Y * falloff * homingMult;
     }
   }
 }
@@ -665,9 +768,16 @@ export function updatePlayer(p) {
         p.airVx += ((dx / dist) * spd - p.airVx) * 0.35;
         p.airVz += ((dz / dist) * spd - p.airVz) * 0.35;
       }
-      const faceDx = tgt.x - p.x;
-      if (Math.abs(faceDx) > 5) p.facing = faceDx > 0 ? 1 : -1;
+      // 必殺技中はホーミングで facing 反転しない（後ろの敵を捕捉して向きが変わるのを防止）
+      if (!curAtk?.isSpecial) {
+        const faceDx = tgt.x - p.x;
+        if (Math.abs(faceDx) > 5) p.facing = faceDx > 0 ? 1 : -1;
+      }
       p.homingFrames--;
+    } else if (curAtk?.isSpecial) {
+      // 必殺技中（SP2 の離地後など）：方向入力による修正なし、慣性維持（AIR_FRICTION 減衰のみ）
+      p.airVx *= PHYSICS.AIR_FRICTION;
+      p.airVz *= PHYSICS.AIR_FRICTION;
     } else if (p.airWasDash) {
       p.airVx = p.airVx * PHYSICS.AIR_FRICTION + ix * PHYSICS.AIR_CONTROL;
       p.airVz = p.airVz * PHYSICS.AIR_FRICTION + iz * PHYSICS.AIR_CONTROL;
@@ -679,6 +789,24 @@ export function updatePlayer(p) {
     }
     p.x += p.airVx;
     p.z += p.airVz * PHYSICS.Z_SPEED_MULT;
+    // ターゲット追い越し抑止：攻撃側に targetOvershootGuard が立っていて comboTarget があれば、
+    // facing 方向に対して敵の手前（margin）で X を止める（sp_03 leap+dive で 3 キャラ分が
+    // ターゲット越えになるのを防ぐ・2026-05-16）。
+    // ただし requireLockForHoming 技で攻撃開始時にロック無しだった場合は、初ヒット時に
+    // bumpCombo で target が後付け設定されても X 補正しない（ノーロック特性を維持）。
+    const _ovsGuardActive = curAtk?.targetOvershootGuard && p.comboTarget &&
+      (!curAtk.requireLockForHoming || p._homingPreLocked);
+    if (_ovsGuardActive) {
+      const tgt = p.comboTarget;
+      const margin = 50;
+      if (p.facing > 0 && p.x > tgt.x - margin) {
+        p.x = tgt.x - margin;
+        p.airVx = 0;
+      } else if (p.facing < 0 && p.x < tgt.x + margin) {
+        p.x = tgt.x + margin;
+        p.airVx = 0;
+      }
+    }
     mvx = p.airVx;
     mvz = p.airVz;
   } else if (isStepAttack) {
@@ -686,14 +814,50 @@ export function updatePlayer(p) {
     if (p.stepMomentum > 0.05) {
       mvx = p.dashDirX;
       mvz = p.dashDirZ;
-      p.x += mvx * PHYSICS.SPEED * p.stepMomentum;
-      p.z += mvz * PHYSICS.SPEED * p.stepMomentum * PHYSICS.Z_SPEED_MULT;
+      // 潜り込み貫通防止：ヒット後（hitDelivered）に敵 X 距離 50wu 以内に近づいたら前進停止。
+      // ヒット前は無制限（攻撃が敵に届くまで滑り込む必要があるため）
+      let blockedByEnemy = false;
+      if (p.hitDelivered && _enemies) {
+        for (const e of _enemies) {
+          if (!e.isAlive) continue;
+          if (Math.abs(e.z - p.z) > 100) continue;
+          const dx = e.x - p.x;
+          if (Math.sign(dx) === Math.sign(mvx) && Math.abs(dx) < 50) {
+            blockedByEnemy = true;
+            break;
+          }
+        }
+      }
+      if (blockedByEnemy) {
+        p.stepMomentum = 0;
+      } else {
+        p.x += mvx * PHYSICS.SPEED * p.stepMomentum;
+        p.z += mvz * PHYSICS.SPEED * p.stepMomentum * PHYSICS.Z_SPEED_MULT;
+      }
     }
   } else if (movementLocked && (p.lungeMomentum ?? 0) > 0.1) {
     const decay = curAtk?.lungeDecay ?? 0.85;
-    p.x += p.facing * p.lungeMomentum;
-    mvx = p.facing;
-    p.lungeMomentum *= decay;
+    // 敵密着で前進停止：facing 方向 + Z 近接 + X 距離 70wu 以内に生存敵がいたら lungeMomentum=0
+    // （ヒット時の停止は attack-engine 側、こちらは「ヒットしない技で貫通」を防ぐ保険）
+    let blockedByEnemy = false;
+    if (_enemies) {
+      for (const e of _enemies) {
+        if (!e.isAlive) continue;
+        if (Math.abs(e.z - p.z) > 100) continue;
+        const dx = e.x - p.x;
+        if (Math.sign(dx) === p.facing && Math.abs(dx) < 70) {
+          blockedByEnemy = true;
+          break;
+        }
+      }
+    }
+    if (blockedByEnemy) {
+      p.lungeMomentum = 0;
+    } else {
+      p.x += p.facing * p.lungeMomentum;
+      mvx = p.facing;
+      p.lungeMomentum *= decay;
+    }
   } else if (isDashing) {
     let dvx = 0, dvz = 0;
     if (_inp('ArrowLeft')  || _inp('KeyA')) dvx -= 1;
@@ -749,7 +913,13 @@ export function updatePlayer(p) {
   p.z = Math.max(-380, Math.min(700, p.z));
 
   // === 向き ===
-  if ((isDashing || !movementLocked) && !p.guarding) {
+  // 必殺技中（isSpecial）+ 必殺技終了直後（_facingLockUntil 経過まで）は facing 固定
+  // SP2 最終ヒット失敗 → wait01 への遷移で即振り向く不自然な見た目を防ぐ
+  const isSpecialAttack = curAtk?.isSpecial &&
+    (p.state === STATE.attacking || p.state === STATE.hit_confirm);
+  const postSpecialLock = (p._facingLockUntil ?? 0) > getGameFrame();
+  const facingLocked = isSpecialAttack || postSpecialLock;
+  if ((isDashing || !movementLocked) && !p.guarding && !facingLocked) {
     if (!p.isGrounded) {
       if (p.homingFrames > 0 && p.homingTarget) {
         const faceDx = p.homingTarget.x - p.x;
@@ -824,7 +994,12 @@ export function updatePlayer(p) {
       p.diveCountdown = 0;
       p.homingFrames  = 0;
       p.homingTarget  = null;
-      if (p.attackId && ATTACKS[p.attackId]?.diveVy !== undefined &&
+      // 着地で wait01 に即降格：
+      //   - diveVy 系（c01_sp_03_air 急降下踏みつけ（旧 c01_atk_l_01_air_down））
+      //   - cancelOnLand:true（空中 J 系 / 空中 K：着地後すぐ立ち J/K に行きたい技）
+      const _landAtk = p.attackId ? ATTACKS[p.attackId] : null;
+      if (_landAtk &&
+          (_landAtk.diveVy !== undefined || _landAtk.cancelOnLand) &&
           (p.state === STATE.attacking || p.state === STATE.hit_confirm)) {
         p.state          = STATE.wait01;
         p.attackChainIdx = -1;
@@ -848,6 +1023,7 @@ export function updatePlayer(p) {
         p.airWasDash = false;
       }
       p.airSpecialUsed = false;  // 着地で空中必殺チャージ復活
+      p.aerialHopCount = 0;      // 着地で連続ホップ減衰カウンタもリセット
       p.airVx = 0;
       p.airVz = 0;
     }
@@ -920,7 +1096,12 @@ export function updatePlayer(p) {
     _applyBodyEmissive(p.mesh, t, t, t);
   } else if (pulsing) {
     const pulse = 0.25 + 0.50 * (0.5 + 0.5 * Math.sin(gameFrameCounter * 0.21));
-    _applyBodyEmissive(p.mesh, pulse, pulse * 0.85, pulse * 0.10);
+    // stage2（MAX）は白で脈動（高温の炎イメージ）。stage1 までは従来の黄色。
+    if ((p.chargeLevel ?? 0) >= 2) {
+      _applyBodyEmissive(p.mesh, pulse, pulse, pulse);
+    } else {
+      _applyBodyEmissive(p.mesh, pulse, pulse * 0.85, pulse * 0.10);
+    }
   } else if (p._bodyEmissiveWasOn) {
     _applyBodyEmissive(p.mesh, 0, 0, 0);
   }
@@ -943,6 +1124,8 @@ export function updatePlayer(p) {
       _specialHitboxMesh.visible = true;
       _specialHitboxMesh.position.set(p.x + p.facing * (rx * 0.5), yCenter, p.z);
       _specialHitboxMesh.scale.set(rx, yHeight, rz * 2);
+      // 個別色：攻撃定義に hitboxColor があれば上書き（sp_03_max の青炎など）
+      _specialHitboxMesh.material.color.setHex(curAtkVis.hitboxColor ?? SPECIAL_CONFIG.HITBOX_COLOR);
     } else {
       _specialHitboxMesh.visible = false;
     }
@@ -994,4 +1177,5 @@ export function updatePlayer(p) {
   } else {
     _guardShield.visible = false;
   }
+
 }

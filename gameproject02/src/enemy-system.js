@@ -36,7 +36,7 @@ import {
   ENEMY_AIRBORNE_Y_THRESHOLD,
   KB_LV05_BOUNCE_VY,
 } from './states.js';
-import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG } from './config.js';
+import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG } from './config.js';
 import { spawnHitParticles, triggerShake, tryThrownChainHit } from './hit-engine.js';
 import { isHitstunState, tryHitPlayer } from './damage-system.js';
 
@@ -161,6 +161,11 @@ export function updateEnemies(ctx) {
     if (e.frozenByUlt) continue;
     // グラブ被害中：position・state は処理側（processGrabInput）で固定維持
     if (e.state === STATE.grabbed) continue;
+    // wait01 復帰時：必殺技ヒット履歴 + コンボルートをクリア（敵単位の各種ループ制限のリセット）
+    if (e.state === STATE.wait01) {
+      if (e.specialHitBy && e.specialHitBy.size > 0) e.specialHitBy.clear();
+      if (e.comboRoute && e.comboRoute.length > 0) e.comboRoute.length = 0;
+    }
     // 死亡判定（ダミーは即復活で無限練習用）
     if (e.hp <= 0) {
       e.hp = e.maxHp;
@@ -190,12 +195,12 @@ export function updateEnemies(ctx) {
       }
     }
     // ステージバウンド壁ヒット
-    // 超吹き飛ばし中（down_chou_start/loop）に壁に到達 → 強制 down_wall_start
+    // 超吹き飛ばし中（down_super_start/loop）に壁に到達 → 強制 down_wall_start
     const hitLeft  = e.x < PHYSICS.STAGE_LEFT;
     const hitRight = e.x > PHYSICS.STAGE_RIGHT;
     if (hitLeft || hitRight) {
       e.x = hitLeft ? PHYSICS.STAGE_LEFT : PHYSICS.STAGE_RIGHT;
-      if (e.state === STATE.down_chou_start || e.state === STATE.down_chou_loop) {
+      if (e.state === STATE.down_super_start || e.state === STATE.down_super_loop) {
         e.state       = STATE.down_wall_start;
         e.downTimer   = ENEMY_WALL_START_FRAMES;
         e.vy          = 0;          // 壁にべたっと張り付き（一旦停止）
@@ -311,7 +316,7 @@ export function updateEnemies(ctx) {
           // 吹き飛び完走着地 → ダウン静止ループへ（bas_start イントロはスキップ）
           e.state     = STATE.down_bas_loop;
           e.downTimer = ENEMY_DOWN_BAS_LOOP_FRAMES;
-        } else if (e.state === STATE.down_chou_start || e.state === STATE.down_chou_loop) {
+        } else if (e.state === STATE.down_super_start || e.state === STATE.down_super_loop) {
           // 超吹き飛ばし途中で地面に当たった → 強制 down_roll_start
           e.state     = STATE.down_roll_start;
           e.downTimer = ENEMY_ROLL_FRAMES;
@@ -477,14 +482,21 @@ export function updateEnemies(ctx) {
       if (--e.downTimer <= 0) e.state = STATE.down_front_loop;
     } else if (e.state === STATE.down_front_loop) {
       // 吹き飛び中（着地は y<=0 ブロック）
-    } else if (e.state === STATE.down_chou_start) {
-      if (--e.downTimer <= 0) e.state = STATE.down_chou_loop;
-    } else if (e.state === STATE.down_chou_loop) {
+    } else if (e.state === STATE.down_super_start) {
+      if (--e.downTimer <= 0) e.state = STATE.down_super_loop;
+    } else if (e.state === STATE.down_super_loop) {
       // 吹き飛び中（壁/地面は前段ブロックで処理）
     } else if (e.state === STATE.down_wall_start) {
       if (--e.downTimer <= 0) e.state = STATE.down_wall_loop;
     } else if (e.state === STATE.down_wall_loop) {
-      // うつ伏せ落下中（着地は y<=0 ブロック）
+      // うつ伏せ落下中（着地は y<=0 ブロックで処理）
+      // 保険：地上 (y=0) で壁ヒットして wall_loop に来た場合、落下するべき距離がないので
+      // 着地ブロックが走らずハングする。ここで直接 down_bas_start へ抜ける（2026-05-16）
+      if (e.y <= 0) {
+        e.y         = 0;
+        e.state     = STATE.down_bas_start;
+        e.downTimer = ENEMY_DOWN_BAS_START_FRAMES;
+      }
     } else if (e.state === STATE.down_roll_start) {
       if (--e.downTimer <= 0) {
         e.state    = STATE.down_bas_loop;
@@ -594,5 +606,38 @@ export function updateEnemies(ctx) {
       e.mesh.userData.parts.body.material.color.setHex(0x884444);
       e.mesh.userData.parts.head.material.color.setHex(0xddaa44);
     }
+
+    // きりもみやられ突入フラッシュ：紫を「乗算」で body/head 色に被せる
+    //   元色 (0x884444 / 0xddaa44) × 紫 (0x6622ff) を t=1 とし、t=0 で元色へフェード復帰
+    //   持続は ENEMY_BURST_FLASH_FRAMES = SPECIAL_CONFIG.FLASH_FRAMES * 1.5（紫の余韻を強調）
+    //   トリガは hit-engine.js の down_burst_start 遷移時に burstFlashTimer をセット
+    if (e.burstFlashTimer > 0) {
+      e.burstFlashTimer--;
+      const t = e.burstFlashTimer / ENEMY_BURST_FLASH_FRAMES;
+      // 元色
+      const bR = 0x88/255, bG = 0x44/255, bB = 0x44/255;
+      const hR = 0xdd/255, hG = 0xaa/255, hB = 0x44/255;
+      // 紫乗算後
+      const bMr = bR * PURPLE_R, bMg = bG * PURPLE_G, bMb = bB * PURPLE_B;
+      const hMr = hR * PURPLE_R, hMg = hG * PURPLE_G, hMb = hB * PURPLE_B;
+      // lerp: t=1 紫乗算 / t=0 元色
+      e.mesh.userData.parts.body.material.color.setRGB(
+        bR + (bMr - bR) * t, bG + (bMg - bG) * t, bB + (bMb - bB) * t,
+      );
+      e.mesh.userData.parts.head.material.color.setRGB(
+        hR + (hMr - hR) * t, hG + (hMg - hG) * t, hB + (hMb - hB) * t,
+      );
+      e._burstFlashWasOn = true;
+    } else if (e._burstFlashWasOn) {
+      // 直後の元色復帰は上の hitFlash else 分岐が毎フレーム行うので追加リセット不要
+      e._burstFlashWasOn = false;
+    }
   }
 }
+
+// 紫乗算定数：0x6622ff の RGB ノーマライズ値
+const PURPLE_R = 0x66 / 255;  // ≈ 0.40
+const PURPLE_G = 0x22 / 255;  // ≈ 0.13
+const PURPLE_B = 0xff / 255;  // 1.00
+// きりもみフラッシュ持続：プレイヤー必殺技のフラッシュ（12F）の 1.5 倍
+const ENEMY_BURST_FLASH_FRAMES = Math.round(SPECIAL_CONFIG.FLASH_FRAMES * 1.5);
