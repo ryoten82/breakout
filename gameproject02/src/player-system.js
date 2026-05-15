@@ -376,8 +376,8 @@ export function processSpecialInput(p) {
       startSpecial(p, pickSpecialAttackId('c01_sp_01', p.isGrounded));
       return;
     }
-    // ↓↑ （対空）
-    if (matchCommand(p, ['D', 'U'])) {
+    // ↑↑ （対空）[TEST 2026-05-15] ↓↑から変更。指の負担軽減トライアル
+    if (matchCommand(p, ['U', 'U'])) {
       startSpecial(p, pickSpecialAttackId('c01_sp_02', p.isGrounded));
       return;
     }
@@ -406,10 +406,14 @@ export function processStrongAttackInput(p) {
     const dnHeld = _inp('ArrowDown') || _inp('KeyS');
     startAttackById(p, pickStrongAttackId(p, upHeld, dnHeld), -1);
   } else if (p.state === STATE.hit_confirm) {
+    const upHeld = _inp('ArrowUp') || _inp('KeyW');
+    const dnHeld = _inp('ArrowDown') || _inp('KeyS');
     // 弱 → 強キャンセル（Jチェーン中のみ ↑+K / ↓+K / 通常K を分岐）
     if (p.attackChainIdx >= 0) {
-      const upHeld = _inp('ArrowUp') || _inp('KeyW');
-      const dnHeld = _inp('ArrowDown') || _inp('KeyS');
+      startAttackById(p, pickStrongAttackId(p, upHeld, dnHeld), -1);
+    }
+    // 通常 K → 派生 K キャンセル：↑または↓押下時のみ（無方向だと K→K で自分自身に戻ってしまうため）
+    else if (p.attackId === 'c01_atk_l_01' && (upHeld || dnHeld)) {
       startAttackById(p, pickStrongAttackId(p, upHeld, dnHeld), -1);
     }
   } else if (p.state === STATE.attacking) {
@@ -424,13 +428,20 @@ export function processStrongAttackInput(p) {
 export function consumeStrongAttackBuffer(p) {
   if (p.state !== STATE.hit_confirm) return;
   if (!p.kBuffered) return;
-  if (p.attackChainIdx < 0) { p.kBuffered = false; return; } // Kチェーン外は無視
   const wasUp  = p.kBufferUp;
   const wasDn  = p.kBufferDn;
   p.kBuffered  = false;
   p.kBufferUp  = false;
   p.kBufferDn  = false;
-  startAttackById(p, pickStrongAttackId(p, wasUp, wasDn), -1);
+  // Jチェーン中：従来通り ↑+K / ↓+K / 通常K に派生
+  if (p.attackChainIdx >= 0) {
+    startAttackById(p, pickStrongAttackId(p, wasUp, wasDn), -1);
+    return;
+  }
+  // 通常 K（c01_atk_l_01）中：↑または↓押下時のみ派生 K にキャンセル
+  if (p.attackId === 'c01_atk_l_01' && (wasUp || wasDn)) {
+    startAttackById(p, pickStrongAttackId(p, wasUp, wasDn), -1);
+  }
 }
 
 // ============================================================
@@ -553,7 +564,11 @@ function updatePartAnims(p) {
   const animDef  = animKey ? _PART_ANIMS[animKey] : null;
   const elapsed  = atk ? (atk.duration - p.stateTimer) : 0;
   // 多段ヒット技は窓全体でアタックポーズを保持する（hitDuration だけで切らない）
-  const inHit    = atk && elapsed >= atk.hitFrame && elapsed < getHitWindowEnd(atk) + 2;
+  // [TEST 2026-05-15] アニメ開始を技開始時（elapsed >= 0）に前倒し。
+  // 旧：`elapsed >= atk.hitFrame` で hitFrame 到達後に lerp 開始 → 判定発生から
+  // 視覚的に手が出きるまで 5-7F ズレてタイミング視認性が悪かった。
+  // 今：技開始から目標位置へ lerp 開始 → hitFrame の頃には手がほぼ目標到達。
+  const inHit    = atk && elapsed >= 0 && elapsed < getHitWindowEnd(atk) + 2;
 
   for (const [name, rest] of Object.entries(_PART_REST)) {
     const part = parts[name];

@@ -129,6 +129,26 @@
       color: #ff88cc;
       pointer-events: none;
     }
+    /* デバッグ：最新更新日時 / リロード時刻（キャッシュ確認用） */
+    #build-info {
+      position: absolute;
+      top: 56px;
+      right: var(--sp-lg);
+      padding: 6px 12px;
+      background: rgba(20, 30, 0, 0.75);
+      border: 2px solid #ffee44;
+      font-family: 'Courier New', monospace;
+      font-size: 16px;
+      font-weight: bold;
+      color: #ffee44;
+      text-shadow: 1px 1px 0 #000;
+      letter-spacing: 1px;
+      line-height: 1.4;
+      pointer-events: none;
+      z-index: 100;
+      text-align: right;
+    }
+    #build-info .lbl { color: #aaaa66; font-size: 11px; }
 
     #fps {
       position: absolute;
@@ -360,6 +380,22 @@
       opacity: 0.9;
     }
     #clock-hud svg { display: block; }
+    /* デバッグ：ゲーム速度 HUD（時計の真下・GAME_SPEED.scale を表示）*/
+    #gamespeed-hud {
+      position: absolute;
+      top: 92px;             /* 時計 top:24 + 高さ64 + 余白4 */
+      left: 50%;
+      transform: translateX(-50%);
+      pointer-events: none;
+      z-index: 60;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      font-weight: bold;
+      color: #5cc8ff;
+      text-shadow: 1px 1px 0 #000;
+      letter-spacing: 1px;
+      opacity: 0.9;
+    }
     /* 一時停止オーバーレイ（ESC キーで切替）*/
     #pause-overlay {
       position: absolute;
@@ -424,6 +460,8 @@
       <circle cx="0" cy="0" r="3" fill="#ffee44"/>
     </svg>
   </div>
+  <!-- デバッグ：ゲーム速度表示（時計 HUD の直下） -->
+  <div id="gamespeed-hud">x1.00</div>
   <div id="hud-layer">
   <!-- デバッグ：グラブゲージ（敵頭上に投影） -->
   <div id="grab-gauge"><div id="grab-gauge-fill"></div></div>
@@ -446,11 +484,17 @@
     <div id="hk-slowmo" class="small">3: スロー再生 [OFF]</div>
     <div id="hk-enemy-ai" class="small hk-toggle-on">4: 敵AI [ON]</div>
     <div id="hk-single-enemy" class="small">5: 敵 1 体モード [OFF]</div>
+    <div id="hk-deadzone" class="small">6: カメラ デッドゾーン [OFF]</div>
+    <div id="hk-z-stage" class="small">7: Z軸テストステージ [OFF]</div>
     <div class="small">Phase 2.2 — KB+Pad対応</div>
   </div>
 
   <div id="debug">x: 0  z: 0  y: 0</div>
   <div id="phase">PHASE 2.2: SP / STRONG / DASH</div>
+  <div id="build-info">
+    <span class="lbl">UPDATE</span><br>--<br>
+    <span class="lbl">LOAD</span><br>--
+  </div>
   <div id="fps">-- FPS</div>
 
   <div id="combo" style="
@@ -589,6 +633,8 @@
     // === camera（追従・シェイク・時計 HUD）は src/camera.js に分離（Step E-1）===
     import {
       initCamera, updateCamera, applyCamConfig, updateClockHud,
+      setDeadzoneVisible, isDeadzoneVisible, getDeadzoneValues,
+      resetCameraToPlayer,
     } from './src/camera.js';
     // === hud-system（SP/HP/コンボ/グラブゲージ/敵CD）は src/hud-system.js に分離（Step E-2）===
     import {
@@ -1685,7 +1731,21 @@
 
     const enemies = [];
     // テスト切替フラグ（数字キー 5 でトグル）
-    const TEST_CONFIG = { singleEnemyMode: false };
+    const TEST_CONFIG = { singleEnemyMode: false, zStageMode: false };
+
+    // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
+    // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
+    const LAST_UPDATE = '2026-05-15 / 通常K → 派生K キャンセル追加';
+    {
+      const _buildInfoEl = document.getElementById('build-info');
+      if (_buildInfoEl) {
+        const now = new Date();
+        const loadStr = now.toLocaleString('ja-JP', { hour12: false });
+        _buildInfoEl.innerHTML =
+          `<span class="lbl">UPDATE</span><br>${LAST_UPDATE}<br>` +
+          `<span class="lbl">LOAD</span><br>${loadStr}`;
+      }
+    }
 
     // 一時停止（ESC キー / パッド START で切替）
     // - paused=true で loop が render のみ走らせて update をスキップ
@@ -1828,6 +1888,7 @@
       combo,
       comboEl,
       players,
+      resetCameraToPlayer,
     });
 
     // camera 初期化（clock-hand は DOM ready 時点で取得可能）
@@ -1835,7 +1896,10 @@
       camera, bgCamera,
       players, enemies,
       clockHandEl: document.getElementById('clock-hand'),
+      gamespeedHudEl: document.getElementById('gamespeed-hud'),
+      gameSpeed: GAME_SPEED,
       gameAspect: GAME_ASPECT,
+      THREE, scene,
     });
 
     // debug-overlay 初期化
@@ -1902,7 +1966,7 @@
       }
       // デバッグトグル（数字キー：1=ヒットボックス / 2=ピクセル / 3=スロー / 4=敵AI / 5=敵1体モード / ...）
       // キーリピート（OS の長押し連続発火）でトグルが連発しないようガード
-      const _isDebugKey = (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3' || e.code === 'Digit4' || e.code === 'Digit5');
+      const _isDebugKey = (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3' || e.code === 'Digit4' || e.code === 'Digit5' || e.code === 'Digit6' || e.code === 'Digit7');
       if (_isDebugKey && e.repeat) return;
       if (e.code === 'Digit1') toggleHitbox();
       if (e.code === 'Digit2') {
@@ -1957,6 +2021,35 @@
           }
         }
         console.log('[TEST_CONFIG] singleEnemyMode =', TEST_CONFIG.singleEnemyMode);
+      }
+      // デッドゾーン可視化トグル（カメラ追従が固定される X 帯を半透明オレンジで表示）
+      if (e.code === 'Digit6') {
+        const next = !isDeadzoneVisible();
+        setDeadzoneVisible(next);
+        const _hkDzEl = document.getElementById('hk-deadzone');
+        if (_hkDzEl) {
+          const v = getDeadzoneValues();
+          const label = next
+            ? `6: カメラ デッドゾーン [ON] X:${v.x} Y:↑${v.yUp}/↓${v.yDown} Z:${v.z}`
+            : `6: カメラ デッドゾーン [OFF]`;
+          _hkDzEl.textContent = label;
+          _hkDzEl.classList.toggle('hk-toggle-on', next);
+        }
+        console.log('[DEADZONE]', next ? 'ON' : 'OFF');
+      }
+      // Z 軸テストステージ：敵 3 体を Z 方向に分散配置（手前/中央/奥）
+      if (e.code === 'Digit7') {
+        TEST_CONFIG.zStageMode = !TEST_CONFIG.zStageMode;
+        const zPositions = TEST_CONFIG.zStageMode ? [100, 400, 800] : [300, 300, 300];
+        for (let i = 0; i < Math.min(zPositions.length, enemies.length); i++) {
+          enemies[i].z = zPositions[i];
+        }
+        const _hkZEl = document.getElementById('hk-z-stage');
+        if (_hkZEl) {
+          _hkZEl.textContent = `7: Z軸テストステージ [${TEST_CONFIG.zStageMode ? 'ON' : 'OFF'}]`;
+          _hkZEl.classList.toggle('hk-toggle-on', TEST_CONFIG.zStageMode);
+        }
+        console.log('[Z_STAGE]', TEST_CONFIG.zStageMode ? 'ON (z=100/400/800)' : 'OFF (z=300)');
       }
       // 敵 AI ON/OFF（Phase 2.4 デバッグ）
       if (e.code === 'Digit4') {

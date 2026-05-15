@@ -44,6 +44,7 @@ let _triggerShake      = null;
 let _combo             = null;  // { count, lastHitEnemy } のオブジェクト参照
 let _comboEl           = null;  // DOM 要素
 let _players           = null;  // 配列参照
+let _resetCameraToPlayer = null;  // リスポーン時にカメラ追従値を即スナップする関数
 
 export function initDamageSystem(deps) {
   _spawnHitParticles = deps.spawnHitParticles;
@@ -52,6 +53,7 @@ export function initDamageSystem(deps) {
   _combo             = deps.combo;
   _comboEl           = deps.comboEl;
   _players           = deps.players;
+  _resetCameraToPlayer = deps.resetCameraToPlayer || null;
 }
 
 // ============================================================
@@ -559,6 +561,8 @@ export function revivePlayer(p) {
   p.respawnBlinkTimer = 0;
   p.y = HP_CONFIG.RESPAWN_FALL_HEIGHT;
   p.invincibleFrames = HP_CONFIG.REVIVE_INVINCIBLE;
+  // カメラ追従値をプレイヤーの新位置に即スナップ（追従ラグでデッドゾーンがズレるバグ修正）
+  if (_resetCameraToPlayer) _resetCameraToPlayer(p);
   if (p.mesh) {
     p.mesh.visible = true;
     p.mesh.rotation.set(0, p.facing > 0 ? Math.PI * 0.5 : -Math.PI * 0.5, 0);

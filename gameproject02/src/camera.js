@@ -23,17 +23,39 @@
 import { CAM_CONFIG, PIXEL_SHADER } from './config.js';
 import { fxState } from './hit-engine.js';
 
+// デッドゾーン半幅（X は左右対称、Y も上下対称・X と同じハード追従式）
+// プレイヤーが camTargetX / camFollowY を中心とした ±半幅 の範囲を超えると追従開始
+// X / Z はキャラ約 2 人分相当の追従中心相対デッドゾーン
+// Y は「絶対位置（地面 y=0）基準」で運用：プレイヤーが y > Y_UP の時のみ camFollowY 追従、
+// それ以外は camFollowY = 0 に戻す。ジャンプ降下後カメラが地面に自動で戻る
+const DEAD_ZONE_X = 380;        // 画像の赤枠サイズに合わせて再拡張
+const DEAD_ZONE_Y_UP = 200;     // ジャンプ早期に追従発動・最高点でも画面に収まる（516-200=316 < 350）
+const DEAD_ZONE_Y_DOWN = 500;   // 地下ステージ対応・下方向の許容
+const DEAD_ZONE_Z = 420;
+
 let _camera = null;
 let _bgCamera = null;
 let _players = null;
 let _enemies = null;
 let _clockHandEl = null;
+let _gamespeedHudEl = null;
+let _gameSpeed = null;
 let _gameAspect = 1;
 
 // カメラ追従状態（旧 index.html の let を移管）
 let camFollowY = 0;   // Y 追従の遅延用（lerp）
 let camTargetX = 0;   // デッドゾーンカメラ用 X 目標
+let camFollowZ = 0;   // Z 追従用（広いステージで奥のプレイヤーが画面外に出ないよう追従）
 let clockAngle = 0;   // 世界時計の角度
+let _lastGameSpeedShown = null;  // GAME_SPEED 表示の差分検知
+
+// デバッグ：デッドゾーン可視化用 Mesh（X/Y 軸：縦横帯 / Z 軸：床面の矩形領域）。半透明・トグル可
+let _deadzoneL = null;  // X 軸左
+let _deadzoneR = null;  // X 軸右
+let _deadzoneB = null;  // Y 軸下（追従開始ライン y=Y_DEAD_ZONE_LOW）
+let _deadzoneT = null;  // Y 軸上（追従上限ライン y=Y_DEAD_ZONE_LOW + Y_FOLLOW_CAP）
+let _deadzoneFloor = null;  // Z 軸：床面に水平な矩形（X×Z 範囲）
+let _groundMarker = null;   // デバッグ：プレイヤー真下の地上位置を示す赤リング（ジャンプ視認用）
 
 export function initCamera(deps) {
   _camera = deps.camera;
@@ -41,7 +63,87 @@ export function initCamera(deps) {
   _players = deps.players;
   _enemies = deps.enemies;
   _clockHandEl = deps.clockHandEl;
+  _gamespeedHudEl = deps.gamespeedHudEl || null;
+  _gameSpeed = deps.gameSpeed || null;
   _gameAspect = deps.gameAspect;
+
+  // デッドゾーン可視化 Mesh の生成（scene 直接配置・毎フレーム updateCamera で追従）
+  if (deps.THREE && deps.scene) {
+    const THREE = deps.THREE;
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xff9933, transparent: true, opacity: 0.18,
+      depthWrite: false, depthTest: false,
+    });
+    // X 軸縦帯：幅 4wu の細長い帯、高さは画面縦範囲をカバー
+    const geomV = new THREE.PlaneGeometry(4, 1200);
+    _deadzoneL = new THREE.Mesh(geomV, mat);
+    _deadzoneR = new THREE.Mesh(geomV, mat);
+    // Y 軸横帯：高さ 4wu の細長い帯、幅は画面横範囲をカバー
+    const geomH = new THREE.PlaneGeometry(2400, 4);
+    _deadzoneB = new THREE.Mesh(geomH, mat);
+    _deadzoneT = new THREE.Mesh(geomH, mat);
+    // Z 軸：床面に水平な矩形（X×Z）。サイズは DEAD_ZONE_X*2 × DEAD_ZONE_Z*2
+    // 色は X/Y 帯と区別しやすいよう少し濃く別マテリアル
+    const matFloor = new THREE.MeshBasicMaterial({
+      color: 0xff9933, transparent: true, opacity: 0.10,
+      depthWrite: false, depthTest: false,
+    });
+    const geomFloor = new THREE.PlaneGeometry(DEAD_ZONE_X * 2, DEAD_ZONE_Z * 2);
+    _deadzoneFloor = new THREE.Mesh(geomFloor, matFloor);
+    _deadzoneFloor.rotation.x = -Math.PI / 2;  // 床面に水平
+    for (const m of [_deadzoneL, _deadzoneR, _deadzoneB, _deadzoneT, _deadzoneFloor]) {
+      m.visible = false;
+      m.renderOrder = 9999;
+      deps.scene.add(m);
+    }
+    // 地上マーカー：プレイヤーの (x, 0, z) 位置に赤いリングを表示（ジャンプ中に視認用）
+    // p.y > 0（空中）の時だけ visible にする。常時 scene に存在
+    const matRing = new THREE.MeshBasicMaterial({
+      color: 0xff3344, transparent: true, opacity: 0.85,
+      depthWrite: false, depthTest: false, side: THREE.DoubleSide,
+    });
+    const geomRing = new THREE.RingGeometry(28, 38, 24);
+    _groundMarker = new THREE.Mesh(geomRing, matRing);
+    _groundMarker.rotation.x = -Math.PI / 2;
+    _groundMarker.visible = false;
+    _groundMarker.renderOrder = 9998;
+    deps.scene.add(_groundMarker);
+  }
+}
+
+// デバッグ：デッドゾーン表示トグル（Digit6 想定）
+export function setDeadzoneVisible(visible) {
+  for (const m of [_deadzoneL, _deadzoneR, _deadzoneB, _deadzoneT, _deadzoneFloor]) {
+    if (m) m.visible = visible;
+  }
+}
+
+export function isDeadzoneVisible() {
+  return !!(_deadzoneL && _deadzoneL.visible);
+}
+
+// リスポーン時など、カメラをプレイヤー位置に即座にスナップしたい時用
+//   Y は絶対位置基準なので updateCamera と同じ判定を再現
+export function resetCameraToPlayer(p) {
+  camTargetX = p.x;
+  if (p.y > DEAD_ZONE_Y_UP) {
+    camFollowY = p.y - DEAD_ZONE_Y_UP;
+  } else if (p.y < -DEAD_ZONE_Y_DOWN) {
+    camFollowY = p.y + DEAD_ZONE_Y_DOWN;
+  } else {
+    camFollowY = 0;
+  }
+  camFollowZ = p.z;
+}
+
+// デバッグ HUD 表示用：現在のデッドゾーン半幅を返す
+export function getDeadzoneValues() {
+  return {
+    x: DEAD_ZONE_X,
+    yUp: DEAD_ZONE_Y_UP,
+    yDown: DEAD_ZONE_Y_DOWN,
+    z: DEAD_ZONE_Z,
+  };
 }
 
 // デッドゾーン追従 + ULT 中はプレイヤー直接追従
@@ -55,11 +157,30 @@ export function updateCamera() {
     camTargetX += (p.x - camTargetX) * 0.25;
   } else {
     // デッドゾーン：中央帯では固定、端に達したら追従
-    const DEAD_ZONE = 220;
-    if (p.x > camTargetX + DEAD_ZONE) camTargetX = p.x - DEAD_ZONE;
-    if (p.x < camTargetX - DEAD_ZONE) camTargetX = p.x + DEAD_ZONE;
+    if (p.x > camTargetX + DEAD_ZONE_X) camTargetX = p.x - DEAD_ZONE_X;
+    if (p.x < camTargetX - DEAD_ZONE_X) camTargetX = p.x + DEAD_ZONE_X;
   }
   const baseX = camTargetX;
+
+  // デバッグ：デッドゾーン帯を「カメラ追従中心 ± 半幅」に追従（Y のみ上下非対称）
+  // Z 軸は床面に矩形を置いて表示（カメラの俯瞰投影で台形に見える）
+  if (_deadzoneL && _deadzoneL.visible) {
+    const yCenter = CAM_CONFIG.LOOK_Y + camFollowY;
+    _deadzoneL.position.set(camTargetX - DEAD_ZONE_X, yCenter, camFollowZ);
+    _deadzoneR.position.set(camTargetX + DEAD_ZONE_X, yCenter, camFollowZ);
+    _deadzoneB.position.set(camTargetX, camFollowY - DEAD_ZONE_Y_DOWN, camFollowZ);
+    _deadzoneT.position.set(camTargetX, camFollowY + DEAD_ZONE_Y_UP, camFollowZ);
+    _deadzoneFloor.position.set(camTargetX, 1, camFollowZ);  // y=1 で床面のすぐ上（Z-fighting 回避）
+  }
+  // 地上マーカー：プレイヤーが空中にいる時だけ p.x/p.z の真下に表示（デッドゾーン visibility に依存しない）
+  if (_groundMarker) {
+    if (p.y > 5) {
+      _groundMarker.visible = true;
+      _groundMarker.position.set(p.x, 2, p.z);
+    } else {
+      _groundMarker.visible = false;
+    }
+  }
 
   // シェイク計算（fxState は hit-engine の単一オブジェクト参照）
   if (fxState.shakeTimer > 0) {
@@ -76,28 +197,76 @@ export function updateCamera() {
     fxState.shakeOffsetY = 0;
   }
 
-  // Y 追従：デッドゾーン付き lerp（低ジャンプではカメラ動かさない）
-  const Y_DEAD_ZONE = 100;
-  const yTarget = Math.max(0, p.y - Y_DEAD_ZONE);
-  camFollowY += (yTarget - camFollowY) * 0.08;
-  camFollowY = Math.max(0, Math.min(camFollowY, 150));
+  // Y 追従：プレイヤーの「画面上 Y 位置 (screenY)」基準で決める。
+  //   理由：俯瞰投影で z 軸の値もスクリーン Y に影響するため、p.y だけ見ていると
+  //   Z 軸奥（dz < 0）でジャンプした時に p.y < Y_UP でも画面上端を突き抜けてしまう。
+  //   screenY = (CAM_Z*dy - CAM_Y*dz) / sqrt(CAM_Y²+CAM_Z²)（カメラ俯瞰の up' ベクトル射影）
+  //   camFollowY を 1 増やすと screenY は -CAM_Z/sqrt(...) ≒ -0.929 動く（係数 K_INV）
+  const dy = p.y - camFollowY;
+  const dz = p.z - camFollowZ;
+  const camDist = Math.sqrt(CAM_CONFIG.CAM_Y * CAM_CONFIG.CAM_Y + CAM_CONFIG.CAM_Z * CAM_CONFIG.CAM_Z);
+  const screenY = (CAM_CONFIG.CAM_Z * dy - CAM_CONFIG.CAM_Y * dz) / camDist;
+  // screenY のデッドゾーン（上 100 / 下 -250）。これを超えたら camFollowY で補正
+  // 上端側は控えめにしてプレイヤー身体（中心から +150wu の頭部）まで画面内に収める
+  const SCREEN_Y_UP = 100;
+  const SCREEN_Y_DOWN = -250;
+  // 目標 camFollowY を「screenY がちょうど境界に来る値」として絶対計算する。
+  // screenY = (CAM_Z*(p.y - camFollowY) - CAM_Y*dz) / camDist = 境界値 を解くと：
+  //   camFollowY = p.y - (CAM_Y/CAM_Z)*dz - 境界値 * (camDist/CAM_Z)
+  // これで targetY が camFollowY に依存しなくなり、lerp がスプリング振動しない
+  const Y_RATIO = CAM_CONFIG.CAM_Y / CAM_CONFIG.CAM_Z;     // 0.4
+  const SCREEN_SCALE = camDist / CAM_CONFIG.CAM_Z;          // 1.077
+  // 「2D 認識」モード：プレイヤーの画面 Y 位置 (screenY) を境界に保つ camFollowY を target として、
+  // 線形定速 (12wu/F) で target に追従する。境界判定に MARGIN=STEP_BASE のヒステリシス。
+  // MARGIN < STEP だと「境界モード ON ⇄ OFF」を毎フレ切り替えて STEP 分の振動が出るため、
+  // MARGIN は STEP 以上にする（落下はじめのガタつき対策）
+  const MARGIN = 12;
+  let targetCamY;
+  if (screenY > SCREEN_Y_UP - MARGIN) {
+    targetCamY = p.y - Y_RATIO * dz - SCREEN_Y_UP * SCREEN_SCALE;
+  } else if (screenY < SCREEN_Y_DOWN + MARGIN) {
+    targetCamY = p.y - Y_RATIO * dz - SCREEN_Y_DOWN * SCREEN_SCALE;
+  } else {
+    targetCamY = 0;
+  }
+  // 線形定速で target へ追従（指数 lerp ではなく一定速 → 動きにムラがなく滑らか）
+  // 下方向（camFollowY を下げる）は、空中で降下中ならプレイヤーの落下速度に同期させて
+  // 3 段ジャンプの「カメラ遅延」を解消する。上方向は STEP_BASE で抑制（ガタつき対策）
+  const STEP_BASE = 12;
+  const diff = targetCamY - camFollowY;
+  let step = STEP_BASE;
+  if (diff < 0 && !p.isGrounded && p.vy < 0) {
+    step = Math.max(STEP_BASE, Math.abs(p.vy));  // 落下速度に同期
+  }
+  if (Math.abs(diff) > step) {
+    camFollowY += Math.sign(diff) * step;
+  } else {
+    camFollowY = targetCamY;
+  }
+  // Z 追従：X/Y と同じハード境界式（camFollowZ ± DEAD_ZONE_Z の外でのみ追従）
+  if (p.z > camFollowZ + DEAD_ZONE_Z) camFollowZ = p.z - DEAD_ZONE_Z;
+  if (p.z < camFollowZ - DEAD_ZONE_Z) camFollowZ = p.z + DEAD_ZONE_Z;
   // シェイクは常にカメラへ直接適用：両 RT（pixelRT / outlineRT）が同じ projection で
   // レンダリングされるので color と outline が同期する。
   // （旧コード：PIXEL_SHADER ON 時は blit shader の uColorOffset 経由で color のみ揺らしていたが、
   //  ULT 等の強シェイク中に outline と color が分離して見える問題があったため廃止）
   const sx = fxState.shakeOffsetX;
   const sy = fxState.shakeOffsetY;
-  _camera.position.x = baseX + sx;
-  _camera.position.y = CAM_CONFIG.CAM_Y + camFollowY + sy;
-  _camera.position.z = CAM_CONFIG.CAM_Z;
-  _camera.lookAt(baseX, CAM_CONFIG.LOOK_Y + camFollowY, 0);
+  // ピクセルシェーダーの量子化と camera 位置の小数値が干渉してジャギが目立つため、
+  // camera.position と lookAt 引数を整数 wu に snap する（pixel-perfect 対策）。
+  // camFollowY は lerp の状態を保つために浮動小数のまま、適用時のみ Math.round
+  const camPosX = Math.round(baseX + sx);
+  const camPosY = Math.round(CAM_CONFIG.CAM_Y + camFollowY + sy);
+  const camPosZ = Math.round(CAM_CONFIG.CAM_Z + camFollowZ);
+  const lookY   = Math.round(CAM_CONFIG.LOOK_Y + camFollowY);
+  const lookZ   = Math.round(camFollowZ);
+  _camera.position.set(camPosX, camPosY, camPosZ);
+  _camera.lookAt(Math.round(baseX), lookY, lookZ);
 
-  // 背景カメラ：X はデッドゾーン baseX 追従、Y はメインカメラの camFollowY と同期
-  const bgX = baseX * 1.0;
-  _bgCamera.position.x = bgX;
-  _bgCamera.position.y = CAM_CONFIG.BG_CAM_Y + camFollowY;
-  _bgCamera.position.z = CAM_CONFIG.BG_CAM_Z;
-  _bgCamera.lookAt(bgX, CAM_CONFIG.BG_LOOK_Y + camFollowY, 0);
+  // 背景カメラ：X はデッドゾーン baseX 追従、Y/Z はメインカメラと同期（同じく pixel snap）
+  const bgX = Math.round(baseX);
+  _bgCamera.position.set(bgX, Math.round(CAM_CONFIG.BG_CAM_Y + camFollowY), Math.round(CAM_CONFIG.BG_CAM_Z + camFollowZ));
+  _bgCamera.lookAt(bgX, Math.round(CAM_CONFIG.BG_LOOK_Y + camFollowY), lookZ);
 }
 
 // FOV / アスペクト変更時はフラスタム更新が必要なためヘルパー経由
@@ -122,5 +291,13 @@ export function updateClockHud() {
   if (!worldFrozen) {
     clockAngle = (clockAngle + 6) % 360;
     if (_clockHandEl) _clockHandEl.setAttribute('transform', `rotate(${clockAngle})`);
+  }
+  // GAME_SPEED.scale を時計直下に表示（コンソール書き換えで即反映）
+  if (_gamespeedHudEl && _gameSpeed) {
+    const s = _gameSpeed.scale;
+    if (s !== _lastGameSpeedShown) {
+      _gamespeedHudEl.textContent = 'x' + s.toFixed(2);
+      _lastGameSpeedShown = s;
+    }
   }
 }

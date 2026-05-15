@@ -30,7 +30,7 @@
 export const ATTACKS = {
   c01_atk_s_01: {
     label:        'c01_atk_s_01 (METEO 左ジャブ)',
-    duration:     16, hitFrame: 6, hitDuration: 4, cancelWindow: 14,
+    duration:     16, hitFrame: 3, hitDuration: 4, cancelWindow: 8,
     damage:       6,
     rangeX:       110, rangeZ: 110, rangeY: 80,   // 胸高さまで
     knockback:    9, hitstop: 3, shake: 2,         // 6→9（J コンボ全弾 1.5x：間合い詰まり対策・J 連打無限コンボ抑止）
@@ -39,7 +39,7 @@ export const ATTACKS = {
   },
   c01_atk_s_02: {
     label:        'c01_atk_s_02 (METEO 右ストレート)',
-    duration:     16, hitFrame: 6, hitDuration: 4, cancelWindow: 14,
+    duration:     16, hitFrame: 4, hitDuration: 4, cancelWindow: 9,
     damage:       7,
     rangeX:       115, rangeZ: 110, rangeY: 80,   // 胸高さまで
     knockback:    12, hitstop: 4, shake: 3,        // 8→12（1.5x）
@@ -48,7 +48,7 @@ export const ATTACKS = {
   },
   c01_atk_s_03: {
     label:        'c01_atk_s_03 (METEO 回し蹴り)',
-    duration:     22, hitFrame: 9, hitDuration: 5, cancelWindow: 16,
+    duration:     23, hitFrame: 5, hitDuration: 5, cancelWindow: 11,
     damage:       12,
     rangeX:       130, rangeZ: 120, rangeY: 110,  // 蹴りは少し高めまで
     knockback:    21, hitstop: 6, shake: 5,        // 14→21（1.5x）
@@ -57,7 +57,7 @@ export const ATTACKS = {
   },
   c01_atk_s_04: {
     label:        'c01_atk_s_04 (METEO 旋回アッパー・フィニッシャー)',
-    duration:     24, hitFrame: 10, hitDuration: 5, cancelWindow: 16,
+    duration:     22, hitFrame: 8, hitDuration: 5, cancelWindow: 16,
     damage:       14,
     rangeX:       135, rangeZ: 125, rangeY: 140,  // 旋回アッパー：頭上付近まで
     knockback:    60, hitstop: 7, shake: 6,        // 40→60（1.5x）
@@ -68,7 +68,7 @@ export const ATTACKS = {
   // === 空中弱攻撃（METEO） ===
   c01_atk_s_01_air: {
     label:        'c01_atk_s_01_air (METEO 空中ジャブ)',
-    duration:     14, hitFrame: 5, hitDuration: 3, cancelWindow: 12,
+    duration:     13, hitFrame: 3, hitDuration: 3, cancelWindow: 9,
     damage:       5,
     rangeX:       145, rangeZ: 120, rangeY: 110, rangeYDown: 260,   // PHYSICS.AERIAL_RANGE_Y=110 をリテラル化
     knockback:    5, hitstop: 3, shake: 2,         // 3→5（1.5x 切り上げ）
@@ -78,7 +78,7 @@ export const ATTACKS = {
   },
   c01_atk_s_02_air: {
     label:        'c01_atk_s_02_air (METEO 空中蹴り)',
-    duration:     16, hitFrame: 6, hitDuration: 3, cancelWindow: 13,
+    duration:     14, hitFrame: 3, hitDuration: 3, cancelWindow: 9,
     damage:       7,
     rangeX:       145, rangeZ: 120, rangeY: 120, rangeYDown: 270,   // PHYSICS.AERIAL_RANGE_Y(110)+10
     knockback:    8, hitstop: 4, shake: 3,         // 5→8（1.5x 切り上げ）
@@ -88,7 +88,7 @@ export const ATTACKS = {
   },
   c01_atk_s_03_air: {
     label:        'c01_atk_s_03_air (METEO 空中Jコンボ3発目・フィニッシャー)',
-    duration:     18, hitFrame: 7, hitDuration: 4, cancelWindow: 14,
+    duration:     16, hitFrame: 6, hitDuration: 4, cancelWindow: 14,
     damage:       10,
     rangeX:       145, rangeZ: 120, rangeY: 130, rangeYDown: 280,   // PHYSICS.AERIAL_RANGE_Y(110)+20
     knockback:    80,             // 26 → 32 → 48 → 80（空中フィニッシャー：地上 J へ吸い込み防止）
@@ -105,7 +105,7 @@ export const ATTACKS = {
   // 仕様: METEO の強攻撃 — ダウンなし・キャラ約1体分のノックバック
   c01_atk_l_01: {
     label:        'c01_atk_l_01 (METEO 強攻撃)',
-    duration:     28, hitFrame: 12, hitDuration: 5, cancelWindow: 18,
+    duration:     31, hitFrame: 7, hitDuration: 5, cancelWindow: 14,
     damage:       20,
     rangeX:       145, rangeZ: 120, rangeY: 130,  // 上半身高さまで
     knockback:    75,  // ★ キャラ約1体分の距離（c01_atk_s_03=14 の約2倍）
@@ -121,7 +121,7 @@ export const ATTACKS = {
     // ★旧称：打ち上げ K。lv02 軽フリンチ + knockbackY=12 で軽く浮かせるだけのコンボ始動技に変更（2026-05-14）
     //   強い打ち上げは sp_02 系へ移管済
     label:        'c01_atk_l_01_up (METEO ↑+K・軽浮かせコンボ始動)',
-    duration:     26, hitFrame: 10, hitDuration: 4, cancelWindow: 16,
+    duration:     26, hitFrame: 5, hitDuration: 4, cancelWindow: 11,
     damage:       18,
     rangeX:       115, rangeZ: 110, rangeY: 180,  // 上方向リーチは維持（浮いた敵にも届く）
     knockback:    14,               // 水平ノックバック（facing 方向）
@@ -143,7 +143,7 @@ export const ATTACKS = {
   // 下方向の当たり判定を大きく取り、地上敵を空中から殴れる
   c01_atk_l_01_air: {
     label:        'c01_atk_l_01_air (METEO 空中強攻撃)',
-    duration:     24, hitFrame: 10, hitDuration: 5, cancelWindow: 16,
+    duration:     24, hitFrame: 5, hitDuration: 5, cancelWindow: 11,
     damage:       18,
     rangeX:       145, rangeZ: 135, rangeY: 110, rangeYDown: 260,
     knockback:    42,                // 24 → 42（中程度追加・吹き飛ばし感UP）
@@ -163,9 +163,9 @@ export const ATTACKS = {
     label:        'c01_atk_l_01_air_down (METEO 空中急降下・↓+K・連続ヒット)',
     // === 連続ヒット化:ドリル踏みつけ → 最終で叩きつけ ===
     // 旧来は単発で頭に当たって即バウンドする見栄えだった
-    // 3 段：frame 8 / 12 / 16（hitInterval=4）。最終ヒットで atk_lv 5 → down_rakka_start
+    // 3 段：frame 4 / 8 / 12（hitInterval=4）。最終ヒットで atk_lv 5 → down_rakka_start
     // 中間 2 発は knockback01 軽フリンチ（位置維持）、最終で kb_vy=-45 の強叩きつけ発動
-    duration:     24, hitFrame: 8, hitDuration: 6, cancelWindow: 16,
+    duration:     24, hitFrame: 4, hitDuration: 6, cancelWindow: 12,
     isMultiHit:     true,
     multiHitCount:  3,
     hitInterval:    4,
@@ -199,7 +199,7 @@ export const ATTACKS = {
   // 当たり判定：足元中心・全方向・地面スライスのみ（浮き敵には当たらない）
   c01_atk_l_01_down: {
     label:        'c01_atk_l_01_down (METEO 払い・↓+K)',
-    duration:     20, hitFrame: 8, hitDuration: 4, cancelWindow: 14,
+    duration:     20, hitFrame: 4, hitDuration: 4, cancelWindow: 10,
     damage:       14,
     rangeX:       155, rangeZ: 150,
     rangeY:       35,              // 足元の薄いスライス（地面の敵だけ拾う）
@@ -271,7 +271,7 @@ export const ATTACKS = {
   // tiltX: 擬似アニメ用 rotation.x 目標値（YXZ 順・+前傾 / -後傾）— 正式アニメ実装まで
   c01_atk_s_01_step: {
     label:        'c01_atk_s_01_step (METEO ステップJ・スライディング)',
-    duration:     20, hitFrame: 7, hitDuration: 4, cancelWindow: 14,
+    duration:     20, hitFrame: 4, hitDuration: 4, cancelWindow: 10,
     damage:       8,
     rangeX:       150, rangeZ: 70, rangeY: 60,
     knockback:    18, hitstop: 5, shake: 4,
@@ -289,7 +289,7 @@ export const ATTACKS = {
   },
   c01_atk_l_01_step: {
     label:        'c01_atk_l_01_step (METEO ステップK・ショルダータックル・連続ヒット)',
-    duration:     28, hitFrame: 8, hitDuration: 5, cancelWindow: 0,
+    duration:     28, hitFrame: 4, hitDuration: 5, cancelWindow: 0,
     // === 連続ヒット技：軌道上の敵を多段ヒット（巻き込み）===
     // hits at frame 8 / 13 / 18（hitInterval=5 × multiHitCount=3）
     // 中間 2 発：damagePerHit / 最終 1 発：damageLastHit + atk_lv 3 で吹き飛ばし

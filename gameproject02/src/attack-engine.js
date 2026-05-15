@@ -574,17 +574,37 @@ export function triggerUlt(p) {
   console.log('[ULT] c01_sp_ult01 起動・SP残:', p.sp.toFixed(1));
 }
 
-// バッファ消化（HIT_CONFIRM になった瞬間に Z バッファがあれば次段へ）
+// バッファ消化
+//   1) HIT_CONFIRM 遷移時：ヒット成立 → バッファがあれば即次段（既存）
+//   2) [TEST 2026-05-15] attacking 中でも active 終了後はバッファ消化（空振り連打のテンポ向上）
+//      ヒットしなくても J 連打で次段が出るので、連打速度でコンボのテンポ感に幅が出る
 export function consumeAttackBuffer(p) {
-  if (p.state === STATE.hit_confirm && p.attackBuffered) {
+  if (!p.attackBuffered) return;
+  // チェーン外の攻撃（K 単発・必殺技 sp 系など attackChainIdx<0）はバッファで連鎖しない
+  // ※これがないと sp_02 ヒット中 J 連打で地上 c01_atk_s_01 が起動し、空中ホップが消えて落下する
+  if (p.attackChainIdx < 0) return;
+
+  if (p.state === STATE.hit_confirm) {
     p.attackBuffered = false;
-    // チェーン外の攻撃（K 単発・必殺技 sp 系など attackChainIdx<0）からは J バッファで連鎖しない
-    // processAttackInput の live J 入力でも同条件で return しているので整合を取る
-    // ※これがないと sp_02 ヒット中 J 連打で地上 c01_atk_s_01 が起動し、空中ホップが消えて落下する
-    if (p.attackChainIdx < 0) return;
     const chain = p.attackChainArr || Z_CHAIN;
     const next  = p.attackChainIdx + 1;
     if (next < chain.length) startAttackFromChain(p, chain, next);
+    return;
+  }
+
+  // attacking 中：active 期間（hitFrame ~ hitFrame+hitDuration）終了後にバッファ消化
+  // 空振り（hitDelivered=false）→ 同じ idx を再起動（J1→J1→J1...）
+  // ヒット済（hitDelivered=true、多段ヒット技で発生し得る）→ 次段へ
+  if (p.state === STATE.attacking) {
+    const atk = ATTACKS[p.attackId];
+    if (!atk) return;
+    const elapsed = atk.duration - p.stateTimer;
+    if (elapsed >= atk.hitFrame + atk.hitDuration) {
+      p.attackBuffered = false;
+      const chain = p.attackChainArr || Z_CHAIN;
+      const targetIdx = p.hitDelivered ? p.attackChainIdx + 1 : p.attackChainIdx;
+      if (targetIdx < chain.length) startAttackFromChain(p, chain, targetIdx);
+    }
   }
 }
 
