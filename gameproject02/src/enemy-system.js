@@ -123,6 +123,11 @@ export function spawnDummy(x, z, opts = {}) {
     pitchAngle:       0,
     frozenByUlt:      false,
     ultBurstInvincible: false,  // ULT 由来の burst-down 中フラグ：起き上がる（wait01 復帰）まで完全無敵・メガクラも受け付けない
+    // 飛行系状態の再突入カウンタ（コンボ中累積・wait01 復帰でリセット・2026-05-18）
+    superFlightCount:      0,    // down_super_* 突入回数
+    wallHitCount:          0,    // down_wall_* 突入回数
+    lateralCombatInvincible: false,  // 2 回目以降の飛行系突入で立つフラグ：wait01 まで完全無敵
+    skipWallCollision:     false,  // 2 回目以降の down_super で壁ヒット遷移をスキップ → 地面で down_roll_start
     burstSpinRate:    0,
     burstGravMult:    0,
     burstRollAngle:   0,
@@ -167,6 +172,11 @@ export function updateEnemies(ctx) {
       if (e.specialHitBy && e.specialHitBy.size > 0) e.specialHitBy.clear();
       if (e.comboRoute && e.comboRoute.length > 0) e.comboRoute.length = 0;
       if (e.ultBurstInvincible) e.ultBurstInvincible = false;  // 起き上がり完了で ULT-burst 無敵解除
+      // 飛行系状態カウンタ・関連フラグもリセット（2026-05-18）
+      if (e.superFlightCount > 0) e.superFlightCount = 0;
+      if (e.wallHitCount > 0) e.wallHitCount = 0;
+      if (e.lateralCombatInvincible) e.lateralCombatInvincible = false;
+      if (e.skipWallCollision) e.skipWallCollision = false;
     }
     // 死亡判定（ダミーは即復活で無限練習用）
     if (e.hp <= 0) {
@@ -198,15 +208,22 @@ export function updateEnemies(ctx) {
     }
     // ステージバウンド壁ヒット
     // 超吹き飛ばし中（down_super_start/loop）に壁に到達 → 強制 down_wall_start
+    //   ※ skipWallCollision フラグ（同コンボ 2 回目以降の super 飛行）は壁張り付きをスキップして
+    //     ステージ端の x クランプも無視 → そのまま地面到達で down_roll_start に流す（2026-05-18）
     const hitLeft  = e.x < PHYSICS.STAGE_LEFT;
     const hitRight = e.x > PHYSICS.STAGE_RIGHT;
-    if (hitLeft || hitRight) {
+    if ((hitLeft || hitRight) && !e.skipWallCollision) {
       e.x = hitLeft ? PHYSICS.STAGE_LEFT : PHYSICS.STAGE_RIGHT;
       if (e.state === STATE.down_super_start || e.state === STATE.down_super_loop) {
         e.state       = STATE.down_wall_start;
         e.downTimer   = ENEMY_WALL_START_FRAMES;
         e.vy          = 0;          // 壁にべたっと張り付き（一旦停止）
         e.knockbackVx = 0;
+        // 壁突入カウンタ：2 回目以降で起き上がりまで完全無敵化（2026-05-18）
+        // ※ 実際は 2 回目の super で skipWallCollision が立つため自然には到達しないが、
+        //   将来別ルートで wall_start を誘発する設計が来たときの保険。
+        e.wallHitCount = (e.wallHitCount ?? 0) + 1;
+        if (e.wallHitCount >= 2) e.lateralCombatInvincible = true;
         // tiltAngle は STATE_TILT_TARGET 経由で自動補間
       } else {
         e.knockbackVx = 0;

@@ -413,6 +413,8 @@ export function tryHitEnemies(p, attack, ctx) {
         (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop)) continue;
     // ULT 由来の burst-down 中は起き上がるまで完全無敵（ULT 自身のリヒットも不可）
     if (e.ultBurstInvincible) continue;
+    // 2 回目以降の飛行系状態（down_super / down_wall）突入で立つフラグ：wait01 まで完全無敵
+    if (e.lateralCombatInvincible) continue;
     const dx = e.x - p.x;
     const dz = e.z - p.z;
     // 前方判定（omni 攻撃は全方向ヒット）
@@ -473,6 +475,22 @@ export function tryHitEnemies(p, attack, ctx) {
     }
     e.knockbackVx   = facing * (attack.knockback * 0.4 * _sameAtkKbScale);
     const resolved = resolveAttackAttr(attack);
+    // === 2 回目以降の超吹き飛ばし発動（down_super_* 中の敵に lv6 攻撃命中）===
+    //   既存トラジェクトリは「そのまま」維持しつつ、wait01 復帰まで完全無敵 + 壁スルー化（2026-05-18）。
+    //   実効 lv は dispatch tree と同じ式で計算（atk_lv_air が定義され敵が空中ならそちらを優先）。
+    {
+      const _effectiveLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
+        ? attack.atk_lv_air
+        : (attack.atk_lv ?? 1);
+      const _inSuperFlight = (e.state === STATE.down_super_start || e.state === STATE.down_super_loop);
+      if (_effectiveLv === 6 && _inSuperFlight) {
+        e.superFlightCount = (e.superFlightCount ?? 0) + 1;
+        if (e.superFlightCount >= 2) {
+          e.lateralCombatInvincible = true;
+          e.skipWallCollision       = true;
+        }
+      }
+    }
     // ====================================================================
     //  重複必殺技ヒット：敵を down_burst_* に強制遷移（完全無敵スピン離脱）
     //  - ダメージは通常通り入る（既に上で適用済み）
@@ -650,6 +668,12 @@ export function tryHitEnemies(p, attack, ctx) {
         e.kbDecay      = attack.kb_vx_decay_lv6 ?? attack.kb_vx_decay ?? 0.78;
         e.state       = STATE.down_super_start;
         e.downTimer    = ENEMY_DOWN_SUPER_FRAMES;
+        // 飛行系突入カウンタ（2026-05-18）：2 回目発動で「壁スルー + 起き上がりまで完全無敵 + 自動 down_roll_start」
+        e.superFlightCount = (e.superFlightCount ?? 0) + 1;
+        if (e.superFlightCount >= 2) {
+          e.skipWallCollision     = true;
+          e.lateralCombatInvincible = true;
+        }
       } else if (lv === 5) {
         // 叩きつけ — 真下に高速落下、着地で 1回バウンド
         // 連鎖抑止ガード（§4.1c）：叩きつけシーケンス中（rakka_start/_loop または
