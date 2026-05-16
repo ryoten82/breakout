@@ -556,6 +556,16 @@ export function triggerMegaCrash(p) {
     if (!e.isAlive) continue;
     // ULT 由来の burst-down 中は完全無敵：メガクラも受け付けない（起き上がりまで）
     if (e.ultBurstInvincible) continue;
+    // 飛行系再突入の lateralCombatInvincible は**メガクラでリセット**（根幹思想：mega = コンボリセット）
+    //   2026-05-18：mega が当たれば down_super/wall の 2 回目無敵状態を解除し、再度コンボ可能に。
+    //   フラグだけクリアして dispatch には進ませない（敵のトラジェクトリは温存）。
+    if (e.lateralCombatInvincible) {
+      e.lateralCombatInvincible = false;
+      e.skipWallCollision       = false;
+      e.superFlightCount        = 0;
+      e.wallHitCount            = 0;
+      continue;  // この敵への追撃 dispatch はスキップ（解除のみ・トラジェクトリ維持）
+    }
     const dx = e.x - p.x;
     const dz = e.z - p.z;
     const dist = Math.hypot(dx, dz);
