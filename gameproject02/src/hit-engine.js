@@ -212,6 +212,7 @@ export function checkComboBreak(opts) {
       pp.comboTarget = null;
       pp.oppositeInputFrames = 0;
       pp._aggregateRouteAppended = false;
+      if (pp.usedDerivativesThisCombo) pp.usedDerivativesThisCombo.clear();
     }
   }
 }
@@ -321,6 +322,78 @@ export function spawnLaunchSmoke(x, y, z) {
 }
 
 // ============================================================
+//  超吹き飛び軌跡トレイル（2026-05-18 追加・2026-05-18 down_burst → down_super 移植）
+//  超吹き飛ばし（down_super_start / down_super_loop）中の entity の
+//  飛行軌跡を残光ノードで描画。敵味方共通。
+//  - 高速で飛ぶ敵を見失わない視認性ヘルプ
+//  - 演出強化（後続実装の布石）
+//  ※ 旧版は down_burst_* に付与していたが、down_super_* に移植（2026-05-18 修正）。
+//    変数名 `burstTrails` は履歴尊重で維持（中身は super 飛行軌跡）。
+// ============================================================
+export const burstTrails = [];
+
+const BURST_TRAIL_LIFE       = 28;       // ノード寿命（フレーム）
+const BURST_TRAIL_SIZE       = 14;       // ノード 1 個のサイズ（wu）
+const BURST_TRAIL_SPAWN_EVERY = 1;       // フレーム毎に 1 ノード生成（1=毎フレーム）
+const BURST_TRAIL_COLOR      = 0xff44cc; // 紫ピンク（burstFlash と統一感）
+const BURST_TRAIL_Y_OFFSET   = 30;       // 中心から少し上（胸〜頭の高さ）
+
+// entity が down_super_* 中ならトレイルノードをスポーン
+// entity = enemy / player どちらでも OK（state プロパティで判定）
+function _maybeSpawnBurstTrailFor(entity) {
+  if (!entity.isAlive) return;
+  if (entity.state !== STATE.down_super_start &&
+      entity.state !== STATE.down_super_loop) return;
+  // スポーン間隔制御
+  entity._burstTrailCD = (entity._burstTrailCD ?? 0) - 1;
+  if (entity._burstTrailCD > 0) return;
+  entity._burstTrailCD = BURST_TRAIL_SPAWN_EVERY;
+
+  const geom = new _THREE.BoxGeometry(
+    BURST_TRAIL_SIZE, BURST_TRAIL_SIZE, BURST_TRAIL_SIZE
+  );
+  const mat = new _THREE.MeshBasicMaterial({
+    color:       BURST_TRAIL_COLOR,
+    transparent: true,
+    opacity:     0.9,
+    blending:    _THREE.AdditiveBlending,
+    depthWrite:  false,
+  });
+  const mesh = new _THREE.Mesh(geom, mat);
+  mesh.position.set(entity.x, entity.y + BURST_TRAIL_Y_OFFSET, entity.z);
+  // 軽くランダム回転（残光のキラキラ感）
+  mesh.rotation.set(Math.random() * 6.28, Math.random() * 6.28, 0);
+  _scene.add(mesh);
+  burstTrails.push({ mesh, life: BURST_TRAIL_LIFE, lifeMax: BURST_TRAIL_LIFE });
+}
+
+// 毎フレーム呼ぶ：エンティティをスキャンしてトレイル生成 + 既存ノードのフェード
+// entities: [..players, ..enemies] のような配列（複数渡せる）
+export function updateBurstTrails(...entitySets) {
+  // スポーン
+  for (const set of entitySets) {
+    if (!set) continue;
+    for (const e of set) _maybeSpawnBurstTrailFor(e);
+  }
+  // 既存ノード更新
+  for (let i = burstTrails.length - 1; i >= 0; i--) {
+    const t = burstTrails[i];
+    t.life--;
+    const ratio = t.life / t.lifeMax;
+    t.mesh.material.opacity = 0.9 * ratio;
+    // 軽く縮小して消える
+    const s = 0.6 + 0.4 * ratio;
+    t.mesh.scale.set(s, s, s);
+    if (t.life <= 0) {
+      _scene.remove(t.mesh);
+      t.mesh.geometry.dispose();
+      t.mesh.material.dispose();
+      burstTrails.splice(i, 1);
+    }
+  }
+}
+
+// ============================================================
 //  敵被弾判定（Step D-2c-1）
 //
 //  index.html から ctx を受け取って動作：
@@ -336,7 +409,11 @@ export function tryHitEnemies(p, attack, ctx) {
   for (const e of enemies) {
     if (!e.isAlive) continue;
     // down_burst_* 中は完全無敵：判定もダメージも一切受けない
-    if (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop) continue;
+    // ※ attack.forceBurstDown:true（ULT 等）はこの保護をバイパスして必ずヒットさせる
+    if (!attack.forceBurstDown &&
+        (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop)) continue;
+    // ULT 由来の burst-down 中は起き上がるまで完全無敵（ULT 自身のリヒットも不可）
+    if (e.ultBurstInvincible) continue;
     const dx = e.x - p.x;
     const dz = e.z - p.z;
     // 前方判定（omni 攻撃は全方向ヒット）
@@ -419,7 +496,9 @@ export function tryHitEnemies(p, attack, ctx) {
       }
     }
     const _loopDetected = _loopDetectedLen > 0;
-    if (_spDuplicateOnThisEnemy || _loopDetected) {
+    // ULT 等の forceBurstDown:true は無条件で burst 遷移ルートへ（combo break HUD は出さない）
+    const _forceBurst = !!attack.forceBurstDown;
+    if (_spDuplicateOnThisEnemy || _loopDetected || _forceBurst) {
       // 後方斜め上に吹き飛び・facing と反対方向（プレイヤーから離れる）
       e.vy            = KB_BURST_VY;
       e.knockbackVx   = facing * KB_BURST_VX;          // facing 方向 = プレイヤーから遠ざかる
@@ -433,6 +512,8 @@ export function tryHitEnemies(p, attack, ctx) {
       e.launcherAirborne = false;
       // きりもみ突入瞬間：紫フラッシュ（プレイヤー必殺技 flashOnStart のロジック流用・1.5倍持続）
       e.burstFlashTimer = Math.round(SPECIAL_CONFIG.FLASH_FRAMES * 1.5);
+      // ULT 由来の burst：起き上がる（wait01 復帰）まで完全無敵・メガクラも不可
+      if (_forceBurst) e.ultBurstInvincible = true;
       applyHitInitialPitch(e);
       // 演出（通常ヒットエフェクト）
       spawnHitParticles(e.x, e.y + 60, e.z, attack.hitColor ?? 0xffffff,
@@ -443,17 +524,20 @@ export function tryHitEnemies(p, attack, ctx) {
       // route 自体は wait01 復帰時に自然にクリアされるのでここでは触らない。
       // 「どこで burst が起きたか」プレイヤーに見せたいので snapshot を取って HUD で固定表示する。
       // 次の新規コンボ開始まで無制限保持（bumpCombo で 0 にクリアされる）
-      combo.burstHudFrames = Infinity;
-      combo.burstHudRoute  = combo.aggregateRoute.slice();
-      // 理由を記録（HUD の枠色を切り替える）：SP duplicate を loop より優先（より具体的）
-      if (_spDuplicateOnThisEnemy) {
-        combo.burstHudReason = 'sp_dup';
-        combo.burstHudSpBaseId = _spBaseIdForMark;
-        combo.burstHudLoopLen = 0;
-      } else {
-        combo.burstHudReason = 'loop';
-        combo.burstHudSpBaseId = null;
-        combo.burstHudLoopLen = _loopDetectedLen;
+      // ※ ULT 等の forceBurstDown は意図的な発動なので combo break HUD は出さない
+      if (!_forceBurst) {
+        combo.burstHudFrames = Infinity;
+        combo.burstHudRoute  = combo.aggregateRoute.slice();
+        // 理由を記録（HUD の枠色を切り替える）：SP duplicate を loop より優先（より具体的）
+        if (_spDuplicateOnThisEnemy) {
+          combo.burstHudReason = 'sp_dup';
+          combo.burstHudSpBaseId = _spBaseIdForMark;
+          combo.burstHudLoopLen = 0;
+        } else {
+          combo.burstHudReason = 'loop';
+          combo.burstHudSpBaseId = null;
+          combo.burstHudLoopLen = _loopDetectedLen;
+        }
       }
       triggerHitstop(attack.hitstop);
       triggerShake(attack.shake, attack.shake * 2 + 4);

@@ -108,6 +108,31 @@
       margin-left: -6px;
       text-shadow: 0 0 6px #00ff66;
     }
+    /* 必殺技コマンド一覧（#hud の下に配置・SP 発動中は黄色ハイライト） */
+    #sp-hud {
+      position: absolute;
+      top: 600px; left: var(--sp-lg);
+      padding: var(--sp-md) var(--fs-md);
+      background: rgba(0, 20, 40, 0.55);
+      border-left: var(--hud-accent-w) solid #ff88cc;
+      font-size: var(--fs-sm);
+      letter-spacing: var(--ls-tight);
+      pointer-events: none;
+    }
+    #sp-hud .title {
+      color: #ff88cc;
+      font-weight: bold;
+      letter-spacing: var(--ls-wide);
+      margin-bottom: var(--sp-xs);
+    }
+    #sp-hud .hk-active {
+      color: #ffff44;
+      background: rgba(255, 255, 0, 0.15);
+      border-radius: 3px;
+      padding-left: 6px;
+      margin-left: -6px;
+      text-shadow: 0 0 8px #ffaa00;
+    }
 
     #debug {
       position: absolute;
@@ -473,7 +498,8 @@
     <div id="hk-dash">同方向2回タップ長押し: ローラーダッシュ</div>
     <div id="hk-jump">SPACE / A: ジャンプ</div>
     <div id="hk-weak">J / □: 弱攻撃（地上4段 / 空中3段）</div>
-    <div id="hk-strong">K / △: 強攻撃 / ↑+K: 打ち上げ / ↓+K: 払い</div>
+    <div id="hk-strong">K / △: 強攻撃 / 派生K: ↑K 打ち上げ・→K タックル・↓K 払い</div>
+    <div id="hk-dash-atk" class="small">ダッシュ中 J/K: スライディング統一</div>
     <div id="hk-cancel">ヒット中SPACE: キャンセルジャンプ</div>
     <div id="hk-secondary">L / L1: セカンダリ</div>
     <div id="hk-mega">U / R1 / J+K: メガクラッシュ</div>
@@ -487,6 +513,15 @@
     <div id="hk-deadzone" class="small">6: カメラ デッドゾーン [OFF]</div>
     <div id="hk-z-stage" class="small">7: Z軸テストステージ [OFF]</div>
     <div class="small">Phase 2.2 — KB+Pad対応</div>
+  </div>
+
+  <!-- 必殺技コマンド一覧（#hud の下に配置・SP 発動中は黄色ハイライト） -->
+  <div id="sp-hud">
+    <div class="title">必殺技コマンド</div>
+    <div id="hk-sp1">→→ + J/K: SP1（波動・プラズマカノン）</div>
+    <div id="hk-sp2">↑↑ + J/K: SP2（対空キャノン）</div>
+    <div id="hk-sp3">↓↓ + J/K: SP3（急降下踏みつけ）</div>
+    <div id="hk-sp4">J/K 長押し: SP4（チャージパンチ・2 段階）</div>
   </div>
 
   <div id="debug">x: 0  z: 0  y: 0</div>
@@ -577,6 +612,7 @@
   <!-- コンボ履歴パネル（画面中央下・トレーニング用 HUD 候補）
        2 段構成：上段に BURST 演出（burst 発火時 3 秒）／下段にルートチップ。
        ルート：S / L / SP / MC / ULT カテゴリ表記、空中版は a プレフィクス（aS / aL / aSP）。
+       派生 K は ↑L / →L / ↓L 矢印付き表記（タックル = →L）。
        ループ検出時は末尾を赤枠で囲む。 -->
   <div id="combo-history-panel" style="
     position: absolute;
@@ -658,6 +694,7 @@
       spawnHitParticles, spawnLaunchSmoke, updateParticles,
       combo, bumpCombo, checkComboBreak,
       tryHitEnemies, tryHitEnemiesMultiHit, tryThrownChainHit,
+      updateBurstTrails, burstTrails,
     } from './src/hit-engine.js';
     // === attack-engine（攻撃フローコア + 特殊技）は src/attack-engine.js に分離（Step D-3-1/2）===
     import {
@@ -1778,7 +1815,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-16 / burst 中メガクラで COMBO RESET バナー表示';
+    const LAST_UPDATE = '2026-05-18 / SP コマンド：キャンセル中は猶予 1.5 倍緩和（通常 8F → キャンセル時 12F）';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2311,6 +2348,7 @@
       players.forEach(updatePlayer);
       updateEnemies(hitCtx);
       updateParticles();
+      updateBurstTrails(players, enemies);
       players.forEach(p => updateDashTrail(p));
       checkComboBreak({ megaSlow: isMegaComboGrace() });
       updateCamera();
@@ -2723,6 +2761,9 @@
       // 共通関数（コンソールから呼べる）
       triggerHitstop, triggerShake, spawnHitParticles,
       triggerMegaCrash, triggerUlt, cancelGrabIntoAttack,
+      // バーストトレイル（コンソールから状態確認用）
+      burstTrails,
+      updateBurstTrails,
       // ダッシュ（例: SB.startDash(SB.players[0], 1, 0) で右ダッシュ強制発動）
       startDash,
       // Phase 2.4 被ダメージシステム

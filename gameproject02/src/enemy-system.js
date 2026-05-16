@@ -122,6 +122,7 @@ export function spawnDummy(x, z, opts = {}) {
     kbFromMega:       false,
     pitchAngle:       0,
     frozenByUlt:      false,
+    ultBurstInvincible: false,  // ULT 由来の burst-down 中フラグ：起き上がる（wait01 復帰）まで完全無敵・メガクラも受け付けない
     burstSpinRate:    0,
     burstGravMult:    0,
     burstRollAngle:   0,
@@ -165,6 +166,7 @@ export function updateEnemies(ctx) {
     if (e.state === STATE.wait01) {
       if (e.specialHitBy && e.specialHitBy.size > 0) e.specialHitBy.clear();
       if (e.comboRoute && e.comboRoute.length > 0) e.comboRoute.length = 0;
+      if (e.ultBurstInvincible) e.ultBurstInvincible = false;  // 起き上がり完了で ULT-burst 無敵解除
     }
     // 死亡判定（ダミーは即復活で無限練習用）
     if (e.hp <= 0) {

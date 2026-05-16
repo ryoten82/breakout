@@ -294,6 +294,13 @@ export const ATTACKS = {
     isUlt:        true,          // ULT 専用フラグ（演出トリガー）
     noCancelOnHit: true,
     noSpGain:     true,          // ULT ヒットでは SP 獲得しない（自己回復ループ防止）
+    // ULT は最終 AoE 技：ヒットした敵を状態を問わず必ず down_burst_start（バーストダウン）に
+    // 強制遷移。完全無敵スピンで遠くに飛んでいくので画面整理にもなる。
+    // - down_burst_* 中の敵（通常は完全無敵）も hit 可能
+    // - 既存吹き飛び中（down_front_loop / down_super_loop 等）の状態保護をバイパス
+    // - combo break HUD は表示しない（ULT は意図的な発動・break ではない）
+    // 2026-05-18: forceKnockdown → forceBurstDown に変更（より強い演出に統一）
+    forceBurstDown: true,
     // 拡張性（将来 N 発判定するときの仕様）：
     //   hitCountTotal: 1   → 現状は単発
     //   hitInterval:   8   → 複数 hit 時の間隔フレーム
@@ -341,23 +348,18 @@ export const ATTACKS = {
     tiltX:        -1.40,             // ≈ -80°（ほぼ水平・後ろ倒し）
   },
   c01_atk_l_01_step: {
-    label:        'c01_atk_l_01_step (METEO ステップK・ショルダータックル・連続ヒット)',
+    label:        'c01_atk_l_01_step (METEO ステップK・ショルダータックル・単発)',
     duration:     28, hitFrame: 4, hitDuration: 5, cancelWindow: 0,
-    // === 連続ヒット技：軌道上の敵を多段ヒット（巻き込み）===
-    // hits at frame 8 / 13 / 18（hitInterval=5 × multiHitCount=3）
-    // 中間 2 発：damagePerHit / 最終 1 発：damageLastHit + atk_lv 3 で吹き飛ばし
-    isMultiHit:     true,
-    multiHitCount:  3,
-    hitInterval:    5,
-    damagePerHit:   5,
-    damageLastHit:  12,
-    damage:         22,             // 互換用（最終ヒットが上書きするので参照されない）
+    // 2026-05-18：連続ヒット → 単発化。atk_lv 2/2/-（立ち K 相当）・KB 距離も立ち K と同等
+    damage:       22,
     rangeX:       160, rangeZ: 90, rangeY: 180,
-    knockback:    80, hitstop: 10, shake: 9,
-    atk_lv:       3,
-    atk_lv_air:   3,
+    knockback:    23,                // ★ 80→23（立ち K c01_atk_l_01 と同等・追い打ち容易化）
+    hitstop:      10, shake: 9,
+    atk_lv:       2,                 // 軽フリンチ（立ち K と同じ）
+    atk_lv_air:   2,                 // 空中ヒットも knockback_air01（軽フリンチ）
+    // atk_lv_down は未定義 → ダウン中の敵には空振り（拾えない）
     hitColor:     0xff8844,
-    hitCount:     22,                // パーティクル数（多段時は中間 1 ヒットあたり半量）
+    hitCount:     22,                // パーティクル数
     launcher:     false,
     aerialHop:    false,
     partsAnim:    'tackle',
@@ -400,6 +402,14 @@ export const ATTACKS = {
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
+    // 踏み込み：発動瞬間に前進、敵の懐に潜り込む（2026-05-18）
+    // 2026-05-18 微調整：lungeVx 28→20（70%）、selfRecoilVx 12→2.4（20%）
+    lungeVx:      20,                    // 20 / 0.15 ≈ 133wu 総距離（約 1.3 キャラ分）
+    lungeDecay:   0.85,
+    targetOvershootGuard: true,          // comboTarget の手前 50wu で X クランプ（貫通防止）
+    // 攻撃発生時の自己ノックバック（軽い反動）：hitFrame で後方にわずかに押される
+    selfRecoilVx: 2.4,
+    selfRecoilDecay: 0.85,
   },
   // 空中版：斜め下方向に発射。rangeY を絞って rangeYDown を大きく取る非対称 hitbox。
   // METEO 固有の挙動（VIPER 等は別の傾向にする予定）。pickSpecialAttackId で地上/空中を分岐
@@ -534,6 +544,9 @@ export const ATTACKS = {
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
+    // 攻撃発生時の自己ノックバック（少し反動・2026-05-18）
+    selfRecoilVx: 10,
+    selfRecoilDecay: 0.85,
   },
   // 空中版：地上版とほぼ同等の触感で、空中で J 長押し→離しでディスパッチされる
   c01_sp_04_air: {
@@ -558,6 +571,9 @@ export const ATTACKS = {
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
+    // 攻撃発生時の自己ノックバック（少し反動・地上版と同じ・2026-05-18）
+    selfRecoilVx: 10,
+    selfRecoilDecay: 0.85,
   },
   // === stage2 MAX：c01_sp_04_max / c01_sp_04_max_air ===
   // 60F チャージで成立。一回り大きく前方に広がる判定 + 後方ノックバック超強化（空中 sp_01 並み）。
@@ -586,6 +602,9 @@ export const ATTACKS = {
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
+    // 攻撃発生時の自己ノックバック（大反動・ULT を除く METEO の最大技扱い・2026-05-18）
+    selfRecoilVx: 32,
+    selfRecoilDecay: 0.82,
   },
   c01_sp_04_max_air: {
     label:        'c01_sp_04_max_air (METEO 溜めパンチ・stage2 MAX・空中版)',
@@ -609,6 +628,9 @@ export const ATTACKS = {
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
+    // 攻撃発生時の自己ノックバック（大反動・地上版と同じ・2026-05-18）
+    selfRecoilVx: 32,
+    selfRecoilDecay: 0.82,
   },
 };
 

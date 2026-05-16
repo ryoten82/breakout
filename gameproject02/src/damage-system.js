@@ -141,6 +141,7 @@ export function resetCombo() {
     pp.specialUsedIds.clear();
     pp.comboTarget = null;
     pp.oppositeInputFrames = 0;
+    if (pp.usedDerivativesThisCombo) pp.usedDerivativesThisCombo.clear();
   }
 }
 

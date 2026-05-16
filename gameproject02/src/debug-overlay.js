@@ -70,6 +70,11 @@ export function initDebugOverlay(deps) {
     { id: 'hk-secondary', check: () => _action('secondary') },
     { id: 'hk-mega',      check: () => _action('megaCrash') || (_inp('KeyJ') && _inp('KeyK') && !_inp('KeyL')) },
     { id: 'hk-ult',       check: () => _action('ult')      || (_inp('KeyJ') && _inp('KeyK') &&  _inp('KeyL')) },
+    // 必殺技コマンド：それぞれの SP 攻撃 ID が発動中ならハイライト（_air 版も含む）
+    { id: 'hk-sp1',       check: () => { const id = _players[0]?.attackId; return id === 'c01_sp_01' || id === 'c01_sp_01_air'; } },
+    { id: 'hk-sp2',       check: () => { const id = _players[0]?.attackId; return id === 'c01_sp_02' || id === 'c01_sp_02_air'; } },
+    { id: 'hk-sp3',       check: () => { const id = _players[0]?.attackId; return id === 'c01_sp_03' || id === 'c01_sp_03_air'; } },
+    { id: 'hk-sp4',       check: () => { const id = _players[0]?.attackId; return id === 'c01_sp_04' || id === 'c01_sp_04_air' || id === 'c01_sp_04_max' || id === 'c01_sp_04_max_air'; } },
     { id: 'hk-pixel',     check: () => _inp('KeyP') },
   ];
   _hkEls = {};
@@ -258,15 +263,15 @@ function _categorizeAttack(id) {
   // 方向別 L 攻撃（地上限定・空中版とは別扱い）
   if (id === 'c01_atk_l_01_up')   return '↑L';
   if (id === 'c01_atk_l_01_down') return '↓L';
-  // 将来追加：c01_atk_l_01_fwd → '→L' をここに足す
+  // タックル（→K）は派生 K カテゴリの一員として →L 表記（2026-05-18：dL から変更）
+  if (id === 'c01_atk_l_01_step') return '→L';
   const isAir = id.endsWith('_air');
   const prefix = isAir ? 'a' : '';
   // 必殺技（番号別）
   const spMatch = id.match(/_sp_(0?\d+)/);
   if (spMatch) return prefix + 'SP' + parseInt(spMatch[1], 10);
-  // ステップ攻撃：弱/強で dS / dL（dash の d）
+  // ステップ攻撃：弱は dS（dash の d）。L 系はタックル化により上で個別処理済
   if (id.endsWith('_step')) {
-    if (id.includes('_atk_l_')) return 'dL';
     if (id.includes('_atk_s_')) return 'dS';
     return 'ETC';
   }

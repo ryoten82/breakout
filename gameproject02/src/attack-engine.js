@@ -142,7 +142,16 @@ export function startAttackById(p, id, chainIdx) {
       ? PHYSICS.DASH_SPEED_MULT
       : PHYSICS.DASH_SPEED_MULT * nonDashMult;
     // 向きを dashDirX に固定（裏向きで突進する事故を防ぐ）。非ダッシュ起動時は facing 維持。
-    if (p.dashDirX !== 0) p.facing = Math.sign(p.dashDirX);
+    // ※ dashDirX は dash 終了後も値が残るため、p.dashActive で実 dash 中だけ上書きする
+    //   （これがないと過去 dash 方向にタックルが固定される 2026-05-18 修正）
+    if (p.dashActive && p.dashDirX !== 0) {
+      p.facing = Math.sign(p.dashDirX);
+    } else {
+      // 非ダッシュ起動：移動も dashDirX 経由のため、facing 方向に同期して残値を一掃
+      // （これがないと前回 dash 方向に勝手に滑っていく 2026-05-18 修正）
+      p.dashDirX = p.facing;
+      p.dashDirZ = 0;
+    }
   } else {
     p.stepMomentum = 0;
   }
@@ -225,6 +234,13 @@ export function updateAttack(p) {
       atk.diveVy !== undefined) {
     p.vy = 0;
     p.diveCountdown = atk.divePause ?? 0;
+  }
+
+  // === 攻撃発生時の自己ノックバック（反動）：hitFrame で 1 度だけ仕込む（2026-05-18）===
+  // SP1 / SP4 stage1/2 など、攻撃の反動でプレイヤーが後方に押される演出。
+  // p.selfRecoilMomentum を立てて、player-system の毎フレーム update で位置を反映。
+  if (elapsed === atk.hitFrame && atk.selfRecoilVx !== undefined) {
+    p.selfRecoilMomentum = atk.selfRecoilVx;
   }
 
   // === 空中必殺技のホップ：攻撃発生フレームで一度だけ適用 ===
@@ -344,13 +360,18 @@ export function updateHitConfirm(p) {
 //  pattern の各要素は順序通り出現する必要あり（途中に他方向が挟まっても許容するか？
 //  → 厳密に連続している必要あり）
 // ============================================================
-export function matchCommand(p, pattern) {
+// matchCommand：dirHistory を末尾から走査して pattern にマッチするか判定
+//   opts.maxFramesFromClosingTap : 必殺技のシビア入力用。pattern 最終要素（閉じタップ）の
+//     frame が opts.currentFrame からこの値を超えて古ければ false。ダッシュ攻撃との誤爆抑止用。
+export function matchCommand(p, pattern, opts) {
   const hist = p.dirHistory;
   const facing = p.facing || 1;
   let pi = pattern.length - 1;
+  let closingFrame = null;
   for (let i = hist.length - 1; i >= 0 && pi >= 0; i--) {
     const entry = hist[i];
     if (_dirMatchesForFacing(entry.dir, pattern[pi], facing)) {
+      if (closingFrame === null) closingFrame = entry.frame;  // 末尾から最初にマッチ = 閉じタップ
       pi--;
     } else if (entry.dir === 'N') {
       // ニュートラルは無視（手を離す瞬間がコマンド成立を阻害しないよう）
@@ -360,7 +381,13 @@ export function matchCommand(p, pattern) {
       return false;
     }
   }
-  return pi < 0;
+  const matched = pi < 0;
+  if (!matched) return false;
+  // 閉じタップ → ボタン入力の鮮度チェック（必殺技用）
+  if (opts && opts.maxFramesFromClosingTap !== undefined && opts.currentFrame !== undefined) {
+    if (opts.currentFrame - closingFrame > opts.maxFramesFromClosingTap) return false;
+  }
+  return true;
 }
 
 // 地上/空中の派生を自動選択：ATTACKS に <base>_air が存在すれば空中時はそちらを返す
@@ -486,6 +513,8 @@ export function triggerMegaCrash(p) {
   p.invincible = true;
   // 必殺技使用済 ID 集合を全解除（メガクラで全必殺技を再使用可に）
   p.specialUsedIds.clear();
+  // 派生 K 封じも解除（メガクラはコンボリセット相当 / 2026-05-18）
+  if (p.usedDerivativesThisCombo) p.usedDerivativesThisCombo.clear();
   // route 重複 append 防止 Set もクリア（mega は startAttackById を経由しないため手動）
   if (p._routeAppendedFor) p._routeAppendedFor.clear();
   // 集約 route：mega を 1 エントリとして HUD に追加（複数敵ヒットでも 1 つ）
@@ -514,6 +543,8 @@ export function triggerMegaCrash(p) {
   let _megaConnected = false;
   for (const e of _enemies) {
     if (!e.isAlive) continue;
+    // ULT 由来の burst-down 中は完全無敵：メガクラも受け付けない（起き上がりまで）
+    if (e.ultBurstInvincible) continue;
     const dx = e.x - p.x;
     const dz = e.z - p.z;
     const dist = Math.hypot(dx, dz);
