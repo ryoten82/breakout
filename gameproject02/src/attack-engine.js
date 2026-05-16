@@ -135,9 +135,13 @@ export function startAttackById(p, id, chainIdx) {
   // ステップ攻撃と違って tilt 等の特別演出はせず、純粋に前進運動量だけを与える
   p.lungeMomentum = ATTACKS[id].lungeVx ?? 0;
   // ステップ攻撃：ダッシュ運動量を引き継いで前進開始
+  // 非ダッシュ起動（例：静止状態で →K のタックル）時は半減 momentum で「軽い踏み込み」感
   if (ATTACKS[id].isStepAttack) {
-    p.stepMomentum = PHYSICS.DASH_SPEED_MULT;
-    // 向きを dashDirX に固定（裏向きで突進する事故を防ぐ）
+    const nonDashMult = ATTACKS[id].nonDashStartMult ?? 1.0;
+    p.stepMomentum = p.dashActive
+      ? PHYSICS.DASH_SPEED_MULT
+      : PHYSICS.DASH_SPEED_MULT * nonDashMult;
+    // 向きを dashDirX に固定（裏向きで突進する事故を防ぐ）。非ダッシュ起動時は facing 維持。
     if (p.dashDirX !== 0) p.facing = Math.sign(p.dashDirX);
   } else {
     p.stepMomentum = 0;
@@ -175,25 +179,24 @@ export function startAerialAttack(p, chainIdx) {
 
 // 強攻撃（K）はチェーン外で発動
 // 接地状態と方向入力で発動技を決定（空中は方向問わず c01_atk_l_01_air 一択）
-export function pickStrongAttackId(p, upHeld, dnHeld) {
+// up/dn を優先し、いずれも無く fwd（前方押下）なら →K = タックル（c01_atk_l_01_step）
+export function pickStrongAttackId(p, upHeld, dnHeld, fwdHeld) {
   if (!p.isGrounded) {
-    // 空中 K は方向問わず c01_atk_l_01_air 一択。
-    // ↓K は廃止：sp_03（↓↓K）必殺技へ移行（2026-05-16）
     return 'c01_atk_l_01_air';
   }
   if (upHeld) return 'c01_atk_l_01_up';
   if (dnHeld) return 'c01_atk_l_01_down';
+  if (fwdHeld) return 'c01_atk_l_01_step';
   return 'c01_atk_l_01';
 }
-export function startStrongAttack(p, upHeld, dnHeld) {
-  // 現プロト：METEO 固定。将来キャラ別の k_viper / k_cannon / k_bastion に切り替え
-  startAttackById(p, pickStrongAttackId(p, !!upHeld, !!dnHeld), -1);
+export function startStrongAttack(p, upHeld, dnHeld, fwdHeld) {
+  startAttackById(p, pickStrongAttackId(p, !!upHeld, !!dnHeld, !!fwdHeld), -1);
 }
 
-// ステップ攻撃（地上ダッシュ中の J/K 派生）
-// strong=false → c01_atk_s_01_step / strong=true → c01_atk_l_01_step
-export function pickStepAttackId(p, strong) {
-  return strong ? 'c01_atk_l_01_step' : 'c01_atk_s_01_step';
+// ステップ攻撃（地上ダッシュ中の J 派生・スライディング）
+// K のダッシュ派生は廃止（タックルは →K へ移行・2026-05-17）
+export function pickStepAttackId(p) {
+  return 'c01_atk_s_01_step';
 }
 
 // ============================================================
@@ -387,7 +390,7 @@ export function processAttackInput(p) {
   if (p.state === STATE.wait01) {
     // 地上ダッシュ中の派生：ステップJ（スライディング）
     if (p.dashActive && p.isGrounded) {
-      startAttackById(p, pickStepAttackId(p, false), -1);
+      startAttackById(p, pickStepAttackId(p), -1);
       return;
     }
     // 地上 / 空中でチェーンを切り替え

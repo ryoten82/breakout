@@ -365,6 +365,8 @@ export const ATTACKS = {
     momentumDecay: 0.96,
     tiltX:        +0.45,             // ≈ +26°（前傾タックル）
     noCancelOnHit: true,             // ヒットしても hit_confirm に入らず即 wait01
+    // →K（非ダッシュ起動）時は初速半減。ダッシュ起動時は通常通り DASH_SPEED_MULT 全量
+    nonDashStartMult: 0.5,
   },
 
   // ============================================================

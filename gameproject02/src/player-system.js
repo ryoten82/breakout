@@ -423,8 +423,10 @@ export function processSpecialInput(p) {
       p.chargeJFrames = 0;
       p.chargeLevel = 0;
     }
-    // ↓↘→ （波動）地上/空中で別 ID にディスパッチ・使用済管理は base で共有
-    if (matchCommand(p, ['D', 'DR', 'R'])) {
+    // →→ + J/K （波動）地上/空中で別 ID にディスパッチ・使用済管理は base で共有
+    // 旧 ↓↘→ コマンドは廃止（2026-05-17）。ダッシュ起動の →→ ウィンドウ（DIR_BUFFER_FRAMES=30）
+    // 内に J/K を押した場合に SP1 成立。ウィンドウ外は通常ダッシュ走行のまま。
+    if (matchCommand(p, ['R', 'R'])) {
       startSpecial(p, pickSpecialAttackId('c01_sp_01', p.isGrounded));
       return;
     }
@@ -454,18 +456,22 @@ export function processStrongAttackInput(p) {
   if (!justPressed) return;
 
   if (p.state === STATE.wait01) {
-    // 地上ダッシュ中の派生：ステップK（ショルダータックル）
-    if (p.dashActive && p.isGrounded) {
-      startAttackById(p, pickStepAttackId(p, true), -1);
-      return;
-    }
-    const upHeld = _inp('ArrowUp') || _inp('KeyW');
-    const dnHeld = _inp('ArrowDown') || _inp('KeyS');
-    startAttackById(p, pickStrongAttackId(p, upHeld, dnHeld), -1);
+    // ダッシュ攻撃はスライディング一本化（2026-05-17）：
+    // ダッシュ中 K は普通の pickStrongAttackId に流す。前方押下中なので fwdHeld 判定で
+    // 自然にタックル（c01_atk_l_01_step）へ繋がる。
+    const upHeld  = _inp('ArrowUp')    || _inp('KeyW');
+    const dnHeld  = _inp('ArrowDown')  || _inp('KeyS');
+    const rtHeld  = _inp('ArrowRight') || _inp('KeyD');
+    const lfHeld  = _inp('ArrowLeft')  || _inp('KeyA');
+    const fwdHeld = p.facing > 0 ? rtHeld : lfHeld;
+    startAttackById(p, pickStrongAttackId(p, upHeld, dnHeld, fwdHeld), -1);
   } else if (p.state === STATE.hit_confirm) {
-    const upHeld = _inp('ArrowUp') || _inp('KeyW');
-    const dnHeld = _inp('ArrowDown') || _inp('KeyS');
-    const newId = pickStrongAttackId(p, upHeld, dnHeld);
+    const upHeld  = _inp('ArrowUp')    || _inp('KeyW');
+    const dnHeld  = _inp('ArrowDown')  || _inp('KeyS');
+    const rtHeld  = _inp('ArrowRight') || _inp('KeyD');
+    const lfHeld  = _inp('ArrowLeft')  || _inp('KeyA');
+    const fwdHeld = p.facing > 0 ? rtHeld : lfHeld;
+    const newId = pickStrongAttackId(p, upHeld, dnHeld, fwdHeld);
     // 弱 → 強キャンセル（Jチェーン中のみ ↑+K / ↓+K / 通常K を分岐）
     if (p.attackChainIdx >= 0) {
       startAttackById(p, newId, -1);
