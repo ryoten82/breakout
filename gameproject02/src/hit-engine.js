@@ -34,7 +34,7 @@ import {
 } from './states.js';
 import {
   COMBO_LEVELS, getComboLevel,
-  PHYSICS, SP_CONFIG, HOMING_CONFIG, DUMMY_ATK_CONFIG, SPECIAL_CONFIG,
+  PHYSICS, SP_CONFIG, HOMING_CONFIG, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, SAME_ATK_CONFIG,
 } from './config.js';
 import { resolveAttackAttr } from './attacks.js';
 
@@ -213,6 +213,7 @@ export function checkComboBreak(opts) {
       pp.oppositeInputFrames = 0;
       pp._aggregateRouteAppended = false;
       if (pp.usedDerivativesThisCombo) pp.usedDerivativesThisCombo.clear();
+      if (pp.attackHitCounts) pp.attackHitCounts.clear();  // 同技補正カウンタもリセット（2026-05-18）
     }
   }
 }
@@ -448,8 +449,23 @@ export function tryHitEnemies(p, attack, ctx) {
         if (_lv !== 5 && _lv !== 7) continue;  // 空ぶる
       }
     }
+    // === 同技補正：攻撃 ID ごとのヒット回数を参照してダメージ / KB をスケーリング ===
+    //   p.attackHitCounts は per-baseId カウンタ。コンボ中の累積。
+    //   メガクラで MEGA_REDUCE_BY 分減算（部分回復）、resetCombo / checkComboBreak で 0 リセット
+    const _sameAtkBaseId = p.attackId ? (p.attackId.endsWith('_air') ? p.attackId.slice(0, -4) : p.attackId) : null;
+    const _sameAtkCount = _sameAtkBaseId ? (p.attackHitCounts?.get(_sameAtkBaseId) ?? 0) : 0;
+    const _sameAtkDmgScale = (() => {
+      const arr = SAME_ATK_CONFIG.SCALE_DAMAGE;
+      return arr[Math.min(_sameAtkCount, arr.length - 1)];
+    })();
+    const _sameAtkKbScale = (() => {
+      const arr = SAME_ATK_CONFIG.SCALE_KNOCKBACK;
+      const v = arr[Math.min(_sameAtkCount, arr.length - 1)];
+      return Math.max(v, SAME_ATK_CONFIG.MIN_KB_RATIO);
+    })();
+    const _scaledDamage = Math.max(SAME_ATK_CONFIG.MIN_DAMAGE, Math.round(attack.damage * _sameAtkDmgScale));
     // ヒット
-    e.hp = Math.max(0, e.hp - attack.damage);
+    e.hp = Math.max(0, e.hp - _scaledDamage);
     e.hitFlashTimer = 7;
     e.frozenByUlt   = false;  // ULT 凍結解除（ヒットを受けた敵だけ時間が進み始める）
     // 被弾時：倒れ方向を記録。IDLEのみ向きスナップ（FALL/DOWN/RISE中は回転競合のため不変）
@@ -457,7 +473,7 @@ export function tryHitEnemies(p, attack, ctx) {
     if (e.state === STATE.wait01) {
       e.mesh.rotation.y = -e.fallDir * Math.PI / 2;
     }
-    e.knockbackVx   = facing * (attack.knockback * 0.4);
+    e.knockbackVx   = facing * (attack.knockback * 0.4 * _sameAtkKbScale);
     const resolved = resolveAttackAttr(attack);
     // ====================================================================
     //  重複必殺技ヒット：敵を down_burst_* に強制遷移（完全無敵スピン離脱）
@@ -750,6 +766,12 @@ export function tryHitEnemies(p, attack, ctx) {
     // SP 獲得：attack.noSpGain で個別オプトアウト可（ULT 等の自己回復ループ防止用）
     if (!attack.noSpGain) {
       p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
+    }
+    // 同技補正カウンタ：攻撃インスタンスにつき 1 回だけ +1（複数敵巻き込みでも 1 加算）
+    if (!p._sameAtkCounted && _sameAtkBaseId) {
+      if (!p.attackHitCounts) p.attackHitCounts = new Map();
+      p.attackHitCounts.set(_sameAtkBaseId, (p.attackHitCounts.get(_sameAtkBaseId) ?? 0) + 1);
+      p._sameAtkCounted = true;
     }
     anyHit = true;
   }

@@ -34,7 +34,7 @@ import {
   ENEMY_KB_AIR_FRAMES, ENEMY_KB02_FRAMES,
   ENEMY_DOWN_FRONT_FRAMES,
 } from './states.js';
-import { PHYSICS, SP_CONFIG, MEGA_CONFIG, ULT_CONFIG, GRAB_CONFIG } from './config.js';
+import { PHYSICS, SP_CONFIG, MEGA_CONFIG, ULT_CONFIG, GRAB_CONFIG, SAME_ATK_CONFIG } from './config.js';
 import {
   tryHitEnemies, tryHitEnemiesMultiHit,
   spawnHitParticles, bumpCombo, triggerHitstop, triggerShake, fxState, combo,
@@ -112,6 +112,8 @@ export function startAttackById(p, id, chainIdx) {
   if (p._routeAppendedFor) p._routeAppendedFor.clear();
   // 集約 route 用：新攻撃インスタンスにつき 1 回だけ aggregate に push するためのフラグ
   p._aggregateRouteAppended = false;
+  // 同技補正用：新攻撃インスタンスにつき 1 回だけ attackHitCounts を +1 するためのフラグ
+  p._sameAtkCounted = false;
   // 急降下技：発動時はホバー（vy=0）→ divePause F 後に急降下
   if (ATTACKS[id].diveVy !== undefined && !p.isGrounded) {
     p.vy = 0;
@@ -515,6 +517,15 @@ export function triggerMegaCrash(p) {
   p.specialUsedIds.clear();
   // 派生 K 封じも解除（メガクラはコンボリセット相当 / 2026-05-18）
   if (p.usedDerivativesThisCombo) p.usedDerivativesThisCombo.clear();
+  // 同技補正：メガクラで各 ID のヒット回数から MEGA_REDUCE_BY 分減算（部分回復・floor 0）
+  //   全リセットしない＝永久回復はしない設計（2026-05-18）
+  if (p.attackHitCounts && p.attackHitCounts.size > 0) {
+    for (const [id, cnt] of p.attackHitCounts) {
+      const next = Math.max(0, cnt - SAME_ATK_CONFIG.MEGA_REDUCE_BY);
+      if (next === 0) p.attackHitCounts.delete(id);
+      else p.attackHitCounts.set(id, next);
+    }
+  }
   // route 重複 append 防止 Set もクリア（mega は startAttackById を経由しないため手動）
   if (p._routeAppendedFor) p._routeAppendedFor.clear();
   // 集約 route：mega を 1 エントリとして HUD に追加（複数敵ヒットでも 1 つ）

@@ -142,6 +142,7 @@ export function resetCombo() {
     pp.comboTarget = null;
     pp.oppositeInputFrames = 0;
     if (pp.usedDerivativesThisCombo) pp.usedDerivativesThisCombo.clear();
+    if (pp.attackHitCounts) pp.attackHitCounts.clear();  // 同技補正カウンタもリセット（2026-05-18）
   }
 }
 
