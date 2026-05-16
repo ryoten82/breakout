@@ -1,0 +1,44 @@
+name: Deploy SCRAP BLITZ to GitHub Pages
+
+# main または現在の作業ブランチへの push でデプロイ。手動実行（workflow_dispatch）も可能。
+on:
+  push:
+    branches:
+      - main
+      - claude/brave-ptolemy-3c6743
+  workflow_dispatch:
+
+# GitHub Pages 用パーミッション
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同時実行を 1 つに（古い実行はキャンセル）
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      # gameproject02 フォルダの中身をサイトルートとしてアップロード
+      # → 公開 URL は https://ryoten82.github.io/breakout/ で gameproject02/index.html が開く
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'gameproject02'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
