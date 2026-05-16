@@ -323,62 +323,60 @@ export function spawnLaunchSmoke(x, y, z) {
 }
 
 // ============================================================
-//  超吹き飛び軌跡トレイル（2026-05-18 追加・2026-05-18 down_burst → down_super 移植）
+//  超吹き飛び軌跡トレイル（2026-05-18 追加）
 //  超吹き飛ばし（down_super_start / down_super_loop）中の entity の
 //  飛行軌跡を残光ノードで描画。敵味方共通。
 //  - 高速で飛ぶ敵を見失わない視認性ヘルプ
 //  - 演出強化（後続実装の布石）
-//  ※ 旧版は down_burst_* に付与していたが、down_super_* に移植（2026-05-18 修正）。
-//    変数名 `burstTrails` は履歴尊重で維持（中身は super 飛行軌跡）。
 // ============================================================
-export const burstTrails = [];
+export const superFlightTrails = [];
 
-const BURST_TRAIL_LIFE       = 28;       // ノード寿命（フレーム）
-const BURST_TRAIL_SIZE       = 14;       // ノード 1 個のサイズ（wu）
-const BURST_TRAIL_SPAWN_EVERY = 1;       // フレーム毎に 1 ノード生成（1=毎フレーム）
-const BURST_TRAIL_COLOR      = 0xff44cc; // 紫ピンク（burstFlash と統一感）
-const BURST_TRAIL_Y_OFFSET   = 30;       // 中心から少し上（胸〜頭の高さ）
+const SUPER_TRAIL_LIFE        = 28;       // ノード寿命（フレーム）
+const SUPER_TRAIL_SIZE        = 14;       // ノード 1 個のサイズ（wu）
+const SUPER_TRAIL_SPAWN_EVERY = 1;        // フレーム毎に 1 ノード生成（1=毎フレーム）
+const SUPER_TRAIL_COLOR       = 0xff44cc; // 紫ピンク（burstFlash と統一感）
+const SUPER_TRAIL_Y_OFFSET    = 30;       // 中心から少し上（胸〜頭の高さ）
 
 // entity が down_super_* 中ならトレイルノードをスポーン
 // entity = enemy / player どちらでも OK（state プロパティで判定）
-function _maybeSpawnBurstTrailFor(entity) {
+function _maybeSpawnSuperFlightTrailFor(entity) {
   if (!entity.isAlive) return;
   if (entity.state !== STATE.down_super_start &&
       entity.state !== STATE.down_super_loop) return;
   // スポーン間隔制御
-  entity._burstTrailCD = (entity._burstTrailCD ?? 0) - 1;
-  if (entity._burstTrailCD > 0) return;
-  entity._burstTrailCD = BURST_TRAIL_SPAWN_EVERY;
+  entity._superTrailCD = (entity._superTrailCD ?? 0) - 1;
+  if (entity._superTrailCD > 0) return;
+  entity._superTrailCD = SUPER_TRAIL_SPAWN_EVERY;
 
   const geom = new _THREE.BoxGeometry(
-    BURST_TRAIL_SIZE, BURST_TRAIL_SIZE, BURST_TRAIL_SIZE
+    SUPER_TRAIL_SIZE, SUPER_TRAIL_SIZE, SUPER_TRAIL_SIZE
   );
   const mat = new _THREE.MeshBasicMaterial({
-    color:       BURST_TRAIL_COLOR,
+    color:       SUPER_TRAIL_COLOR,
     transparent: true,
     opacity:     0.9,
     blending:    _THREE.AdditiveBlending,
     depthWrite:  false,
   });
   const mesh = new _THREE.Mesh(geom, mat);
-  mesh.position.set(entity.x, entity.y + BURST_TRAIL_Y_OFFSET, entity.z);
+  mesh.position.set(entity.x, entity.y + SUPER_TRAIL_Y_OFFSET, entity.z);
   // 軽くランダム回転（残光のキラキラ感）
   mesh.rotation.set(Math.random() * 6.28, Math.random() * 6.28, 0);
   _scene.add(mesh);
-  burstTrails.push({ mesh, life: BURST_TRAIL_LIFE, lifeMax: BURST_TRAIL_LIFE });
+  superFlightTrails.push({ mesh, life: SUPER_TRAIL_LIFE, lifeMax: SUPER_TRAIL_LIFE });
 }
 
 // 毎フレーム呼ぶ：エンティティをスキャンしてトレイル生成 + 既存ノードのフェード
 // entities: [..players, ..enemies] のような配列（複数渡せる）
-export function updateBurstTrails(...entitySets) {
+export function updateSuperFlightTrails(...entitySets) {
   // スポーン
   for (const set of entitySets) {
     if (!set) continue;
-    for (const e of set) _maybeSpawnBurstTrailFor(e);
+    for (const e of set) _maybeSpawnSuperFlightTrailFor(e);
   }
   // 既存ノード更新
-  for (let i = burstTrails.length - 1; i >= 0; i--) {
-    const t = burstTrails[i];
+  for (let i = superFlightTrails.length - 1; i >= 0; i--) {
+    const t = superFlightTrails[i];
     t.life--;
     const ratio = t.life / t.lifeMax;
     t.mesh.material.opacity = 0.9 * ratio;
@@ -389,7 +387,7 @@ export function updateBurstTrails(...entitySets) {
       _scene.remove(t.mesh);
       t.mesh.geometry.dispose();
       t.mesh.material.dispose();
-      burstTrails.splice(i, 1);
+      superFlightTrails.splice(i, 1);
     }
   }
 }

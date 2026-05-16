@@ -24,6 +24,11 @@
       --hud-accent-w: 5px;   /* アクセントボーダー幅 */
       --ls-tight:     1.5px; /* letter-spacing 標準 */
       --ls-wide:      3px;   /* letter-spacing 強調 */
+
+      /* #hud（左上操作説明）の下に #sp-hud を縦積みするための top 値。
+         #hud の行数を増減した時はここを調整する。
+         現状：top:120px の #hud が ~21 行 × ~22px ≒ 480px → 余白込み 600px */
+      --sp-hud-top: 600px;
     }
 
     html, body {
@@ -111,7 +116,7 @@
     /* 必殺技コマンド一覧（#hud の下に配置・SP 発動中は黄色ハイライト） */
     #sp-hud {
       position: absolute;
-      top: 600px; left: var(--sp-lg);
+      top: var(--sp-hud-top); left: var(--sp-lg);
       padding: var(--sp-md) var(--fs-md);
       background: rgba(0, 20, 40, 0.55);
       border-left: var(--hud-accent-w) solid #ff88cc;
@@ -694,7 +699,7 @@
       spawnHitParticles, spawnLaunchSmoke, updateParticles,
       combo, bumpCombo, checkComboBreak,
       tryHitEnemies, tryHitEnemiesMultiHit, tryThrownChainHit,
-      updateBurstTrails, burstTrails,
+      updateSuperFlightTrails, superFlightTrails,
     } from './src/hit-engine.js';
     // === attack-engine（攻撃フローコア + 特殊技）は src/attack-engine.js に分離（Step D-3-1/2）===
     import {
@@ -1816,7 +1821,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-18 / 同技補正実装：同 ID 4 回目以降 damage/KB 減衰・メガクラで部分回復';
+    const LAST_UPDATE = '2026-05-18 / リファクタ：burstTrails→superFlightTrails リネーム + #sp-hud-top CSS 変数化';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2349,7 +2354,7 @@
       players.forEach(updatePlayer);
       updateEnemies(hitCtx);
       updateParticles();
-      updateBurstTrails(players, enemies);
+      updateSuperFlightTrails(players, enemies);
       players.forEach(p => updateDashTrail(p));
       checkComboBreak({ megaSlow: isMegaComboGrace() });
       updateCamera();
@@ -2763,8 +2768,8 @@
       triggerHitstop, triggerShake, spawnHitParticles,
       triggerMegaCrash, triggerUlt, cancelGrabIntoAttack,
       // バーストトレイル（コンソールから状態確認用）
-      burstTrails,
-      updateBurstTrails,
+      superFlightTrails,
+      updateSuperFlightTrails,
       // ダッシュ（例: SB.startDash(SB.players[0], 1, 0) で右ダッシュ強制発動）
       startDash,
       // Phase 2.4 被ダメージシステム
