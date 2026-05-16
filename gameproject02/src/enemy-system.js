@@ -31,7 +31,7 @@ import {
   ENEMY_FALL_FRAMES, ENEMY_RISE_FRAMES,
   ENEMY_DOWN_BAS_START_FRAMES, ENEMY_DOWN_BAS_LOOP_FRAMES,
   ENEMY_LAND_FRAMES, ENEMY_DOWN_FRONT_FRAMES,
-  ENEMY_WALL_START_FRAMES, ENEMY_ROLL_FRAMES,
+  ENEMY_WALL_START_FRAMES, ENEMY_ROLL_START_FRAMES, ENEMY_ROLL_LOOP_FRAMES,
   ENEMY_DOWN_BURST_LOOP_FRAMES, ENEMY_DOWN_BOUND_FRAMES,
   ENEMY_AIRBORNE_Y_THRESHOLD,
   KB_LV05_BOUNCE_VY,
@@ -131,6 +131,7 @@ export function spawnDummy(x, z, opts = {}) {
     burstSpinRate:    0,
     burstGravMult:    0,
     burstRollAngle:   0,
+    rollDebugAngle:   0,  // down_roll_start 中のデバッグ可視化用ロール角（2026-05-18）
     grabbedBy:        null,
     state:            STATE.wait01,
     tiltAngle:        0,
@@ -338,7 +339,8 @@ export function updateEnemies(ctx) {
         } else if (e.state === STATE.down_super_start || e.state === STATE.down_super_loop) {
           // 超吹き飛ばし途中で地面に当たった → 強制 down_roll_start
           e.state     = STATE.down_roll_start;
-          e.downTimer = ENEMY_ROLL_FRAMES;
+          e.downTimer = ENEMY_ROLL_START_FRAMES;
+          e.rollDebugAngle = 0;  // 転がり可視化用：角度リセット（2026-05-18）
         } else if (e.state === STATE.down_wall_loop) {
           // うつ伏せ落下着地 → down_bas_start（静止フェーズへ）
           e.state     = STATE.down_bas_start;
@@ -518,6 +520,11 @@ export function updateEnemies(ctx) {
       }
     } else if (e.state === STATE.down_roll_start) {
       if (--e.downTimer <= 0) {
+        e.state     = STATE.down_roll_loop;
+        e.downTimer = ENEMY_ROLL_LOOP_FRAMES;
+      }
+    } else if (e.state === STATE.down_roll_loop) {
+      if (--e.downTimer <= 0) {
         e.state    = STATE.down_bas_loop;
         e.downTimer = ENEMY_DOWN_BAS_LOOP_FRAMES;
       }
@@ -578,13 +585,20 @@ export function updateEnemies(ctx) {
       e.mesh.quaternion.copy(_qX).multiply(_qZ).multiply(_qY);
       // tiltAngle は同期しておく（参考用・他系統が触らないようにするため）
       e.tiltAngle = Math.PI / 2;
+    } else if (e.state === STATE.down_roll_start || e.state === STATE.down_roll_loop) {
+      // 転がり中：直立姿勢のまま X 軸（前後方向）でごろごろ回転（2026-05-18 修正）
+      //   tilt（rotation.z）は 0 のまま。rotation.x を連続加算で後方ごろごろ。
+      //   fallDir で符号反転（fallDir = +1 のとき player から遠ざかる方向にロール）。
+      e.rollDebugAngle += e.fallDir * 0.35;  // ≒ 20°/F
+      e.tiltAngle = 0;  // 同期（後段の rotation.z 反映で 0 になる）
     } else {
       const tiltTarget = STATE_TILT_TARGET[e.state] ?? 0;
       e.tiltAngle += (tiltTarget - e.tiltAngle) * STATE_TILT_LERP;
     }
     // rotation.z = -fallDir * tiltAngle で水平倒し方向を反映
-    //   burst 中は上でクォータニオン直接合成しているのでスキップ（Euler を上書きすると壊れる）
-    if (e.state !== STATE.down_burst_start && e.state !== STATE.down_burst_loop) {
+    //   burst 中はクォータニオン直接合成しているのでスキップ（Euler を上書きすると壊れる）
+    if (e.state !== STATE.down_burst_start &&
+        e.state !== STATE.down_burst_loop) {
       e.mesh.rotation.z = -e.fallDir * e.tiltAngle;
     }
     // === rotation.x の用途分岐（優先順位：寝姿勢 > バースト累積 > pitch system > リセット）===
@@ -593,6 +607,10 @@ export function updateEnemies(ctx) {
     if (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop) {
       // バースト離脱中：rotation.x は上の累積回転を保持（リセットしない）
       // pitchAngle は同期しない（次の状態でリセットされる）
+    } else if (e.state === STATE.down_roll_start || e.state === STATE.down_roll_loop) {
+      // 転がり中：rotation.x を rollDebugAngle で直接駆動（後方ごろごろ・2026-05-18）
+      e.mesh.rotation.x = e.rollDebugAngle;
+      e.pitchAngle = 0;
     } else if (e.state === STATE.down_rakka_start ||
         e.state === STATE.down_rakka_loop ||
         e.state === STATE.down_bound_start) {

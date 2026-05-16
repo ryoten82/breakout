@@ -88,7 +88,8 @@ export const STATE = {
   down_super_loop:   'down_super_loop',    // 吹き飛び中ループ ／ 壁: down_wall_start ／ 地面: down_roll_start
   down_wall_start:  'down_wall_start',   // 壁に張り付き → down_wall_loop
   down_wall_loop:   'down_wall_loop',    // うつ伏せ落下 → 着地で down_bas_start
-  down_roll_start:  'down_roll_start',   // 転がり → down_bas_loop
+  down_roll_start:  'down_roll_start',   // 転がり開始（12F イントロ）→ down_roll_loop
+  down_roll_loop:   'down_roll_loop',    // 転がりループ（X 軸後方ごろごろ）→ down_bas_loop
   // ── 叩きつけ（lv05）─────────────────────────────────
   down_rakka_start: 'down_rakka_start',  // 真下に高速落下開始（地上/空中共用）→ down_rakka_loop ／ 地面: down_bound_start
   down_rakka_loop:  'down_rakka_loop',   // 真下落下ループ ／ 地面: down_bound_start
@@ -131,7 +132,10 @@ export const ENEMY_DOWN_FRONT_FRAMES   = 24;  // down_front_start（吹き飛び
 // 超吹き飛ばし系（lv06）
 export const ENEMY_DOWN_SUPER_FRAMES    = 12;  // down_super_start イントロ
 export const ENEMY_WALL_START_FRAMES   = 15;  // down_wall_start（壁張り付き）
-export const ENEMY_ROLL_FRAMES         = 30;  // down_roll_start（転がり）
+export const ENEMY_ROLL_START_FRAMES   = 12;  // down_roll_start（転がり開始イントロ・X 軸スピン）
+export const ENEMY_ROLL_LOOP_FRAMES    = 18;  // down_roll_loop（転がり継続）
+// 後方互換：旧 ENEMY_ROLL_FRAMES を参照しているコードのためエイリアス維持（合計 30F）
+export const ENEMY_ROLL_FRAMES         = ENEMY_ROLL_START_FRAMES;
 // バースト離脱（重複必殺技）
 export const ENEMY_DOWN_BURST_START_FRAMES = 12;  // down_burst_start イントロ
 export const ENEMY_DOWN_BURST_LOOP_FRAMES  = 60;  // down_burst_loop 空中スピン持続
@@ -168,7 +172,9 @@ export const STATE_TILT_TARGET = {
   // 横倒し姿勢（π/2）
   down_front_loop:  Math.PI / 2,      // 吹き飛び落下中は横倒し
   down_wall_loop:   Math.PI / 2,      // うつ伏せ落下（暫定的に横倒し）
-  down_roll_start:  Math.PI / 2,      // 転がり
+  // 転がりは直立姿勢のまま X 軸（前後方向）スピン → tilt 不要（2026-05-18 修正・旧 π/2 から 0 へ）
+  down_roll_start:  0,
+  down_roll_loop:   0,
   down_up_loop:     Math.PI / 2,
   down_bas_start:   Math.PI / 2,
   down_bas_loop:    Math.PI / 2,

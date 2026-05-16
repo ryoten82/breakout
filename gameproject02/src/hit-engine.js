@@ -951,7 +951,7 @@ export function tryThrownChainHit(thrower, ctx) {
         other.state === STATE.down_bas_start || other.state === STATE.down_bas_loop ||
         other.state === STATE.down_bas_end ||
         other.state === STATE.down_super_start || other.state === STATE.down_super_loop ||
-        other.state === STATE.down_roll_start ||
+        other.state === STATE.down_roll_start || other.state === STATE.down_roll_loop ||
         other.state === STATE.down_rakka_start || other.state === STATE.down_rakka_loop ||
         other.state === STATE.down_bound_start ||
         other.state === STATE.down_burst_start || other.state === STATE.down_burst_loop) continue;

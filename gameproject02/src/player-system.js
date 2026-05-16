@@ -678,7 +678,7 @@ export function updateComboHoming(p) {
     t.state === STATE.down_front_start  || t.state === STATE.down_front_loop  ||
     t.state === STATE.down_super_start   || t.state === STATE.down_super_loop   ||
     t.state === STATE.down_wall_start   || t.state === STATE.down_wall_loop   ||
-    t.state === STATE.down_roll_start   ||
+    t.state === STATE.down_roll_start   || t.state === STATE.down_roll_loop   ||
     t.state === STATE.down_rakka_start  || t.state === STATE.down_rakka_loop  ||
     t.state === STATE.down_bound_start
   );
