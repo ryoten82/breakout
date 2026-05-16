@@ -262,22 +262,20 @@ function _categorizeAttack(id) {
   if (id.includes('_sp_ult'))  return 'ULT';
   // 方向別 派生攻撃（地上限定・空中版とは別扱い）
   //   2026-05-19：派生技は J 入力に移行（K → J）。表示は派生であることを示す ↑J / →J / ↓J に変更。
-  if (id === 'c01_atk_l_01_up')   return '↑J';
-  if (id === 'c01_atk_l_01_down') return '↓J';
-  if (id === 'c01_atk_l_01_step') return '→J';
+  if (id === 'c01_add_02')   return '↑J';
+  if (id === 'c01_add_03') return '↓J';
+  if (id === 'c01_add_01') return '→J';
   const isAir = id.endsWith('_air');
   const prefix = isAir ? 'a' : '';
   // 必殺技（番号別）
   const spMatch = id.match(/_sp_(0?\d+)/);
   if (spMatch) return prefix + 'SP' + parseInt(spMatch[1], 10);
-  // ステップ攻撃：弱は dS（dash の d）。L 系はタックル化により上で個別処理済
-  if (id.endsWith('_step')) {
-    if (id.includes('_atk_s_')) return 'dS';
-    return 'ETC';
-  }
-  // 弱・強通常
-  if (id.includes('_atk_l_')) return prefix + 'L';
-  if (id.includes('_atk_s_')) return prefix + 'S';
+  // ステップ攻撃（命名規則 §9.0：_s/_l 区分は廃止し _atk_NN_step に統一）
+  if (id.endsWith('_step') && /_atk_\d+_step$/.test(id)) return 'dJ';
+  // 通常攻撃 atk_NN（_s/_l 区分廃止後の単一系統）
+  if (/_atk_\d/.test(id)) return prefix + 'J';
+  // 派生（c01_add_NN）— 個別表記は上で済んでいるはずだが念のため
+  if (/_add_\d/.test(id)) return prefix + 'aJ';
   return 'ETC';
 }
 

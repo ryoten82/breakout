@@ -188,26 +188,15 @@ export function startAerialAttack(p, chainIdx) {
   startAttackFromChain(p, A_CHAIN, chainIdx);
 }
 
-// 強攻撃（K）はチェーン外で発動
-// 接地状態と方向入力で発動技を決定（空中は方向問わず c01_atk_l_01_air 一択）
-// up/dn を優先し、いずれも無く fwd（前方押下）なら →K = タックル（c01_atk_l_01_step）
-export function pickStrongAttackId(p, upHeld, dnHeld, fwdHeld) {
-  if (!p.isGrounded) {
-    return 'c01_atk_l_01_air';
-  }
-  if (upHeld) return 'c01_atk_l_01_up';
-  if (dnHeld) return 'c01_atk_l_01_down';
-  if (fwdHeld) return 'c01_atk_l_01_step';
-  return 'c01_atk_l_01';
-}
-export function startStrongAttack(p, upHeld, dnHeld, fwdHeld) {
-  startAttackById(p, pickStrongAttackId(p, !!upHeld, !!dnHeld, !!fwdHeld), -1);
-}
+// （旧 pickStrongAttackId / startStrongAttack は §9.0 命名規則改訂で削除・2026-05-19）
+//   K = 必殺技ボタン化に伴い、K 押下の dispatch は player-system.js processStrongAttackInput が
+//   方向 + K で SP01/SP02/SP03 を直接 startSpecial する形に変更。
+//   派生（c01_add_01〜03）は J 入力のタップ判定（dirHistory 経由）で発動する。
 
 // ステップ攻撃（地上ダッシュ中の J 派生・スライディング）
-// K のダッシュ派生は廃止（タックルは →K へ移行・2026-05-17）
+// K のダッシュ派生は廃止（タックルは →J へ移行・命名規則 §9.0 2026-05-19）
 export function pickStepAttackId(p) {
-  return 'c01_atk_s_01_step';
+  return 'c01_atk_01_step';
 }
 
 // ============================================================
@@ -414,9 +403,9 @@ export function pickSpecialAttackId(baseId, isGrounded) {
 //   - 同一派生 ID は技終了後 DERIV_COOLDOWN_FRAMES だけ再発動不可（連発抑止）
 // ============================================================
 const DERIVATIVE_IDS = new Set([
-  'c01_atk_l_01_up',
-  'c01_atk_l_01_step',
-  'c01_atk_l_01_down',
+  'c01_add_02',
+  'c01_add_01',
+  'c01_add_03',
 ]);
 const DERIV_COOLDOWN_FRAMES = 30;
 
@@ -439,9 +428,9 @@ function _markDerivFire(p, id) {
   p._derivKCooldowns.set(id, _derivFrame() + dur + DERIV_COOLDOWN_FRAMES);
 }
 function _pickDerivativeId(upH, dnH, fwdH) {
-  if (upH)  return 'c01_atk_l_01_up';
-  if (dnH)  return 'c01_atk_l_01_down';
-  if (fwdH) return 'c01_atk_l_01_step';
+  if (upH)  return 'c01_add_02';
+  if (dnH)  return 'c01_add_03';
+  if (fwdH) return 'c01_add_01';
   return null;
 }
 
@@ -463,10 +452,10 @@ function _pickTappedDerivativeId(p) {
   const prev = hist[hist.length - 2];
   if (prev && prev.dir !== 'N') return null;
   const dir = last.dir;
-  if (dir === 'U') return 'c01_atk_l_01_up';
-  if (dir === 'D') return 'c01_atk_l_01_down';
-  if (dir === 'R' && p.facing > 0) return 'c01_atk_l_01_step';
-  if (dir === 'L' && p.facing < 0) return 'c01_atk_l_01_step';
+  if (dir === 'U') return 'c01_add_02';
+  if (dir === 'D') return 'c01_add_03';
+  if (dir === 'R' && p.facing > 0) return 'c01_add_01';
+  if (dir === 'L' && p.facing < 0) return 'c01_add_01';
   return null;
 }
 // wait01 から派生を直接発動（封じ / クールタイムを尊重）
@@ -488,7 +477,9 @@ function _tryDerivativeCancel(p, newId) {
   if (forbid.has(newId)) return false;
   const sourceId = p.attackId;
   // J チェーン or 派生からのキャンセルのみ許可（K = 必殺技ボタン化に伴い K 由来は無し）
-  const fromChain      = (typeof sourceId === 'string' && sourceId.startsWith('c01_atk_s_'));
+  // 通常 atk（c01_atk_01〜04 / _air / _step）= 命名規則 §9.0 で _s 区分を廃止したため、
+  // 数字始まりの atk_NN 系を一括で「チェーン由来」と判定する。
+  const fromChain      = (typeof sourceId === 'string' && /^c01_atk_\d/.test(sourceId));
   const fromDerivative = DERIVATIVE_IDS.has(sourceId);
   if (!fromChain && !fromDerivative) return false;
   if (fromDerivative) forbid.add(sourceId);
@@ -543,8 +534,8 @@ export function processAttackInput(p) {
       const derivId = _pickTappedDerivativeId(p);
       if (derivId && _tryDerivativeCancel(p, derivId)) return;
     }
-    // c01_atk_s_01_step（ステップJ）ヒット後 → J で Jコンボ2発目（c01_atk_s_02）にキャンセル
-    if (p.attackId === 'c01_atk_s_01_step') {
+    // c01_atk_01_step（ステップJ）ヒット後 → J で Jコンボ2発目（c01_atk_02）にキャンセル
+    if (p.attackId === 'c01_atk_01_step') {
       startAttackFromChain(p, Z_CHAIN, 1);
       return;
     }
@@ -833,7 +824,7 @@ export function triggerUlt(p) {
 export function consumeAttackBuffer(p) {
   if (!p.attackBuffered) return;
   // チェーン外の攻撃（K 単発・必殺技 sp 系など attackChainIdx<0）はバッファで連鎖しない
-  // ※これがないと sp_02 ヒット中 J 連打で地上 c01_atk_s_01 が起動し、空中ホップが消えて落下する
+  // ※これがないと sp_02 ヒット中 J 連打で地上 c01_atk_01 が起動し、空中ホップが消えて落下する
   if (p.attackChainIdx < 0) return;
 
   if (p.state === STATE.hit_confirm) {

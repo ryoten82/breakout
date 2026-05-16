@@ -747,7 +747,7 @@ export function tryHitEnemies(p, attack, ctx) {
     }
     // 軽い浮かせ（pop）：attack.knockbackY が定義されていれば、launcher / slam 系を
     // 除いた lv 振り分け（lv01/02 等のフリンチ系）に上昇速度を追加する。
-    // 例：c01_atk_l_01_up は lv02 軽フリンチ + 斜め上の浮きでコンボ始動として使う。
+    // 例：c01_add_02 は lv02 軽フリンチ + 斜め上の浮きでコンボ始動として使う。
     // launchVy 持ち（lv04 等）は既に強い上昇速度が入っているので、Math.max で潰さない。
     if (attack.knockbackY !== undefined && !_slamState) {
       e.vy = Math.max(e.vy, attack.knockbackY);
@@ -755,7 +755,7 @@ export function tryHitEnemies(p, attack, ctx) {
       e.launcherAirborne = false;
     }
     // プレイヤーの空中ホップ：攻撃側に aerialHop:true が立っている技で発動
-    // 対象：c01_atk_s_01_air / 02_air / 03_air / c01_atk_l_01_air（aerialHop 持ち全般）
+    // 対象：c01_atk_01_air / 02_air / 03_air / c01_atk_l_01_air（aerialHop 持ち全般）
     // Math.max で「下降中なら浮き直す／上昇中はそのまま」→ cancel jump 直後の上昇vyを潰さない
     // - launcher 系（launchVy あり）は通常ホップ対象外だが、aerialHopVy が明示指定されている時は強制適用
     //   （例：c01_sp_02 を空中ヒットさせて、打ち上げた敵を上から拾うためにホップしたい）

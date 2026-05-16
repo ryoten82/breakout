@@ -448,15 +448,13 @@ export function processStrongAttackInput(p) {
 
   const upHeld  = _inp('ArrowUp')    || _inp('KeyW');
   const dnHeld  = _inp('ArrowDown')  || _inp('KeyS');
-  const rtHeld  = _inp('ArrowRight') || _inp('KeyD');
-  const lfHeld  = _inp('ArrowLeft')  || _inp('KeyA');
-  const fwdHeld = p.facing > 0 ? rtHeld : lfHeld;
 
-  let baseId = null;
-  if (upHeld)       baseId = 'c01_sp_02';
-  else if (dnHeld)  baseId = 'c01_sp_03';
-  else if (fwdHeld) baseId = 'c01_sp_01';
-  if (!baseId) return;
+  // 命名規則 §9.0：↑K=SP2 / ↓K=SP3 / それ以外（中立 K / ←/→ + K）= SP1（波動）
+  // 中立 K もデフォルトで SP1 を発射するので、無方向でも何か出る = 入口を下げた設計。
+  let baseId;
+  if (upHeld)      baseId = 'c01_sp_02';
+  else if (dnHeld) baseId = 'c01_sp_03';
+  else             baseId = 'c01_sp_01';
 
   startSpecial(p, pickSpecialAttackId(baseId, p.isGrounded));
 }
