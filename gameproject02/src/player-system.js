@@ -39,8 +39,7 @@ import {
 import { ATTACKS, getHitWindowEnd } from './attacks.js';
 import {
   anyPlayerUlting, isMegaSlowActive, isMegaComboGrace, cancelGrabIntoAttack, startAttackById,
-  pickStepAttackId, pickStrongAttackId, pickSpecialAttackId,
-  matchCommand,
+  pickSpecialAttackId,
   processGrabInput, tryGrabActivate, processAttackInput,
   consumeAttackBuffer,
   processDashInput, tryCancelJump,
@@ -419,217 +418,55 @@ export function processSpecialInput(p) {
   // 必殺技 → 別 ID の必殺技キャンセルを許可する設計のため、ここでは ID 一律ブロックしない。
   // 重複（specialUsedIds に既出）でも発動を通す。ヒット時に敵が down_burst_* で離脱する設計。
   if (!canStartSpecial(p)) return;
-  // === J/K 押下時にコマンドマッチ判定（最長一致優先：sp_01 → sp_02）===
-  // 注意：コマンドが成立しなかった場合は通常 J / K の処理に流す
-  //       （早期 return せず、後続の processAttackInput / processStrongAttackInput を生かす）
-  const triggerJust = jJust || kJust;
-  // K 系の attacking 中（hit 未成立）は SP 判定スキップ → 空振り SP2 暴発防止
-  // hit_confirm（ヒット成立済）中は SP を通す → 通常 K → SP キャンセルは可能
-  // 多段ヒット技の attacking + hitDelivered=true も SP を通す
-  const isKAttackingPreHit = p.state === STATE.attacking && !p.hitDelivered && (
-    p.attackId === 'c01_atk_l_01' ||
-    p.attackId === 'c01_atk_l_01_up' ||
-    p.attackId === 'c01_atk_l_01_down'
-  );
-  if (triggerJust && isKAttackingPreHit) return;
-  if (triggerJust) {
-    // チャージ未満で J を離す前提：J 押下時点でチャージはリセット扱い（連打優先）
-    if (jJust && !p.chargeReady) {
-      p.chargeJFrames = 0;
-      p.chargeLevel = 0;
-    }
-    // 必殺技コマンド：閉じタップから J/K までを `CMD_TAP_TO_BUTTON_FRAMES` 以内に絞る。
-    //   方向バッファ自体（DIR_BUFFER_FRAMES=30）は広めだが、最後のタップ → ボタン入力の
-    //   猶予を狭くすることでダッシュ攻撃との誤爆を抑止（2026-05-18 改修）。
-    //   キャンセル時（attacking / hit_confirm 中）は猶予を CANCEL_MULT 倍に緩和：
-    //   コンボ繋ぎで指がさばききれない問題を回避（2026-05-18 追加）。
-    const _isCancelContext = (p.state === STATE.attacking || p.state === STATE.hit_confirm);
-    const _cmdWindow = _isCancelContext
-      ? Math.round(SPECIAL_CONFIG.CMD_TAP_TO_BUTTON_FRAMES * SPECIAL_CONFIG.CMD_TAP_CANCEL_MULT)
-      : SPECIAL_CONFIG.CMD_TAP_TO_BUTTON_FRAMES;
-    const _spCmdOpts = {
-      maxFramesFromClosingTap: _cmdWindow,
-      currentFrame: gameFrameCounter,
-    };
-    // →→ + J/K （波動）地上/空中で別 ID にディスパッチ・使用済管理は base で共有
-    if (matchCommand(p, ['R', 'R'], _spCmdOpts)) {
-      startSpecial(p, pickSpecialAttackId('c01_sp_01', p.isGrounded));
-      return;
-    }
-    // ↑↑ （対空）[TEST 2026-05-15] ↓↑から変更。指の負担軽減トライアル
-    if (matchCommand(p, ['U', 'U'], _spCmdOpts)) {
-      startSpecial(p, pickSpecialAttackId('c01_sp_02', p.isGrounded));
-      return;
-    }
-    // ↓↓ （急降下踏みつけ）J/K どちらでも受付・地上版は前方跳躍 → 急降下
-    if (matchCommand(p, ['D', 'D'], _spCmdOpts)) {
-      startSpecial(p, pickSpecialAttackId('c01_sp_03', p.isGrounded));
-      return;
-    }
+  // J 押下時のチャージリセット（連打優先）：チャージ未満で J を押し直したらリセット扱い。
+  // SP1〜SP3 のタップコマンドは 2026-05-19 で廃止（dir+K へ移行）。SP4 のみ J 長押しチャージで残存。
+  if (jJust && !p.chargeReady) {
+    p.chargeJFrames = 0;
+    p.chargeLevel = 0;
   }
 }
 
 // ============================================================
-//  派生 K（↑K / →K / ↓K）の同一カテゴリ管理（2026-05-18 追加）
+//  強攻撃入力処理（K キー = 必殺技ボタン化・2026-05-19）
 //
-//  仕様：
-//   - 通常 J / 通常 K から派生 K へキャンセル可
-//   - 派生 K 同士もキャンセル可（同 ID 自己ループは禁止）
-//   - 派生 A → 派生 B にキャンセルした瞬間、A を**封じる**（同コンボ中は再使用不可）
-//   - 順に封じが増えていき、3 種使い切ったら派生は出せなくなる（→ 必殺技などへ）
-//   - 封じはコンボリセット（resetCombo / checkComboBreak）& メガクラで解除
-// ============================================================
-const DERIVATIVE_K_IDS = new Set([
-  'c01_atk_l_01_up',
-  'c01_atk_l_01_step',
-  'c01_atk_l_01_down',
-]);
-
-// 派生 K 共通クールタイム（2026-05-18 追加）：
-// 同一派生 ID は技終了後この F 数だけ再発動不可。連発を抑止。
-// 異なる派生 ID へのキャンセル / 別系統技は影響なし。
-const DERIV_K_COOLDOWN_FRAMES = 30;
-
-// p.usedDerivativesThisCombo が無ければ初期化
-function _ensureDerivSet(p) {
-  if (!p.usedDerivativesThisCombo) p.usedDerivativesThisCombo = new Set();
-  return p.usedDerivativesThisCombo;
-}
-
-// 派生 K の同 ID クールタイムをチェック（true ならまだ発動不可）
-function _isDerivKOnCooldown(p, id) {
-  if (!DERIVATIVE_K_IDS.has(id)) return false;
-  const endFrame = p._derivKCooldowns?.get(id) ?? 0;
-  return getGameFrame() < endFrame;
-}
-
-// 派生 K 発動マーク：技終了時刻 + クールタイムを記録
-function _markDerivKFire(p, id) {
-  if (!DERIVATIVE_K_IDS.has(id)) return;
-  if (!p._derivKCooldowns) p._derivKCooldowns = new Map();
-  const dur = ATTACKS[id]?.duration ?? 0;
-  p._derivKCooldowns.set(id, getGameFrame() + dur + DERIV_K_COOLDOWN_FRAMES);
-}
-
-// 派生 K キャンセル試行ヘルパー
-//   - newId: pickStrongAttackId で決まった次の技
-//   - 派生 K へのキャンセル成功時に true を返す
-//   - 派生 → 派生 でキャンセルした場合、ソース派生を封じセットに追加
-function _tryDerivKCancel(p, newId) {
-  if (!DERIVATIVE_K_IDS.has(newId)) return false;       // newId が派生でなければ対象外
-  if (newId === p.attackId) return false;               // 同 ID 自己ループ防止
-  if (_isDerivKOnCooldown(p, newId)) return false;      // 同 ID クールタイム中
-  const forbid = _ensureDerivSet(p);
-  if (forbid.has(newId)) return false;                  // 封じられている派生は出ない
-  const sourceId = p.attackId;
-  const fromBaseK      = (sourceId === 'c01_atk_l_01');
-  const fromDerivative = DERIVATIVE_K_IDS.has(sourceId);
-  if (!fromBaseK && !fromDerivative) return false;      // 通常 K / 派生 K 以外からはキャンセル不可
-  // 派生 → 派生 ならソースを封じる
-  if (fromDerivative) forbid.add(sourceId);
-  startAttackById(p, newId, -1);
-  _markDerivKFire(p, newId);
-  return true;
-}
-
-// ============================================================
-//  強攻撃入力処理（K キー押下）
+//  方向 + K で各必殺技にディスパッチ：
+//    →K = SP1（波動）
+//    ↑K = SP2（対空）
+//    ↓K = SP3（急降下踏みつけ）
+//    無方向 K = 何も発動しない（誤爆抑止）
+//  SP4 のみチャージ J リリース経由で従来通り発動（processSpecialInput）。
+//  従来の派生 K（↑K / →K / ↓K）は J 系へ移動（attack-engine.js の processAttackInput）。
 // ============================================================
 export function processStrongAttackInput(p) {
-  // エッジ検出変数は常に更新
   const kPressed = _inp('KeyK');
   const justPressed = kPressed && !kKeyWasDown;
   kKeyWasDown = kPressed;
-  if (p.guarding || p.ultActive) return;  // ガード中・ULT中は攻撃不可
-  if (p.state === STATE.grabbing) return; // グラブ中は processGrabInput 側で扱う
+  if (p.guarding || p.ultActive) return;
+  if (p.state === STATE.grabbing) return;
   if (!justPressed) return;
+  if (!canStartSpecial(p)) return;
 
-  if (p.state === STATE.wait01) {
-    // ダッシュ中 K → スライディング一本化（2026-05-18 修正）：
-    // J/K どちらもダッシュ中はステップ攻撃（c01_atk_s_01_step スライディング）に統一
-    if (p.dashActive && p.isGrounded) {
-      startAttackById(p, pickStepAttackId(p), -1);
-      return;
-    }
-    // 非ダッシュ：上下入力 / 前方押下に応じて派生 K（タックル / 上 K / 下 K / 通常 K）
-    const upHeld  = _inp('ArrowUp')    || _inp('KeyW');
-    const dnHeld  = _inp('ArrowDown')  || _inp('KeyS');
-    const rtHeld  = _inp('ArrowRight') || _inp('KeyD');
-    const lfHeld  = _inp('ArrowLeft')  || _inp('KeyA');
-    const fwdHeld = p.facing > 0 ? rtHeld : lfHeld;
-    let id = pickStrongAttackId(p, upHeld, dnHeld, fwdHeld);
-    // 派生封じ中 or クールタイム中なら通常 K にフォールバック（連発抑止）
-    if (DERIVATIVE_K_IDS.has(id) && (_ensureDerivSet(p).has(id) || _isDerivKOnCooldown(p, id))) {
-      id = 'c01_atk_l_01';
-    }
-    startAttackById(p, id, -1);
-    _markDerivKFire(p, id);
-  } else if (p.state === STATE.hit_confirm) {
-    const upHeld  = _inp('ArrowUp')    || _inp('KeyW');
-    const dnHeld  = _inp('ArrowDown')  || _inp('KeyS');
-    const rtHeld  = _inp('ArrowRight') || _inp('KeyD');
-    const lfHeld  = _inp('ArrowLeft')  || _inp('KeyA');
-    const fwdHeld = p.facing > 0 ? rtHeld : lfHeld;
-    const newId = pickStrongAttackId(p, upHeld, dnHeld, fwdHeld);
-    // J チェーン中（弱 → 強キャンセル）：派生封じ / クールタイム中は通常 K にフォールバック
-    if (p.attackChainIdx >= 0) {
-      let id = newId;
-      if (DERIVATIVE_K_IDS.has(id) && (_ensureDerivSet(p).has(id) || _isDerivKOnCooldown(p, id))) {
-        id = 'c01_atk_l_01';
-      }
-      startAttackById(p, id, -1);
-      _markDerivKFire(p, id);
-    }
-    // 通常 K / 派生 K → 派生 K（→K / ↑K / ↓K）にキャンセル
-    else {
-      _tryDerivKCancel(p, newId);
-    }
-  } else if (p.state === STATE.attacking) {
-    const upHeld = _inp('ArrowUp') || _inp('KeyW');
-    const dnHeld = _inp('ArrowDown') || _inp('KeyS');
-    const rtHeld = _inp('ArrowRight') || _inp('KeyD');
-    const lfHeld = _inp('ArrowLeft') || _inp('KeyA');
-    const fwdHeld = p.facing > 0 ? rtHeld : lfHeld;
-    // ヒット成立済の通常 K / 派生 K 中なら、hit_confirm を待たずに即派生 K キャンセル発動
-    if (p.hitDelivered && (upHeld || dnHeld || fwdHeld)) {
-      const newId = pickStrongAttackId(p, upHeld, dnHeld, fwdHeld);
-      if (_tryDerivKCancel(p, newId)) return;
-    }
-    // それ以外は従来通りバッファに積む（hit_confirm 移行時に消化）
-    p.kBuffered  = true;
-    p.kBufferUp  = upHeld;
-    p.kBufferDn  = dnHeld;
-    p.kBufferFwd = fwdHeld;
-  }
+  const upHeld  = _inp('ArrowUp')    || _inp('KeyW');
+  const dnHeld  = _inp('ArrowDown')  || _inp('KeyS');
+  const rtHeld  = _inp('ArrowRight') || _inp('KeyD');
+  const lfHeld  = _inp('ArrowLeft')  || _inp('KeyA');
+  const fwdHeld = p.facing > 0 ? rtHeld : lfHeld;
+
+  let baseId = null;
+  if (upHeld)       baseId = 'c01_sp_02';
+  else if (dnHeld)  baseId = 'c01_sp_03';
+  else if (fwdHeld) baseId = 'c01_sp_01';
+  if (!baseId) return;
+
+  startSpecial(p, pickSpecialAttackId(baseId, p.isGrounded));
 }
 
-// ATTACKING中にバッファされたK入力をHIT_CONFIRM移行時に消費
+// K = SP ボタン化（2026-05-19）で K バッファは廃止。残置関数は no-op（呼び出し元互換のため残す）。
 export function consumeStrongAttackBuffer(p) {
-  if (p.state !== STATE.hit_confirm) return;
-  if (!p.kBuffered) return;
-  const wasUp  = p.kBufferUp;
-  const wasDn  = p.kBufferDn;
-  const wasFwd = p.kBufferFwd;
-  p.kBuffered  = false;
-  p.kBufferUp  = false;
-  p.kBufferDn  = false;
-  p.kBufferFwd = false;
-  const newId = pickStrongAttackId(p, wasUp, wasDn, wasFwd);
-  // J チェーン中：派生封じ / クールタイム中は通常 K にフォールバック
-  if (p.attackChainIdx >= 0) {
-    let id = newId;
-    if (DERIVATIVE_K_IDS.has(id) && (_ensureDerivSet(p).has(id) || _isDerivKOnCooldown(p, id))) {
-      id = 'c01_atk_l_01';
-    }
-    startAttackById(p, id, -1);
-    _markDerivKFire(p, id);
-    return;
-  }
-  // 通常 K / 派生 K → 派生 K 相互キャンセル（封じセット参照・ソース封じ自動追加・クールタイムは内部でチェック）
-  _tryDerivKCancel(p, newId);
+  p.kBuffered = false;
 }
 
-// p.usedDerivativesThisCombo をクリア（コンボリセット時に呼ばれる）
+// p.usedDerivativesThisCombo をクリア（コンボリセット時に呼ばれる・派生 J 封じ解除）
 export function clearUsedDerivatives(p) {
   if (p.usedDerivativesThisCombo) p.usedDerivativesThisCombo.clear();
 }
@@ -1127,6 +964,9 @@ export function updatePlayer(p) {
     } else {
       const pGravFactor = (!p.isGrounded) ? PHYSICS.AERIAL_GRAV_FACTOR : 1.0;
       p.vy -= PHYSICS.GRAVITY * pGravFactor;
+      // 終端速度クランプ：空中コンボで滞空フレームが長くなると vy が際限なく溜まり、
+      // コンボ離脱後に異常な急降下になる事象を抑える（2026-05-19 追加）。
+      if (p.vy < PHYSICS.MAX_FALL_VY) p.vy = PHYSICS.MAX_FALL_VY;
     }
     p.y += p.vy;
     if (p.y <= 0) {

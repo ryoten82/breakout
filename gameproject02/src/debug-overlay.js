@@ -260,11 +260,11 @@ function _categorizeAttack(id) {
   // 特殊技
   if (id.includes('_sp_mega')) return 'MC';
   if (id.includes('_sp_ult'))  return 'ULT';
-  // 方向別 L 攻撃（地上限定・空中版とは別扱い）
-  if (id === 'c01_atk_l_01_up')   return '↑L';
-  if (id === 'c01_atk_l_01_down') return '↓L';
-  // タックル（→K）は派生 K カテゴリの一員として →L 表記（2026-05-18：dL から変更）
-  if (id === 'c01_atk_l_01_step') return '→L';
+  // 方向別 派生攻撃（地上限定・空中版とは別扱い）
+  //   2026-05-19：派生技は J 入力に移行（K → J）。表示は派生であることを示す ↑J / →J / ↓J に変更。
+  if (id === 'c01_atk_l_01_up')   return '↑J';
+  if (id === 'c01_atk_l_01_down') return '↓J';
+  if (id === 'c01_atk_l_01_step') return '→J';
   const isAir = id.endsWith('_air');
   const prefix = isAir ? 'a' : '';
   // 必殺技（番号別）

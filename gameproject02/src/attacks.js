@@ -503,7 +503,8 @@ export const ATTACKS = {
     label:        'c01_sp_02_air (METEO 対空コマンド・空中版・単発)',
     duration:     14, hitFrame: 6, hitDuration: 6, cancelWindow: 4,
     damage:       25,
-    rangeX:       110, rangeZ: 100, rangeY: 200,
+    // X 軸前方判定を広げる（200）：plyrLiftVx を 0 にした分、当たり判定で前方の敵を拾う設計（2026-05-19）
+    rangeX:       200, rangeZ: 100, rangeY: 200,
     knockback:    10, hitstop: 12, shake: 7,    // hitstop 重め（コマンド入力余地）
     atk_lv:       4,
     atk_lv_air:   4,
@@ -512,12 +513,12 @@ export const ATTACKS = {
     attrGroup:    'LAUNCH_COMBO',
     hitColor:     0xffcc44,
     hitCount:     22,
-    // === 構造：plyrLiftVx 即時 / plyrLiftVy 遅延 ===
-    plyrLiftVx:       14,             // 即時 airVx で前進ドリフト
-    plyrLiftVy:       16,             // 24→16：空中追加上昇は控えめに（既に空中スタートのため）
+    // === 構造：空中版は前進を抑え、上昇も控えめに（地上版と運用を分離・2026-05-19）===
+    plyrLiftVx:       5,              // 14→5：通過しない程度の前進ドリフト（6F で約 26 units 前進・rangeX 200 圏内に収まる）
+    plyrLiftVy:       8,              // 16→8：上昇は半分（空中の足場確保程度）
     plyrLiftVyDelay:  12,             // ヒット後（frame 6-11 終了直後）に上昇開始
     aerialHop:    true,
-    aerialHopVy:  16,                 // 24→16：ヒット時のホップも控えめ
+    aerialHopVy:  8,                  // 16→8：ヒット時のホップも半分
     partsAnim:    'upper_cut',
     isSpecial:    true,
     flashOnStart: true,

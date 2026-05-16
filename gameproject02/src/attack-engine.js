@@ -403,6 +403,110 @@ export function pickSpecialAttackId(baseId, isGrounded) {
 }
 
 // ============================================================
+//  派生攻撃（↑J / →J / ↓J）の同一カテゴリ管理（2026-05-19 で K → J に移植）
+//
+//  仕様：
+//   - 通常 J チェーンから派生へキャンセル可
+//   - 派生同士もキャンセル可（同 ID 自己ループは禁止）
+//   - 派生 A → 派生 B にキャンセルした瞬間、A を**封じる**（同コンボ中は再使用不可）
+//   - 順に封じが増えていき、3 種使い切ったら派生は出せなくなる
+//   - 封じはコンボリセット & メガクラで解除
+//   - 同一派生 ID は技終了後 DERIV_COOLDOWN_FRAMES だけ再発動不可（連発抑止）
+// ============================================================
+const DERIVATIVE_IDS = new Set([
+  'c01_atk_l_01_up',
+  'c01_atk_l_01_step',
+  'c01_atk_l_01_down',
+]);
+const DERIV_COOLDOWN_FRAMES = 30;
+
+function _ensureDerivSet(p) {
+  if (!p.usedDerivativesThisCombo) p.usedDerivativesThisCombo = new Set();
+  return p.usedDerivativesThisCombo;
+}
+function _derivFrame() {
+  return _getGameFrameFnForMegaGrace ? _getGameFrameFnForMegaGrace() : 0;
+}
+function _isDerivOnCooldown(p, id) {
+  if (!DERIVATIVE_IDS.has(id)) return false;
+  const endFrame = p._derivKCooldowns?.get(id) ?? 0;
+  return _derivFrame() < endFrame;
+}
+function _markDerivFire(p, id) {
+  if (!DERIVATIVE_IDS.has(id)) return;
+  if (!p._derivKCooldowns) p._derivKCooldowns = new Map();
+  const dur = ATTACKS[id]?.duration ?? 0;
+  p._derivKCooldowns.set(id, _derivFrame() + dur + DERIV_COOLDOWN_FRAMES);
+}
+function _pickDerivativeId(upH, dnH, fwdH) {
+  if (upH)  return 'c01_atk_l_01_up';
+  if (dnH)  return 'c01_atk_l_01_down';
+  if (fwdH) return 'c01_atk_l_01_step';
+  return null;
+}
+
+// 派生 J 用タップ判定（2026-05-19）：
+//   「レバーをいったん離してから方向を入れて J」という意図的なタップのみ受け付ける。
+//   条件：
+//     - dirHistory の末尾エントリが純粋カーディナル（U/D/R/L）かつ frame が DERIV_TAP_WINDOW_FRAMES 以内
+//     - **その直前のエントリが 'N'（ニュートラル）**：方向転換（L→R 等）では発火しない
+//     - 斜め入力（UR/DL 等）は無視
+//     - R/L はキャラ facing と一致した時のみタックル扱い（後ろ向きタップは無効）
+const DERIV_TAP_WINDOW_FRAMES = 12;
+function _pickTappedDerivativeId(p) {
+  const hist = p.dirHistory;
+  if (!hist || hist.length === 0) return null;
+  const last = hist[hist.length - 1];
+  if (_derivFrame() - last.frame > DERIV_TAP_WINDOW_FRAMES) return null;
+  // 直前エントリが 'N' でなければ「ニュートラルを通過していない」= 方向転換と判定し、派生を許可しない。
+  // 履歴が長さ 1 しかない（ゲーム開始直後）の場合は N 経由と見なす。
+  const prev = hist[hist.length - 2];
+  if (prev && prev.dir !== 'N') return null;
+  const dir = last.dir;
+  if (dir === 'U') return 'c01_atk_l_01_up';
+  if (dir === 'D') return 'c01_atk_l_01_down';
+  if (dir === 'R' && p.facing > 0) return 'c01_atk_l_01_step';
+  if (dir === 'L' && p.facing < 0) return 'c01_atk_l_01_step';
+  return null;
+}
+// wait01 から派生を直接発動（封じ / クールタイムを尊重）
+//   派生は J チェーンの終点扱い：派生発動後は通常 J には戻らない（2026-05-19）。
+function _tryDerivativeStart(p, id) {
+  if (!DERIVATIVE_IDS.has(id)) return false;
+  if (_isDerivOnCooldown(p, id)) return false;
+  if (_ensureDerivSet(p).has(id)) return false;
+  startAttackById(p, id, -1);
+  _markDerivFire(p, id);
+  return true;
+}
+// hit_confirm / attacking から派生へキャンセル：派生 → 派生 ならソースを封じる
+function _tryDerivativeCancel(p, newId) {
+  if (!DERIVATIVE_IDS.has(newId)) return false;
+  if (newId === p.attackId) return false;
+  if (_isDerivOnCooldown(p, newId)) return false;
+  const forbid = _ensureDerivSet(p);
+  if (forbid.has(newId)) return false;
+  const sourceId = p.attackId;
+  // J チェーン or 派生からのキャンセルのみ許可（K = 必殺技ボタン化に伴い K 由来は無し）
+  const fromChain      = (typeof sourceId === 'string' && sourceId.startsWith('c01_atk_s_'));
+  const fromDerivative = DERIVATIVE_IDS.has(sourceId);
+  if (!fromChain && !fromDerivative) return false;
+  if (fromDerivative) forbid.add(sourceId);
+  startAttackById(p, newId, -1);
+  _markDerivFire(p, newId);
+  return true;
+}
+
+function _readHeldDirs() {
+  return {
+    up: _inp('ArrowUp')    || _inp('KeyW'),
+    dn: _inp('ArrowDown')  || _inp('KeyS'),
+    rt: _inp('ArrowRight') || _inp('KeyD'),
+    lf: _inp('ArrowLeft')  || _inp('KeyA'),
+  };
+}
+
+// ============================================================
 //  J 入力 → チェーン継続 / バッファ
 //  zKeyWasDown はモジュール内に閉じる（旧 index.html 内 let zKeyWasDown）
 // ============================================================
@@ -422,22 +526,39 @@ export function processAttackInput(p) {
       startAttackById(p, pickStepAttackId(p), -1);
       return;
     }
+    // 派生 J：方向＋J（2026-05-19 K → J に移植）。地上のみ。
+    //   ↑J = 打ち上げ、→J = タックル、↓J = 払い。封じ / クールタイムは内部でチェック。
+    //   発動不可なら通常チェーンへフォールスルー。
+    if (p.isGrounded) {
+      const derivId = _pickTappedDerivativeId(p);
+      if (derivId && _tryDerivativeStart(p, derivId)) return;
+    }
     // 地上 / 空中でチェーンを切り替え
     if (p.isGrounded) startAttack(p, 0);
     else if (!p.aerialWhiffed) startAerialAttack(p, 0);
     // aerialWhiffed 中は入力を無視して落下させる
   } else if (p.state === STATE.hit_confirm) {
+    // 派生 J キャンセル：方向 + J で hit_confirm 中も派生に乗り換え可
+    if (p.isGrounded) {
+      const derivId = _pickTappedDerivativeId(p);
+      if (derivId && _tryDerivativeCancel(p, derivId)) return;
+    }
     // c01_atk_s_01_step（ステップJ）ヒット後 → J で Jコンボ2発目（c01_atk_s_02）にキャンセル
     if (p.attackId === 'c01_atk_s_01_step') {
       startAttackFromChain(p, Z_CHAIN, 1);
       return;
     }
-    if (p.attackChainIdx < 0) return; // K（チェーン外）後は何もしない
+    if (p.attackChainIdx < 0) return; // 派生（チェーン外）後は何もしない
     // 同じチェーン配列を継続（地上 or 空中を自動維持）
     const chain = p.attackChainArr || Z_CHAIN;
     const next  = p.attackChainIdx + 1;
     if (next < chain.length) startAttackFromChain(p, chain, next);
   } else if (p.state === STATE.attacking) {
+    // ヒット成立済の通常 J 攻撃中なら、hit_confirm を待たずに即派生 J キャンセル発動
+    if (p.hitDelivered && p.isGrounded) {
+      const derivId = _pickTappedDerivativeId(p);
+      if (derivId && _tryDerivativeCancel(p, derivId)) return;
+    }
     p.attackBuffered = true;
   }
 }
@@ -986,6 +1107,11 @@ export function endGrab(p, releaseBoth) {
 // ============================================================
 let _dTapWasL = false, _dTapWasR = false;
 let _dTapWasU = false, _dTapWasD = false;
+// 長押し（hold）ダッシュ用カウンタ（2026-05-19 追加）：
+// 「方向問わず移動入力を継続しているフレーム数」を 1 本でカウント。
+// 途中で方向転換しても 0 にせず、いずれかの方向キーが押されている限りインクリメント。
+// 移動入力が完全に途切れた瞬間のみ 0 にリセット。
+let _dHoldMove = 0;
 
 export function startDash(p, dx, dz) {
   p.dashActive    = true;
@@ -1029,13 +1155,39 @@ export function processDashInput(p) {
                && !p.dashActive
                && p.state !== STATE.attacking;
 
+  // 長押しダッシュ用カウンタ（2026-05-19 仕様改修）：
+  //   いずれかの方向キーが押されている限り wait01 中はインクリメント。
+  //   方向転換でリセットしない（→歩き→↑歩きへ切替えても累積継続）。
+  //   入力が完全に途切れた瞬間 / wait01 以外の state では 0 にリセット。
+  const anyMoveHeld = nowL || nowR || nowU || nowD;
+  if (p.state === STATE.wait01 && anyMoveHeld) {
+    _dHoldMove += 1;
+  } else {
+    _dHoldMove = 0;
+  }
+
   // ダブルタップ判定（デクリメント前に確認してウィンドウを正確に保つ）
   if (canDash && p.lastTapTimer > 0 && p.lastTapDir) {
     const d = p.lastTapDir;
-    if (justL && d.x === -1) { startDash(p, -1,  0); return; }
-    if (justR && d.x ===  1) { startDash(p,  1,  0); return; }
-    if (justU && d.z === -1) { startDash(p,  0, -1); return; }
-    if (justD && d.z ===  1) { startDash(p,  0,  1); return; }
+    if (justL && d.x === -1) { startDash(p, -1,  0); _dHoldMove = 0; return; }
+    if (justR && d.x ===  1) { startDash(p,  1,  0); _dHoldMove = 0; return; }
+    if (justU && d.z === -1) { startDash(p,  0, -1); _dHoldMove = 0; return; }
+    if (justD && d.z ===  1) { startDash(p,  0,  1); _dHoldMove = 0; return; }
+  }
+
+  // 長押し判定：DASH_HOLD_FRAMES 連続移動入力でダッシュ発火（現在押されている方向で起動）
+  if (canDash && _dHoldMove >= PHYSICS.DASH_HOLD_FRAMES) {
+    // 優先順位：水平 > 垂直（横スクロール系では横移動の方が主軸）
+    let dx = 0, dz = 0;
+    if (nowL) dx = -1;
+    else if (nowR) dx = 1;
+    else if (nowU) dz = -1;
+    else if (nowD) dz = 1;
+    if (dx !== 0 || dz !== 0) {
+      startDash(p, dx, dz);
+      _dHoldMove = 0;
+      return;
+    }
   }
 
   // タイマーを1フレーム進める（攻撃中も進める）
