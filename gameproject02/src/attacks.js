@@ -252,7 +252,10 @@ export const ATTACKS = {
     duration:     20, hitFrame: 4, hitDuration: 4, cancelWindow: 10,
     damage:       14,
     rangeX:       155, rangeZ: 150,
-    rangeY:       35,              // 足元の薄いスライス（地面の敵だけ拾う）
+    // Y 軸非対称（2026-05-18 改修）：上方向を頭部高さ（≒110wu）まで拡張 / 下方向は薄め維持
+    //   → 立ち敵 + 浮いた敵（knockback_air01 / launch 直後）まで届く
+    rangeY:       110,
+    rangeYDown:   35,
     knockback:    8,
     lungeVx:      18,              // 踏み込み初速（1 キャラ分前進・追加 2026-05-15）
     lungeDecay:   0.82,
@@ -261,8 +264,9 @@ export const ATTACKS = {
     hitCount:     12,
     launcher:     false,
     omni:         true,            // 前方限定を外す（全方向ヒット）
-    atk_lv:       1,               // 通常時：軽フリンチ knockback01
-    atk_lv_air:   1,               // 空中敵も同じ（明示）
+    // atk_lv 改修（2026-05-18）：地上 = lv2 軽フリンチ / 空中 = lv5 叩きつけ / ダウン中 = lv7 拾い
+    atk_lv:       2,               // 地上敵：knockback02（大フリンチ）
+    atk_lv_air:   5,               // 空中敵：叩きつけ（down_rakka_start で地面に叩き落とす）
     atk_lv_down:  7,               // ダウン中：knockback03 で小バウンド（拾い）
     partsAnim:    'sweep',
   },

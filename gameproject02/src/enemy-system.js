@@ -32,6 +32,8 @@ import {
   ENEMY_DOWN_BAS_START_FRAMES, ENEMY_DOWN_BAS_LOOP_FRAMES,
   ENEMY_LAND_FRAMES, ENEMY_DOWN_FRONT_FRAMES,
   ENEMY_WALL_START_FRAMES, ENEMY_ROLL_START_FRAMES, ENEMY_ROLL_LOOP_FRAMES,
+  ENEMY_WALL_BOUNCE_VY, ENEMY_WALL_BOUNCE_KB_VX, ENEMY_WALL_BOUNCE_KB_DECAY,
+  ENEMY_ROLL_KB_VX, ENEMY_ROLL_KB_DECAY,
   ENEMY_DOWN_BURST_LOOP_FRAMES, ENEMY_DOWN_BOUND_FRAMES,
   ENEMY_AIRBORNE_Y_THRESHOLD,
   KB_LV05_BOUNCE_VY,
@@ -39,6 +41,7 @@ import {
 import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG } from './config.js';
 import { spawnHitParticles, triggerShake, tryThrownChainHit } from './hit-engine.js';
 import { isHitstunState, tryHitPlayer } from './damage-system.js';
+import { getActiveWallX } from './camera.js';
 
 let _THREE = null;
 let _scene = null;
@@ -132,6 +135,8 @@ export function spawnDummy(x, z, opts = {}) {
     burstGravMult:    0,
     burstRollAngle:   0,
     rollDebugAngle:   0,  // down_roll_start 中のデバッグ可視化用ロール角（2026-05-18）
+    rollDir:          0,  // 転がり方向（±1・現在の knockbackVx 符号で決定・2026-05-18）
+    isWallBounce:    false, // 壁バウンス中フラグ：被弾時に通常 knockback への遷移を許可（2026-05-18）
     grabbedBy:        null,
     state:            STATE.wait01,
     tiltAngle:        0,
@@ -178,6 +183,7 @@ export function updateEnemies(ctx) {
       if (e.wallHitCount > 0) e.wallHitCount = 0;
       if (e.lateralCombatInvincible) e.lateralCombatInvincible = false;
       if (e.skipWallCollision) e.skipWallCollision = false;
+      if (e.isWallBounce) e.isWallBounce = false;  // 壁バウンス中フラグもクリア
     }
     // 死亡判定（ダミーは即復活で無限練習用）
     if (e.hp <= 0) {
@@ -211,10 +217,13 @@ export function updateEnemies(ctx) {
     // 超吹き飛ばし中（down_super_start/loop）に壁に到達 → 強制 down_wall_start
     //   ※ skipWallCollision フラグ（同コンボ 2 回目以降の super 飛行）は壁張り付きをスキップして
     //     ステージ端の x クランプも無視 → そのまま地面到達で down_roll_start に流す（2026-05-18）
-    const hitLeft  = e.x < PHYSICS.STAGE_LEFT;
-    const hitRight = e.x > PHYSICS.STAGE_RIGHT;
+    //   壁の x は getActiveWallX：画面端追従 or levelWalls 優先（2026-05-18 改修）
+    const wallL = Math.max(PHYSICS.STAGE_LEFT,  getActiveWallX('left'));
+    const wallR = Math.min(PHYSICS.STAGE_RIGHT, getActiveWallX('right'));
+    const hitLeft  = e.x < wallL;
+    const hitRight = e.x > wallR;
     if ((hitLeft || hitRight) && !e.skipWallCollision) {
-      e.x = hitLeft ? PHYSICS.STAGE_LEFT : PHYSICS.STAGE_RIGHT;
+      e.x = hitLeft ? wallL : wallR;
       if (e.state === STATE.down_super_start || e.state === STATE.down_super_loop) {
         e.state       = STATE.down_wall_start;
         e.downTimer   = ENEMY_WALL_START_FRAMES;
@@ -341,6 +350,15 @@ export function updateEnemies(ctx) {
           e.state     = STATE.down_roll_start;
           e.downTimer = ENEMY_ROLL_START_FRAMES;
           e.rollDebugAngle = 0;  // 転がり可視化用：角度リセット（2026-05-18）
+          // 慣性引き継ぎ：現在の水平速度の符号で転がり方向を決定（2026-05-18 修正）。
+          //   通常の super 飛行：knockbackVx は fallDir 方向 → 転がりも fallDir
+          //   壁バウンス後の super 飛行：knockbackVx は -fallDir 方向 → 転がりも -fallDir（壁から離れる方向）
+          const rollDir = Math.sign(e.knockbackVx) || e.fallDir;
+          e.knockbackVx = rollDir * ENEMY_ROLL_KB_VX;
+          e.kbDecay     = ENEMY_ROLL_KB_DECAY;
+          e.rollDir     = rollDir;  // 回転方向（rotation.x 反映用）
+          // バウンス由来の super 飛行はここで終了 → フラグクリア
+          e.isWallBounce = false;
         } else if (e.state === STATE.down_wall_loop) {
           // うつ伏せ落下着地 → down_bas_start（静止フェーズへ）
           e.state     = STATE.down_bas_start;
@@ -508,7 +526,29 @@ export function updateEnemies(ctx) {
     } else if (e.state === STATE.down_super_loop) {
       // 吹き飛び中（壁/地面は前段ブロックで処理）
     } else if (e.state === STATE.down_wall_start) {
-      if (--e.downTimer <= 0) e.state = STATE.down_wall_loop;
+      // 壁張り付き 30F 経過 → 反作用バウンス：プレイヤー方向（-fallDir）に大きく飛び上がる（2026-05-18）
+      //   既存の down_super_loop に再突入。地面到達で既存の down_roll_start 遷移が走る。
+      //   ※ superFlightCount は lv 6 攻撃 hit 時のみ増加するため、ここでは増えない
+      //     → 2 回目発動による無敵化ロジックには干渉しない
+      if (--e.downTimer <= 0) {
+        e.vy           = ENEMY_WALL_BOUNCE_VY;
+        // 軽くプレイヤー位置を追う：固定速度（-fallDir * KB_VX）に距離 4% バイアス + ±15 クランプ
+        // 「ある程度」でゆるく追従するイメージ。完全追跡だと機械的になるので 4% / ±15 で抑制（2026-05-18）。
+        const p = _players[0];
+        const dxToPlayer = p ? (p.x - e.x) : 0;
+        const trackBias = Math.max(-15, Math.min(15, dxToPlayer * 0.04));
+        e.knockbackVx  = -e.fallDir * ENEMY_WALL_BOUNCE_KB_VX + trackBias;
+        e.kbDecay      = ENEMY_WALL_BOUNCE_KB_DECAY;
+        e.state        = STATE.down_super_loop;
+        e.downTimer    = 999;  // 地面 / 壁 / カウンタ更新で次状態へ遷移するため大きな値で OK
+        // 壁側を向いたまま飛ぶ：rotation.y を +fallDir 基準で設定（2026-05-18）
+        //   ※ 通常の被弾 facing は -fallDir*π/2（プレイヤー側）。壁バウンスはそれの逆向き。
+        //   rotation.y はその後の super 飛行 / down_roll_* / down_bas_loop に
+        //   そのまま引き継がれる（mesh.rotation は明示再設定が無ければ持続）。
+        e.mesh.rotation.y = e.fallDir * Math.PI / 2;
+        // バウンス中フラグ：被弾時に通常 knockback 状態へ遷移可能にする（trajectory protect 解除）
+        e.isWallBounce = true;
+      }
     } else if (e.state === STATE.down_wall_loop) {
       // うつ伏せ落下中（着地は y<=0 ブロックで処理）
       // 保険：地上 (y=0) で壁ヒットして wall_loop に来た場合、落下するべき距離がないので
@@ -587,9 +627,11 @@ export function updateEnemies(ctx) {
       e.tiltAngle = Math.PI / 2;
     } else if (e.state === STATE.down_roll_start || e.state === STATE.down_roll_loop) {
       // 転がり中：直立姿勢のまま X 軸（前後方向）でごろごろ回転（2026-05-18 修正）
-      //   tilt（rotation.z）は 0 のまま。rotation.x を連続加算で後方ごろごろ。
-      //   fallDir で符号反転（fallDir = +1 のとき player から遠ざかる方向にロール）。
-      e.rollDebugAngle += e.fallDir * 0.35;  // ≒ 20°/F
+      //   tilt（rotation.z）は 0 のまま。rotation.x を連続加算で後転（back-flip）。
+      //   θ は常に -0.35 単位で減少。rotation.y で世界座標への解釈が自動反転されるため、
+      //   通常被弾（rotY=-π/2）も壁バウンス（rotY=+π/2）も θ 減少だけで自然な
+      //   ローリング（頭が motion 方向に先行）になる。rollDir は kbVx 方向で別途管理。
+      e.rollDebugAngle -= 0.35;  // ≒ 20°/F
       e.tiltAngle = 0;  // 同期（後段の rotation.z 反映で 0 になる）
     } else {
       const tiltTarget = STATE_TILT_TARGET[e.state] ?? 0;
@@ -627,6 +669,31 @@ export function updateEnemies(ctx) {
       // rotation.z の傾きを純粋に見せる
       e.pitchAngle = 0;
       e.mesh.rotation.x = 0;
+    }
+
+    // === 転がり中の腰ピボット補正（2026-05-18・rotation.y 対応版）===
+    //   rotation.x をメッシュ原点（足元）周りでなく、腰相当（y=ROLL_HIP_PIVOT）周りに見せる。
+    //   ZYX 適用順なので hip local (0, h, 0) は Rx → Ry の順で変換される：
+    //     after Rx(θ): (0, h*cos θ, h*sin θ)
+    //     after Ry(φ): (h*sin θ * sin φ, h*cos θ, h*sin θ * cos φ)
+    //   world hip = pos + 上記。これを (e.x, e.y + h, e.z) に固定したいので：
+    //     pos.x = e.x - h*sin θ * sin φ
+    //     pos.y = e.y + h*(1 - cos θ)
+    //     pos.z = e.z - h*sin θ * cos φ
+    if (e.state === STATE.down_roll_start || e.state === STATE.down_roll_loop) {
+      const ROLL_HIP_PIVOT = 70;  // 腰高さ（body 中心 80・脚台座 15-30 の間）
+      const θ = e.rollDebugAngle;
+      const φ = e.mesh.rotation.y;
+      const sinT = Math.sin(θ), cosT = Math.cos(θ);
+      const sinP = Math.sin(φ), cosP = Math.cos(φ);
+      e.mesh.position.x = e.x - ROLL_HIP_PIVOT * sinT * sinP;
+      e.mesh.position.y = e.y + ROLL_HIP_PIVOT * (1 - cosT);
+      e.mesh.position.z = e.z - ROLL_HIP_PIVOT * sinT * cosP;
+    } else {
+      // 転がり以外の状態：オフセット解除（前フレームの補正値が残らないよう毎フレーム正規化）
+      e.mesh.position.x = e.x;
+      e.mesh.position.y = e.y;
+      e.mesh.position.z = e.z;
     }
 
     // ヒットフラッシュ

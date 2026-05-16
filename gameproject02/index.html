@@ -718,7 +718,7 @@
     import {
       initCamera, updateCamera, applyCamConfig, updateClockHud,
       setDeadzoneVisible, isDeadzoneVisible, getDeadzoneValues,
-      resetCameraToPlayer,
+      resetCameraToPlayer, getActiveWallX, levelWalls,
     } from './src/camera.js';
     // === hud-system（SP/HP/コンボ/グラブゲージ/敵CD）は src/hud-system.js に分離（Step E-2）===
     import {
@@ -1821,7 +1821,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-18 / down_roll_start + down_roll_loop 新設・X 軸ピュア後方ごろごろ回転';
+    const LAST_UPDATE = '2026-05-18 / 壁バウンス時にプレイヤー X 位置を緩く追従（距離 4% + ±15 クランプ）';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2592,16 +2592,19 @@
         if (e.isAlive) b.position.set(e.x, e.y + 92, e.z);
       });
 
-      // 背景コリジョン表示（ランタイム変更に追従）
-      const sl = PHYSICS.STAGE_LEFT, sr = PHYSICS.STAGE_RIGHT;
+      // 背景コリジョン表示（2026-05-18 改修：壁は画面端追従 getActiveWallX に変更）
+      //   sl/sr に実際の有効壁位置を使う。floor / front / back は sl-sr のスパンで描画。
+      const sl = getActiveWallX('left'), sr = getActiveWallX('right');
       const cx = (sl + sr) / 2, sw = sr - sl;
       // 壁を Y=0 中心（上下±200）に配置 → 床面と底辺が重ならず貫通感をなくす
       const cy = 0;
       const zCenter = (_COL_Z_FRONT - _COL_Z_BACK) / 2;
+      // base スパン：BoxGeometry の幅は初期化時の sw0（PHYSICS の値）。差分を scale で吸収。
+      const sw0 = (PHYSICS.STAGE_RIGHT - PHYSICS.STAGE_LEFT) || 1;
 
       _dbgFloor.visible = true;
       _dbgFloor.position.set(cx, 1, zCenter);
-      _dbgFloor.scale.set(sw / (sr - sl || 1), 1, 1); // STAGE_LEFT/RIGHT 動的変更対応
+      _dbgFloor.scale.set(sw / sw0, 1, 1);
 
       _dbgWallL.visible = true;
       _dbgWallL.position.set(sl, cy, zCenter);
@@ -2611,11 +2614,11 @@
 
       _dbgWallFront.visible = true;
       _dbgWallFront.position.set(cx, cy, -_COL_Z_BACK);
-      _dbgWallFront.scale.set(sw / (sr - sl || 1), 1, 1);
+      _dbgWallFront.scale.set(sw / sw0, 1, 1);
 
       _dbgWallBack.visible = true;
       _dbgWallBack.position.set(cx, cy, _COL_Z_FRONT);
-      _dbgWallBack.scale.set(sw / (sr - sl || 1), 1, 1);
+      _dbgWallBack.scale.set(sw / sw0, 1, 1);
     }
 
     const _fpsEl = document.getElementById('fps');
@@ -2770,6 +2773,8 @@
       // バーストトレイル（コンソールから状態確認用）
       superFlightTrails,
       updateSuperFlightTrails,
+      // 壁システム（コンソールから状態確認用・levelWalls に push して静的壁追加可能）
+      getActiveWallX, levelWalls,
       // ダッシュ（例: SB.startDash(SB.players[0], 1, 0) で右ダッシュ強制発動）
       startDash,
       // Phase 2.4 被ダメージシステム

@@ -131,10 +131,17 @@ export const ENEMY_LAND_FRAMES         = 12;  // land
 export const ENEMY_DOWN_FRONT_FRAMES   = 24;  // down_front_start（吹き飛び傾き）
 // 超吹き飛ばし系（lv06）
 export const ENEMY_DOWN_SUPER_FRAMES    = 12;  // down_super_start イントロ
-export const ENEMY_WALL_START_FRAMES   = 15;  // down_wall_start（壁張り付き）
-export const ENEMY_ROLL_START_FRAMES   = 12;  // down_roll_start（転がり開始イントロ・X 軸スピン）
-export const ENEMY_ROLL_LOOP_FRAMES    = 18;  // down_roll_loop（転がり継続）
-// 後方互換：旧 ENEMY_ROLL_FRAMES を参照しているコードのためエイリアス維持（合計 30F）
+export const ENEMY_WALL_START_FRAMES   = 30;  // down_wall_start（壁張り付き 0.5 秒 → 反作用バウンス・2026-05-18 15→30）
+// 壁張り付き終了時のバウンス（前方＝プレイヤー方向へ大きく飛び上がる・2026-05-18 追加）
+export const ENEMY_WALL_BOUNCE_VY      = 18;   // 上向き初速（強めに飛び上がる）
+export const ENEMY_WALL_BOUNCE_KB_VX   = 20;   // プレイヤー方向への水平速度
+export const ENEMY_WALL_BOUNCE_KB_DECAY = 0.96; // 緩減衰（遠くまで飛ぶ）
+export const ENEMY_ROLL_START_FRAMES   = 15;  // down_roll_start（転がり開始イントロ・X 軸スピン・2026-05-18 12→15）
+export const ENEMY_ROLL_LOOP_FRAMES    = 30;  // down_roll_loop（転がり継続・ここを変えると総転がり時間調整・2026-05-18 18→30）
+// 転がり中の水平慣性：以前の super 飛行のキメ部分を引き継ぐイメージで仕込む（2026-05-18）
+export const ENEMY_ROLL_KB_VX          = 15;  // 転がり開始時の水平速度（fallDir 方向）
+export const ENEMY_ROLL_KB_DECAY       = 0.96; // 減衰率（0.96^45F ≒ 0.16 = 16% 残）
+// 後方互換：旧 ENEMY_ROLL_FRAMES を参照しているコードのためエイリアス維持
 export const ENEMY_ROLL_FRAMES         = ENEMY_ROLL_START_FRAMES;
 // バースト離脱（重複必殺技）
 export const ENEMY_DOWN_BURST_START_FRAMES = 12;  // down_burst_start イントロ

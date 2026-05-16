@@ -50,6 +50,34 @@ let _gameAspect = 1;
 let camFollowY = 0;   // Y 追従の遅延用（lerp）
 let camTargetX = 0;   // デッドゾーンカメラ用 X 目標
 let camFollowZ = 0;   // Z 追従用（広いステージで奥のプレイヤーが画面外に出ないよう追従）
+
+// ============================================================
+//  壁オブジェクト管理（2026-05-18）
+//  - levelWalls：ステージに配置された静的な壁（背景オブジェクト等）。
+//    現状は空配列。将来ステージエディタやレベルデータから push する想定。
+//    各要素は { side: 'left'|'right', x: number, zMin?, zMax? } の形を想定。
+//  - getActiveWallX(side)：side（'left'|'right'）の有効な壁 X 座標を返す。
+//    優先順：levelWalls に該当があればそれを採用、無ければ画面端（カメラ追従中心 ± 半幅）。
+//  - 画面端基準：camTargetX ± (camera.right / camera.zoom)。
+//    ズーム時は frustum 縮小に追従して壁も近づく（ULT 中など）。
+// ============================================================
+export const levelWalls = [];
+
+export function getActiveWallX(side) {
+  // levelWalls 優先：side が一致する壁の中で、プレイヤー側に最も近い x を採用
+  let levelMatch = null;
+  for (const w of levelWalls) {
+    if (w.side !== side) continue;
+    if (levelMatch === null) { levelMatch = w.x; continue; }
+    // left 壁は右側（大きい x）優先 / right 壁は左側（小さい x）優先
+    if (side === 'left'  && w.x > levelMatch) levelMatch = w.x;
+    if (side === 'right' && w.x < levelMatch) levelMatch = w.x;
+  }
+  if (levelMatch !== null) return levelMatch;
+  // フォールバック：画面端
+  const halfW = _camera ? (_camera.right / (_camera.zoom || 1)) : 622;
+  return side === 'left' ? (camTargetX - halfW) : (camTargetX + halfW);
+}
 let clockAngle = 0;   // 世界時計の角度
 let _lastGameSpeedShown = null;  // GAME_SPEED 表示の差分検知
 

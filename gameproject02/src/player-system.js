@@ -51,6 +51,7 @@ import {
   updateCrisisEffect, updateInvincibleBlink,
 } from './damage-system.js';
 import { spawnHitParticles } from './hit-engine.js';
+import { getActiveWallX } from './camera.js';
 
 let _inp = null;
 let _spawnChargeParticle = null;
@@ -484,10 +485,30 @@ const DERIVATIVE_K_IDS = new Set([
   'c01_atk_l_01_down',
 ]);
 
+// 派生 K 共通クールタイム（2026-05-18 追加）：
+// 同一派生 ID は技終了後この F 数だけ再発動不可。連発を抑止。
+// 異なる派生 ID へのキャンセル / 別系統技は影響なし。
+const DERIV_K_COOLDOWN_FRAMES = 30;
+
 // p.usedDerivativesThisCombo が無ければ初期化
 function _ensureDerivSet(p) {
   if (!p.usedDerivativesThisCombo) p.usedDerivativesThisCombo = new Set();
   return p.usedDerivativesThisCombo;
+}
+
+// 派生 K の同 ID クールタイムをチェック（true ならまだ発動不可）
+function _isDerivKOnCooldown(p, id) {
+  if (!DERIVATIVE_K_IDS.has(id)) return false;
+  const endFrame = p._derivKCooldowns?.get(id) ?? 0;
+  return getGameFrame() < endFrame;
+}
+
+// 派生 K 発動マーク：技終了時刻 + クールタイムを記録
+function _markDerivKFire(p, id) {
+  if (!DERIVATIVE_K_IDS.has(id)) return;
+  if (!p._derivKCooldowns) p._derivKCooldowns = new Map();
+  const dur = ATTACKS[id]?.duration ?? 0;
+  p._derivKCooldowns.set(id, getGameFrame() + dur + DERIV_K_COOLDOWN_FRAMES);
 }
 
 // 派生 K キャンセル試行ヘルパー
@@ -497,6 +518,7 @@ function _ensureDerivSet(p) {
 function _tryDerivKCancel(p, newId) {
   if (!DERIVATIVE_K_IDS.has(newId)) return false;       // newId が派生でなければ対象外
   if (newId === p.attackId) return false;               // 同 ID 自己ループ防止
+  if (_isDerivKOnCooldown(p, newId)) return false;      // 同 ID クールタイム中
   const forbid = _ensureDerivSet(p);
   if (forbid.has(newId)) return false;                  // 封じられている派生は出ない
   const sourceId = p.attackId;
@@ -506,6 +528,7 @@ function _tryDerivKCancel(p, newId) {
   // 派生 → 派生 ならソースを封じる
   if (fromDerivative) forbid.add(sourceId);
   startAttackById(p, newId, -1);
+  _markDerivKFire(p, newId);
   return true;
 }
 
@@ -535,11 +558,12 @@ export function processStrongAttackInput(p) {
     const lfHeld  = _inp('ArrowLeft')  || _inp('KeyA');
     const fwdHeld = p.facing > 0 ? rtHeld : lfHeld;
     let id = pickStrongAttackId(p, upHeld, dnHeld, fwdHeld);
-    // 派生封じ中なら通常 K にフォールバック（同コンボ中の派生再利用を阻止）
-    if (DERIVATIVE_K_IDS.has(id) && _ensureDerivSet(p).has(id)) {
+    // 派生封じ中 or クールタイム中なら通常 K にフォールバック（連発抑止）
+    if (DERIVATIVE_K_IDS.has(id) && (_ensureDerivSet(p).has(id) || _isDerivKOnCooldown(p, id))) {
       id = 'c01_atk_l_01';
     }
     startAttackById(p, id, -1);
+    _markDerivKFire(p, id);
   } else if (p.state === STATE.hit_confirm) {
     const upHeld  = _inp('ArrowUp')    || _inp('KeyW');
     const dnHeld  = _inp('ArrowDown')  || _inp('KeyS');
@@ -547,11 +571,14 @@ export function processStrongAttackInput(p) {
     const lfHeld  = _inp('ArrowLeft')  || _inp('KeyA');
     const fwdHeld = p.facing > 0 ? rtHeld : lfHeld;
     const newId = pickStrongAttackId(p, upHeld, dnHeld, fwdHeld);
-    // J チェーン中（弱 → 強キャンセル）：派生封じ中は通常 K にフォールバック
+    // J チェーン中（弱 → 強キャンセル）：派生封じ / クールタイム中は通常 K にフォールバック
     if (p.attackChainIdx >= 0) {
       let id = newId;
-      if (DERIVATIVE_K_IDS.has(id) && _ensureDerivSet(p).has(id)) id = 'c01_atk_l_01';
+      if (DERIVATIVE_K_IDS.has(id) && (_ensureDerivSet(p).has(id) || _isDerivKOnCooldown(p, id))) {
+        id = 'c01_atk_l_01';
+      }
       startAttackById(p, id, -1);
+      _markDerivKFire(p, id);
     }
     // 通常 K / 派生 K → 派生 K（→K / ↑K / ↓K）にキャンセル
     else {
@@ -588,14 +615,17 @@ export function consumeStrongAttackBuffer(p) {
   p.kBufferDn  = false;
   p.kBufferFwd = false;
   const newId = pickStrongAttackId(p, wasUp, wasDn, wasFwd);
-  // J チェーン中：派生封じ中は通常 K にフォールバック
+  // J チェーン中：派生封じ / クールタイム中は通常 K にフォールバック
   if (p.attackChainIdx >= 0) {
     let id = newId;
-    if (DERIVATIVE_K_IDS.has(id) && _ensureDerivSet(p).has(id)) id = 'c01_atk_l_01';
+    if (DERIVATIVE_K_IDS.has(id) && (_ensureDerivSet(p).has(id) || _isDerivKOnCooldown(p, id))) {
+      id = 'c01_atk_l_01';
+    }
     startAttackById(p, id, -1);
+    _markDerivKFire(p, id);
     return;
   }
-  // 通常 K / 派生 K → 派生 K 相互キャンセル（封じセット参照・ソース封じ自動追加）
+  // 通常 K / 派生 K → 派生 K 相互キャンセル（封じセット参照・ソース封じ自動追加・クールタイムは内部でチェック）
   _tryDerivKCancel(p, newId);
 }
 
@@ -1013,7 +1043,15 @@ export function updatePlayer(p) {
     p._grabReady = true;
   }
 
-  p.x = Math.max(PHYSICS.STAGE_LEFT, Math.min(PHYSICS.STAGE_RIGHT, p.x));
+  // 横方向クランプ：画面端壁（カメラ追従中心 ± 半幅）を採用。levelWalls に静的壁があれば優先。
+  // 旧版は PHYSICS.STAGE_LEFT / STAGE_RIGHT のワールド固定壁。それは外側ガードレールとして残す（保険）。
+  {
+    const wallL = getActiveWallX('left');
+    const wallR = getActiveWallX('right');
+    const outerL = PHYSICS.STAGE_LEFT;
+    const outerR = PHYSICS.STAGE_RIGHT;
+    p.x = Math.max(Math.max(outerL, wallL), Math.min(Math.min(outerR, wallR), p.x));
+  }
   p.z = Math.max(-380, Math.min(700, p.z));
 
   // === 向き ===
@@ -1069,9 +1107,11 @@ export function updatePlayer(p) {
     p.jumpConsumed = true;
   }
 
+  // 小ジャンプ廃止（2026-05-18）：SPACE 短押しでも常に THRUST_FRAMES 分のブースト発火。
+  //   旧版は `_inp('Space')` で離した瞬間にブースト終了 → 短押し小ジャンプが永続コンボの起点になりやすかった。
+  //   ジャンプは常に同じ最大高度に達するので、コンボ難易度に依存しない均質な空中行動になる。
   const thrustingNow =
     !p.isGrounded &&
-    _inp('Space') &&
     p.thrustFramesLeft > 0 &&
     p.vy >= 0;
 

@@ -635,7 +635,9 @@ export function tryHitEnemies(p, attack, ctx) {
       e.state === STATE.down_rakka_start ||
       e.state === STATE.down_rakka_loop ||
       e.state === STATE.down_bound_start ||
-      e.state === STATE.enemy_attacking  // Phase 2.4：敵 AI 攻撃中もカウンター被弾を受け付ける
+      e.state === STATE.enemy_attacking ||  // Phase 2.4：敵 AI 攻撃中もカウンター被弾を受け付ける
+      // 壁バウンス中の super 飛行は通常ダウンへの再ディスパッチを許可（2026-05-18）
+      (e.state === STATE.down_super_loop && e.isWallBounce)
     ) {
       // 敵 AI 攻撃中の被弾：AI 内部状態をクリーンアップしてからフリンチへ遷移
       if (e.state === STATE.enemy_attacking) {
