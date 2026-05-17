@@ -427,13 +427,6 @@ function _markDerivFire(p, id) {
   const dur = ATTACKS[id]?.duration ?? 0;
   p._derivKCooldowns.set(id, _derivFrame() + dur + DERIV_COOLDOWN_FRAMES);
 }
-function _pickDerivativeId(upH, dnH, fwdH) {
-  if (upH)  return 'c01_add_02';
-  if (dnH)  return 'c01_add_03';
-  if (fwdH) return 'c01_add_01';
-  return null;
-}
-
 // 派生 J 用タップ判定（2026-05-19 / 🔄 2026-05-20 v2 暴発対策）：
 //
 //  [wait01 / requireRelease=true モード]
@@ -520,15 +513,6 @@ function _tryDerivativeCancel(p, newId) {
   startAttackById(p, newId, -1);
   _markDerivFire(p, newId);
   return true;
-}
-
-function _readHeldDirs() {
-  return {
-    up: _inp('ArrowUp')    || _inp('KeyW'),
-    dn: _inp('ArrowDown')  || _inp('KeyS'),
-    rt: _inp('ArrowRight') || _inp('KeyD'),
-    lf: _inp('ArrowLeft')  || _inp('KeyA'),
-  };
 }
 
 // ============================================================

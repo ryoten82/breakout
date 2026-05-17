@@ -10,7 +10,6 @@
 //                              必殺技発動の gate / ID 正規化 / 起動
 //    - processSpecialInput      コマンド / チャージ → 必殺技 dispatch
 //    - processStrongAttackInput K 攻撃（強攻撃 / ステップ K / バッファ）
-//    - consumeStrongAttackBuffer ATTACKING 中の K バッファ消化（HIT_CONFIRM 移行時）
 //    - updateComboHoming        最初に殴った敵への自動接近（コンボ補正）
 //
 //  ES Module として index.html から import される：
@@ -18,7 +17,7 @@
 //      initPlayerSystem,
 //      processGuardInput, readDirInput, dirMatchesForFacing,
 //      updateChargeJ, processSpecialInput,
-//      processStrongAttackInput, consumeStrongAttackBuffer,
+//      processStrongAttackInput,
 //      updateComboHoming,
 //      getGameFrame, chargeRingState,
 //    } from './src/player-system.js';
@@ -461,11 +460,6 @@ export function processStrongAttackInput(p) {
   startSpecial(p, pickSpecialAttackId(baseId, p.isGrounded));
 }
 
-// K = SP ボタン化（2026-05-19）で K バッファは廃止。残置関数は no-op（呼び出し元互換のため残す）。
-export function consumeStrongAttackBuffer(p) {
-  p.kBuffered = false;
-}
-
 // p.usedDerivativesThisCombo をクリア（コンボリセット時に呼ばれる・派生 J 封じ解除）
 export function clearUsedDerivatives(p) {
   if (p.usedDerivativesThisCombo) p.usedDerivativesThisCombo.clear();
@@ -685,7 +679,6 @@ export function updatePlayer(p) {
   updateAttack(p);
   updateHitConfirm(p);
   consumeAttackBuffer(p);
-  consumeStrongAttackBuffer(p);
 
   const movementLocked = ((p.state === STATE.attacking) || (p.state === STATE.grabbing)) && p.isGrounded;
 
