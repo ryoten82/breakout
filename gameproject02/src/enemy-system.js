@@ -64,8 +64,9 @@ export function buildDummyMesh() {
   // XYZ のままだと R_y * R_z で tilt がカメラ奥行き方向に出る。
   // ZYX では R_z * R_y となりスクリーン左右方向に正しく傾く。
   group.rotation.order = 'ZYX';
-  const baseMat = new _THREE.MeshToonMaterial({ color: 0x884444 });
-  const accentMat = new _THREE.MeshToonMaterial({ color: 0xddaa44 });
+  // 敵仮モデル：濃い緑系統（2026-05-20 METEO 赤との視認性確保）
+  const baseMat = new _THREE.MeshToonMaterial({ color: 0x2d4a22 });    // ダーク オリーブグリーン
+  const accentMat = new _THREE.MeshToonMaterial({ color: 0x77aa55 });  // 差し色：ミディアムグリーン
 
   // 胴体（やや大きめ）
   const body = new _THREE.Mesh(new _THREE.BoxGeometry(70, 130, 60), baseMat);
@@ -85,8 +86,8 @@ export function buildDummyMesh() {
   stand.castShadow = true;
   group.add(stand);
 
-  // 向き確認用ノーズ（頭前面 +Z に赤コーン）
-  const noseMat = new _THREE.MeshToonMaterial({ color: 0xff2222 });
+  // 向き確認用ノーズ（頭前面 +Z にコーン）：赤は METEO と被るので黄に変更（2026-05-20）
+  const noseMat = new _THREE.MeshToonMaterial({ color: 0xffdd22 });
   const nose = new _THREE.Mesh(new _THREE.ConeGeometry(6, 20, 8), noseMat);
   nose.rotation.x = -Math.PI / 2; // コーン先端を +Z（前方）に向ける
   nose.position.set(0, 165, 30);
@@ -721,31 +722,33 @@ export function updateEnemies(ctx) {
       e.mesh.position.z = e.z;
     }
 
-    // ヒットフラッシュ
+    // ヒットフラッシュ（2026-05-20 緑配色対応：元色 0x2d4a22 / 0x77aa55）
     if (e.hitFlashTimer > 0) {
       e.hitFlashTimer--;
       const t = e.hitFlashTimer / 7;
+      // body: 0x2d4a22 (0.176, 0.290, 0.133) → flash bright green (0.6, 1.0, 0.4)
       e.mesh.userData.parts.body.material.color.setRGB(
-        0.53 + t * 0.47, 0.27, 0.27
+        0.176 + t * 0.424, 0.290 + t * 0.710, 0.133 + t * 0.267
       );
+      // head: 0x77aa55 (0.467, 0.667, 0.333) → flash brighter (0.85, 1.0, 0.55)
       e.mesh.userData.parts.head.material.color.setRGB(
-        0.87 + t * 0.13, 0.67, 0.27
+        0.467 + t * 0.383, 0.667 + t * 0.333, 0.333 + t * 0.217
       );
     } else {
-      e.mesh.userData.parts.body.material.color.setHex(0x884444);
-      e.mesh.userData.parts.head.material.color.setHex(0xddaa44);
+      e.mesh.userData.parts.body.material.color.setHex(0x2d4a22);
+      e.mesh.userData.parts.head.material.color.setHex(0x77aa55);
     }
 
     // きりもみやられ突入フラッシュ：紫を「乗算」で body/head 色に被せる
-    //   元色 (0x884444 / 0xddaa44) × 紫 (0x6622ff) を t=1 とし、t=0 で元色へフェード復帰
+    //   元色 (0x2d4a22 / 0x77aa55) × 紫 (0x6622ff) を t=1 とし、t=0 で元色へフェード復帰
     //   持続は ENEMY_BURST_FLASH_FRAMES = SPECIAL_CONFIG.FLASH_FRAMES * 1.5（紫の余韻を強調）
     //   トリガは hit-engine.js の down_burst_start 遷移時に burstFlashTimer をセット
     if (e.burstFlashTimer > 0) {
       e.burstFlashTimer--;
       const t = e.burstFlashTimer / ENEMY_BURST_FLASH_FRAMES;
-      // 元色
-      const bR = 0x88/255, bG = 0x44/255, bB = 0x44/255;
-      const hR = 0xdd/255, hG = 0xaa/255, hB = 0x44/255;
+      // 元色（2026-05-20 緑配色）
+      const bR = 0x2d/255, bG = 0x4a/255, bB = 0x22/255;
+      const hR = 0x77/255, hG = 0xaa/255, hB = 0x55/255;
       // 紫乗算後
       const bMr = bR * PURPLE_R, bMg = bG * PURPLE_G, bMb = bB * PURPLE_B;
       const hMr = hR * PURPLE_R, hMg = hG * PURPLE_G, hMb = hB * PURPLE_B;
