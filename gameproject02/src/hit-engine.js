@@ -432,32 +432,39 @@ export function tryHitEnemies(p, attack, ctx) {
     if (!e.isAlive) continue;
     // down_burst_* 中は完全無敵：判定もダメージも一切受けない
     // ※ attack.forceBurstDown:true（ULT 等）はこの保護をバイパスして必ずヒットさせる
+    const _DBG_SP2AIR = window.SB?.DEBUG_SP2AIR && p.attackId === 'c01_sp_02_air';
     if (!attack.forceBurstDown &&
-        (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop)) continue;
-    // ULT 由来の burst-down 中は起き上がるまで完全無敵（ULT 自身のリヒットも不可）
-    if (e.ultBurstInvincible) continue;
-    // 2 回目以降の飛行系状態（down_super / down_wall）突入で立つフラグ：wait01 まで完全無敵
-    if (e.lateralCombatInvincible) continue;
+        (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop)) {
+      if (_DBG_SP2AIR) console.log(`[SP2AIR] skip burst state=${e.state}`);
+      continue;
+    }
+    if (e.ultBurstInvincible) { if (_DBG_SP2AIR) console.log('[SP2AIR] skip ultBurstInvincible'); continue; }
+    if (e.lateralCombatInvincible) { if (_DBG_SP2AIR) console.log('[SP2AIR] skip lateralCombatInvincible'); continue; }
     const dx = e.x - p.x;
     const dz = e.z - p.z;
+    if (_DBG_SP2AIR) console.log(`[SP2AIR] candidate state=${e.state} dx=${dx.toFixed(0)} dz=${dz.toFixed(0)} dy=${(e.y-p.y).toFixed(0)} pY=${p.y.toFixed(0)} eY=${e.y.toFixed(0)} facing=${facing} eyAbove=${e.y > 10}`);
     // 前方判定（omni 攻撃は全方向ヒット）
-    // 真正面（dx=0）も拾えるよう「逆方向だけ弾く」判定に変更（旧 sign !== facing は dx=0 で空振り）
-    if (!attack.omni && Math.sign(dx) === -facing) continue;
+    // multiHit 中間で既に当てた敵には最終ヒットの前方判定をスキップ（2026-05-20 SP1_air 不発バグ修正）：
+    //   中間ヒット中に敵が背後に回り込むケース（壁バウンス絡み等）で最終ヒットだけ弾かれて
+    //   state 遷移が走らずやられモーションが消える問題への対策。
+    const _alreadyMultiHit = attack.isMultiHit && p.multiHitNextHit && p.multiHitNextHit.has(e);
+    if (!attack.omni && !_alreadyMultiHit && Math.sign(dx) === -facing) { if (_DBG_SP2AIR) console.log('[SP2AIR] skip behind'); continue; }
     // === ホーミング当たり判定拡張 ===
     // comboTarget 本人だけ rangeX / rangeZ にボーナスを乗せて
     // 「ぎりぎり外れた」攻撃を「届いた」扱いに（さりげなさのため）
     const _isLockedTarget = (e === p.comboTarget);
     const _bonusX = _isLockedTarget ? HOMING_CONFIG.HIT_RANGE_BONUS_X : 0;
     const _bonusZ = _isLockedTarget ? HOMING_CONFIG.HIT_RANGE_BONUS_Z : 0;
-    if (Math.abs(dx) > attack.rangeX + _bonusX) continue;
-    if (Math.abs(dz) > attack.rangeZ + _bonusZ) continue;
+    if (Math.abs(dx) > attack.rangeX + _bonusX) { if (_DBG_SP2AIR) console.log(`[SP2AIR] skip dx>rangeX (${Math.abs(dx).toFixed(0)}>${attack.rangeX})`); continue; }
+    if (Math.abs(dz) > attack.rangeZ + _bonusZ) { if (_DBG_SP2AIR) console.log(`[SP2AIR] skip dz>rangeZ (${Math.abs(dz).toFixed(0)}>${attack.rangeZ})`); continue; }
     // Y軸判定（非対称：上方向 rangeY / 下方向 rangeYDown ≥ rangeY）
     if (attack.rangeY !== undefined) {
       const dy = e.y - p.y;          // 正:敵が上 / 負:敵が下
       const maxDown = attack.rangeYDown ?? attack.rangeY;
-      if (dy >  attack.rangeY) continue;
-      if (dy < -maxDown)       continue;
+      if (dy >  attack.rangeY) { if (_DBG_SP2AIR) console.log(`[SP2AIR] skip dy>rangeY (${dy.toFixed(0)}>${attack.rangeY})`); continue; }
+      if (dy < -maxDown)       { if (_DBG_SP2AIR) console.log(`[SP2AIR] skip dy<-rangeYDown (${dy.toFixed(0)}<-${maxDown})`); continue; }
     }
+    if (_DBG_SP2AIR) console.log(`[SP2AIR] HIT! state=${e.state}`);
     // ダウン中の敵に対しては lv05 / lv07 のみヒット判定（その他は空振り）
     {
       const _downedForWhiff = (
@@ -494,6 +501,12 @@ export function tryHitEnemies(p, attack, ctx) {
     // 被弾時：倒れ方向を記録。IDLEのみ向きスナップ（FALL/DOWN/RISE中は回転競合のため不変）
     e.fallDir = (e.x !== p.x) ? Math.sign(e.x - p.x) : p.facing;
     if (e.state === STATE.wait01) {
+      e.mesh.rotation.y = -e.fallDir * Math.PI / 2;
+    } else if (e.isWallBounce) {
+      // 壁バウンス中の敵を拾った：壁向き rotation を通常向きに復帰（2026-05-20）。
+      // ⚠ isWallBounce フラグは clear しない：後段 dispatch（line 670 の
+      // `down_super_loop && isWallBounce`）が knockback 遷移をするために必要。
+      // フラグは wait01 復帰時に enemy-system.js が自動 clear する。
       e.mesh.rotation.y = -e.fallDir * Math.PI / 2;
     }
     e.knockbackVx   = facing * (attack.knockback * 0.4 * _sameAtkKbScale);
@@ -542,11 +555,12 @@ export function tryHitEnemies(p, attack, ctx) {
     if (attack.isSpecial && p.attackId) {
       const _aid = p.attackId;
       _spBaseIdForMark = _aid.endsWith('_air') ? _aid.slice(0, -4) : _aid;
-      // specialHitBy: Map<baseId, count>。累計使用回数が SPECIAL_USE_LIMIT に到達した次ヒットで burst（2026-05-20）
+      // 敵単位カウント：specialHitBy Map<baseId, count>。LIMIT 回目のヒットで burst（2026-05-20）。
+      //   count は読み取り時点で「過去のヒット数」なので、count >= LIMIT-1 で「これが LIMIT 回目」になる。
       const _spCount = (e.specialHitBy && typeof e.specialHitBy.get === 'function')
         ? (e.specialHitBy.get(_spBaseIdForMark) ?? 0)
         : 0;
-      _spDuplicateOnThisEnemy = _spCount >= SPECIAL_USE_LIMIT;
+      _spDuplicateOnThisEnemy = _spCount >= SPECIAL_USE_LIMIT - 1;
     }
     // === コンボルートのループ検出（永久コンボ抑止） ===
     //   この敵に対する初撃時のみ attack id を route に追加。
@@ -644,7 +658,13 @@ export function tryHitEnemies(p, attack, ctx) {
       (attack.isSpecial || !(e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined))
     ) {
       // 既存パス：lv04（打ち上げ）のみ。lv05 は down_rakka_start へ振る
-      e.vy = attack.launchVy;
+      // 空中敵への launch は launchVyAirborne で控えめ値に切替可（2026-05-20）：
+      //   既に浮いてる敵に大きな launchVy を入れると空コンボ場所から離脱してしまう。
+      //   空中敵には小さい lift で「空中コンボ継続位置」に再セットアップする。
+      const _wasAirborne = e.y > ENEMY_AIRBORNE_Y_THRESHOLD;
+      e.vy = (_wasAirborne && attack.launchVyAirborne !== undefined)
+        ? attack.launchVyAirborne
+        : attack.launchVy;
       e.launcherAirborne = !!resolved.peakHang; // LAUNCH_COMBO属性のみ頂点スロー有効
       e.state    = STATE.down_up_start;
       e.downTimer = ENEMY_FALL_FRAMES;  // タイマー駆動：0→π/2 のランプ用
@@ -800,13 +820,12 @@ export function tryHitEnemies(p, attack, ctx) {
     if (attack.aerialHop && !p.isGrounded && (!attack.launchVy || _customHop)) {
       // 対地上敵：hop 量を抑える（プレイヤーが自然に降下しつつ少し跳ねる感じ）
       //   空中敵への juggle 時は full hop + 減衰なし（拾い直し中の落下感を解消・2026-05-20）。
-      //   連続ホップ減衰は対地上敵のみ：ベース 9wu の場合、地上敵 = 5.4 / 2.4 / 0。
+      //   対地上敵の減衰は緩和：旧 3wu/hit → 1wu/hit（5.4 → 4.4 → 3.4 → 2.4 → ...）2026-05-20 v2。
       const targetAirborne = e.y > ENEMY_AIRBORNE_Y_THRESHOLD;
       const groundHopMult = attack.aerialHopGroundMult ?? 0.6;
       const baseHopVy = (attack.aerialHopVy ?? PHYSICS.AERIAL_HOP_V) * (targetAirborne ? 1.0 : groundHopMult);
       const count = p.aerialHopCount ?? 0;
-      const AERIAL_HOP_DECAY = 3;
-      // 空中敵への juggle 中は減衰を切る → プレイヤーが自由落下せず敵に追従できる
+      const AERIAL_HOP_DECAY = 1;  // 旧 3 → 1：2 発目以降の急降下を抑制
       const decay = targetAirborne ? 0 : AERIAL_HOP_DECAY;
       const decayedHopVy = Math.max(0, baseHopVy - count * decay);
       if (decayedHopVy > 0) p.vy = Math.max(p.vy, decayedHopVy);
@@ -852,18 +871,24 @@ export function tryHitEnemies(p, attack, ctx) {
 export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
   const { enemies } = ctx;
   const facing = p.facing;
+  const _DBG = window.SB?.DEBUG_MULTIHIT && p.attackId === 'c01_sp_01_air';
   // 最終ヒットは通常 dispatch に委譲（damage / hitstop を一時差し替え）
   if (isLastHit) {
+    if (_DBG) {
+      for (const e of enemies) if (e.isAlive) console.log(`[MH FINAL pre] e.state=${e.state} y=${e.y.toFixed(0)} dx=${(e.x-p.x).toFixed(0)} sfCount=${e.superFlightCount}`);
+    }
     const savedDamage = attack.damage;
     const savedHitstop = attack.hitstop;
     attack.damage = attack.damageLastHit ?? (attack.damagePerHit * 2);
     if (attack.hitstopLastHit !== undefined) {
-      attack.hitstop = attack.hitstopLastHit;  // 最終段のみ重めの hitstop を適用可能
+      attack.hitstop = attack.hitstopLastHit;
     }
     const hit = tryHitEnemies(p, attack, ctx);
     attack.damage = savedDamage;
     attack.hitstop = savedHitstop;
-    // 最終ヒット適用後はトラッキングクリア（次以降の管理をリセット）
+    if (_DBG) {
+      for (const e of enemies) if (e.isAlive) console.log(`[MH FINAL post] e.state=${e.state} hit=${hit} sfCount=${e.superFlightCount}`);
+    }
     p.multiHitNextHit.clear();
     return hit;
   }
@@ -912,14 +937,20 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     // 軽フリンチ：hitInterval よりやや長めに固定して中間ヒット間で「外れない」よう保持
     const flinchFrames = Math.max(ENEMY_KB01_FRAMES, (attack.hitInterval ?? 6) + 4);
     // ダウン系・打ち上げ系には上書きしない（_slamState 等で動かない方が良いケースも考慮）
+    // 2026-05-20：打ち上げ系（down_up_start/loop）も保護リストに追加。
+    //   旧仕様：SP1_air の中間ヒットが launcher 直後の敵を knockback01 に上書き →
+    //   その後の最終ヒットで lv6 dispatch がうまく動かず、やられモーションが出ない問題があった。
     const _preserveState = (
       e.state === STATE.down_super_start ||
       e.state === STATE.down_super_loop  ||
-      e.state === STATE.down_front_start||
-      e.state === STATE.down_rakka_start||
-      e.state === STATE.down_rakka_loop ||
+      e.state === STATE.down_front_start ||
+      e.state === STATE.down_up_start    ||
+      e.state === STATE.down_up_loop     ||
+      e.state === STATE.down_rakka_start ||
+      e.state === STATE.down_rakka_loop  ||
       e.state === STATE.down_bound_start
     );
+    if (_DBG) console.log(`[MH MID] e.state=${e.state} preserve=${_preserveState} y=${e.y.toFixed(0)}`);
     if (!_preserveState) {
       e.state    = STATE.knockback01;
       e.downTimer = flinchFrames;

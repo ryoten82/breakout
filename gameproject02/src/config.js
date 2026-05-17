@@ -201,14 +201,14 @@ export const HOMING_CONFIG = {
   MAX_DISTANCE_X:      300,   // X 軸単独での解除（200→300：mega RADIUS と揃え、AoE 後の追撃ロックを維持しやすく）
   // 補間係数（距離スケーリングで実効値は減算される）
   WINDUP_LERP_X:       0.22,  // 水平 X：標準（個別調整は ATTACKS[id].homingLerpMult で）
-  WINDUP_LERP_Y:       0.18,  // 空中 Y：標準
+  WINDUP_LERP_Y:       0.10,  // 空中 Y：抑制（旧 0.18 → 0.10：拾い直し時の急上昇感を低減 2026-05-20）
   WINDUP_LERP_Z:       0.32,  // 奥行き Z：強め（2.5D 圧縮で最もズレやすい軸・コマンド ↓ 入力で誤って動きやすい）
   // 目標位置のオフセット
   AIM_OFFSET_X_RATIO:  0.55,  // hitFrame 時の理想 X 距離 = rangeX × この係数
   AIM_Y_OFFSET:        60,    // 空中追尾時、target の Y より少し上を狙う
   // デッドゾーン：既に圏内なら動かさない（さりげなさのため）
   DEADZONE_X_MARGIN:   40,    // |gapX| < (rangeX × AIM_OFFSET_X_RATIO + これ) なら X 動かない
-  DEADZONE_Y_MARGIN:   30,    // |gapY| < これ なら Y 動かない
+  DEADZONE_Y_MARGIN:   60,    // |gapY| < これ なら Y 動かない（旧 30 → 60：Y 軸ホーミング更に抑制 2026-05-20）
   DEADZONE_Z_MARGIN:   15,    // |gapZ| < これ なら Z 動かない（小さめ＝Z は積極補正）
   // 距離スケーリング：遠いほど効きを弱める（ワープ感の軽減）
   FALLOFF_NEAR:        100,   // この距離までは LERP 100% 適用

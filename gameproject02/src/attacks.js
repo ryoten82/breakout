@@ -443,7 +443,7 @@ export const ATTACKS = {
     lungeVx:      14,                  // plyrLiftVx の代わりに地上ダッシュ
     lungeDecay:   0.92,                // 緩減衰で 10F 持続
     rangeX:       110, rangeZ: 100, rangeY: 200,
-    knockback:    10, hitstop: 7, shake: 6,
+    knockback:    40, hitstop: 7, shake: 6,  // 最終段 KB 10→40：通過防止のため横方向押し出し強化（2026-05-20）
     hitstopLastHit: 12,  // 最終昇竜段のみ重め（空中版 sp_02_air と同等・コンボ繋ぎ余地確保）
     atk_lv:       4,    // 最終ヒット：打ち上げ（down_up_start）
     atk_lv_air:   4,    // 空中敵も打ち上げ
@@ -473,10 +473,11 @@ export const ATTACKS = {
     damage:       25,
     // X 軸前方判定を広げる（200）：plyrLiftVx を 0 にした分、当たり判定で前方の敵を拾う設計（2026-05-19）
     rangeX:       200, rangeZ: 100, rangeY: 200,
-    knockback:    10, hitstop: 12, shake: 7,    // hitstop 重め（コマンド入力余地）
+    knockback:    45, hitstop: 12, shake: 7,    // KB 10→25→45：通過防止のため横方向押し出し更に強化（2026-05-20）
     atk_lv:       4,
     atk_lv_air:   4,
     launchVy:     22,
+    launchVyAirborne: 13,           // 空中の敵に当たった時の浮かせ：10だと降下/16だと上昇したので中間値（2026-05-20）
     launcher:     true,
     attrGroup:    'LAUNCH_COMBO',
     hitColor:     0xffcc44,
