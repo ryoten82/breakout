@@ -288,6 +288,82 @@ export const DUMMY_ATK_CONFIG = {
   hitstop:          5,
   shake:            4,
   hitColor:         0xff8844,
+  // Phase 3 AI ステート明示化（aiPhase）: retreat フェーズ用
+  retreatFrames:        40,   // 攻撃 recover 後の強制後退時間
+  retreatSpeed:         1.0,  // 後退時の移動速度（wu/F・approachSpeed より控えめ）
+  postHitRetreatFrames: 30,   // 被弾→wait01 復帰後の後退時間（被弾後の間合い取り）
+};
+
+// ============================================================
+//  #section status-stun — ステータス：スタン（Phase 3・将来 freeze/poison 等と並ぶ）
+//  - applyStatusStun(e, frames?) で付与（地上の敵のみ・空中は無視）
+//  - duration 経過で wait01 に自動復帰
+//  - 通常の被弾を受けると knockback / down_* に上書きされる（被弾優先）
+// ============================================================
+export const STATUS_STUN_CONFIG = {
+  defaultDuration: 90,  // 既定 1.5 秒（60F/秒）。付与時の引数で上書き可
+};
+
+// ============================================================
+//  #section gore-scrap — 敵死亡演出（Phase 3-A：黒フェード骨格のみ）
+//  仕様：spec-room/discussions/gore-scrap-mob-prototype.md
+//   - HP 0 + instantRespawn=false で enemy_dying state に遷移
+//   - 黒シルエット化（全 part の material.color を 0 へ lerp）→ 完全消滅
+//   - Phase 3-B 以降：フェード中のヒットでパーツ飛散・バーストダウン即爆散
+// ============================================================
+export const GORE_CONFIG = {
+  // 並列タイマー（2026-05-20 同時スタート方式）
+  //   FADE：origColor → 黒 lerp（色変化の速度）
+  //   HOLD：dying 状態の総寿命（fade と独立・敵サイズで将来変動させる予定）
+  //   両者は enterEnemyDying() 時に同時起動。dying 完了 = HOLD 満了。
+  FADE_DURATION:  24,    // 黒くなるまで 0.4 秒（60F × 0.4）
+  HOLD_DURATION:  210,   // 真っ黒のまま 3.5 秒保持（60F × 3.5）→ その後消滅
+  TARGET_COLOR:   0x000000,
+
+  // === Phase 3-B：パーツ逐次分離（2026-05-20 改修：1 ヒット = 1 パーツ抽選）===
+  // dying 中に攻撃を当てると：
+  //   1) 必ず黒オイルパーティクル発火（ヒット感）
+  //   2) 確率判定（PART_BREAK_PROB）→ 当選で残存パーツから 1 つ抽選して分離
+  //   3) 残りは本体に付いたまま、fade/hold タイマーは進行
+  //   4) 攻撃を続けるとさらに 1 つずつ分離していく
+  //   5) hold 満了で本体 mesh 除去、飛翔中パーツは独立してバウンド・フェード継続
+  PART_BREAK_PROB:    0.5,    // 1 ヒットで 1 パーツ分離する確率（0.0–1.0・2026-05-20 ユーザー指定 50%）
+  PART_VX_RANGE:      [3, 8], // 水平速度（プレイヤー逆方向に飛ばす）
+  PART_VY_INITIAL:    [10, 16], // 上向き初速
+  PART_VZ_RANGE:      [-3, 3],  // Z 方向の散らばり
+  PART_GRAVITY:       0.7,
+  PART_BOUNCE_DAMP:   0.45,   // バウンド時の vy 反転減衰係数
+  PART_FADE_AFTER_BOUNCE: 18, // バウンド後 N フレームで消滅
+  // 黒オイルパーティクル（既存 spawnHitParticles 流用・色だけ override）
+  //   2026-05-20：0x111111 では暗すぎて廃工場ステージの背景に埋もれて見えない問題
+  //   → 0x3a3a55 へ引き上げ（dark navy・「オイル感」を保ちつつ可視性確保）。完全黒は Unreal 移行時に再検討
+  OIL_PARTICLE_COLOR: 0x3a3a55,
+  OIL_PARTICLE_COUNT: 24,
+
+  // === 最終フェーズ（hold 満了 → 後方吹き飛び → 爆散）2026-05-20 ===
+  // 1) hold 満了で down_front_start に強制遷移、後方へ knockback
+  // 2) この間は dyingInvincible で完全無敵（hit-engine が skip）
+  // 3) FINAL_EXPLODE_DELAY フレーム後に全パーツ爆散・本体 mesh 除去
+  FINAL_BACKWARD_VX:   18,    // 後方ノックバック水平初速（プレイヤー逆方向）
+  FINAL_BACKWARD_VY:   14,    // 上向き初速
+  FINAL_EXPLODE_DELAY: 30,    // 後方吹き飛び開始 → 爆散までのF（0.5s）
+
+  // === Phase 3-C：lv06 バーストダウン即爆散（黒フェード経由しない直行ルート）===
+  //   lv06 攻撃で HP 0 になった瞬間に発動。fading/hold 飛ばして burst（きりもみ）→ 爆散
+  //   既存 down_burst_* state（重複特殊技時の演出）を物理流用、トレイルでオイルを撒く
+  BURST_SPIN_DURATION:    50,   // きりもみ滞空時間 → 爆散まで（約 0.83s）
+  OIL_TRAIL_INTERVAL:     4,    // トレイル発生間隔（F・小さいほど密）
+  OIL_TRAIL_PER_FRAME:    4,    // 1 回あたりのオイル粒子数
+
+  // === 死亡 stun フェーズ（2026-05-20 ユーザー指示）===
+  // wait01 到達時に reacting → stunned へ遷移、直立操作不能の時間
+  // 経過後 → final（後方吹き飛び）
+  STUN_DURATION:          120,  // 約 2 秒（60F × 2）
+
+  // === 爆発直前の白フラッシュ（2026-05-20 ユーザー指示）===
+  // final / burst フェーズの最後 N フレーム、残存 attached パーツを白く発光
+  // 直後に _triggerFinalExplosion で本体除去 + 爆発
+  PREEXPLODE_FLASH_FRAMES: 6,   // 約 0.1 秒（60F × 0.1）
 };
 
 // ============================================================

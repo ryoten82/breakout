@@ -105,7 +105,8 @@
       text-shadow: 0 0 8px #ffaa00;
     }
     /* トグル系デバッグ機能（ON状態を緑で常時表示） */
-    #hud .hk-toggle-on {
+    #hud .hk-toggle-on,
+    #debug-hud .hk-toggle-on {
       color: #44ff88;
       background: rgba(0, 255, 100, 0.12);
       border-radius: 3px;
@@ -113,6 +114,25 @@
       margin-left: -6px;
       text-shadow: 0 0 6px #00ff66;
     }
+    /* デバッグメニュー（右下・数字キートグル群） */
+    #debug-hud {
+      position: absolute;
+      bottom: var(--sp-lg); right: var(--sp-lg);
+      padding: var(--sp-md) var(--fs-md);
+      background: rgba(20, 0, 30, 0.55);
+      border-right: var(--hud-accent-w) solid #ff44aa;
+      font-size: var(--fs-sm);
+      letter-spacing: var(--ls-tight);
+      pointer-events: none;
+      text-align: right;
+    }
+    #debug-hud .title {
+      color: #ff44aa;
+      font-weight: bold;
+      letter-spacing: var(--ls-wide);
+      margin-bottom: var(--sp-xs);
+    }
+    #debug-hud .small { color: #aa88cc; font-size: var(--fs-xs); }
     /* 必殺技コマンド一覧（#hud の下に配置・SP 発動中は黄色ハイライト） */
     #sp-hud {
       position: absolute;
@@ -510,6 +530,12 @@
     <div id="hk-mega">U / R1 / J+K: メガクラッシュ</div>
     <div id="hk-ult">I / R2 / J+K+L: ULT（超必殺技）</div>
     <div id="hk-pause" class="small">ESC / START: 一時停止</div>
+    <div class="small">Phase 3 — 敵 AI ステート明示化 + status_stun + 死亡フロー</div>
+  </div>
+
+  <!-- デバッグメニュー（右下・数字キートグル群を分離・2026-05-20）-->
+  <div id="debug-hud">
+    <div class="title">DEBUG</div>
     <div id="hk-hitbox" class="small">1: ヒットボックス / コリジョン [OFF]</div>
     <div id="hk-pixel"  class="small hk-toggle-on">2: ピクセルシェーダー [ON]</div>
     <div id="hk-slowmo" class="small">3: スロー再生 [OFF]</div>
@@ -517,7 +543,9 @@
     <div id="hk-single-enemy" class="small">5: 敵 1 体モード [OFF]</div>
     <div id="hk-deadzone" class="small">6: カメラ デッドゾーン [OFF]</div>
     <div id="hk-z-stage" class="small">7: Z軸テストステージ [OFF]</div>
-    <div class="small">Phase 2.2 — KB+Pad対応</div>
+    <div id="hk-ai-phase" class="small">8: 敵 aiPhase 表示 [OFF]</div>
+    <div id="hk-mortal" class="small">9: 敵 mortal モード（HP 0 で死亡）[OFF]</div>
+    <div id="hk-respawn" class="small">0: ダミー敵を再スポーン</div>
   </div>
 
   <!-- 必殺技コマンド一覧（#hud の下に配置・SP 発動中は黄色ハイライト） -->
@@ -677,7 +705,7 @@
     import {
       PHYSICS, SP_CONFIG, ULT_CONFIG, GRAB_CONFIG, MEGA_CONFIG,
       SPECIAL_CONFIG, SAME_ATK_CONFIG, HOMING_CONFIG, GUARD_CONFIG,
-      ENEMY_AI, DUMMY_ATK_CONFIG,
+      ENEMY_AI, DUMMY_ATK_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG,
       CAM_CONFIG, PIXEL_SHADER, OUTLINE_CONFIG,
       CHARGE_RING_CONFIG, CHARGE_PARTICLE_CONFIG,
       COMBO_LEVELS, getComboLevel, SLOWMO, KEY_CONFIG,
@@ -696,7 +724,7 @@
       initHitEngine,
       fxState, particles,
       triggerHitstop, triggerShake,
-      spawnHitParticles, spawnLaunchSmoke, updateParticles,
+      spawnHitParticles, spawnLaunchSmoke, spawnDeathExplosion, updateParticles,
       combo, bumpCombo, checkComboBreak,
       tryHitEnemies, tryHitEnemiesMultiHit, tryThrownChainHit,
       updateSuperFlightTrails, superFlightTrails,
@@ -723,11 +751,13 @@
     // === hud-system（SP/HP/コンボ/グラブゲージ/敵CD）は src/hud-system.js に分離（Step E-2）===
     import {
       initHudSystem,
-      updateSPGauge, updateHpHud, updateGrabGauge, updateEnemyAtkCountdown,
+      updateSPGauge, updateHpHud, updateGrabGauge, updateEnemyAtkCountdown, updateEnemyAiPhaseHud, updateStatusStunHud,
     } from './src/hud-system.js';
     // === enemy-system（敵 AI / 状態遷移 / 物理 / mesh 構築）は src/enemy-system.js に分離（Step E-3）===
     import {
-      initEnemySystem, buildDummyMesh, spawnDummy, updateEnemies,
+      initEnemySystem, buildDummyMesh, spawnDummy, updateEnemies, applyStatusStun,
+      enterEnemyDying, killEnemy, initEnemyGoreBlack,
+      enterEnemyExplode, handleEnemyDyingHit, detachOnePart, enterEnemyDyingBurst,
     } from './src/enemy-system.js';
     // === input-system（keys / padKeys / inp / action / pollGamepad）は src/input-system.js に分離（Step E-6）===
     import {
@@ -1965,7 +1995,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-20 / Phase 2.4 完了：廃工場ステージ装飾（奥壁柱組＋床斜めパース）／ METEO 赤配色 ／ 敵緑配色 ／ Phase 3 移行';
+    const LAST_UPDATE = '2026-05-20 / 爆発直前の白フラッシュ（6F）／ final/burst 終端で残存パーツが白く発光してから爆散 ／ 鼻廃止 nose を head の子に降格';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2028,6 +2058,7 @@
 
     // enemy-system 初期化（spawnDummy / updateEnemies が使う依存を注入）
     initEnemySystem({ THREE, scene, players, enemies });
+    initEnemyGoreBlack(THREE);  // 黒フェード目標色（gore-scrap）の初期化
 
     // player-system 初期化（ガード/特殊技/チャージ等）
     //   inp / spawnChargeParticle / clearChargeParticles / chargeReadyRing は既に
@@ -2046,9 +2077,11 @@
     });
 
     // 起動時のダミー敵スポーン（右側横並び 3 体・カウントダウン時差で AI 起動）
-    spawnDummy(280, 300, { atkCooldown:  60 });   // 一番近い：最初に攻撃
-    spawnDummy(480, 300, { atkCooldown: 150 });   // 中：2 番目に攻撃
-    spawnDummy(680, 300, { atkCooldown: 240 });   // 一番遠い：3 番目に攻撃
+    // Phase 3-A：3 体は練習用に instantRespawn=true（HP 0 で即復活ループ・既存挙動互換）
+    // 死亡フローをテストする場合は `SB.killEnemy(SB.enemies[0])` か個別に `e.instantRespawn=false` 後にダメージ
+    spawnDummy(280, 300, { atkCooldown:  60, instantRespawn: true });   // 一番近い：最初に攻撃
+    spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: true });   // 中：2 番目に攻撃
+    spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: true });   // 一番遠い：3 番目に攻撃
     // 互換用エイリアス（既存コードで dummy を直接参照していた所が残っていれば動く保険）
     const dummy = enemies[0];
 
@@ -2131,6 +2164,7 @@
       spawnHitParticles,
       triggerHitstop,
       triggerShake,
+      spawnDeathExplosion,
       combo,
       comboEl,
       players,
@@ -2213,7 +2247,7 @@
       }
       // デバッグトグル（数字キー：1=ヒットボックス / 2=ピクセル / 3=スロー / 4=敵AI / 5=敵1体モード / ...）
       // キーリピート（OS の長押し連続発火）でトグルが連発しないようガード
-      const _isDebugKey = (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3' || e.code === 'Digit4' || e.code === 'Digit5' || e.code === 'Digit6' || e.code === 'Digit7');
+      const _isDebugKey = (e.code === 'Digit1' || e.code === 'Digit2' || e.code === 'Digit3' || e.code === 'Digit4' || e.code === 'Digit5' || e.code === 'Digit6' || e.code === 'Digit7' || e.code === 'Digit8' || e.code === 'Digit9' || e.code === 'Digit0');
       if (_isDebugKey && e.repeat) return;
       if (e.code === 'Digit1') toggleHitbox();
       if (e.code === 'Digit2') {
@@ -2297,6 +2331,62 @@
           _hkZEl.classList.toggle('hk-toggle-on', TEST_CONFIG.zStageMode);
         }
         console.log('[Z_STAGE]', TEST_CONFIG.zStageMode ? 'ON (z=100/400/800)' : 'OFF (z=300)');
+      }
+      // 敵 mortal モード（HP 0 で本当に死ぬ）：練習用即復活 ↔ 死亡フロー切替
+      // mortal ON 時は HP 10 / OFF 時は HP 100。auto-respawn は enemy-system 側で実施
+      if (e.code === 'Digit9') {
+        const newMortal = !window.SB.MORTAL_MODE;
+        window.SB.MORTAL_MODE = newMortal;
+        const _newMaxHp = newMortal ? 10 : 100;
+        // 全現存敵の instantRespawn 反転 + maxHp/hp 調整 + 将来 respawn 用 opts 更新
+        for (const en of enemies) {
+          if (!en.isAlive || en.dying) continue;
+          en.instantRespawn = !newMortal;
+          en.maxHp = _newMaxHp;
+          en.hp = Math.min(en.hp, _newMaxHp);
+          if (en._spawnOpts) {
+            en._spawnOpts.instantRespawn = !newMortal;
+            en._spawnOpts.maxHp = _newMaxHp;
+          }
+        }
+        const _hkEl = document.getElementById('hk-mortal');
+        if (_hkEl) {
+          _hkEl.textContent = `9: 敵 mortal モード（HP 0 で死亡）[${newMortal ? 'ON' : 'OFF'}]`;
+          _hkEl.classList.toggle('hk-toggle-on', newMortal);
+        }
+        console.log('[MORTAL]', newMortal ? `ON（HP ${_newMaxHp} で死亡フロー・auto-respawn）` : 'OFF（HP 100 即復活）');
+      }
+      // ダミー敵を再スポーン：mortal モードに合わせて 3 体を初期位置で生成
+      if (e.code === 'Digit0') {
+        // 既存の全敵を mesh ごと撤去（フェード途中でも強制）
+        for (const en of enemies) {
+          if (en.mesh && en.mesh.parent) en.mesh.parent.remove(en.mesh);
+          if (en.flyingParts) {
+            for (const p of en.flyingParts) {
+              if (p.mesh && p.mesh.parent) p.mesh.parent.remove(p.mesh);
+            }
+          }
+        }
+        enemies.length = 0;
+        // mortal モード反映
+        const _imm = !window.SB.MORTAL_MODE;
+        const _maxHp = window.SB.MORTAL_MODE ? 10 : 100;
+        spawnDummy(280, 300, { atkCooldown:  60, instantRespawn: _imm, maxHp: _maxHp });
+        spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: _imm, maxHp: _maxHp });
+        spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: _imm, maxHp: _maxHp });
+        // 攻撃トークン解放（旧敵が保持していた場合の保険）
+        enemyAttackToken = null;
+        console.log('[RESPAWN]', `3 体（instantRespawn=${_imm}, maxHp=${_maxHp}）`);
+      }
+      // 敵 aiPhase 頭上ラベル ON/OFF（Phase 3 デバッグ）
+      if (e.code === 'Digit8') {
+        window.SB.DEBUG_AI = !window.SB.DEBUG_AI;
+        const _hkAiPhaseEl = document.getElementById('hk-ai-phase');
+        if (_hkAiPhaseEl) {
+          _hkAiPhaseEl.textContent = `8: 敵 aiPhase 表示（idle/chase/attack/retreat/hitstun）[${window.SB.DEBUG_AI ? 'ON' : 'OFF'}]`;
+          _hkAiPhaseEl.classList.toggle('hk-toggle-on', window.SB.DEBUG_AI);
+        }
+        console.log('[DEBUG_AI]', window.SB.DEBUG_AI ? 'ON' : 'OFF');
       }
       // 敵 AI ON/OFF（Phase 2.4 デバッグ）
       if (e.code === 'Digit4') {
@@ -2513,6 +2603,8 @@
       updateClockHud();
       updateGrabGauge();
       updateEnemyAtkCountdown();
+      updateEnemyAiPhaseHud();
+      updateStatusStunHud();
       updateDebug();
     }
 
@@ -2925,6 +3017,30 @@
       HP_CONFIG, damagePlayer, revivePlayer, isHitstunState, resetCombo,
       DUMMY_ATK_CONFIG, ENEMY_AI, tryHitPlayer,
       TEST_CONFIG, PAUSE_CONFIG, GAME_SPEED,
+      // Phase 3：敵 aiPhase 頭上ラベル ON/OFF（数字キー 8）
+      DEBUG_AI: false,
+      // Phase 3-B：mortal モード（数字キー 9）。ON で HP 0 が即復活 → 死亡フローへ
+      MORTAL_MODE: false,
+      // Phase 3：ステータス系（status_stun）。コンソールから付与テスト：
+      //   SB.applyStatusStun(SB.enemies[0])              // 既定 90F
+      //   SB.applyStatusStun(SB.enemies[0], 180)         // 3秒
+      STATUS_STUN_CONFIG, applyStatusStun: (e, frames) => applyStatusStun(e, frames, hitCtx),
+      // Phase 3-A：敵死亡フロー（gore-scrap 骨格・黒フェード→消滅）
+      //   SB.killEnemy(SB.enemies[0])           // 強制的に死亡フロー突入
+      //   SB.enemies[0].instantRespawn = false; // 個別に練習モード解除（次回 HP 0 で死亡）
+      //   SB.GORE_CONFIG.FADE_DURATION = 60     // フェード時間調整（フレーム）
+      GORE_CONFIG, killEnemy: (e) => killEnemy(e, hitCtx),
+      // Phase 3-B：dying 中ヒットで 1 パーツ抽選分離（2026-05-20 逐次分離型）
+      //   SB.detachOnePart(SB.enemies[0])                  // 1 つだけ分離（戻り値：分離した part 名 or null）
+      //   SB.enterEnemyExplode(SB.enemies[0])              // 残り全パーツを一気に分離（テスト用）
+      //   SB.GORE_CONFIG.PART_BREAK_PROB = 0.4             // ヒット時の抽選確率（既定 1.0）
+      //   SB.handleEnemyDyingHit(SB.enemies[0], x, y, z, 1) // ヒット模擬（パーティクル＋抽選）
+      detachOnePart: (e, facing) => detachOnePart(e, facing),
+      enterEnemyExplode: (e, facing) => enterEnemyExplode(e, facing),
+      handleEnemyDyingHit,
+      // Phase 3-C：lv06 即きりもみ→爆散（黒フェードを飛ばす直行ルート・コンソール強制発火用）
+      //   SB.enterEnemyDyingBurst(SB.enemies[0])   // テストで強制発火（通常は lv06 攻撃ヒット時に自動）
+      enterEnemyDyingBurst: (e, facing) => enterEnemyDyingBurst(e, hitCtx, facing),
     };
     console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / pad / mega crash / ult) loaded.');
     console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG / SB.KEY_CONFIG');

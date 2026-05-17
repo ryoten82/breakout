@@ -41,6 +41,7 @@ import { SP_CONFIG, GUARD_CONFIG } from './config.js';
 let _spawnHitParticles = null;
 let _triggerHitstop    = null;
 let _triggerShake      = null;
+let _spawnDeathExplosion = null;  // 敵味方共用の死亡爆発（Phase 3-B）
 let _combo             = null;  // { count, lastHitEnemy } のオブジェクト参照
 let _comboEl           = null;  // DOM 要素
 let _players           = null;  // 配列参照
@@ -50,6 +51,7 @@ export function initDamageSystem(deps) {
   _spawnHitParticles = deps.spawnHitParticles;
   _triggerHitstop    = deps.triggerHitstop;
   _triggerShake      = deps.triggerShake;
+  _spawnDeathExplosion = deps.spawnDeathExplosion;
   _combo             = deps.combo;
   _comboEl           = deps.comboEl;
   _players           = deps.players;
@@ -438,10 +440,15 @@ export function updatePlayerHitstun(p) {
     }
     p.deathPhaseTimer--;
     if (p.deathPhaseTimer <= 0) {
-      _spawnHitParticles(p.x, p.y + 80, p.z, 0xff4422, 36, { type: 'omni' });
-      _spawnHitParticles(p.x, p.y + 80, p.z, 0xffaa44, 24, { type: 'omni' });
-      _triggerHitstop(10);
-      _triggerShake(12, 20);
+      // Phase 3-B：プレイヤー死亡爆発 → 敵共用 spawnDeathExplosion（多層パーティクル+shake+hitstop）
+      if (_spawnDeathExplosion) {
+        _spawnDeathExplosion(p.x, p.y + 80, p.z);
+      } else {
+        _spawnHitParticles(p.x, p.y + 80, p.z, 0xff4422, 36, { type: 'omni' });
+        _spawnHitParticles(p.x, p.y + 80, p.z, 0xffaa44, 24, { type: 'omni' });
+        _triggerHitstop(10);
+        _triggerShake(12, 20);
+      }
       if (p.mesh) p.mesh.visible = false;
       p.state = STATE.dead;
       p.deadTimer = HP_CONFIG.DEAD_FRAMES;

@@ -114,6 +114,17 @@ export const STATE = {
   respawning:       'respawning',        // 復活演出（落下→着地→無敵点滅）
   // ── 敵 AI 攻撃 state（Phase 2.4 ダミー敵ミニマム攻撃）────────
   enemy_attacking:  'enemy_attacking',   // 接近 → wind / active / recover の3段
+  // ── ステータス系（Phase 3・将来 freeze/poison/paralyze 等と並ぶ命名）────
+  // status_stun：操作不能（移動/攻撃/AI 介入なし）。STATUS_STUN_CONFIG.duration 経過で wait01
+  // - 地上のみサポート（applyStatusStun() で空中個体は付与スキップ）
+  // - 通常の被弾を受けると knockback / down_* に上書きされる（状態優先度は被弾が上）
+  status_stun:      'status_stun',
+  // ── 敵死亡（Phase 3-A・ゴア・スクラップシステム骨格）────────
+  // enemy_dying：HP 0 で発火。GORE_CONFIG.FADE_DURATION 経過で黒シルエット化 → 消滅。
+  //   - プレイヤーの dying state とは独立（プレイヤーは死亡演出が異なる）
+  //   - 仕様：spec-room/discussions/gore-scrap-mob-prototype.md
+  //   - Phase 3-A はフェードのみ。3-B でパーツ飛散・3-C でバーストダウン即爆散
+  enemy_dying:      'enemy_dying',
 };
 
 // 敵側の被弾・ダウン持続F
@@ -192,6 +203,10 @@ export const STATE_TILT_TARGET = {
   // バースト離脱（重複必殺技）— tilt 補間は使わず updateEnemies で直接 rotation.z を回す
   down_burst_start: 0,
   down_burst_loop:  0,
+  // ステータス系（直立姿勢のまま操作不能）
+  status_stun:      0,
+  // 敵死亡フェード（直立姿勢のまま黒く消える）
+  enemy_dying:      0,
 };
 export const STATE_TILT_LERP = 0.25;          // 補間係数（0.25 で約12F でほぼ目標到達）
 
