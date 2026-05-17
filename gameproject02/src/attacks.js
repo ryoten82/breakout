@@ -30,7 +30,7 @@
 export const ATTACKS = {
   c01_atk_01: {
     label:        'c01_atk_01 (METEO 左ジャブ)',
-    duration:     16, hitFrame: 3, hitDuration: 4, cancelWindow: 8,
+    duration:     22, hitFrame: 3, hitDuration: 4, cancelWindow: 18,  // dur:16→22 / cw:8→18（テンポ抑制）
     damage:       6,
     rangeX:       110, rangeZ: 110, rangeY: 80,   // 胸高さまで
     knockback:    9, hitstop: 3, shake: 2,         // 6→9（J コンボ全弾 1.5x：間合い詰まり対策・J 連打無限コンボ抑止）
@@ -39,7 +39,7 @@ export const ATTACKS = {
   },
   c01_atk_02: {
     label:        'c01_atk_02 (METEO 右ストレート)',
-    duration:     16, hitFrame: 4, hitDuration: 4, cancelWindow: 9,
+    duration:     22, hitFrame: 4, hitDuration: 4, cancelWindow: 18,  // dur:16→22 / cw:9→18（テンポ抑制）
     damage:       7,
     rangeX:       115, rangeZ: 110, rangeY: 80,   // 胸高さまで
     knockback:    12, hitstop: 4, shake: 3,        // 8→12（1.5x）
@@ -48,7 +48,7 @@ export const ATTACKS = {
   },
   c01_atk_03: {
     label:        'c01_atk_03 (METEO 回し蹴り)',
-    duration:     23, hitFrame: 5, hitDuration: 5, cancelWindow: 11,
+    duration:     30, hitFrame: 5, hitDuration: 5, cancelWindow: 25,  // dur:23→30 / cw:11→25（テンポ抑制）
     damage:       12,
     rangeX:       130, rangeZ: 120, rangeY: 110,  // 蹴りは少し高めまで
     knockback:    21, hitstop: 6, shake: 5,        // 14→21（1.5x）
@@ -57,7 +57,7 @@ export const ATTACKS = {
   },
   c01_atk_04: {
     label:        'c01_atk_04 (METEO 旋回アッパー・フィニッシャー)',
-    duration:     22, hitFrame: 8, hitDuration: 5, cancelWindow: 16,
+    duration:     22, hitFrame: 8, hitDuration: 5, cancelWindow: 19,  // 16→19（テンポ抑制）
     damage:       14,
     rangeX:       135, rangeZ: 125, rangeY: 140,  // 旋回アッパー：頭上付近まで
     knockback:    60, hitstop: 7, shake: 6,        // 40→60（1.5x）
@@ -68,7 +68,7 @@ export const ATTACKS = {
   // === 空中弱攻撃（METEO） ===
   c01_atk_01_air: {
     label:        'c01_atk_01_air (METEO 空中ジャブ)',
-    duration:     13, hitFrame: 3, hitDuration: 3, cancelWindow: 9,
+    duration:     18, hitFrame: 3, hitDuration: 3, cancelWindow: 15,  // dur:13→18 / cw:9→15（地上テンポ比率に同期）
     damage:       5,
     rangeX:       145, rangeZ: 120, rangeY: 110, rangeYDown: 260,   // PHYSICS.AERIAL_RANGE_Y=110 をリテラル化
     knockback:    5, hitstop: 3, shake: 2,         // 3→5（1.5x 切り上げ）
@@ -80,7 +80,7 @@ export const ATTACKS = {
   },
   c01_atk_02_air: {
     label:        'c01_atk_02_air (METEO 空中蹴り)',
-    duration:     14, hitFrame: 3, hitDuration: 3, cancelWindow: 9,
+    duration:     18, hitFrame: 3, hitDuration: 3, cancelWindow: 15,  // dur:14→18 / cw:9→15（地上テンポ比率に同期）
     damage:       7,
     rangeX:       145, rangeZ: 120, rangeY: 120, rangeYDown: 270,   // PHYSICS.AERIAL_RANGE_Y(110)+10
     knockback:    8, hitstop: 4, shake: 3,         // 5→8（1.5x 切り上げ）
@@ -92,7 +92,7 @@ export const ATTACKS = {
   },
   c01_atk_03_air: {
     label:        'c01_atk_03_air (METEO 空中Jコンボ3発目・フィニッシャー)',
-    duration:     16, hitFrame: 6, hitDuration: 4, cancelWindow: 14,
+    duration:     22, hitFrame: 6, hitDuration: 4, cancelWindow: 20,  // dur:16→22 / cw:14→20（地上テンポ比率に同期）
     damage:       10,
     rangeX:       145, rangeZ: 120, rangeY: 130, rangeYDown: 280,   // PHYSICS.AERIAL_RANGE_Y(110)+20
     knockback:    25,             // 80→25（2026-05-15）地上敵を遠くに飛ばさず、着地後の立ち J へ繋ぎやすく
@@ -492,11 +492,12 @@ export const ATTACKS = {
     flashOnStart: true,
     showHitbox:   true,
   },
-  // === sp_03 系：2 段階チャージ（30F=stage1 / 60F=stage2 MAX）===
-  //   stage1 → c01_sp_04 / c01_sp_04_air：今までの判定そのまま・後方ノックバック付与（lv6）
-  //   stage2 → c01_sp_04_max / c01_sp_04_max_air：一回り大きく前方広がり・後方ノックバック超強化
-  c01_sp_04: {
-    label:        'c01_sp_04 (METEO 溜めパンチ・stage1・地上版)',
+  // === sp_04 系：N 段階チャージ（stage1=50F / stage2=120F MAX / 将来 stage3+ は _03, _04...）===
+  //   stage1 → c01_sp_04_01 / c01_sp_04_01_air：今までの判定そのまま・後方ノックバック付与（lv6）
+  //   stage2 → c01_sp_04_02 / c01_sp_04_02_air：一回り大きく前方広がり・後方ノックバック超強化
+  //   旧名 c01_sp_04 / c01_sp_04_max は 2026-05-20 リネーム（_NN 連番化で stage3+ 追加に備える）
+  c01_sp_04_01: {
+    label:        'c01_sp_04_01 (METEO 溜めパンチ・stage1・地上版)',
     duration:     36, hitFrame: 16, hitDuration: 6, cancelWindow: 16,
     damage:       28,
     rangeX:       360, rangeZ: 260,   // Z 130→260（2026-05-15 二倍化）
@@ -522,8 +523,8 @@ export const ATTACKS = {
     selfRecoilDecay: 0.85,
   },
   // 空中版：地上版とほぼ同等の触感で、空中で J 長押し→離しでディスパッチされる
-  c01_sp_04_air: {
-    label:        'c01_sp_04_air (METEO 溜めパンチ・stage1・空中版)',
+  c01_sp_04_01_air: {
+    label:        'c01_sp_04_01_air (METEO 溜めパンチ・stage1・空中版)',
     duration:     36, hitFrame: 16, hitDuration: 6, cancelWindow: 16,
     damage:       28,
     rangeX:       360, rangeZ: 260,   // Z 130→260（2026-05-15 二倍化）
@@ -548,11 +549,11 @@ export const ATTACKS = {
     selfRecoilVx: 10,
     selfRecoilDecay: 0.85,
   },
-  // === stage2 MAX：c01_sp_04_max / c01_sp_04_max_air ===
-  // 60F チャージで成立。一回り大きく前方に広がる判定 + 後方ノックバック超強化（空中 sp_01 並み）。
-  // 将来 stage3+ を OC/チップで足す場合は c01_sp_04_max2 のような追加 ID で対応する想定。
-  c01_sp_04_max: {
-    label:        'c01_sp_04_max (METEO 溜めパンチ・stage2 MAX・地上版)',
+  // === stage2 MAX：c01_sp_04_02 / c01_sp_04_02_air ===
+  // 120F チャージで成立。一回り大きく前方に広がる判定 + 後方ノックバック超強化（空中 sp_01 並み）。
+  // 将来 stage3+ を OC/チップで足す場合は c01_sp_04_03, c01_sp_04_04 ... と _NN を増やして対応。
+  c01_sp_04_02: {
+    label:        'c01_sp_04_02 (METEO 溜めパンチ・stage2 MAX・地上版)',
     duration:     40, hitFrame: 18, hitDuration: 7, cancelWindow: 16,   // 振りはやや重く（+4F）／ヒット猶予広め
     damage:       40,                       // 28 → 40：MAX 報酬
     rangeX:       500, rangeZ: 300,         // Z 150→300（2026-05-15 二倍化）・前方リーチ強調
@@ -579,8 +580,8 @@ export const ATTACKS = {
     selfRecoilVx: 32,
     selfRecoilDecay: 0.82,
   },
-  c01_sp_04_max_air: {
-    label:        'c01_sp_04_max_air (METEO 溜めパンチ・stage2 MAX・空中版)',
+  c01_sp_04_02_air: {
+    label:        'c01_sp_04_02_air (METEO 溜めパンチ・stage2 MAX・空中版)',
     duration:     40, hitFrame: 18, hitDuration: 7, cancelWindow: 16,
     damage:       40,
     rangeX:       500, rangeZ: 300,   // Z 150→300（2026-05-15 二倍化）

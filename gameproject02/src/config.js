@@ -44,6 +44,7 @@ export const PHYSICS = {
   AERIAL_RANGE_Y:      110,    // 空中攻撃の高さ方向当たり判定（チェーン内で段階加算）
   AERIAL_Y_PULL:      0.45,    // ヒット確定時に敵 Y をプレイヤー Y へ引き寄せる割合
   AERIAL_GRAV_FACTOR: 0.9,    // 空中コンボ中の重力倍率（1.0=通常・小さいほどふわっと）
+  AERIAL_GRACE_FRAMES: 30,   // コンボ終了後も重力軽減を維持する猶予フレーム（拾い直し余裕・2026-05-20）
   MAX_FALL_VY:       -18,     // 終端速度クランプ（2026-05-19 追加・空中コンボ長時の急降下抑制）
 
   // === ステージ横バウンド（最外殻ガードレール）===
@@ -165,8 +166,8 @@ export const SPECIAL_CONFIG = {
   // 8F × 1.5 = 12F ≒ 200ms。通常時は厳しい / キャンセル中は緩い、の二段運用。
   CMD_TAP_CANCEL_MULT: 1.5,
   CHARGE_FRAMES:     50,     // [legacy] sp_03 stage1 成立 F（後方互換用）
-  CHARGE_FRAMES_STAGE1: 50,  // sp_04 第1段階成立（≈0.83秒）→ c01_sp_04 発動（旧 sp_03 from 2026-05-16 rename）
-  CHARGE_FRAMES_STAGE2: 120, // sp_04 第2段階成立（2.0秒）→ c01_sp_04_max 発動。OC/チップで延長可能
+  CHARGE_FRAMES_STAGE1: 50,  // sp_04 第1段階成立（≈0.83秒）→ c01_sp_04_01 発動（旧 c01_sp_04 / 2026-05-20 _NN 連番化）
+  CHARGE_FRAMES_STAGE2: 120, // sp_04 第2段階成立（2.0秒）→ c01_sp_04_02 発動（旧 c01_sp_04_max）。OC/チップで stage3+ を _03, _04... と追加可能
   FLASH_FRAMES:      12,    // 発動時の白フラッシュ長
   FLASH_COLOR:       0xffffff,
   SHOW_HITBOX:       true,  // 必殺技ヒットボックス可視化（本番では false）

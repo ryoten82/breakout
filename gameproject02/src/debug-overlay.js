@@ -74,7 +74,7 @@ export function initDebugOverlay(deps) {
     { id: 'hk-sp1',       check: () => { const id = _players[0]?.attackId; return id === 'c01_sp_01' || id === 'c01_sp_01_air'; } },
     { id: 'hk-sp2',       check: () => { const id = _players[0]?.attackId; return id === 'c01_sp_02' || id === 'c01_sp_02_air'; } },
     { id: 'hk-sp3',       check: () => { const id = _players[0]?.attackId; return id === 'c01_sp_03' || id === 'c01_sp_03_air'; } },
-    { id: 'hk-sp4',       check: () => { const id = _players[0]?.attackId; return id === 'c01_sp_04' || id === 'c01_sp_04_air' || id === 'c01_sp_04_max' || id === 'c01_sp_04_max_air'; } },
+    { id: 'hk-sp4',       check: () => { const id = _players[0]?.attackId; return id === 'c01_sp_04_01' || id === 'c01_sp_04_01_air' || id === 'c01_sp_04_02' || id === 'c01_sp_04_02_air'; } },
     { id: 'hk-pixel',     check: () => _inp('KeyP') },
   ];
   _hkEls = {};

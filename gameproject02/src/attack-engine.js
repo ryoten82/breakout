@@ -434,29 +434,63 @@ function _pickDerivativeId(upH, dnH, fwdH) {
   return null;
 }
 
-// 派生 J 用タップ判定（2026-05-19）：
-//   「レバーをいったん離してから方向を入れて J」という意図的なタップのみ受け付ける。
-//   条件：
-//     - dirHistory の末尾エントリが純粋カーディナル（U/D/R/L）かつ frame が DERIV_TAP_WINDOW_FRAMES 以内
-//     - **その直前のエントリが 'N'（ニュートラル）**：方向転換（L→R 等）では発火しない
-//     - 斜め入力（UR/DL 等）は無視
-//     - R/L はキャラ facing と一致した時のみタックル扱い（後ろ向きタップは無効）
-const DERIV_TAP_WINDOW_FRAMES = 12;
-function _pickTappedDerivativeId(p) {
+// 派生 J 用タップ判定（2026-05-19 / 🔄 2026-05-20 v2 暴発対策）：
+//
+//  [wait01 / requireRelease=true モード]
+//   方向キーを「タップして離してから J」を必須とする。
+//   dirHistory 末尾が 'N'（方向リリース済み）でなければ即リジェクト。
+//   長押し中の J → 方向が保持されたまま → 末尾 ≠ N → 弾く。
+//   窓は広め（DERIV_FRESH_PRESS_WAIT01_FRAMES）にして操作余裕を確保。
+//
+//  [hit_confirm・attacking / requireRelease=false モード]
+//   方向保持中でも可。ただし p._jReleaseFrame（直近 J リリースフレーム）より
+//   古い方向プレスは "移動用の保持" と判定して弾く。
+//   → 直近 J リリース以降に新たに押された方向タップのみを受け付ける。
+//
+//  共通条件：
+//   - 方向エントリが純粋カーディナル（U/D/R/L）
+//   - 方向エントリの直前は 'N'（ニュートラル経由 / 方向転換は不発）
+//   - R/L はキャラ facing と一致した時のみタックル扱い
+const DERIV_TAP_WINDOW_FRAMES = 12;             // legacy 互換（外部参照用）
+const DERIV_FRESH_PRESS_FRAMES = 10;            // コンボ途中：fresh press 最大経過 F
+const DERIV_FRESH_PRESS_WAIT01_FRAMES = 10;     // コンボ始動：mid-combo と同じ窓（buffer 周回バグ修正で十分）
+function _pickTappedDerivativeId(p, freshLimit = DERIV_FRESH_PRESS_FRAMES, requireRelease = false) {
   const hist = p.dirHistory;
   if (!hist || hist.length === 0) return null;
-  const last = hist[hist.length - 1];
-  if (_derivFrame() - last.frame > DERIV_TAP_WINDOW_FRAMES) return null;
-  // 直前エントリが 'N' でなければ「ニュートラルを通過していない」= 方向転換と判定し、派生を許可しない。
-  // 履歴が長さ 1 しかない（ゲーム開始直後）の場合は N 経由と見なす。
-  const prev = hist[hist.length - 2];
-  if (prev && prev.dir !== 'N') return null;
-  const dir = last.dir;
-  if (dir === 'U') return 'c01_add_02';
-  if (dir === 'D') return 'c01_add_03';
-  if (dir === 'R' && p.facing > 0) return 'c01_add_01';
-  if (dir === 'L' && p.facing < 0) return 'c01_add_01';
-  return null;
+
+  let dirEntry, prevEntry;
+  if (requireRelease) {
+    // wait01 専用：方向キーがリリース済み（末尾 N）であることを要求
+    const last = hist[hist.length - 1];
+    if (last.dir !== 'N') return null;     // まだ方向を押し続けている → 弾く
+    dirEntry = hist[hist.length - 2];
+    prevEntry = hist[hist.length - 3];
+  } else {
+    // mid-combo：方向保持中でも可。ただし直近 J リリース以前の押下は弾く
+    dirEntry = hist[hist.length - 1];
+    prevEntry = hist[hist.length - 2];
+    const jRelF = p._jReleaseFrame ?? -Infinity;
+    if (!dirEntry || dirEntry.frame <= jRelF) return null;
+  }
+
+  if (!dirEntry) return null;
+  const dir = dirEntry.dir;
+  if (dir !== 'U' && dir !== 'D' && dir !== 'R' && dir !== 'L') return null;
+  // 方向プレスから freshLimit F 以内に限る
+  if (_derivFrame() - dirEntry.frame > freshLimit) return null;
+  // 方向エントリの直前は 'N' 経由でなければ方向転換と判定し不発
+  if (prevEntry && prevEntry.dir !== 'N') return null;
+
+  let id = null;
+  if (dir === 'U') id = 'c01_add_02';
+  else if (dir === 'D') id = 'c01_add_03';
+  else if (dir === 'R' && p.facing > 0) id = 'c01_add_01';
+  else if (dir === 'L' && p.facing < 0) id = 'c01_add_01';
+  if (id && (window.SB?.DEBUG_DERIV ?? false)) {
+    const histTail = hist.slice(-4).map(e => `${e.dir}@${e.frame}`).join(' → ');
+    console.log(`[DERIV] ${id} fired | mode=${requireRelease ? 'wait01/release' : 'mid/jRel'} | frame=${_derivFrame()} | dirEntry=${dir}@${dirEntry.frame} (age=${_derivFrame() - dirEntry.frame}) | prev=${prevEntry?.dir ?? 'none'} | jRelF=${p._jReleaseFrame ?? 'none'} | state=${p.state} | facing=${p.facing} | hist=[${histTail}]`);
+  }
+  return id;
 }
 // wait01 から派生を直接発動（封じ / クールタイムを尊重）
 //   派生は J チェーンの終点扱い：派生発動後は通常 J には戻らない（2026-05-19）。
@@ -506,6 +540,7 @@ export function processAttackInput(p) {
   // エッジ検出変数は常に更新（早期 return で取り残されると状態解除後に誤検出になるため）
   const zPressed = _inp('KeyJ');
   const justPressed = zPressed && !zKeyWasDown;
+  if (!zPressed && zKeyWasDown) p._jReleaseFrame = _derivFrame();  // mid-combo 派生ゲート用
   zKeyWasDown = zPressed;
   if (p.guarding || p.ultActive) return;  // ガード中・ULT中は攻撃不可
   if (p.state === STATE.grabbing) return; // グラブ中は processGrabInput 側で扱う
@@ -520,8 +555,10 @@ export function processAttackInput(p) {
     // 派生 J：方向＋J（2026-05-19 K → J に移植）。地上のみ。
     //   ↑J = 打ち上げ、→J = タックル、↓J = 払い。封じ / クールタイムは内部でチェック。
     //   発動不可なら通常チェーンへフォールスルー。
+    //   方向プレスの age が DERIV_FRESH_PRESS_WAIT01_FRAMES 以内のみ発火。
+    //   長押し中は dirHistory 末尾の frame が古いまま維持されるので、自然に弾かれる。
     if (p.isGrounded) {
-      const derivId = _pickTappedDerivativeId(p);
+      const derivId = _pickTappedDerivativeId(p, DERIV_FRESH_PRESS_WAIT01_FRAMES, false);
       if (derivId && _tryDerivativeStart(p, derivId)) return;
     }
     // 地上 / 空中でチェーンを切り替え
@@ -831,21 +868,22 @@ export function consumeAttackBuffer(p) {
     p.attackBuffered = false;
     const chain = p.attackChainArr || Z_CHAIN;
     const next  = p.attackChainIdx + 1;
+    if (window.SB?.DEBUG_CHAIN) console.log(`[CHAIN] hit_confirm → ${chain[next]} | cancelTimer=${p.cancelTimer}`);
     if (next < chain.length) startAttackFromChain(p, chain, next);
     return;
   }
 
-  // attacking 中：active 期間（hitFrame ~ hitFrame+hitDuration）終了後にバッファ消化
-  // 空振り（hitDelivered=false）→ 同じ idx を再起動（J1→J1→J1...）
-  // ヒット済（hitDelivered=true、多段ヒット技で発生し得る）→ 次段へ
+  // attacking 中：cancelWindow 経過後にバッファ消化
   if (p.state === STATE.attacking) {
     const atk = ATTACKS[p.attackId];
     if (!atk) return;
     const elapsed = atk.duration - p.stateTimer;
-    if (elapsed >= atk.hitFrame + atk.hitDuration) {
+    if (window.SB?.DEBUG_CHAIN) console.log(`[CHAIN] attacking | id=${p.attackId} elapsed=${elapsed} cancelWindow=${atk.cancelWindow} hitF+hitD=${atk.hitFrame + atk.hitDuration} buffered=${p.attackBuffered}`);
+    if (elapsed >= atk.cancelWindow) {
       p.attackBuffered = false;
       const chain = p.attackChainArr || Z_CHAIN;
       const targetIdx = p.hitDelivered ? p.attackChainIdx + 1 : p.attackChainIdx;
+      if (window.SB?.DEBUG_CHAIN) console.log(`[CHAIN] attacking → ${chain[targetIdx]} at elapsed=${elapsed}`);
       if (targetIdx < chain.length) startAttackFromChain(p, chain, targetIdx);
     }
   }

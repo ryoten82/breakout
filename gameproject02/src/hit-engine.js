@@ -762,18 +762,19 @@ export function tryHitEnemies(p, attack, ctx) {
     const _customHop = attack.aerialHopVy !== undefined;
     if (attack.aerialHop && !p.isGrounded && (!attack.launchVy || _customHop)) {
       // 対地上敵：hop 量を抑える（プレイヤーが自然に降下しつつ少し跳ねる感じ）
-      //   空中敵への juggle 時は通常通り full hop。
-      //   連続ホップ減衰：着地までに何回ホップしたか追跡し、回数に応じて hopVy を減らす。
-      //   ベース 9wu の場合、地上敵 = 5.4 / 2.4 / 0、空中敵 = 9 / 6 / 3 / 0。
+      //   空中敵への juggle 時は full hop + 減衰なし（拾い直し中の落下感を解消・2026-05-20）。
+      //   連続ホップ減衰は対地上敵のみ：ベース 9wu の場合、地上敵 = 5.4 / 2.4 / 0。
       const targetAirborne = e.y > ENEMY_AIRBORNE_Y_THRESHOLD;
-      // 既定の対地上 hop 倍率は 0.6（中程度の減衰）。attack.aerialHopGroundMult で個別上書き可。
       const groundHopMult = attack.aerialHopGroundMult ?? 0.6;
       const baseHopVy = (attack.aerialHopVy ?? PHYSICS.AERIAL_HOP_V) * (targetAirborne ? 1.0 : groundHopMult);
       const count = p.aerialHopCount ?? 0;
       const AERIAL_HOP_DECAY = 3;
-      const decayedHopVy = Math.max(0, baseHopVy - count * AERIAL_HOP_DECAY);
+      // 空中敵への juggle 中は減衰を切る → プレイヤーが自由落下せず敵に追従できる
+      const decay = targetAirborne ? 0 : AERIAL_HOP_DECAY;
+      const decayedHopVy = Math.max(0, baseHopVy - count * decay);
       if (decayedHopVy > 0) p.vy = Math.max(p.vy, decayedHopVy);
-      p.aerialHopCount = count + 1;
+      // カウンタも空中敵相手では加算しない（次に地上敵を殴った時にリセットされた状態に近い扱い）
+      if (!targetAirborne) p.aerialHopCount = count + 1;
     }
     // 演出
     triggerHitstop(attack.hitstop);

@@ -210,9 +210,11 @@ function updateDirHistory(p) {
   } else {
     p.dirHistory.push({ dir, frame: gameFrameCounter });
   }
-  // 古いエントリの破棄
+  // 古いエントリの破棄（末尾エントリ＝現在保持中の dir は絶対に消さない）
+  // 末尾を消すと、次フレームで last===undefined → 同方向のまま現在 frame で再 push され、
+  // 長押し中の dir が周期的に「フレッシュプレス」誤認される暴発バグになる（2026-05-20 修正）。
   const cutoff = gameFrameCounter - SPECIAL_CONFIG.DIR_BUFFER_FRAMES;
-  while (p.dirHistory.length > 0 && p.dirHistory[0].frame < cutoff) {
+  while (p.dirHistory.length > 1 && p.dirHistory[0].frame < cutoff) {
     p.dirHistory.shift();
   }
 }
@@ -313,13 +315,13 @@ function canStartSpecial(p, opts) {
 // 必殺技 ID の正規化：地上/空中の派生は同じ base として 1 コンボ 1 回ルールを共有する
 //   例: 'c01_sp_01' と 'c01_sp_01_air' は同じ base 'c01_sp_01' として扱う
 function specialBaseId(id) {
-  // 派生サフィックスを順に剥がす：_air → _max → ... → 基底 ID
-  // 例: c01_sp_04_max_air → c01_sp_04_max → c01_sp_04
+  // 派生サフィックスを順に剥がす：_air → _NN（チャージ段階）→ 基底 ID
+  // 例: c01_sp_04_02_air → c01_sp_04_02 → c01_sp_04
   // burst トリガ（敵単位 1 回制限）は基底 ID で共有させたいので
-  // チャージ段階別の sp_03 系も同じ ID にまとめる
+  // チャージ段階別の sp_04 系も同じ ID にまとめる
   let s = id;
   if (s.endsWith('_air')) s = s.slice(0, -4);
-  if (s.endsWith('_max')) s = s.slice(0, -4);
+  s = s.replace(/_\d{2}$/, '');  // _01, _02, ... の段階サフィックスを剥がす
   return s;
 }
 // 必殺技の短期連発抑止クールダウン（コンボ未確立中のみ適用）
@@ -407,8 +409,8 @@ export function processSpecialInput(p) {
     p.chargeLevel   = 0;
     p.chargeJFrames = 0;
     if (fireable) {
-      // 2 段階分岐：level 2 で sp_03_max、level 1 で sp_03（地上/空中は pickSpecialAttackId で振り分け）
-      const baseId = level >= 2 ? 'c01_sp_04_max' : 'c01_sp_04';
+      // N 段階分岐：level 2 で sp_04_02、level 1 で sp_04_01（地上/空中は pickSpecialAttackId で振り分け）
+      const baseId = level >= 2 ? 'c01_sp_04_02' : 'c01_sp_04_01';
       startSpecial(p, pickSpecialAttackId(baseId, p.isGrounded));
     }
     return;
@@ -960,7 +962,16 @@ export function updatePlayer(p) {
       p.diveCountdown--;
       if (p.diveCountdown === 0) p.vy = ATTACKS[p.attackId]?.diveVy ?? -22;
     } else {
-      const pGravFactor = (!p.isGrounded) ? PHYSICS.AERIAL_GRAV_FACTOR : 1.0;
+      // 空中コンボ中＋コンボ後の猶予フレームは重力軽減（拾い直しの余裕）。通常ジャンプには適用しない（2026-05-20）。
+      const inAerialCombo = !p.isGrounded && p.attackChainArr !== null;
+      if (inAerialCombo) {
+        p._aerialGraceTimer = PHYSICS.AERIAL_GRACE_FRAMES ?? 30;
+      } else if (p.isGrounded) {
+        p._aerialGraceTimer = 0;
+      } else if (p._aerialGraceTimer > 0) {
+        p._aerialGraceTimer--;
+      }
+      const pGravFactor = (inAerialCombo || p._aerialGraceTimer > 0) ? PHYSICS.AERIAL_GRAV_FACTOR : 1.0;
       p.vy -= PHYSICS.GRAVITY * pGravFactor;
       // 終端速度クランプ：空中コンボで滞空フレームが長くなると vy が際限なく溜まり、
       // コンボ離脱後に異常な急降下になる事象を抑える（2026-05-19 追加）。
