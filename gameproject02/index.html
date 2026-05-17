@@ -1012,67 +1012,109 @@
     //  UV V=1 = canvas top = 奥（消失点）/ V=0 = canvas bottom = 手前
     // ============================================================
     function makeGridTexture() {
-      // B案：横タイリング対応・縦方向（奥行き）のみ透視圧縮
-      // wrapS=Repeat で横に無限タイル可能、wrapT=Clamp で奥行き感維持
+      // 廃工場の床（2026-05-20 改）：コンクリート + 鋼鈑グリッド + 油染み + 透視圧縮
+      //   壁の廃工場感と統一。横タイリング対応・縦は奥行き感維持。
       const W = 512, H = 512;
       const canvas = document.createElement('canvas');
       canvas.width = W; canvas.height = H;
       const ctx = canvas.getContext('2d');
 
-      // ベース
-      ctx.fillStyle = '#0c0c1e';
+      // === ベース：コンクリート風 ===
+      ctx.fillStyle = '#2a2a30';
       ctx.fillRect(0, 0, W, H);
 
-      // 奥行きグラデ（上=奥を暗く）
+      // コンクリのノイズ（薄い粒）
+      for (let i = 0; i < 2400; i++) {
+        const x = Math.random() * W;
+        const y = Math.random() * H;
+        const r = Math.random() * 1.5 + 0.3;
+        const c = 30 + Math.random() * 35;
+        ctx.fillStyle = `rgb(${c},${c},${c + 4})`;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // === 奥行き暗グラデ（上=奥を強めに暗く）===
       const grad = ctx.createLinearGradient(0, H, 0, 0);
-      grad.addColorStop(0,   'rgba(14,14,36,0)');
-      grad.addColorStop(0.65,'rgba(8,8,24,0.25)');
-      grad.addColorStop(1,   'rgba(4,4,16,0.6)');
+      grad.addColorStop(0,   'rgba(10,10,18,0)');
+      grad.addColorStop(0.55,'rgba(8,8,14,0.30)');
+      grad.addColorStop(1,   'rgba(2,2,8,0.70)');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, W, H);
 
-      // 縦線（均等間隔・タイル境界に線を置かない → シームレスタイル）
-      const numV = 4;
-      for (let i = 0; i < numV; i++) {
-        const x = (i / numV) * W;
-        const isMain = (i === 0);
-        ctx.strokeStyle = isMain ? 'rgba(55,55,150,0.5)' : 'rgba(35,35,100,0.28)';
-        ctx.lineWidth   = isMain ? 1.5 : 0.8;
+      // === 斜め平行線（ベルスク偽パース：SOR4 風の "板張り" 視点）===
+      //   45 度の平行線でタイル間シームレス（W=H 前提）。
+      //   底辺から右上に向かう方向＝プレイヤー視点から「床が奥に行く」錯覚。
+      const numD = 6;
+      const dSpace = W / numD;
+      // i 範囲：タイル端を跨ぐ斜線も書く（タイリング継続性のため広めに）
+      for (let i = -numD; i <= numD * 2; i++) {
+        const xStart = i * dSpace;
+        // メイン斜線
+        ctx.strokeStyle = 'rgba(95,80,55,0.55)';
+        ctx.lineWidth   = 2.4;
         ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, H);
+        ctx.moveTo(xStart, H);
+        ctx.lineTo(xStart + H, 0);  // 45度（H=W で seamless）
+        ctx.stroke();
+        // 影（1.5px 下にずらして溝感）
+        ctx.strokeStyle = 'rgba(0,0,0,0.50)';
+        ctx.lineWidth   = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(xStart + 1.5, H);
+        ctx.lineTo(xStart + 1.5 + H, 0);
         ctx.stroke();
       }
 
-      // 横線：透視圧縮（奥ほど密・手前ほど疎）
-      // canvas top(y=0)=奥(V=1)、bottom(y=H)=手前(V=0)
-      const numH = 26;
+      // === 横線：奥行き感の補助（薄く・透視圧縮）===
+      //   斜め床を主役にしつつ、奥に向けて密になる横線で 2.5D 感を補強。
+      const numH = 14;
       for (let i = 1; i <= numH; i++) {
         const t = i / numH;
         const y = H * (1 - Math.pow(1 - t, 2.4));
-        const isAccent = (i % 5 === 0);
-        ctx.strokeStyle = isAccent ? 'rgba(55,55,175,0.6)' : 'rgba(30,30,90,0.42)';
-        ctx.lineWidth   = isAccent ? 1.5 : 0.8;
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(W, y);
-        ctx.stroke();
+        const isAccent = (i % 4 === 0);
+        ctx.strokeStyle = isAccent ? 'rgba(110,90,60,0.40)' : 'rgba(70,60,45,0.20)';
+        ctx.lineWidth   = isAccent ? 1.4 : 0.6;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
       }
 
-      // ネオン横線アクセント（均一色でタイルしてもズレない）
-      [0.15, 0.40, 0.65, 0.85].forEach(at => {
-        const y = H * (1 - Math.pow(1 - at, 2.4));
-        ctx.strokeStyle = 'rgba(0,190,255,0.28)';
-        ctx.lineWidth   = 1.8;
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(W, y);
-        ctx.stroke();
-      });
+      // === 油染み（廃工場感）===
+      for (let i = 0; i < 7; i++) {
+        const cx = Math.random() * W;
+        const cy = Math.random() * H * 0.85 + H * 0.15;  // 奥側にも分散
+        const r = 25 + Math.random() * 50;
+        const stainGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        stainGrad.addColorStop(0,   'rgba(15,10,5,0.55)');
+        stainGrad.addColorStop(0.7, 'rgba(20,15,8,0.20)');
+        stainGrad.addColorStop(1,   'rgba(20,15,8,0)');
+        ctx.fillStyle = stainGrad;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // === 錆び・劣化スポット（オレンジ茶系）===
+      for (let i = 0; i < 12; i++) {
+        const cx = Math.random() * W;
+        const cy = Math.random() * H;
+        const r = 8 + Math.random() * 18;
+        const rustGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        rustGrad.addColorStop(0,   'rgba(120,60,20,0.30)');
+        rustGrad.addColorStop(1,   'rgba(120,60,20,0)');
+        ctx.fillStyle = rustGrad;
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // === 警告ライン（奥側に黄黒ストライプを薄く）===
+      const warnY = H * (1 - Math.pow(1 - 0.92, 2.4));
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      for (let x = 0; x < W; x += 22) {
+        ctx.fillStyle = (Math.floor(x / 22) % 2 === 0) ? '#cc8822' : '#1a1a1a';
+        ctx.fillRect(x, warnY - 6, 22, 8);
+      }
+      ctx.restore();
 
       const tex = new THREE.CanvasTexture(canvas);
-      tex.wrapS   = THREE.RepeatWrapping;       // 横：無限タイル
-      tex.wrapT   = THREE.ClampToEdgeWrapping;  // 縦：1枚で奥行き感維持
+      tex.wrapS   = THREE.RepeatWrapping;
+      tex.wrapT   = THREE.ClampToEdgeWrapping;
       tex.repeat.set(8, 1);
       tex.magFilter = THREE.LinearFilter;
       tex.minFilter = THREE.LinearMipmapLinearFilter;
@@ -1085,7 +1127,7 @@
     const groundGeom = new THREE.PlaneGeometry(12000, 2400);
     const groundMat = new THREE.MeshToonMaterial({
       map:   makeGridTexture(),
-      color: 0xaaaadd,
+      color: 0xb8aa90,  // 廃工場床：くすんだ温色（旧 0xaaaadd 青味から変更・2026-05-20）
       polygonOffset:       true,  // デバッグ壁との Z-fighting を防ぐ
       polygonOffsetFactor: 2,
       polygonOffsetUnits:  2,
@@ -1131,6 +1173,107 @@
     const bgElements = buildBackgroundElements();
     bgElements.traverse(obj => { if (obj.isMesh) obj.layers.set(1); });
     scene.add(bgElements);
+
+    // ============================================================
+    //  奥壁の柱（2026-05-20）：「画面奥の壁」を視覚化。
+    //   プレイヤーが Z 軸方向にどこまで奥に行けるか分からない問題への対応。
+    //   z = -380（_COL_Z_BACK 相当）に X 方向 600wu 間隔で柱を並べる。
+    //   ステージ全体をカバーする広い X 範囲（-3600〜3600）で配置。
+    // ============================================================
+    function buildBackWallPillars() {
+      const group = new THREE.Group();
+      const pipeMat   = new THREE.MeshToonMaterial({ color: 0x445566 });   // ダーク鋼（柱・ビーム）
+      const trimMat   = new THREE.MeshToonMaterial({ color: 0xffaa22 });   // 警告色トリム
+      const capMat    = new THREE.MeshToonMaterial({ color: 0x222233 });   // キャップ
+      const braceMat  = new THREE.MeshToonMaterial({ color: 0x554433 });   // 錆色クロスブレース
+      const panelMat  = new THREE.MeshToonMaterial({ color: 0x333844 });   // 背面パネル（廃工場感）
+      const Z_BACK = -380;
+      const X_MIN = -3600, X_MAX = 3600, X_STEP = 600;
+      const PILLAR_H = 500;
+
+      // === 背面パネル（壁面の "面" を作る・柱より少し奥に配置）===
+      const panel = new THREE.Mesh(
+        new THREE.BoxGeometry(X_MAX - X_MIN + 200, PILLAR_H, 20),
+        panelMat
+      );
+      panel.position.set((X_MIN + X_MAX) / 2, PILLAR_H / 2, Z_BACK - 30);
+      group.add(panel);
+
+      // === 横ビーム（上・中・下：柱を貫いて廃工場の梁感）===
+      const beamLen = X_MAX - X_MIN + 100;
+      const beamYs = [PILLAR_H - 20, PILLAR_H * 0.5, 30];
+      for (const by of beamYs) {
+        const beam = new THREE.Mesh(
+          new THREE.BoxGeometry(beamLen, 28, 28),
+          pipeMat
+        );
+        beam.position.set((X_MIN + X_MAX) / 2, by, Z_BACK);
+        group.add(beam);
+      }
+
+      // === 柱（縦） ===
+      for (let x = X_MIN; x <= X_MAX; x += X_STEP) {
+        const pillar = new THREE.Mesh(
+          new THREE.CylinderGeometry(24, 28, PILLAR_H, 8),
+          pipeMat
+        );
+        pillar.position.set(x, PILLAR_H / 2, Z_BACK);
+        group.add(pillar);
+        // 上下キャップ
+        const capTop = new THREE.Mesh(new THREE.CylinderGeometry(32, 32, 18, 8), capMat);
+        capTop.position.set(x, PILLAR_H - 9, Z_BACK);
+        group.add(capTop);
+        const capBtm = new THREE.Mesh(new THREE.CylinderGeometry(32, 32, 18, 8), capMat);
+        capBtm.position.set(x, 9, Z_BACK);
+        group.add(capBtm);
+        // 警告ストライプ（手前側に向けて配置）
+        for (let k = 0; k < 3; k++) {
+          const stripe = new THREE.Mesh(
+            new THREE.BoxGeometry(56, 18, 6),
+            trimMat
+          );
+          stripe.position.set(x, 100 + k * 100, Z_BACK + 28);
+          group.add(stripe);
+        }
+      }
+
+      // === クロスブレース（X 字補強・各ベイ間）===
+      //   隣り合う柱の間に上半分 / 下半分でそれぞれ X を描く
+      const bayCount = (X_MAX - X_MIN) / X_STEP;
+      for (let i = 0; i < bayCount; i++) {
+        const xL = X_MIN + i * X_STEP;
+        const xR = xL + X_STEP;
+        const bayCenter = (xL + xR) / 2;
+        // 上半分の X（y=250→500）
+        const upH = PILLAR_H - 250;  // 250
+        const upLen = Math.hypot(X_STEP, upH);
+        const upAngle = Math.atan2(upH, X_STEP);
+        const u1 = new THREE.Mesh(new THREE.BoxGeometry(upLen, 10, 10), braceMat);
+        u1.position.set(bayCenter, 250 + upH / 2, Z_BACK);
+        u1.rotation.z = upAngle;
+        group.add(u1);
+        const u2 = new THREE.Mesh(new THREE.BoxGeometry(upLen, 10, 10), braceMat);
+        u2.position.set(bayCenter, 250 + upH / 2, Z_BACK);
+        u2.rotation.z = -upAngle;
+        group.add(u2);
+        // 下半分の X（y=0→250）
+        const dnH = 250;
+        const dnLen = Math.hypot(X_STEP, dnH);
+        const dnAngle = Math.atan2(dnH, X_STEP);
+        const d1 = new THREE.Mesh(new THREE.BoxGeometry(dnLen, 10, 10), braceMat);
+        d1.position.set(bayCenter, dnH / 2, Z_BACK);
+        d1.rotation.z = dnAngle;
+        group.add(d1);
+        const d2 = new THREE.Mesh(new THREE.BoxGeometry(dnLen, 10, 10), braceMat);
+        d2.position.set(bayCenter, dnH / 2, Z_BACK);
+        d2.rotation.z = -dnAngle;
+        group.add(d2);
+      }
+
+      return group;
+    }
+    const backWallPillars = buildBackWallPillars();
+    scene.add(backWallPillars);
 
     // ============================================================
     //  #section character-assets — ASSET ABSTRACTION LAYER (将来 GLTF 差し替え対応)
