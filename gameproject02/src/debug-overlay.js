@@ -103,7 +103,7 @@ export function updateDebug() {
   if (_dbgChargeEl) {
     const cj = _players[0]?.chargeJFrames ?? 0;
     const ready = _players[0]?.chargeReady;
-    _dbgChargeEl.textContent = `${cj}/${SPECIAL_CONFIG.CHARGE_FRAMES}${ready ? ' [READY]' : ''}`;
+    _dbgChargeEl.textContent = `${cj}/${SPECIAL_CONFIG.CHARGE_FRAMES_STAGE1}${ready ? ' [READY]' : ''}`;
     _dbgChargeEl.style.color = ready ? '#ffff66' : '#cfffaa';
   }
   if (_dbgSpUsedEl) {

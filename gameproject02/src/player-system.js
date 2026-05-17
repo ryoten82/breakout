@@ -302,7 +302,7 @@ function canStartSpecial(p, opts) {
   // 空中 SP 使用回数制限は撤廃（2026-05-20）：
   //   旧 1 回制限 → 他の制限（specialUsedIds 同コンボ 3 回 / specialHitBy 敵単位 3 回 / superFlight 3 回）で
   //   十分にループを断ち切れるため、空中での SP キャンセル連鎖の自由度を優先。
-  //   airSpecialUsed フラグは互換のため残置するが gating には使わない。
+  //   airSpecialUsed フラグも撤去（2026-05-20）。
   // grab 中は OK（cancelGrabIntoAttack 経由で発動）
   if (p.state === STATE.grabbing) return true;
   if (p.state === STATE.wait01) return true;
@@ -369,8 +369,6 @@ function startSpecial(p, id) {
   // 必殺技終了直後の振り向き禁止：duration + 40F の間 facing を固定
   // SP2 等は着地余韻まで「キャラが前向きのまま」見せたい（最終ヒット失敗の振り向き混乱対策）
   p._facingLockUntil = getGameFrame() + _atkDur + 40;
-  // 空中で発動したら airSpecialUsed フラグを立てる（着地で false 復帰・連発抑止）
-  if (!p.isGrounded) p.airSpecialUsed = true;
   p.specialFlashTimer  = SPECIAL_CONFIG.FLASH_FRAMES;
   // チャージは消費しない：J 押しっぱなしで他 SP を撃った場合に蓄積を保持して
   // 後から J リリースで sp_03 を連結できるようにする。sp_03 自身を J リリース
@@ -1012,7 +1010,6 @@ export function updatePlayer(p) {
         }
         p.airWasDash = false;
       }
-      p.airSpecialUsed = false;  // 着地で空中必殺チャージ復活
       p.aerialHopCount = 0;      // 着地で連続ホップ減衰カウンタもリセット
       p.airVx = 0;
       p.airVz = 0;
