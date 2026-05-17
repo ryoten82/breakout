@@ -299,11 +299,10 @@ function canStartSpecial(p, opts) {
   if (p.guarding) return false;
   if (p.ultActive) return false;
   if (anyPlayerUlting()) return false;
-  // 空中 1 回チャージ制：ジャンプ中に必殺技を一度撃つと、着地までもう撃てない
-  // → sp_02 等を空中で連発して滞空し続ける問題への対策
-  // 例外：チャージ消費（sp_03）は事前蓄積が必要な技なので 1 回制限から除外。
-  //   「空中 J → K → sp_02 → 溜め解放 sp_03」のような長いキャンセルチェインを許可する。
-  if (!p.isGrounded && p.airSpecialUsed && !opts?.forCharge) return false;
+  // 空中 SP 使用回数制限は撤廃（2026-05-20）：
+  //   旧 1 回制限 → 他の制限（specialUsedIds 同コンボ 3 回 / specialHitBy 敵単位 3 回 / superFlight 3 回）で
+  //   十分にループを断ち切れるため、空中での SP キャンセル連鎖の自由度を優先。
+  //   airSpecialUsed フラグは互換のため残置するが gating には使わない。
   // grab 中は OK（cancelGrabIntoAttack 経由で発動）
   if (p.state === STATE.grabbing) return true;
   if (p.state === STATE.wait01) return true;
@@ -980,6 +979,10 @@ export function updatePlayer(p) {
       p.diveCountdown = 0;
       p.homingFrames  = 0;
       p.homingTarget  = null;
+      p._aerialGraceTimer = 0;  // 着地で AERIAL_GRACE をクリア（次ジャンプに軽重力が漏れるのを防ぐ・2026-05-20）
+      // attackChainArr は wait01 時のみクリア（攻撃継続中の状態を壊さない）
+      // → wait01 でないと cancelOnLand ブロックで処理される or 攻撃継続なのでクリア不要
+      if (p.state === STATE.wait01) p.attackChainArr = null;
       // 着地で wait01 に即降格：
       //   - diveVy 系（c01_sp_03_air 急降下踏みつけ（旧 c01_atk_l_01_air_down））
       //   - cancelOnLand:true（空中 J 系 / 空中 K：着地後すぐ立ち J/K に行きたい技）
@@ -989,6 +992,7 @@ export function updatePlayer(p) {
           (p.state === STATE.attacking || p.state === STATE.hit_confirm)) {
         p.state          = STATE.wait01;
         p.attackChainIdx = -1;
+        p.attackChainArr = null;  // 着地時に必ずクリア（次ジャンプで AERIAL_GRAV_FACTOR が漏れるのを防ぐ・2026-05-20）
         p.attackId       = null;
         p.stateTimer     = 0;
         p.cancelTimer    = 0;

@@ -39,7 +39,7 @@ import {
   KB_LV05_BOUNCE_VY,
 } from './states.js';
 import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG } from './config.js';
-import { spawnHitParticles, triggerShake, tryThrownChainHit } from './hit-engine.js';
+import { spawnHitParticles, triggerShake, tryThrownChainHit, triggerBurstState, combo } from './hit-engine.js';
 import { isHitstunState, tryHitPlayer } from './damage-system.js';
 import { getActiveWallX } from './camera.js';
 
@@ -225,15 +225,26 @@ export function updateEnemies(ctx) {
     if ((hitLeft || hitRight) && !e.skipWallCollision) {
       e.x = hitLeft ? wallL : wallR;
       if (e.state === STATE.down_super_start || e.state === STATE.down_super_loop) {
-        e.state       = STATE.down_wall_start;
-        e.downTimer   = ENEMY_WALL_START_FRAMES;
-        e.vy          = 0;          // 壁にべたっと張り付き（一旦停止）
-        e.knockbackVx = 0;
-        // 壁突入カウンタ：2 回目以降で起き上がりまで完全無敵化（2026-05-18）
-        // ※ 実際は 2 回目の super で skipWallCollision が立つため自然には到達しないが、
-        //   将来別ルートで wall_start を誘発する設計が来たときの保険。
+        // 壁突入カウンタ（2026-05-20）：3 回目到達でバーストダウン化（仕様統一）。
+        //   旧：2 回目で lateralCombatInvincible（state 温存）。
+        //   新：3 回目で burst へ遷移し、wallHit/superFlight の制限挙動を統一。
         e.wallHitCount = (e.wallHitCount ?? 0) + 1;
-        if (e.wallHitCount >= 2) e.lateralCombatInvincible = true;
+        if (e.wallHitCount >= 3) {
+          // burst 方向：壁から離れる側＝-fallDir（プレイヤー方向）。
+          // 通常 burst は「プレイヤーから遠ざかる」だが、壁突入瞬間にそれを使うと壁に戻ってループする。
+          triggerBurstState(e, -e.fallDir);
+          combo.burstHudFrames = Infinity;
+          combo.burstHudRoute  = combo.aggregateRoute.slice();
+          combo.burstHudReason = 'wall_limit';
+          combo.burstHudSpBaseId = null;
+          combo.burstHudLoopLen = 0;
+        } else {
+          // 通常：壁張り付き → タイマー満了で反作用バウンス（既存ロジック）
+          e.state       = STATE.down_wall_start;
+          e.downTimer   = ENEMY_WALL_START_FRAMES;
+          e.vy          = 0;          // 壁にべたっと張り付き（一旦停止）
+          e.knockbackVx = 0;
+        }
         // tiltAngle は STATE_TILT_TARGET 経由で自動補間
       } else {
         e.knockbackVx = 0;
@@ -286,24 +297,32 @@ export function updateEnemies(ctx) {
     if ((e.vy !== 0 || e.y > 0 || e.peakHangTimer > 0) && e.state !== STATE.down_wall_start) {
       // 頂点到達検出：LAUNCH_COMBO属性で打ち上げ中かつ上昇→下降に切り替わった瞬間
       if (e.launcherAirborne && e.prevVy > 0 && e.vy <= 0 && e.y > 0 && e.peakHangTimer === 0) {
-        e.peakHangTimer = 36;
-        e.peakHangTotal = 36;
+        const hangF = PHYSICS.ENEMY_PEAK_HANG_FRAMES ?? 36;
+        e.peakHangTimer = hangF;
+        e.peakHangTotal = hangF;
         spawnHitParticles(e.x, e.y + 100, e.z, 0xffffff, 8);
       }
       e.prevVy = e.vy;
 
       let gravFactor;
       if (e.peakHangTimer > 0) {
-        // フェードイン：最初の12Fかけて重力を1.0→0.05へ滑らかに落とす
+        // フェードイン：最初の FADE F かけて重力を base→DEPTH へ滑らかに落とす
+        // DEPTH を 0.05 → 0.2 に上げて peakHang 中も微速度で降下、終了時の段差を小さくする（2026-05-20）
         const elapsed  = e.peakHangTotal - e.peakHangTimer;
-        const fadeT    = Math.min(1, elapsed / 12);
-        const baseFactor = (e.vy < 0) ? 0.6 : 1.0;
-        gravFactor = baseFactor + (0.05 - baseFactor) * fadeT;
+        const fadeF    = PHYSICS.ENEMY_PEAK_HANG_FADE ?? 12;
+        const depth    = PHYSICS.ENEMY_PEAK_HANG_DEPTH ?? 0.05;
+        const fadeT    = Math.min(1, elapsed / fadeF);
+        const baseFactor = (e.vy < 0) ? (PHYSICS.ENEMY_LAUNCHER_GRAV ?? 0.6) : 1.0;
+        gravFactor = baseFactor + (depth - baseFactor) * fadeT;
         e.peakHangTimer--;
       } else if (e.y > 0 && e.vy < 0) {
-        // 打ち上げ直後は重い減速・その後（地上技含む）はふわっと重力で統一
-        if (e.launcherAirborne)  gravFactor = 0.6;
-        else                     gravFactor = PHYSICS.AERIAL_GRAV_FACTOR;
+        // 打ち上げ直後は重い減速・壁バウンス後も同等扱い（ENEMY_WALL_BOUNCE_FALL）
+        const wallBounceAsLauncher = PHYSICS.ENEMY_WALL_BOUNCE_FALL && e.isWallBounce;
+        if (e.launcherAirborne || wallBounceAsLauncher) {
+          gravFactor = PHYSICS.ENEMY_LAUNCHER_GRAV ?? 0.6;
+        } else {
+          gravFactor = PHYSICS.AERIAL_GRAV_FACTOR;
+        }
       } else {
         gravFactor = 1.0;
       }
@@ -532,12 +551,18 @@ export function updateEnemies(ctx) {
       //     → 2 回目発動による無敵化ロジックには干渉しない
       if (--e.downTimer <= 0) {
         e.vy           = ENEMY_WALL_BOUNCE_VY;
-        // 軽くプレイヤー位置を追う：固定速度（-fallDir * KB_VX）に距離 4% バイアス + ±15 クランプ
-        // 「ある程度」でゆるく追従するイメージ。完全追跡だと機械的になるので 4% / ±15 で抑制（2026-05-18）。
+        // 距離認識バウンス（2026-05-20 改）：プレイヤーまでの距離から到達飛距離を逆算し、
+        //   「プレイヤー手前 80wu」で停止するように KB_VX を決める。
+        //   累積飛距離 ≈ KB_VX / (1 - DECAY)。手前マージン 80wu でちょい届かない位置に着地。
+        //   distToPlayer が極端に近い/遠い場合に備えて KB_VX を [6, 25] でクランプ。
         const p = _players[0];
-        const dxToPlayer = p ? (p.x - e.x) : 0;
-        const trackBias = Math.max(-15, Math.min(15, dxToPlayer * 0.04));
-        e.knockbackVx  = -e.fallDir * ENEMY_WALL_BOUNCE_KB_VX + trackBias;
+        const distToPlayer = p ? Math.abs(p.x - e.x) : 200;
+        const stopMargin = 80;  // プレイヤー手前で止めるマージン
+        const targetDist = Math.max(0, distToPlayer - stopMargin);
+        const kbVxFromDist = targetDist * (1 - ENEMY_WALL_BOUNCE_KB_DECAY);
+        // 近距離は 0 まで許容（過剰バウンス防止）／遠距離は max でクランプ
+        const kbVx = Math.min(ENEMY_WALL_BOUNCE_KB_VX, kbVxFromDist);
+        e.knockbackVx  = -e.fallDir * kbVx;
         e.kbDecay      = ENEMY_WALL_BOUNCE_KB_DECAY;
         e.state        = STATE.down_super_loop;
         e.downTimer    = 999;  // 地面 / 壁 / カウンタ更新で次状態へ遷移するため大きな値で OK

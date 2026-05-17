@@ -157,13 +157,15 @@ export function startAttackById(p, id, chainIdx) {
   } else {
     p.stepMomentum = 0;
   }
-  // 空中で攻撃を開始したらブースター窓を打ち切る
-  // → キャンセルジャンプ後に空中Jなどに繋いだ際、SPACE 押しっぱなしで
-  //   ブースト推力＋空中コンボの vy 床（AERIAL_HOP_V）が積み上がって
-  //   上空にかっとんでしまう不具合を防ぐ
+  // 空中で攻撃を開始したらブースター窓を打ち切る（上空かっとび防止）。
+  // ただし「初手の空中J（チェーン1段目＋まだヒットなし＝直前のジャンプ慣性中）」だけは
+  // thrust を残してジャンプ慣性を活かす。J 押下で「小ジャンプ化」する問題の回避（2026-05-20）。
   if (!p.isGrounded) {
-    p.thrustFramesLeft = 0;
-    p.bigBurstTimer    = 0;
+    const isFirstAerial = chainIdx === 0 && (p.aerialHopCount ?? 0) === 0;
+    if (!isFirstAerial) {
+      p.thrustFramesLeft = 0;
+      p.bigBurstTimer    = 0;
+    }
   }
 }
 
@@ -864,11 +866,17 @@ export function consumeAttackBuffer(p) {
     const elapsed = atk.duration - p.stateTimer;
     if (window.SB?.DEBUG_CHAIN) console.log(`[CHAIN] attacking | id=${p.attackId} elapsed=${elapsed} cancelWindow=${atk.cancelWindow} hitF+hitD=${atk.hitFrame + atk.hitDuration} buffered=${p.attackBuffered}`);
     if (elapsed >= atk.cancelWindow) {
-      p.attackBuffered = false;
+      // 空中チェーン（A_CHAIN）の空振り時は同攻撃の再起動を抑止する（2026-05-20）。
+      // 空中で連打しても出ない＝着地まで現在の attack が続く。ヒット時はチェーン進行のみ可。
       const chain = p.attackChainArr || Z_CHAIN;
-      const targetIdx = p.hitDelivered ? p.attackChainIdx + 1 : p.attackChainIdx;
-      if (window.SB?.DEBUG_CHAIN) console.log(`[CHAIN] attacking → ${chain[targetIdx]} at elapsed=${elapsed}`);
-      if (targetIdx < chain.length) startAttackFromChain(p, chain, targetIdx);
+      if (chain === A_CHAIN && !p.hitDelivered) {
+        // 空振り → 何もしない（バッファは捨てない：着地後の wait01 で消える）
+      } else {
+        p.attackBuffered = false;
+        const targetIdx = p.hitDelivered ? p.attackChainIdx + 1 : p.attackChainIdx;
+        if (window.SB?.DEBUG_CHAIN) console.log(`[CHAIN] attacking → ${chain[targetIdx]} at elapsed=${elapsed}`);
+        if (targetIdx < chain.length) startAttackFromChain(p, chain, targetIdx);
+      }
     }
   }
 }

@@ -74,6 +74,29 @@ export const combo = {
 //   ヒット数では制限しない（工夫で 30+ ヒットも狙える設計）が、純粋なループだけ確実に切る。
 const COMBO_LOOP_MAX_LEN = 8;   // 検出する最大ループ長
 const COMBO_LOOP_REPEAT  = 3;   // この回数連続で同パターン → burst
+// 必殺技 同 baseId 使用上限（敵 1 体に対する累計使用回数・超過した次ヒットで burst）
+const SPECIAL_USE_LIMIT  = 3;   // 2026-05-20: 2→3 に拡張（旧 Set だと実質 1 で burst だったため Map 化）
+// 飛行系状態（down_super_* / down_wall_*）への突入回数上限・超過した次回突入で burst
+const FLIGHT_BURST_LIMIT = 3;   // 2026-05-20: 旧 2 → 3 に拡張、かつ lateralCombatInvincible → burst に統一
+// 敵を down_burst_start 状態に遷移させる共通ヘルパ（2026-05-20 切り出し）。
+//   ループ系制限（必殺技ループ／壁ヒット上限／超吹っ飛ばし上限／aggregate ループ）と
+//   ULT の forceBurstDown など、複数箇所から再利用する。
+//   FX（hitstop/shake/particle）と HUD 更新はトリガ側の責務（必要な情報を持っているため）。
+export function triggerBurstState(e, facing) {
+  e.vy            = KB_BURST_VY;
+  e.knockbackVx   = facing * KB_BURST_VX;
+  e.kbDecay       = KB_BURST_VX_DECAY;
+  e.state         = STATE.down_burst_start;
+  e.downTimer     = ENEMY_DOWN_BURST_START_FRAMES;
+  e.burstSpinRate = KB_BURST_SPIN_RATE;
+  e.burstGravMult = KB_BURST_GRAV_MULT;
+  e.burstRollAngle = 0;
+  e.peakHangTimer    = 0;
+  e.launcherAirborne = false;
+  e.burstFlashTimer  = Math.round(SPECIAL_CONFIG.FLASH_FRAMES * 1.5);
+  applyHitInitialPitch(e);
+}
+
 // 末尾 L 個の attack id 配列が直前の L 個（×REPEAT-1 セット）と一致するか判定。
 //   一致するループ長を返す（無ければ 0）。最短ループを優先（L=1 から走査）。
 //   メガクラッシュ（_sp_mega）は意図的な「リセット」要素なので、最後の MC より前は検出対象外。
@@ -475,8 +498,9 @@ export function tryHitEnemies(p, attack, ctx) {
     }
     e.knockbackVx   = facing * (attack.knockback * 0.4 * _sameAtkKbScale);
     const resolved = resolveAttackAttr(attack);
-    // === 2 回目以降の超吹き飛ばし発動（down_super_* 中の敵に lv6 攻撃命中）===
-    //   既存トラジェクトリは「そのまま」維持しつつ、wait01 復帰まで完全無敵 + 壁スルー化（2026-05-18）。
+    // === 超吹き飛ばし回数上限（down_super_* 中の敵に lv6 攻撃命中）===
+    //   FLIGHT_BURST_LIMIT 回到達でバーストダウン化（2026-05-20 仕様統一）。
+    //   旧仕様：lateralCombatInvincible でトラジェクトリ温存 → 統一して burst に。
     //   実効 lv は dispatch tree と同じ式で計算（atk_lv_air が定義され敵が空中ならそちらを優先）。
     {
       const _effectiveLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
@@ -485,9 +509,21 @@ export function tryHitEnemies(p, attack, ctx) {
       const _inSuperFlight = (e.state === STATE.down_super_start || e.state === STATE.down_super_loop);
       if (_effectiveLv === 6 && _inSuperFlight) {
         e.superFlightCount = (e.superFlightCount ?? 0) + 1;
-        if (e.superFlightCount >= 2) {
-          e.lateralCombatInvincible = true;
-          e.skipWallCollision       = true;
+        if (e.superFlightCount >= FLIGHT_BURST_LIMIT) {
+          // burst に遷移して以降の通常 lv6 dispatch をスキップ
+          triggerBurstState(e, facing);
+          spawnHitParticles(e.x, e.y + 60, e.z, attack.hitColor ?? 0xffffff,
+            attack.hitCount ?? 24, { type: 'omni' });
+          bumpCombo(e);
+          combo.burstHudFrames = Infinity;
+          combo.burstHudRoute  = combo.aggregateRoute.slice();
+          combo.burstHudReason = 'flight_limit';
+          combo.burstHudSpBaseId = null;
+          combo.burstHudLoopLen = 0;
+          triggerHitstop(attack.hitstop);
+          triggerShake(attack.shake, attack.shake * 2 + 4);
+          anyHit = true;
+          continue;
         }
       }
     }
@@ -506,7 +542,11 @@ export function tryHitEnemies(p, attack, ctx) {
     if (attack.isSpecial && p.attackId) {
       const _aid = p.attackId;
       _spBaseIdForMark = _aid.endsWith('_air') ? _aid.slice(0, -4) : _aid;
-      _spDuplicateOnThisEnemy = !!(e.specialHitBy && e.specialHitBy.has(_spBaseIdForMark));
+      // specialHitBy: Map<baseId, count>。累計使用回数が SPECIAL_USE_LIMIT に到達した次ヒットで burst（2026-05-20）
+      const _spCount = (e.specialHitBy && typeof e.specialHitBy.get === 'function')
+        ? (e.specialHitBy.get(_spBaseIdForMark) ?? 0)
+        : 0;
+      _spDuplicateOnThisEnemy = _spCount >= SPECIAL_USE_LIMIT;
     }
     // === コンボルートのループ検出（永久コンボ抑止） ===
     //   この敵に対する初撃時のみ attack id を route に追加。
@@ -532,21 +572,9 @@ export function tryHitEnemies(p, attack, ctx) {
     const _forceBurst = !!attack.forceBurstDown;
     if (_spDuplicateOnThisEnemy || _loopDetected || _forceBurst) {
       // 後方斜め上に吹き飛び・facing と反対方向（プレイヤーから離れる）
-      e.vy            = KB_BURST_VY;
-      e.knockbackVx   = facing * KB_BURST_VX;          // facing 方向 = プレイヤーから遠ざかる
-      e.kbDecay       = KB_BURST_VX_DECAY;
-      e.state         = STATE.down_burst_start;
-      e.downTimer     = ENEMY_DOWN_BURST_START_FRAMES;
-      e.burstSpinRate = KB_BURST_SPIN_RATE;             // ロール累積レート
-      e.burstGravMult = KB_BURST_GRAV_MULT;             // 重力軽減で滞空延長
-      e.burstRollAngle = 0;                             // ロール角を 0 から開始
-      e.peakHangTimer    = 0;
-      e.launcherAirborne = false;
-      // きりもみ突入瞬間：紫フラッシュ（プレイヤー必殺技 flashOnStart のロジック流用・1.5倍持続）
-      e.burstFlashTimer = Math.round(SPECIAL_CONFIG.FLASH_FRAMES * 1.5);
+      triggerBurstState(e, facing);
       // ULT 由来の burst：起き上がる（wait01 復帰）まで完全無敵・メガクラも不可
       if (_forceBurst) e.ultBurstInvincible = true;
-      applyHitInitialPitch(e);
       // 演出（通常ヒットエフェクト）
       spawnHitParticles(e.x, e.y + 60, e.z, attack.hitColor ?? 0xffffff,
         attack.hitCount ?? 24, { type: 'omni' });
@@ -576,10 +604,12 @@ export function tryHitEnemies(p, attack, ctx) {
       anyHit = true;
       continue;  // 通常 dispatch ツリーをスキップ
     }
-    // 通常 SP ヒット：この敵に「このベース ID で当てた」マークを残す（次回 burst トリガー用）
+    // 通常 SP ヒット：この敵に対する「このベース ID の累計使用回数」を +1
+    //   SPECIAL_USE_LIMIT 到達後の次ヒットで burst（_spDuplicateOnThisEnemy 経由）
     if (_spBaseIdForMark) {
-      if (!e.specialHitBy) e.specialHitBy = new Set();
-      e.specialHitBy.add(_spBaseIdForMark);
+      if (!e.specialHitBy || typeof e.specialHitBy.get !== 'function') e.specialHitBy = new Map();
+      const _prev = e.specialHitBy.get(_spBaseIdForMark) ?? 0;
+      e.specialHitBy.set(_spBaseIdForMark, _prev + 1);
     }
     const _isAnyDowned = (
       e.state === STATE.down_bas_start ||
@@ -661,20 +691,27 @@ export function tryHitEnemies(p, attack, ctx) {
         ? attack.atk_lv_air
         : (attack.atk_lv ?? 1);
       if (lv === 6) {
-        // 超吹き飛ばし — 専用ステート down_super_start（地上/空中共用）
-        // 着地で down_roll_start、壁ヒットで down_wall_start に強制遷移
-        // 攻撃側で kb_vy_lv6 / kb_vx_mult_lv6 / kb_vx_decay_lv6 を上書き可能（lv6 専用）
-        // フォールバック：legacy 共通フィールド kb_vy / kb_vx_mult / kb_vx_decay → 既定 KB_LV06_*
-        e.vy           = attack.kb_vy_lv6 ?? attack.kb_vy ?? KB_LV06_VY;
-        e.knockbackVx *= attack.kb_vx_mult_lv6 ?? attack.kb_vx_mult ?? KB_LV06_VX_MULT;
-        e.kbDecay      = attack.kb_vx_decay_lv6 ?? attack.kb_vx_decay ?? 0.78;
-        e.state       = STATE.down_super_start;
-        e.downTimer    = ENEMY_DOWN_SUPER_FRAMES;
-        // 飛行系突入カウンタ（2026-05-18）：2 回目発動で「壁スルー + 起き上がりまで完全無敵 + 自動 down_roll_start」
-        e.superFlightCount = (e.superFlightCount ?? 0) + 1;
-        if (e.superFlightCount >= 2) {
-          e.skipWallCollision     = true;
-          e.lateralCombatInvincible = true;
+        // 超吹き飛ばし回数上限チェック：FLIGHT_BURST_LIMIT 回到達で burst に置換（2026-05-20 統一）
+        const _nextSuperCount = (e.superFlightCount ?? 0) + 1;
+        if (_nextSuperCount >= FLIGHT_BURST_LIMIT) {
+          e.superFlightCount = _nextSuperCount;
+          triggerBurstState(e, facing);
+          combo.burstHudFrames = Infinity;
+          combo.burstHudRoute  = combo.aggregateRoute.slice();
+          combo.burstHudReason = 'flight_limit';
+          combo.burstHudSpBaseId = null;
+          combo.burstHudLoopLen = 0;
+        } else {
+          // 通常：超吹き飛ばし — 専用ステート down_super_start（地上/空中共用）
+          // 着地で down_roll_start、壁ヒットで down_wall_start に強制遷移
+          // 攻撃側で kb_vy_lv6 / kb_vx_mult_lv6 / kb_vx_decay_lv6 を上書き可能（lv6 専用）
+          // フォールバック：legacy 共通フィールド kb_vy / kb_vx_mult / kb_vx_decay → 既定 KB_LV06_*
+          e.vy           = attack.kb_vy_lv6 ?? attack.kb_vy ?? KB_LV06_VY;
+          e.knockbackVx *= attack.kb_vx_mult_lv6 ?? attack.kb_vx_mult ?? KB_LV06_VX_MULT;
+          e.kbDecay      = attack.kb_vx_decay_lv6 ?? attack.kb_vx_decay ?? 0.78;
+          e.state       = STATE.down_super_start;
+          e.downTimer    = ENEMY_DOWN_SUPER_FRAMES;
+          e.superFlightCount = _nextSuperCount;
         }
       } else if (lv === 5) {
         // 叩きつけ — 真下に高速落下、着地で 1回バウンド

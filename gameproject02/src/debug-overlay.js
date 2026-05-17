@@ -214,7 +214,8 @@ export function updateDebug() {
     if (combo.resetBannerFrames > 0) combo.resetBannerFrames--;
     const showReset  = combo.resetBannerFrames > 0;
     const showBurst  = !showReset && combo.burstHudFrames > 0
-      && (combo.burstHudReason === 'loop' || combo.burstHudReason === 'sp_dup');
+      && (combo.burstHudReason === 'loop' || combo.burstHudReason === 'sp_dup'
+          || combo.burstHudReason === 'flight_limit' || combo.burstHudReason === 'wall_limit');
     if (showReset) {
       if (_comboBurstBanner.textContent !== 'COMBO RESET') {
         _comboBurstBanner.textContent = 'COMBO RESET';

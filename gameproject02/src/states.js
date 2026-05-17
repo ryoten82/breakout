@@ -134,8 +134,8 @@ export const ENEMY_DOWN_SUPER_FRAMES    = 12;  // down_super_start イントロ
 export const ENEMY_WALL_START_FRAMES   = 30;  // down_wall_start（壁張り付き 0.5 秒 → 反作用バウンス・2026-05-18 15→30）
 // 壁張り付き終了時のバウンス（前方＝プレイヤー方向へ大きく飛び上がる・2026-05-18 追加）
 export const ENEMY_WALL_BOUNCE_VY      = 18;   // 上向き初速（強めに飛び上がる）
-export const ENEMY_WALL_BOUNCE_KB_VX   = 20;   // プレイヤー方向への水平速度
-export const ENEMY_WALL_BOUNCE_KB_DECAY = 0.96; // 緩減衰（遠くまで飛ぶ）
+export const ENEMY_WALL_BOUNCE_KB_VX   = 30;   // プレイヤー方向への最大水平速度（距離認識クランプ上限・2026-05-20 20→30）
+export const ENEMY_WALL_BOUNCE_KB_DECAY = 0.97; // 緩減衰（max 距離 ≈ KB_VX/0.03 ≈ 1000wu・2026-05-20 0.96→0.97）
 export const ENEMY_ROLL_START_FRAMES   = 15;  // down_roll_start（転がり開始イントロ・X 軸スピン・2026-05-18 12→15）
 export const ENEMY_ROLL_LOOP_FRAMES    = 30;  // down_roll_loop（転がり継続・ここを変えると総転がり時間調整・2026-05-18 18→30）
 // 転がり中の水平慣性：以前の super 飛行のキメ部分を引き継ぐイメージで仕込む（2026-05-18）
