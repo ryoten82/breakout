@@ -367,6 +367,80 @@ export const GORE_CONFIG = {
 };
 
 // ============================================================
+//  #section gore-critical — 必殺技/キャラ固有のフィニッシャー演出（2026-05-18 導入）
+//  仕様：spec-room/discussions/gore-critical.md
+//   - dying フロー突入時に 1 回だけ抽選（PROBABILITY）
+//   - キャラ profile の goreCriticalParts が残存 + canArmGoreCritical(e, ctx) が true で発火
+//   - 発火時は黒 fade/hold を bypass：強画ぶれ＋ヒットストップ → 赤発光 → 白光 → 爆散
+//   - キャラ拡張で爆散方向・追加 FX を上書き可能（criticalExplosionVariant）
+// ============================================================
+export const GORE_CRITICAL_CONFIG = {
+  PROBABILITY:             0.20,         // 内側抽選確率（テスト時は SB.GORE_CRITICAL_CONFIG.PROBABILITY = 1.0 で連続発火）
+  FREEZE_FRAMES:           18,           // 発火直後の hitstop（0.3 秒）
+  SHAKE_MAG:               22,           // 強画ぶれ振幅
+  SHAKE_FRAMES:            34,           // 画ぶれ持続
+  RED_COLOR:               [1.0, 0.05, 0.05],   // 真っ赤発光ターゲット
+  RED_LERP_FRAMES:         8,            // crit_freeze 終了後 N フレームで赤完了
+  RED_HOLD_FRAMES:         90,           // 赤維持時間（1.5 秒）
+  PREEXPLODE_WHITE_FRAMES: 6,            // 爆散直前の白フラッシュ
+  // キャラ拡張（toward_player バリアント）が参照する数値
+  TOWARD_PLAYER_VX:        32,           // パーツのプレイヤー方向 base 水平速度（オーバーシュート抑制）
+  TOWARD_PLAYER_VY:        18,           // 上向き初速（弧を描く）
+  TOWARD_PLAYER_JITTER:    8,            // パーツごとの ± ばらつき
+  TOWARD_PLAYER_GRAV_MULT: 1.0,          // クリ爆散パーツの重力倍率（1.0 = 通常 PART_GRAVITY 0.7 のまま）
+  TOWARD_PLAYER_AIR_DECAY: 0.97,         // 飛行中の水平減衰（毎フレーム）→ プレイヤー位置近くで失速
+  EXTRA_PARTICLE_COUNT:    28,           // プレイヤー方向の指向性パーティクル数
+  EXTRA_PARTICLE_COLOR:    0xff5522,     // 赤橙
+  // wall_blast_toward_player バリアント（METEO SP4/空中SP1 第一弾）
+  //   armed 当選時：通常 lv6 dispatch と同等の knockback で吹き飛ばす（ATTACKS テーブル参照）。
+  //   下の WALL_BLAST_* は未使用（廃止候補・互換のため残置）。
+  WALL_BLAST_KB_VX:        35,           // legacy 未使用
+  WALL_BLAST_KB_VY:        8,            // legacy 未使用
+  WALL_BLAST_KB_DECAY:     0.995,        // legacy 未使用
+  WALL_STICK_FRAMES:       60,           // 壁張り付き 1 秒 → 爆散
+  // 滞空延長：armed crit_fly 中の重力倍率（通常 PHYSICS.GRAVITY 0.7 × この値）
+  // 0.5 = 半減 → 斜め下叩きつけ（SP1_air vy=-10）でも見栄え滞空を確保
+  CRIT_FLY_GRAV_MULT:      0.5,
+};
+
+// ============================================================
+//  #section player-profile — プレイヤーキャラごとの拡張プロファイル
+//   - ゴア・クリティカルの発火条件・爆散バリアントなど、キャラ毎の挙動を集約
+//   - 敵側は e.lastHitter.profileKey でこの dict を引いて使う
+//   - 将来：チップ・OC で profile を mutate して挙動を変える運用も想定
+// ============================================================
+export const PLAYER_PROFILE = {
+  METEO: {
+    gore: {
+      // ゴア・クリティカル登録：ID（c01_gc_NN）ごとに定義
+      //   NN は被弾側の atk_lv に対応：03=後方吹き飛ばし / 04=打ち上げ / 05=叩きつけ / 06=超吹き飛ばし
+      //   1 ヒットの lv に応じて自動的に対応する variant が抽選対象になる
+      variants: {
+        'c01_gc_06': {
+          label:           '超吹き飛ばし（lv06）→ 壁/床 stick → プレイヤー方向爆散',
+          atk_lv:          6,            // この lv のヒットだけ抽選対象（atk_lv_air を含む実効 lv）
+          // killing hit 側のホワイトリスト（attackId）。指定 attackId 以外は不発
+          triggers:        (attackId) =>
+            attackId?.startsWith('c01_sp_04_') || attackId === 'c01_sp_01_air',
+          requiredParts:   ['body', 'head'],  // 上半身（胴体+頭）両方残存が条件（every）
+          explosionVariant:'wall_blast_toward_player',  // enemy-system 内ディスパッチキー
+        },
+        'c01_gc_03': {
+          label:           '後方吹き飛ばし（lv03）→ 即爆発 → 胴体/下半身が逆回転きりもみで後方へ',
+          atk_lv:          3,
+          triggers:        undefined,         // ホワイトリストなし（lv3 ヒットなら attackId 問わず）
+          requiredParts:   ['body'],          // 胴体残存のみが条件（地上/空中 問わず発火）
+          explosionVariant:'split_back_blast',
+        },
+        // 将来：
+        // 'c01_gc_04': { atk_lv: 4, ... },   // 打ち上げ用
+        // 'c01_gc_05': { atk_lv: 5, ... },   // 叩きつけ用
+      },
+    },
+  },
+};
+
+// ============================================================
 //  #section周辺 CONFIG（Step C-2 分離分）
 //  - CAM_CONFIG / PIXEL_SHADER / OUTLINE_CONFIG / CHARGE_*_CONFIG
 //  - COMBO_LEVELS / getComboLevel / SLOWMO / KEY_CONFIG
