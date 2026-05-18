@@ -317,7 +317,7 @@ export const GORE_CONFIG = {
   //   HOLD：dying 状態の総寿命（fade と独立・敵サイズで将来変動させる予定）
   //   両者は enterEnemyDying() 時に同時起動。dying 完了 = HOLD 満了。
   FADE_DURATION:  24,    // 黒くなるまで 0.4 秒（60F × 0.4）
-  HOLD_DURATION:  210,   // 真っ黒のまま 3.5 秒保持（60F × 3.5）→ その後消滅
+  HOLD_DURATION:  150,   // 真っ黒のまま 2.5 秒保持（60F × 2.5）→ その後消滅
   TARGET_COLOR:   0x000000,
 
   // === Phase 3-B：パーツ逐次分離（2026-05-20 改修：1 ヒット = 1 パーツ抽選）===
@@ -375,13 +375,13 @@ export const GORE_CONFIG = {
 //   - キャラ拡張で爆散方向・追加 FX を上書き可能（criticalExplosionVariant）
 // ============================================================
 export const GORE_CRITICAL_CONFIG = {
-  PROBABILITY:             0.20,         // 内側抽選確率（テスト時は SB.GORE_CRITICAL_CONFIG.PROBABILITY = 1.0 で連続発火）
+  PROBABILITY:             1.0,          // 【テスト中：常時発火】通常運用では 0.20 に戻す。SB.GORE_CRITICAL_CONFIG.PROBABILITY で実行時上書きも可
   FREEZE_FRAMES:           18,           // 発火直後の hitstop（0.3 秒）
   SHAKE_MAG:               22,           // 強画ぶれ振幅
   SHAKE_FRAMES:            34,           // 画ぶれ持続
   RED_COLOR:               [1.0, 0.05, 0.05],   // 真っ赤発光ターゲット
   RED_LERP_FRAMES:         8,            // crit_freeze 終了後 N フレームで赤完了
-  RED_HOLD_FRAMES:         90,           // 赤維持時間（1.5 秒）
+  RED_HOLD_FRAMES:         18,           // 赤維持時間（0.3 秒）— gc_03 等で使用
   PREEXPLODE_WHITE_FRAMES: 6,            // 爆散直前の白フラッシュ
   // キャラ拡張（toward_player バリアント）が参照する数値
   TOWARD_PLAYER_VX:        32,           // パーツのプレイヤー方向 base 水平速度（オーバーシュート抑制）
@@ -401,6 +401,28 @@ export const GORE_CRITICAL_CONFIG = {
   // 滞空延長：armed crit_fly 中の重力倍率（通常 PHYSICS.GRAVITY 0.7 × この値）
   // 0.5 = 半減 → 斜め下叩きつけ（SP1_air vy=-10）でも見栄え滞空を確保
   CRIT_FLY_GRAV_MULT:      0.5,
+  // head_launch_delayed バリアント（gc_04：上半身打ち上げ → 0.7 秒後爆発）
+  //   2026-05-19 改修：胴体から上（body+head+nose バンドル）が泣き別れて縦回転で上昇する方式に。
+  //   下半身（stand）は地面にそのまま残り、爆発時に消える。トレイルは廃止。
+  UPPER_LAUNCH_VY:         22,     // 上半身バンドルの上方初速（やや上に飛ぶ程度・以前 head 単体 45 だった所を抑制）
+  UPPER_LAUNCH_VX_JITTER:  3,      // バンドル水平ばらつき（±）
+  UPPER_LAUNCH_ANG_X:      0.45,   // X 軸まわりの縦回転速度（fallDir 方向に乗算）。プレイヤーから見て後ろに倒れ込むバク転
+  UPPER_LAUNCH_GRAV_MULT:  0.4,    // 重力 0.4 倍：vy=22 でもしばらく滞空、頂点が見える
+  LOWER_LAUNCH_VY:         14,     // 下半身（stand）の上方初速：上半身より控えめでゆっくり浮く
+  LOWER_LAUNCH_VX_JITTER:  2,
+  LOWER_LAUNCH_ANG_X:      0.18,   // 下半身の縦回転：控えめなふらつき程度
+  LOWER_LAUNCH_GRAV_MULT:  0.5,    // 上半身よりはやや早く落ちる
+  HEAD_LAUNCH_DELAY:       42,     // 約 0.7 秒（60fps × 0.7）後に爆発
+  HEAD_LAUNCH_BODY_KB_X:   80,     // 胴体（残った stand 含む e.mesh）を fallDir 方向に瞬間ノックバック（SP2 踏み込み重なり対策）
+  HEAD_LAUNCH_CAM_LIFT:    150,    // armed crit_head_fly 中のカメラ持ち上げ量（地面べた付き感の解消）
+  // slam_radial_split バリアント（gc_05：叩きつけ → 上半身放射分散 + 下半身突き刺し → 0.7 秒後爆発）
+  SLAM_DELAY:              42,     // 爆発までの待機（0.7 秒）
+  SLAM_RADIAL_SPEED:       16,     // 上半身パーツの放射速度（base）
+  SLAM_RADIAL_SPEED_JITTER: 4,     // 放射速度のばらつき（±）
+  SLAM_UP_SPREAD_DEG:      60,     // 上半身放射の上方扇形半角（垂直から ±60°）
+  SLAM_BODY_HORIZ_DEG:     30,     // body は上下幅広め（水平 ±30°）／head はより上向き
+  SLAM_STAND_STICK_Y:     -10,     // 下半身が地面にめり込む y 位置
+  SLAM_STAND_ROT_X:        Math.PI,  // 下半身を逆さま（rotation.x = π）にする
 };
 
 // ============================================================
@@ -426,15 +448,35 @@ export const PLAYER_PROFILE = {
           explosionVariant:'wall_blast_toward_player',  // enemy-system 内ディスパッチキー
         },
         'c01_gc_03': {
-          label:           '後方吹き飛ばし（lv03）→ 即爆発 → 胴体/下半身が逆回転きりもみで後方へ',
+          label:           '後方吹き飛ばし（lv03）→ 赤発光 → 胴体/下半身が逆回転きりもみで後方へ',
           atk_lv:          3,
-          triggers:        undefined,         // ホワイトリストなし（lv3 ヒットなら attackId 問わず）
+          // 必殺技限定（c01_sp_*）：通常 J コンボの c01_atk_04 が atk_lv_air=3 を持つため、
+          //   triggers 未指定だと J 連打中に発火していた（2026-05-19 修正）
+          //   ULT（c01_sp_ult01）は atk_lv=3 だが演出が衝突するため除外（2026-05-19 ユーザー指示）
+          triggers:        (attackId) =>
+            attackId?.startsWith('c01_sp_') && attackId !== 'c01_sp_ult01',
           requiredParts:   ['body'],          // 胴体残存のみが条件（地上/空中 問わず発火）
           explosionVariant:'split_back_blast',
+          freezeFrames:    8,                  // hitstop 抑制（標準 18F → 8F）
         },
-        // 将来：
-        // 'c01_gc_04': { atk_lv: 4, ... },   // 打ち上げ用
-        // 'c01_gc_05': { atk_lv: 5, ... },   // 叩きつけ用
+        'c01_gc_04': {
+          label:           '上半身打ち上げ（lv04）→ 胴体から上がまとめて縦回転で上昇 → 0.7 秒後爆発',
+          atk_lv:          4,
+          triggers:        undefined,         // ホワイトリストなし（lv4 ヒットなら attackId 問わず）
+          requiredParts:   ['body'],          // 胴体残存が条件（バンドル分離するため body が必須）
+          requireGrounded: true,              // 地上敵のみ（空中敵は除外）
+          explosionVariant:'head_launch_delayed',
+        },
+        'c01_gc_05': {
+          label:           '叩きつけ（lv05）→ 上半身放射分散 + 下半身突き刺し → 0.7 秒後爆発',
+          atk_lv:          5,
+          // 必殺技限定（c01_sp_*）：派生技 c01_add_03（↓J 払い）が atk_lv_air=5 を持つため、
+          //   triggers 未指定だと空中ヒットで gc_05 が誤発火していた（2026-05-19 修正）
+          triggers:        (attackId) => attackId?.startsWith('c01_sp_'),
+          requiredParts:   ['body'],          // 胴体残存が必須
+          // requireGrounded なし：地上/空中問わず発火（実装側で y=0 に強制 slam）
+          explosionVariant:'slam_radial_split',
+        },
       },
     },
   },

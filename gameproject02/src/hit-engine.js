@@ -157,8 +157,10 @@ export function bumpCombo(hitEnemy) {
   // また、コンボ継続中でも comboTarget が解除済（距離超過・反対入力で null になった等）
   // のプレイヤーには今ヒットした敵を再ロックする。これにより mega/ULT 等の AoE 攻撃が
   // ターゲット復活のチャンスになり、ヒット後の追撃ホーミングが効きやすくなる（2026-05-16）。
+  // ただしゴアクリ armed 中の敵は再ロック対象外（追撃禁止・2026-05-18）。
+  const _armed = hitEnemy && hitEnemy.goreCritical && hitEnemy.goreCritical.armed;
   for (const pp of _players) {
-    if (!pp.comboTarget) {
+    if (!pp.comboTarget && !_armed) {
       pp.comboTarget = hitEnemy;
       pp.oppositeInputFrames = 0;
     }
@@ -252,6 +254,10 @@ export const fxState = {
   shakeStrength: 0,
   shakeOffsetX: 0,
   shakeOffsetY: 0,
+  // カメラ Y リフト：armed gc_04 等で「画面を上に持ち上げる」演出用。
+  // enemy-system が毎フレーム加算して push、camera 側はこれを camFollowY のターゲットに反映して
+  // フレーム末で 0 に戻す（per-frame transient）。
+  camYLift: 0,
 };
 
 export function triggerHitstop(frames) {
@@ -274,6 +280,31 @@ let _PARTICLE_GEOM = null;
 function _getParticleGeom() {
   if (!_PARTICLE_GEOM && _THREE) _PARTICLE_GEOM = new _THREE.BoxGeometry(7, 7, 7);
   return _PARTICLE_GEOM;
+}
+
+// 縦長 BoxGeometry をキャッシュ（spawnTrailDot 用：「線状トレイル」の見た目）
+//   通常の 7x7x7 cube だと頭の vy 速度に追従する間に伸びる軌跡が「点線」「血チャンク」っぽくしか見えない
+//   3 x 36 x 3 の細長 box にすることで各粒子が薄い縦ストリーク → 連続して滑らかな尾を引く
+let _TRAIL_GEOM = null;
+function _getTrailGeom() {
+  if (!_TRAIL_GEOM && _THREE) _TRAIL_GEOM = new _THREE.BoxGeometry(3, 36, 3);
+  return _TRAIL_GEOM;
+}
+
+// ============================================================
+//  ゴア・クリティカル用「血しぶき感のないクリーン トレイル粒子」
+//   - 散らばらず指定 vy だけ持つ縦長粒子を 1 つ push
+//   - 飛翔オブジェクト（頭部 等）の vy より少し遅い vy を渡すと、後方に置き去りになる
+//   - 既存 updateParticles の管理に乗る（gravity -0.7 / 寿命減衰）
+// ============================================================
+export function spawnTrailDot(x, y, z, color, vy, life, sizeScale = 1.5) {
+  const geom = _getTrailGeom();
+  const mat = new _THREE.MeshBasicMaterial({ color });
+  const mesh = new _THREE.Mesh(geom, mat);
+  mesh.position.set(x, y, z);
+  mesh.scale.setScalar(sizeScale);
+  _scene.add(mesh);
+  particles.push({ mesh, vx: 0, vy, vz: 0, life, initSize: sizeScale });
 }
 
 // opts.type : 'normal'(攻撃方向放射) | 'launch'(Y軸上方) | 'slam'(叩きつけ放射) | 'omni'(全方向・旧来)
@@ -542,7 +573,9 @@ export function tryHitEnemies(p, attack, ctx) {
     const _hitLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
       ? attack.atk_lv_air
       : (attack.atk_lv ?? 1);
-    e.lastHitter = { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: _hitLv };
+    // wasGrounded：被弾"前"の接地状態を記録（gc 抽選の requireGrounded 判定で使用）。
+    //   この時点ではまだ攻撃の vy/knockback が dispatch されてないので、ここで取れば「打ち上げ前」の値が取れる。
+    e.lastHitter = { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: _hitLv, wasGrounded: e.y <= ENEMY_AIRBORNE_Y_THRESHOLD };
     // Phase 3-B：dying 中の追加処理（黒オイル + 抽選で 1 パーツ分離 / ゴアクリ抽選）
     if (e.dying) {
       handleEnemyDyingHit(e, e.x, e.y + 60, e.z, p.facing);
@@ -968,6 +1001,8 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
   for (const e of enemies) {
     if (!e.isAlive) continue;
     if (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop) continue;
+    // dyingInvincible（ゴア・クリティカル armed 等）は中間ヒット対象外（追撃禁止・2026-05-18）
+    if (e.dyingInvincible) continue;
     // 同一敵への hitInterval ガード
     const nextHitFrame = p.multiHitNextHit.get(e) ?? -Infinity;
     if (gameFrame < nextHitFrame) continue;
@@ -1003,7 +1038,7 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     const _midLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
       ? attack.atk_lv_air
       : (attack.atk_lv ?? 1);
-    e.lastHitter = { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: _midLv };
+    e.lastHitter = { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: _midLv, wasGrounded: e.y <= ENEMY_AIRBORNE_Y_THRESHOLD };
     // dying 中の中間ヒット：ゴアクリ抽選も回す（仕様：完全消滅まで毎ヒット抽選）
     if (e.dying) {
       handleEnemyDyingHit(e, e.x, e.y + 60, e.z, p.facing);
@@ -1102,6 +1137,8 @@ export function tryThrownChainHit(thrower, ctx) {
   for (const other of enemies) {
     if (other === thrower) continue;
     if (!other.isAlive || other.frozenByUlt) continue;
+    // ゴア・クリティカル armed 中は完全無敵：投擲チェーンの巻き込みも弾く
+    if (other.goreCritical && other.goreCritical.armed) continue;
     if (other.state === STATE.grabbed) continue;
     // ダウン中・既に吹き飛び中の敵は対象外（巻き込みすぎ防止）
     if (other.state === STATE.down_front_start || other.state === STATE.down_front_loop ||
@@ -1123,7 +1160,7 @@ export function tryThrownChainHit(thrower, ctx) {
     // 受け手：投げ手と同方向に吹き飛び
     other.hp = Math.max(0, other.hp - THROW_CHAIN_CONFIG.damage);
     // 投げ手 (thrower) の最終ヒッター情報を継承（chain death の attribute 用）
-    other.lastHitter = { attackId: 'c01_thrown_chain', profileKey: 'METEO', facing: thrower.thrownDir, lv: 3 };
+    other.lastHitter = { attackId: 'c01_thrown_chain', profileKey: 'METEO', facing: thrower.thrownDir, lv: 3, wasGrounded: other.y <= ENEMY_AIRBORNE_Y_THRESHOLD };
     other.hitFlashTimer = 7;
     other.fallDir       = dir;
     other.vy            = THROW_CHAIN_CONFIG.kbVy;

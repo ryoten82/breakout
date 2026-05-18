@@ -691,6 +691,8 @@ export function triggerMegaCrash(p) {
     if (!e.isAlive) continue;
     // ULT 由来の burst-down 中は完全無敵：メガクラも受け付けない（起き上がりまで）
     if (e.ultBurstInvincible) continue;
+    // ゴア・クリティカル armed 中は完全無敵：メガクラ AoE でも割り込めない（2026-05-18 仕様）
+    if (e.goreCritical && e.goreCritical.armed) continue;
     // 飛行系再突入の lateralCombatInvincible は**メガクラでリセット**（根幹思想：mega = コンボリセット）
     //   2026-05-18：mega が当たれば down_super/wall の 2 回目無敵状態を解除し、再度コンボ可能に。
     //   フラグだけクリアして dispatch には進ませない（敵のトラジェクトリは温存）。
@@ -708,7 +710,7 @@ export function triggerMegaCrash(p) {
     // ダメージ適用
     e.hp = Math.max(0, e.hp - attack.damage);
     // 最終ヒッター記録（ゴアクリ抽選で参照・メガクラ killing hit でも attribute される）
-    e.lastHitter = { attackId: 'c01_sp_mega01', profileKey: 'METEO', facing: p.facing, lv: attack.atk_lv ?? 1 };
+    e.lastHitter = { attackId: 'c01_sp_mega01', profileKey: 'METEO', facing: p.facing, lv: attack.atk_lv ?? 1, wasGrounded: e.y <= ENEMY_AIRBORNE_Y_THRESHOLD };
     e.hitFlashTimer = 7;
     e.frozenByUlt   = false;  // ULT 凍結解除（メガクラを ULT 中に発動した場合の安全側）
     // 外向きノックバック方向（プレイヤー中心からの dx 符号）
@@ -898,6 +900,9 @@ export function tryGrabActivate(p) {
   if (!p._grabReady) return;
   for (const e of _enemies) {
     if (!e.isAlive)                       continue;
+    // 死亡フロー中（パーツ分離・爆発待ち）は掴ませない。armed gc 含む（2026-05-19 修正）
+    if (e.dying)                          continue;
+    if (e.dyingInvincible)                continue;
     // === 敵の被掴み可状態 ===
     // - wait01：立ち/歩き（意思はあるがまだ攻撃モーションに入っていない）
     // - enemy_attacking かつ atkPhase === 'wind'：カウントダウン中（攻撃意思を見せている段階）
@@ -1029,7 +1034,7 @@ export function processGrabInput(p) {
 
 export function executeGrabPunch(p, e) {
   e.hp = Math.max(0, e.hp - GRAB_CONFIG.PUNCH_DAMAGE);
-  e.lastHitter = { attackId: 'c01_grab_punch', profileKey: 'METEO', facing: p.facing, lv: 0 };
+  e.lastHitter = { attackId: 'c01_grab_punch', profileKey: 'METEO', facing: p.facing, lv: 0, wasGrounded: true };
   e.hitFlashTimer = 7;
   spawnHitParticles(e.x, e.y + 80, e.z, 0xffee44, 8,
     { type: 'normal', dirX: p.facing, dirZ: 0 });
@@ -1044,7 +1049,7 @@ export function executeGrabPunch(p, e) {
 
 export function executeGrabThrow(p, e, dir) {
   e.hp = Math.max(0, e.hp - GRAB_CONFIG.THROW_DAMAGE);
-  e.lastHitter = { attackId: 'c01_grab_throw', profileKey: 'METEO', facing: p.facing, lv: 3 };
+  e.lastHitter = { attackId: 'c01_grab_throw', profileKey: 'METEO', facing: p.facing, lv: 3, wasGrounded: false };
   e.hitFlashTimer = 7;
   e.fallDir       = dir;
   // 投げ初速：通常 lv03 より上に持ち上げてから飛ばす（打ち上げ気味）

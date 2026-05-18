@@ -259,6 +259,13 @@ export function updateCamera() {
   } else {
     targetCamY = 0;            // デッドゾーン内：camera は地上ベース
   }
+  // 外部リフト（armed gc_04 等）：fxState.camYLift があれば target を底上げ。
+  //   targetCamY が 0 でもこれによってカメラが上に持ち上がる → 「ベタ付き」感を解消
+  //   このフレームの末尾で 0 に戻す → 設定側（enemy-system）が毎フレーム再設定しないと自動で下がる
+  if (fxState.camYLift > 0) {
+    targetCamY = Math.max(targetCamY, fxState.camYLift);
+  }
+  fxState.camYLift = 0;
   // 線形定速で target へ追従（上下とも一定速 10wu/F）
   // 重力加速を camera に持ち込まない（target が p.y に追従する性質上、step を遅くすることで
   // 「camera 側の加速感」を構造的に出さない設計）。プレイヤーは画面内で多少動く

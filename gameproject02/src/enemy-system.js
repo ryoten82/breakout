@@ -41,7 +41,7 @@ import {
   KB_LV06_VY, KB_LV06_VX_MULT,
 } from './states.js';
 import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE } from './config.js';
-import { spawnHitParticles, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion } from './hit-engine.js';
+import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, fxState } from './hit-engine.js';
 import { ATTACKS } from './attacks.js';
 import { isHitstunState, tryHitPlayer } from './damage-system.js';
 import { getActiveWallX } from './camera.js';
@@ -338,6 +338,13 @@ function _maybeArmGoreCritical(e) {
       if (DBG) console.log(`[GORECRIT] ${gcId} skip: parts not attached`, partsAttached);
       continue;
     }
+    // requireGrounded（被弾時に接地していた敵限定・打ち上げ系攻撃のために hit 時点の grounded を参照）
+    //   現フレームの e.y は既に打ち上げ vy が適用された値（空中）になっているため使えない。
+    //   hit-engine 側で「dispatch 前の e.y」を lastHitter.wasGrounded に記録してくれている。
+    if (v.requireGrounded && e.lastHitter.wasGrounded !== true) {
+      if (DBG) console.log(`[GORECRIT] ${gcId} skip: requireGrounded but wasGrounded=${e.lastHitter.wasGrounded}`);
+      continue;
+    }
     // 確率
     const roll = Math.random();
     if (roll >= GORE_CRITICAL_CONFIG.PROBABILITY) {
@@ -348,7 +355,8 @@ function _maybeArmGoreCritical(e) {
     // 当選
     e.goreCritical = _buildGoreCriticalState(e, profile, v, gcId);
     _setupArmedKinematics(e, v.explosionVariant);
-    _kickGoreCriticalFx();
+    // variant.freezeFrames が指定されていれば優先（gc_03 等で hitstop を抑えたい時用）
+    _kickGoreCriticalFx(v.freezeFrames);
     return;
   }
 }
@@ -356,6 +364,26 @@ function _maybeArmGoreCritical(e) {
 // 抽選当選時に goreCritical オブジェクトを組み立てる
 function _buildGoreCriticalState(e, profile, variantDef, gcId) {
   const explosionVariant = variantDef.explosionVariant || 'toward_player';
+  // phase 初期値（variant 別）：
+  //   wall_blast_toward_player → 'crit_fly'（壁/床到達まで飛行・赤発光継続）
+  //   head_launch_delayed       → 'crit_head_fly'（頭部打ち上げ + 胴体スタン・HEAD_LAUNCH_DELAY 待機後爆発）
+  //   slam_radial_split         → 'crit_slam_stick'（上半身放射 + 下半身突き刺し・SLAM_DELAY 待機後爆発）
+  //   split_back_blast / toward_player / その他 → 'crit_red'（その場で赤発光 → 白 → 爆散）
+  //   ※ 2026-05-18：赤発光をゴアクリの基本仕様に格上げ。split_back_blast も crit_red 経路に統合。
+  let phase, timer;
+  if (explosionVariant === 'wall_blast_toward_player') {
+    phase = 'crit_fly';
+    timer = GORE_CRITICAL_CONFIG.RED_LERP_FRAMES + GORE_CRITICAL_CONFIG.RED_HOLD_FRAMES;
+  } else if (explosionVariant === 'head_launch_delayed') {
+    phase = 'crit_head_fly';
+    timer = GORE_CRITICAL_CONFIG.HEAD_LAUNCH_DELAY;
+  } else if (explosionVariant === 'slam_radial_split') {
+    phase = 'crit_slam_stick';
+    timer = GORE_CRITICAL_CONFIG.SLAM_DELAY;
+  } else {
+    phase = 'crit_red';
+    timer = GORE_CRITICAL_CONFIG.RED_LERP_FRAMES + GORE_CRITICAL_CONFIG.RED_HOLD_FRAMES;
+  }
   return {
     armed:   true,
     id:      gcId,                  // c01_gc_06 等の一意識別子
@@ -363,21 +391,18 @@ function _buildGoreCriticalState(e, profile, variantDef, gcId) {
     variantDef,
     variant: explosionVariant,      // 既存の dispatch キー（後方互換）
     hitter:  { ...e.lastHitter },
-    // phase 初期値（variant 別）：
-    //   wall_blast_toward_player → 'crit_fly'（壁/床到達まで飛行・赤発光継続）
-    //   split_back_blast          → 'crit_explode'（hitstop 明けで即爆発・赤発光なし）
-    //   toward_player（その他）   → 'crit_red'（その場で赤発光 → 白 → 爆散）
-    phase:   explosionVariant === 'wall_blast_toward_player' ? 'crit_fly'
-           : explosionVariant === 'split_back_blast'         ? 'crit_explode'
-           : 'crit_red',
-    timer:   GORE_CRITICAL_CONFIG.RED_LERP_FRAMES + GORE_CRITICAL_CONFIG.RED_HOLD_FRAMES,
+    phase,
+    timer,
     redLerpRemaining: GORE_CRITICAL_CONFIG.RED_LERP_FRAMES,
   };
 }
 
 // armed 共通の FX キック（hitstop + shake）
-function _kickGoreCriticalFx() {
-  triggerHitstop(GORE_CRITICAL_CONFIG.FREEZE_FRAMES);
+function _kickGoreCriticalFx(freezeFramesOverride) {
+  const fz = (freezeFramesOverride !== undefined)
+    ? freezeFramesOverride
+    : GORE_CRITICAL_CONFIG.FREEZE_FRAMES;
+  triggerHitstop(fz);
   triggerShake(GORE_CRITICAL_CONFIG.SHAKE_MAG, GORE_CRITICAL_CONFIG.SHAKE_FRAMES);
 }
 
@@ -438,6 +463,145 @@ function _setupArmedKinematics(e, variant) {
     e.pitchAngle = 0;
     e.downTimer = 0;
     e.state = STATE.wait01;
+  } else if (variant === 'head_launch_delayed') {
+    // gc_04：上半身（body+head+nose バンドル）が泣き別れて縦回転で上に吹き飛ぶ。
+    //   2026-05-19 仕様変更：旧「頭だけ画面外突き抜け＋トレイル」→ 新「上半身バンドル＋やや上に飛ぶ」。
+    //   下半身（stand）は e.mesh に残ったまま地上に居続け、爆発時に一緒に消える。
+    //   順序：
+    //     (1) 胴体 KB（1 キャラ分プレイヤーから離す）
+    //     (2) mesh.position を新 e.x へ同期 + matrixWorld 更新
+    //     (3) _detachBodyBundleNoExplode で body+head+nose を独立化 → velocity 上書き
+    let dir = e.fallDir;
+    if (dir !== 1 && dir !== -1) dir = (e.lastHitter && e.lastHitter.facing) || 1;
+    e.x += dir * GORE_CRITICAL_CONFIG.HEAD_LAUNCH_BODY_KB_X;
+    e.knockbackVx = 0;
+    e.knockbackVz = 0;
+    e.vy = 0;                 // 残った下半身（stand）は地面に静止
+    e.y = 0;
+    e.launcherAirborne = false;
+    if (e.mesh) {
+      e.mesh.position.x = e.x;
+      e.mesh.position.y = e.y;
+      e.mesh.position.z = e.z;
+      e.mesh.updateMatrixWorld(true);
+    }
+    e.burstSpinRate = 0;
+    e.burstGravMult = 0;
+    e.burstRollAngle = 0;
+    e.tiltAngle = 0;
+    e.pitchAngle = 0;
+    e.downTimer = 0;
+    e.state = STATE.wait01;   // 下半身は無動。armed gate で AI/state machine を全凍結
+    const cfg = GORE_CRITICAL_CONFIG;
+    // === 上半身バンドル分離 + やや上に縦回転で吹き飛ばし ===
+    const bundleName = _detachBodyBundleNoExplode(e, dir);
+    if (bundleName && e.flyingParts && e.flyingParts.length > 0) {
+      const fp = e.flyingParts[e.flyingParts.length - 1];
+      fp.vx = (Math.random() - 0.5) * 2 * cfg.UPPER_LAUNCH_VX_JITTER;
+      fp.vy = cfg.UPPER_LAUNCH_VY;          // 正＝上向き・抑えめでやや上に
+      fp.vz = 0;
+      // 「アッパーの勢いを殺せずに後ろへ倒れ込みながら舞う」回転。
+      // 回転軸 = 世界 Z 軸（奥行き）。body の Y 軸（直立）が自機反対側に倒れ込む方向に回す。
+      // 世界 X 軸クォータニオンだとカメラ 20° 俯瞰の関係で「側転」に見えた（過去試行）→ Z 軸に変更。
+      fp.angVx = 0;
+      fp.angVy = 0;
+      fp.angVz = 0;
+      fp._worldAxisRot   = new _THREE_REF.Vector3(0, 0, 1);    // 世界 Z 軸（奥行き軸）
+      fp._worldAxisSpeed = -dir * cfg.UPPER_LAUNCH_ANG_X;      // 符号反転：fallDir 方向（プレイヤーの反対）に頭が倒れる
+      fp._critGravMult = cfg.UPPER_LAUNCH_GRAV_MULT;
+      fp._critAirDecay = 1.0;
+      // 赤発光：_detachBodyBundleNoExplode が unlit 黒にしているので塗り直し
+      for (const mat of (fp._materials || [])) {
+        if (mat && mat.color) mat.color.setRGB(1, 0.05, 0.05);
+      }
+    }
+    // 下半身（stand）も浮かせる：上半身より控えめな vy + 弱い縦回転で「両半身とも空中で爆散」の絵に。
+    const standName2 = _detachOneNamed(e, 'stand', null);
+    if (standName2 && e.flyingParts && e.flyingParts.length > 0) {
+      const sp = e.flyingParts[e.flyingParts.length - 1];
+      sp.vx = (Math.random() - 0.5) * 2 * cfg.LOWER_LAUNCH_VX_JITTER;
+      sp.vy = cfg.LOWER_LAUNCH_VY;
+      sp.vz = 0;
+      sp.angVx = 0;
+      sp.angVy = 0;
+      sp.angVz = 0;
+      sp._critGravMult = cfg.LOWER_LAUNCH_GRAV_MULT;
+      sp._critAirDecay = 1.0;
+      sp._worldAxisRot   = new _THREE_REF.Vector3(0, 0, 1);
+      sp._worldAxisSpeed = -dir * cfg.LOWER_LAUNCH_ANG_X;
+      for (const mat of (sp._materials || [])) {
+        if (mat && mat.color) mat.color.setRGB(1, 0.05, 0.05);
+      }
+    }
+  } else if (variant === 'slam_radial_split') {
+    // gc_05：叩きつけ → 上半身（head + body）を放射状に分散 / 下半身（stand）を逆さま地面突き刺し
+    //   要件：地上/空中問わず発動 → e.y を 0 に強制（地面叩きつけ感）。
+    //   _detachOneNamed で各パーツを独立化し、velocity を上書きする方式（gc_03 と同パターン）。
+    e.knockbackVx = 0;
+    e.knockbackVz = 0;
+    e.vy = 0;
+    e.y = 0;                    // 空中ヒットでも地面に「叩きつけ」感を出すため強制 0
+    e.launcherAirborne = false;
+    e.burstSpinRate = 0;
+    e.burstGravMult = 0;
+    e.burstRollAngle = 0;
+    e.tiltAngle = 0;
+    e.pitchAngle = 0;
+    e.downTimer = 0;
+    e.state = STATE.wait01;
+    // mesh.position 同期（detach の getWorldPosition 用）
+    if (e.mesh) {
+      e.mesh.position.x = e.x;
+      e.mesh.position.y = e.y;
+      e.mesh.position.z = e.z;
+      e.mesh.updateMatrixWorld(true);
+    }
+    const cfg = GORE_CRITICAL_CONFIG;
+    const deg2rad = Math.PI / 180;
+    // 上半身放射：head（+nose subPart）と body をそれぞれ別方向に飛ばす
+    //   head は上向き偏重、body は水平～斜め上のばらつき大きめ
+    const _spawnRadial = (name, baseDeg, spreadDeg) => {
+      const dName = _detachOneNamed(e, name, null);
+      if (!dName || !e.flyingParts || e.flyingParts.length === 0) return;
+      const fp = e.flyingParts[e.flyingParts.length - 1];
+      // 垂直軸（+y 方向）から baseDeg ± spreadDeg の範囲で角度を引く
+      // 左右どちらに飛ぶかはランダム（半数ずつ程度に散らす）
+      const sign = Math.random() < 0.5 ? -1 : 1;
+      const ang = (baseDeg + (Math.random() * 2 - 1) * spreadDeg) * deg2rad;
+      const speed = cfg.SLAM_RADIAL_SPEED + (Math.random() * 2 - 1) * cfg.SLAM_RADIAL_SPEED_JITTER;
+      fp.vx = sign * Math.sin(ang) * speed;
+      fp.vy = Math.cos(ang) * speed;
+      fp.vz = (Math.random() - 0.5) * 4;
+      fp.angVx = (Math.random() - 0.5) * 0.6;
+      fp.angVy = (Math.random() - 0.5) * 0.6;
+      fp.angVz = (Math.random() - 0.5) * 0.6;
+      // 赤発光：_detachOneNamed が unlit 黒に上書きしているので赤に塗り直し
+      for (const mat of (fp._materials || [])) {
+        if (mat && mat.color) mat.color.setRGB(1, 0.05, 0.05);
+      }
+    };
+    // head：垂直から ±60° 扇形（より上向き）
+    _spawnRadial('head', 30, cfg.SLAM_UP_SPREAD_DEG);
+    // body：垂直から ±90°（水平方向にも開く）
+    _spawnRadial('body', 60, cfg.SLAM_BODY_HORIZ_DEG);
+    // 下半身（stand）：逆さまにして地面にめり込ませる
+    const standName = _detachOneNamed(e, 'stand', null);
+    if (standName && e.flyingParts && e.flyingParts.length > 0) {
+      const sp = e.flyingParts[e.flyingParts.length - 1];
+      sp.vx = 0; sp.vy = 0; sp.vz = 0;
+      sp.angVx = 0; sp.angVy = 0; sp.angVz = 0;
+      sp._critGravMult = 0;       // 重力 OFF（地面に固定）
+      sp.y = cfg.SLAM_STAND_STICK_Y;   // めり込み量
+      // mesh 位置 + 逆さま回転を即時反映
+      if (sp.mesh) {
+        sp.mesh.position.set(sp.x, sp.y, sp.z);
+        sp.mesh.rotation.x = cfg.SLAM_STAND_ROT_X;
+      }
+      // 赤発光
+      for (const mat of (sp._materials || [])) {
+        if (mat && mat.color) mat.color.setRGB(1, 0.05, 0.05);
+      }
+    }
   } else {
     // toward_player：その場で直立赤発光 → 白 → 爆散
     e.knockbackVx = 0;
@@ -547,12 +711,14 @@ export function detachOnePart(e, hitFacing) {
     return m && m.parent === e.mesh;
   });
   if (attachedNames.length === 0) return null;
-  const pickedName = attachedNames[Math.floor(Math.random() * attachedNames.length)];
+  // 胴体は最後に飛ぶ：head/stand 等が残っている間は body を抽選対象から除外。
+  //   gs（gore-scrap）では「胴体ぶった切り」は gc に譲り、通常死亡では body 分離 = 最終フィニッシュ。
+  //   2026-05-19 ユーザー指示：パーツ抽選優先順位変更。
+  const nonBodyNames = attachedNames.filter(n => n !== 'body');
+  const candidatePool = nonBodyNames.length > 0 ? nonBodyNames : attachedNames;
+  const pickedName = candidatePool[Math.floor(Math.random() * candidatePool.length)];
 
-  // Phase 3-B（2026-05-20）：胴体抽選 → 上半身（body + head + nose）を
-  //   **connected silhouette のまま** 1 つのバンドルとして分離（親子関係保持）
-  //   仕様（ユーザー指示・画像参照）：上半身の各パーツは保持したまま、まとまった輪郭で飛ぶ
-  //   実装：head + nose を body の子に reparent（world 座標保持）→ body 全体を flying part として scene 直下化
+  // body 抽選成立 = 残っているのが body だけ → 上半身バンドル分離（フラッシュ → 爆発の final シーケンスへ）
   if (pickedName === 'body') {
     return _detachBodyBundle(e, hitFacing);
   }
@@ -610,8 +776,16 @@ function _detachBodyBundle(e, hitFacing) {
     angVz: (Math.random() - 0.5) * 0.3,
     _materials: bundleMaterials,    // フェード時にまとめて opacity 操作
   });
-  // 残り（stand）を爆散 + 本体 mesh 除去 + 共用爆発
-  _triggerFinalExplosion(e);
+  // 残り（stand）を「白フラッシュ → 爆散」の通常 final シーケンスに乗せる：
+  //   旧コードは即 _triggerFinalExplosion で爆発させていたため、白フラッシュ window が
+  //   発生せず "白光せずに爆ぜる" バグになっていた（2026-05-19 修正）。
+  //   タイマー = PREEXPLODE_FLASH_FRAMES + 余白 → _updateDyingTimers の final 経路で
+  //   フラッシュ → 爆発の流れに合流する。
+  e.dyingPhase     = 'final';
+  e.dyingFinalTimer = GORE_CONFIG.PREEXPLODE_FLASH_FRAMES + 2;
+  e.dyingHoldTimer  = 0;
+  e.dyingFadeTimer  = 0;
+  e.dyingInvincible = true;
   return 'body+upper';
 }
 
@@ -719,9 +893,18 @@ function _updateFlyingParts(e) {
     }
     // mesh 位置反映
     p.mesh.position.set(p.x, p.y, p.z);
-    p.mesh.rotation.x += p.angVx;
-    p.mesh.rotation.y += p.angVy;
-    p.mesh.rotation.z += p.angVz;
+    // 通常は Euler 軸毎の加算。_worldAxisRot が指定されてる時はその軸まわりにクォータニオン回転で世界軸固定。
+    //   bundle が rotation.y=±π/2（facing）を持っている時、p.angVx を Euler で加算すると
+    //   local X 軸 = world Z 軸方向への回転になってしまい、見た目が "奥に倒れ込む" になる。
+    //   gc_04 の上半身バンドルでは _worldAxisRot を指定して常に世界 X 軸まわりに回す。
+    if (p._worldAxisRot && _THREE_REF) {
+      const q = new _THREE_REF.Quaternion().setFromAxisAngle(p._worldAxisRot, p._worldAxisSpeed || 0);
+      p.mesh.quaternion.premultiply(q);
+    } else {
+      p.mesh.rotation.x += p.angVx;
+      p.mesh.rotation.y += p.angVy;
+      p.mesh.rotation.z += p.angVz;
+    }
     // 第二着地（settled）後フェードタイマー：バウンド中はフルオパシティ、settled で 0.3s フェード
     if (p.settled) {
       p.fadeTimer--;
@@ -751,7 +934,12 @@ function _updateFlyingParts(e) {
     alive.push(p);
   }
   e.flyingParts = alive;
-  if (alive.length === 0) {
+  // 注：flyingParts が空になっても e.dyingPhase==='exploded' でない限り removed を立てない。
+  //   旧コードは phase 不問で removed=true にしていたため、「ヒットで head/stand を分離
+  //   → 残った body 抽選前に flying parts が fade → 本体が爆発せず消滅」というバグになっていた
+  //   （HOLD タイマー自動 final 経路に到達する前に消える・2026-05-19 修正）。
+  //   final 経路の自動爆発まで残すには、phase==='exploded' を removed の必須条件にする。
+  if (alive.length === 0 && e.dyingPhase === 'exploded') {
     e.removed = true;
     e.isAlive = false;
   }
@@ -893,7 +1081,9 @@ function _enterDyingFinal(e, ctx) {
 function _triggerFinalExplosion(e) {
   // ゴア・クリティカル armed：キャラ拡張バリアントで方向・追加 FX を上書き
   if (e.goreCritical && e.goreCritical.armed) {
-    const variant = e.goreCritical.profile && e.goreCritical.profile.criticalExplosionVariant;
+    // variant は goreCritical 自身に格納されている値を使う（旧コードは profile.criticalExplosionVariant
+    // を見ていたがそのフィールドは未定義で fallback ばかり走っていた・2026-05-18 修正）
+    const variant = e.goreCritical.variant;
     // variant 別の爆散ディスパッチ
     if (variant === 'toward_player' || variant === 'wall_blast_toward_player') {
       // どちらも attached parts をプレイヤー方向へ弾く
@@ -902,6 +1092,27 @@ function _triggerFinalExplosion(e) {
     } else if (variant === 'split_back_blast') {
       // 胴体バンドル（body+head+nose）と下半身（stand）を分裂・逆回転で後方へ
       _explodeSplitBackBlast(e);
+    } else if (variant === 'head_launch_delayed') {
+      // gc_04：頭は既に flyingParts として上空 / 画面外。胴体側 mesh を削除して共用爆発を地上で発火。
+      //   飛行中の頭部 part も同時に scene から削除（爆発と同時に消失）。
+      if (e.mesh && e.mesh.parent) e.mesh.parent.remove(e.mesh);
+      spawnDeathExplosion(e.x, e.y + 80, e.z);
+      if (e.flyingParts) {
+        for (const fp of e.flyingParts) {
+          if (fp.mesh && fp.mesh.parent) fp.mesh.parent.remove(fp.mesh);
+        }
+        e.flyingParts = [];
+      }
+    } else if (variant === 'slam_radial_split') {
+      // gc_05：上半身パーツは放射飛行中・下半身は地面突き刺し中。全部消して共用爆発を地上で発火。
+      if (e.mesh && e.mesh.parent) e.mesh.parent.remove(e.mesh);
+      spawnDeathExplosion(e.x, e.y + 80, e.z);
+      if (e.flyingParts) {
+        for (const fp of e.flyingParts) {
+          if (fp.mesh && fp.mesh.parent) fp.mesh.parent.remove(fp.mesh);
+        }
+        e.flyingParts = [];
+      }
     } else {
       // 未知バリアントは fallback：共用爆発のみ
       if (e.mesh && e.mesh.parent) e.mesh.parent.remove(e.mesh);
@@ -935,6 +1146,9 @@ function _applyDyingColorOverride(e) {
     _applyGoreCriticalColorOverride(e);
     return;
   }
+  // セーフガード（BLACK-WALKER 対策 2026-05-19）：dying でも armed でもない敵は本関数で
+  // 色を触らない。何らかの呼び出し経路で誤って live 敵に到達した場合の保険。
+  if (!e.dying) return;
   if (!_BLACK) return;
   const total = GORE_CONFIG.FADE_DURATION;
   const t = Math.min(1, Math.max(0, 1 - Math.max(0, e.dyingFadeTimer) / total));
@@ -971,8 +1185,18 @@ function _applyPreExplodeFlash(e) {
   const parts = e.mesh.userData.parts || {};
   const subParts = e.mesh.userData.subParts || {};
   const seenMats = new Set();
-  for (const m of [...Object.values(parts), ...Object.values(subParts)]) {
+  // parts: 本体 mesh の直接子（detach 済 = scene 直下 / flyingParts はスキップ）
+  for (const m of Object.values(parts)) {
     if (!m || !m.material || !m.material.color) continue;
+    if (m.parent !== e.mesh) continue;     // 既に detach されたパーツは flash 対象外（白固定の事故防止）
+    if (seenMats.has(m.material)) continue;
+    seenMats.add(m.material);
+    m.material.color.setRGB(1, 1, 1);
+  }
+  // subParts（例：nose）：親（head 等）が本体に attach されている時のみ flash
+  for (const m of Object.values(subParts)) {
+    if (!m || !m.material || !m.material.color) continue;
+    if (!m.parent || m.parent.parent !== e.mesh) continue;  // 親パーツが detach 済なら flash 対象外
     if (seenMats.has(m.material)) continue;
     seenMats.add(m.material);
     m.material.color.setRGB(1, 1, 1);
@@ -999,6 +1223,30 @@ function _advanceGoreCritical(e) {
       gc.redLerpRemaining = GORE_CRITICAL_CONFIG.RED_LERP_FRAMES;
     }
     if (gc.redLerpRemaining > 0) gc.redLerpRemaining--;
+    return;
+  }
+  // crit_slam_stick：gc_05 の遅延爆発フェーズ。上半身パーツは放射飛行 + 下半身は地面突き刺し（静止）。
+  //   赤発光 lerp を進め、SLAM_DELAY 経過で crit_white → crit_explode。
+  if (gc.phase === 'crit_slam_stick') {
+    if (gc.redLerpRemaining > 0) gc.redLerpRemaining--;
+    if (gc.timer > 0) gc.timer--;
+    if (gc.timer <= 0) {
+      gc.phase = 'crit_white';
+      gc.timer = GORE_CRITICAL_CONFIG.PREEXPLODE_WHITE_FRAMES;
+    }
+    return;
+  }
+  // crit_head_fly：gc_04 の遅延爆発フェーズ。上半身バンドルは flyingParts として独立飛行中、下半身は地面静止。
+  //   赤発光 lerp を進めつつ、HEAD_LAUNCH_DELAY 経過で crit_white → crit_explode へ。
+  if (gc.phase === 'crit_head_fly') {
+    if (gc.redLerpRemaining > 0) gc.redLerpRemaining--;
+    // カメラ持ち上げ要求：fxState 経由で camera にリフト量を渡す（毎フレーム更新が必要）
+    fxState.camYLift = Math.max(fxState.camYLift, GORE_CRITICAL_CONFIG.HEAD_LAUNCH_CAM_LIFT);
+    if (gc.timer > 0) gc.timer--;
+    if (gc.timer <= 0) {
+      gc.phase = 'crit_white';
+      gc.timer = GORE_CRITICAL_CONFIG.PREEXPLODE_WHITE_FRAMES;
+    }
     return;
   }
   // crit_wall_stick / crit_ground_stick：張り付き中。downTimer 進行は state machine 側で行うのでここは no-op
@@ -1040,11 +1288,13 @@ function _applyGoreCriticalColorOverride(e) {
   if (!_RED) return;
   const gc = e.goreCritical;
   if (!gc) return;
-  // 赤発光フェーズ：crit_red（toward_player）／ crit_fly・crit_wall_stick・crit_ground_stick（wall_blast）
+  // 赤発光フェーズ：crit_red（toward_player / split_back_blast）／ crit_fly・crit_wall_stick・crit_ground_stick（wall_blast）／ crit_head_fly（gc_04）／ crit_slam_stick（gc_05）
   if (gc.phase !== 'crit_red'
       && gc.phase !== 'crit_fly'
       && gc.phase !== 'crit_wall_stick'
-      && gc.phase !== 'crit_ground_stick') return;
+      && gc.phase !== 'crit_ground_stick'
+      && gc.phase !== 'crit_head_fly'
+      && gc.phase !== 'crit_slam_stick') return;
   // 赤完了までは線形 lerp で迫り、その後は強制 setRGB で維持
   const lerpLeft = gc.redLerpRemaining ?? 0;
   const total = GORE_CRITICAL_CONFIG.RED_LERP_FRAMES;
@@ -1224,6 +1474,26 @@ export function updateEnemies(ctx) {
     if (e.dying) {
       _updateDyingTimers(e, ctx);
       if (e.dyingPhase === 'exploded') continue;
+    }
+    // ゴア・クリティカル armed 中の AI/state machine skip：
+    //   - split_back_blast / slam_radial_split / head_launch_delayed：state=wait01 のまま armed になると
+    //     AI 接近で「赤いまま歩く」事故が起こる → 完全凍結（mesh は parts 抜けて空ガラだが state machine は止める）
+    //   - wall_blast_toward_player：壁まで飛ぶ物理を必要とするため skip しない
+    if (e.goreCritical && e.goreCritical.armed
+        && (e.goreCritical.variant === 'split_back_blast'
+            || e.goreCritical.variant === 'slam_radial_split'
+            || e.goreCritical.variant === 'head_launch_delayed')) {
+      // 位置同期（_setupArmedKinematics で y=0 等にした値を mesh に反映）
+      if (e.mesh) {
+        e.mesh.position.x = e.x;
+        e.mesh.position.y = e.y;
+        e.mesh.position.z = e.z;
+      }
+      // 赤発光オーバーライド：内部で armed を検出して _applyGoreCriticalColorOverride に委譲
+      if (e.dyingPhase !== 'exploded') _applyDyingColorOverride(e);
+      // 爆発直前の白フラッシュ
+      if (e.goreCritical.phase === 'crit_white') _applyPreExplodeFlash(e);
+      continue;
     }
     // ULT 発動中の時間停止：最初のヒットを受けるまで凍結（state / vy / downTimer すべて維持）
     if (e.frozenByUlt) continue;
@@ -1710,8 +1980,21 @@ export function updateEnemies(ctx) {
           _triggerFinalExplosion(e);
         }
       } else if (--e.downTimer <= 0) {
-        e.state    = STATE.down_bas_end;
-        e.downTimer = ENEMY_RISE_FRAMES;
+        // dying 敵：ダウン loop 完了の瞬間に final 経路へ短絡し爆発（2026-05-19 仕様変更）：
+        //   旧：起き上がり完了 → stunned → final → 爆発（待ち時間が長い）
+        //   新：loop 完了タイミングで flash → 爆発（state は down_bas_loop のまま固定）
+        //   注：downTimer を高値に bump し、次フレーム以降の state machine が同じブランチを
+        //       再実行して state=down_bas_end（起き上がり）に流れるのを防ぐ
+        if (e.dying && e.dyingPhase !== 'final' && e.dyingPhase !== 'exploded'
+            && !(e.goreCritical && e.goreCritical.armed)) {
+          e.dyingPhase     = 'final';
+          e.dyingFinalTimer = GORE_CONFIG.PREEXPLODE_FLASH_FRAMES + 1;
+          e.dyingInvincible = true;
+          e.downTimer       = 9999;   // 起き上がり遷移を以後ブロック（爆発で消える前提）
+        } else {
+          e.state    = STATE.down_bas_end;
+          e.downTimer = ENEMY_RISE_FRAMES;
+        }
       }
     } else if (e.state === STATE.down_bas_end) {
       if (--e.downTimer <= 0) e.state = STATE.wait01;

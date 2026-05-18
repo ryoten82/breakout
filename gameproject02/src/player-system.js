@@ -477,9 +477,10 @@ export function updateComboHoming(p) {
   if (_curAtkForHoming?.requireLockForHoming && !p._homingPreLocked) return;
   const t = p.comboTarget;
   // === ロック解除条件 ===
-  // 1) 対象が死亡・グラブ被害中・きりもみ離脱中
+  // 1) 対象が死亡・グラブ被害中・きりもみ離脱中・ゴアクリ armed 中（追撃させない）
   if (!t.isAlive || t.state === STATE.grabbed
-      || t.state === STATE.down_burst_start || t.state === STATE.down_burst_loop) {
+      || t.state === STATE.down_burst_start || t.state === STATE.down_burst_loop
+      || (t.goreCritical && t.goreCritical.armed)) {
     p.comboTarget = null;
     p.oppositeInputFrames = 0;
     return;
