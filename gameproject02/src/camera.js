@@ -51,6 +51,13 @@ let camFollowY = 0;   // Y 追従の遅延用（lerp）
 let camTargetX = 0;   // デッドゾーンカメラ用 X 目標
 let camFollowZ = 0;   // Z 追従用（広いステージで奥のプレイヤーが画面外に出ないよう追従）
 
+// ステージの進行ロック用：camera X 追従の右端ハードリミット。null 時は無制限。
+// stage 側（src/stages/...）から setCamRightLimit() で操作される。
+// camTargetX がここを超えないようにクランプするだけ。プレイヤー側の移動は妨げない。
+let camRightLimit = null;
+export function setCamRightLimit(x) { camRightLimit = (x == null) ? null : +x; }
+export function getCamRightLimit() { return camRightLimit; }
+
 // ============================================================
 //  壁オブジェクト管理（2026-05-18）
 //  - levelWalls：ステージに配置された静的な壁（背景オブジェクト等）。
@@ -192,6 +199,8 @@ export function updateCamera() {
     if (p.x > camTargetX + DEAD_ZONE_X) camTargetX = p.x - DEAD_ZONE_X;
     if (p.x < camTargetX - DEAD_ZONE_X) camTargetX = p.x + DEAD_ZONE_X;
   }
+  // 進行ロック：stage 側で設定された右端を超えないようクランプ
+  if (camRightLimit !== null && camTargetX > camRightLimit) camTargetX = camRightLimit;
   const baseX = camTargetX;
 
   // デバッグ：デッドゾーン帯を「カメラ追従中心 ± 半幅」に追従（Y のみ上下非対称）
