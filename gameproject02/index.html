@@ -759,6 +759,8 @@
       enterEnemyDying, killEnemy, initEnemyGoreBlack,
       enterEnemyExplode, handleEnemyDyingHit, detachOnePart, enterEnemyDyingBurst,
     } from './src/enemy-system.js';
+    // === stages（背景部屋・stage-room worktree 由来）：Stage 1 テストプレイ最小構成 ===
+    import { initStage01, tickStage01, getStage01DebugState } from './src/stages/index.js';
     // === input-system（keys / padKeys / inp / action / pollGamepad）は src/input-system.js に分離（Step E-6）===
     import {
       initInputSystem, inp, action, pollGamepad,
@@ -2079,9 +2081,17 @@
     // 起動時のダミー敵スポーン（右側横並び 3 体・カウントダウン時差で AI 起動）
     // Phase 3-A：3 体は練習用に instantRespawn=true（HP 0 で即復活ループ・既存挙動互換）
     // 死亡フローをテストする場合は `SB.killEnemy(SB.enemies[0])` か個別に `e.instantRespawn=false` 後にダメージ
-    spawnDummy(280, 300, { atkCooldown:  60, instantRespawn: true });   // 一番近い：最初に攻撃
-    spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: true });   // 中：2 番目に攻撃
-    spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: true });   // 一番遠い：3 番目に攻撃
+    //
+    // Stage 1 テストプレイモード：window.STAGE01_ENABLED=true で起動時 demo 敵をスキップし、
+    // 代わりに stages/stage01 のウェーブシステムを起動。デフォルト ON。
+    const STAGE01_ENABLED = (window.STAGE01_ENABLED !== false);
+    if (!STAGE01_ENABLED) {
+      spawnDummy(280, 300, { atkCooldown:  60, instantRespawn: true });   // 一番近い：最初に攻撃
+      spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: true });   // 中：2 番目に攻撃
+      spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: true });   // 一番遠い：3 番目に攻撃
+    } else {
+      initStage01({ spawnDummy, players, enemies, scene, THREE });
+    }
     // 互換用エイリアス（既存コードで dummy を直接参照していた所が残っていれば動く保険）
     const dummy = enemies[0];
 
@@ -2587,6 +2597,7 @@
     function update() {
       players.forEach(updatePlayer);
       updateEnemies(hitCtx);
+      tickStage01();  // Stage 1：ウェーブ発火・進行ロック・STAGE CLEAR 判定（敵 update 後に評価）
       updateParticles();
       updateSuperFlightTrails(players, enemies);
       players.forEach(p => updateDashTrail(p));
@@ -3011,6 +3022,8 @@
       updateSuperFlightTrails,
       // 壁システム（コンソールから状態確認用・levelWalls に push して静的壁追加可能）
       getActiveWallX, levelWalls,
+      // Stage 1 デバッグ：window.SB.stage() で内部状態を覗ける
+      stage: getStage01DebugState,
       // ダッシュ（例: SB.startDash(SB.players[0], 1, 0) で右ダッシュ強制発動）
       startDash,
       // Phase 2.4 被ダメージシステム

@@ -1,9 +1,16 @@
 // src/stages/index.js
 // ステージ実装のエントリポイント。各ステージモジュールはここから登録する。
-// 現状は雛形（実装未着手）。index.html からは将来このファイルを <script type="module"> で読み込む。
+// index.html からは <script type="module"> で読み込む想定。
 
-export const stageRegistry = {};
+import * as stage01 from './stage01/index.js';
+
+export const stageRegistry = {
+  stage01,
+};
 
 export function registerStage(id, module) {
   stageRegistry[id] = module;
 }
+
+// よく使うものは直 export しておく（呼び出し側の import を短く）
+export const { initStage01, tickStage01, getStage01DebugState } = stage01;
