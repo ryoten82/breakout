@@ -759,8 +759,11 @@
       enterEnemyDying, killEnemy, initEnemyGoreBlack,
       enterEnemyExplode, handleEnemyDyingHit, detachOnePart, enterEnemyDyingBurst,
     } from './src/enemy-system.js';
-    // === stages（背景部屋・stage-room worktree 由来）：Stage 1 テストプレイ最小構成 ===
-    import { initStage01, tickStage01, getStage01DebugState } from './src/stages/index.js';
+    // === stages（背景部屋・stage-room worktree 由来）===
+    import {
+      initStage01, tickStage01, getStage01DebugState,
+      initStage03, tickStage03, getStage03DebugState,
+    } from './src/stages/index.js';
     // Stage 1 外周ヤード書割（プロト・オプトイン）：window.STAGE01_EXTERIOR = true で起動
     import { initExterior as initStage01Exterior } from './src/stages/stage01/exterior.js';
     // === input-system（keys / padKeys / inp / action / pollGamepad）は src/input-system.js に分離（Step E-6）===
@@ -2084,21 +2087,27 @@
     // Phase 3-A：3 体は練習用に instantRespawn=true（HP 0 で即復活ループ・既存挙動互換）
     // 死亡フローをテストする場合は `SB.killEnemy(SB.enemies[0])` か個別に `e.instantRespawn=false` 後にダメージ
     //
-    // Stage 1 テストプレイモード：window.STAGE01_ENABLED=true で起動時 demo 敵をスキップし、
-    // 代わりに stages/stage01 のウェーブシステムを起動。デフォルト ON。
+    // ステージ選択：
+    //   URL クエリ ?stage=stage03 で Stage 3 起動（リロードまたいで保持）
+    //   コンソールで切替する場合は `location.search = '?stage=stage03'` で URL ごと変更
+    //   window.STAGE01_ENABLED = false で完全 OFF（demo 敵のみ）
     const STAGE01_ENABLED = (window.STAGE01_ENABLED !== false);
+    const _stageURLParam = new URLSearchParams(window.location.search).get('stage');
+    const SELECTED_STAGE = (_stageURLParam === 'stage03' || window.STAGE === 'stage03') ? 'stage03' : 'stage01';
     if (!STAGE01_ENABLED) {
       spawnDummy(280, 300, { atkCooldown:  60, instantRespawn: true });   // 一番近い：最初に攻撃
       spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: true });   // 中：2 番目に攻撃
       spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: true });   // 一番遠い：3 番目に攻撃
+    } else if (SELECTED_STAGE === 'stage03') {
+      initStage03({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
     } else {
       initStage01({ spawnDummy, players, enemies, scene, THREE });
     }
 
-    // Stage 1 外周ヤード書割（プロト・デフォルト ON）
+    // Stage 1 外周ヤード書割（プロト・Stage 1 のみ・デフォルト ON）
+    // Stage 3（中央プラント）は工場内部テーマなので exterior 適用しない
     // 内部装飾に戻したい時は window.STAGE01_EXTERIOR = false; をリロード前に設定
-    // 既存の内部装飾（柱組・奥の柱ネオン）は非表示になる。
-    if (window.STAGE01_EXTERIOR !== false) {
+    if (SELECTED_STAGE === 'stage01' && window.STAGE01_EXTERIOR !== false) {
       initStage01Exterior({ scene, THREE, backWallPillars, bgElements, ground });
     }
 
@@ -2607,7 +2616,9 @@
     function update() {
       players.forEach(updatePlayer);
       updateEnemies(hitCtx);
-      tickStage01();  // Stage 1：ウェーブ発火・進行ロック・STAGE CLEAR 判定（敵 update 後に評価）
+      // ステージ tick：選択されたステージのみ走らせる
+      if (SELECTED_STAGE === 'stage03') tickStage03();
+      else tickStage01();
       updateParticles();
       updateSuperFlightTrails(players, enemies);
       players.forEach(p => updateDashTrail(p));
@@ -3032,8 +3043,8 @@
       updateSuperFlightTrails,
       // 壁システム（コンソールから状態確認用・levelWalls に push して静的壁追加可能）
       getActiveWallX, levelWalls,
-      // Stage 1 デバッグ：window.SB.stage() で内部状態を覗ける
-      stage: getStage01DebugState,
+      // ステージ デバッグ：window.SB.stage() で現在ステージの内部状態を覗ける
+      stage: () => SELECTED_STAGE === 'stage03' ? getStage03DebugState() : getStage01DebugState(),
       // ダッシュ（例: SB.startDash(SB.players[0], 1, 0) で右ダッシュ強制発動）
       startDash,
       // Phase 2.4 被ダメージシステム
