@@ -46,6 +46,10 @@ let _prevFullStocks = -1;
 let _enemyCdProj = null;
 let _grabGaugeProj = null;
 const _enemyCdPool = [];
+let _aiPhaseProj = null;
+const _aiPhasePool = [];
+let _stunProj = null;
+const _stunPool = [];
 
 export function initHudSystem(deps) {
   _THREE = deps.THREE;
@@ -64,6 +68,8 @@ export function initHudSystem(deps) {
   // 投影用 Vector3 は init 時に確保（毎フレーム new しない）
   _enemyCdProj = new _THREE.Vector3();
   _grabGaugeProj = new _THREE.Vector3();
+  _aiPhaseProj = new _THREE.Vector3();
+  _stunProj = new _THREE.Vector3();
 }
 
 // ============================================================
@@ -164,7 +170,7 @@ export function updateEnemyAtkCountdown() {
   for (let i = 0; i < _enemies.length; i++) {
     const e = _enemies[i];
     const el = _getEnemyCdEl(i);
-    if (!e.isAlive || !ENEMY_AI.enabled || !e.aiEnabled ||
+    if (!e.isAlive || e.state === STATE.enemy_dying || !ENEMY_AI.enabled || !e.aiEnabled ||
         e.state !== STATE.enemy_attacking || e.atkPhase !== 'wind') {
       el.style.display = 'none';
       continue;
@@ -206,4 +212,109 @@ export function updateGrabGauge() {
   _grabGaugeEl.style.left = frameX + 'px';
   _grabGaugeEl.style.top  = frameY + 'px';
   _grabGaugeEl.style.display = 'block';
+}
+
+// ============================================================
+//  デバッグ：敵 aiPhase ラベル（Phase 3 ステート明示化）
+//   - window.SB.DEBUG_AI === true のときだけ敵頭上に idle/chase/attack/retreat/stun を表示
+//   - フェーズ色分け：chase=cyan / attack=orange / retreat=lime / stun=gray / idle=white
+// ============================================================
+const _AI_PHASE_COLOR = {
+  idle:    '#cccccc',
+  chase:   '#44ddff',
+  attack:  '#ff8844',
+  retreat: '#88ff66',
+  hitstun: '#888888',  // 被弾系 / grabbed / status_stun の汎用ラベル
+};
+function _getAiPhaseEl(idx) {
+  while (_aiPhasePool.length <= idx) {
+    const el = document.createElement('div');
+    el.id = `enemy-ai-phase-${_aiPhasePool.length}`;
+    el.style.position = 'absolute';
+    el.style.transform = 'translate(-50%, -50%)';
+    el.style.pointerEvents = 'none';
+    el.style.zIndex = '82';
+    el.style.fontFamily = "'Courier New', monospace";
+    el.style.fontSize = '14px';
+    el.style.fontWeight = 'bold';
+    el.style.textShadow = '0 0 4px #000, 2px 2px 0 #000';
+    el.style.whiteSpace = 'nowrap';
+    el.style.display = 'none';
+    el.style.lineHeight = '1';
+    (_hudLayerEl ?? document.body).appendChild(el);
+    _aiPhasePool.push(el);
+  }
+  return _aiPhasePool[idx];
+}
+export function updateEnemyAiPhaseHud() {
+  const enabled = !!(window.SB && window.SB.DEBUG_AI);
+  for (let i = 0; i < _enemies.length; i++) {
+    const e = _enemies[i];
+    const el = _getAiPhaseEl(i);
+    if (!enabled || !e.isAlive || e.state === STATE.enemy_dying) { el.style.display = 'none'; continue; }
+    el.textContent = e.aiPhase || '-';
+    el.style.color = _AI_PHASE_COLOR[e.aiPhase] || '#ffffff';
+    _aiPhaseProj.set(e.x, e.y + 320, e.z);
+    _aiPhaseProj.project(_camera);
+    const frameX = (_aiPhaseProj.x * 0.5 + 0.5) * _gameWidth;
+    const frameY = (-_aiPhaseProj.y * 0.5 + 0.5) * _gameHeight;
+    el.style.left = frameX + 'px';
+    el.style.top  = frameY + 'px';
+    el.style.display = 'block';
+  }
+  // 過剰要素を隠す
+  for (let i = _enemies.length; i < _aiPhasePool.length; i++) {
+    _aiPhasePool[i].style.display = 'none';
+  }
+}
+
+// ============================================================
+//  ステータス：スタン可視化（Phase 3 placeholder）
+//   - state===status_stun の敵頭上に黄色「★ STUN」を回転表示
+//   - DEBUG_AI に依存せず常に表示（プレイヤーが把握すべきステータス）
+//   - 将来 freeze / poison など他ステータスに拡張する場合は同形で追加
+// ============================================================
+function _getStunEl(idx) {
+  while (_stunPool.length <= idx) {
+    const el = document.createElement('div');
+    el.id = `enemy-status-stun-${_stunPool.length}`;
+    el.style.position = 'absolute';
+    el.style.transform = 'translate(-50%, -50%)';
+    el.style.pointerEvents = 'none';
+    el.style.zIndex = '83';
+    el.style.fontFamily = "'Courier New', monospace";
+    el.style.fontSize = '24px';
+    el.style.fontWeight = 'bold';
+    el.style.color = '#ffee44';
+    el.style.textShadow = '0 0 6px #000, 2px 2px 0 #000';
+    el.style.whiteSpace = 'nowrap';
+    el.style.display = 'none';
+    el.style.lineHeight = '1';
+    (_hudLayerEl ?? document.body).appendChild(el);
+    _stunPool.push(el);
+  }
+  return _stunPool[idx];
+}
+let _stunPhase = 0;
+export function updateStatusStunHud() {
+  _stunPhase = (_stunPhase + 1) % 60;
+  // 回転表示用の星位置（簡易：3 つの星を時間で回す）
+  const star = ['✦   ✦', ' ✦ ✦ ', '✦   ✦'][Math.floor(_stunPhase / 20)];
+  for (let i = 0; i < _enemies.length; i++) {
+    const e = _enemies[i];
+    const el = _getStunEl(i);
+    if (!e.isAlive || e.state !== STATE.status_stun) {
+      el.style.display = 'none';
+      continue;
+    }
+    el.textContent = star;
+    _stunProj.set(e.x, e.y + 230, e.z);
+    _stunProj.project(_camera);
+    el.style.left = ((_stunProj.x * 0.5 + 0.5) * _gameWidth)  + 'px';
+    el.style.top  = ((-_stunProj.y * 0.5 + 0.5) * _gameHeight) + 'px';
+    el.style.display = 'block';
+  }
+  for (let i = _enemies.length; i < _stunPool.length; i++) {
+    _stunPool[i].style.display = 'none';
+  }
 }

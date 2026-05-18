@@ -34,12 +34,13 @@ import {
   ENEMY_WALL_START_FRAMES, ENEMY_ROLL_START_FRAMES, ENEMY_ROLL_LOOP_FRAMES,
   ENEMY_WALL_BOUNCE_VY, ENEMY_WALL_BOUNCE_KB_VX, ENEMY_WALL_BOUNCE_KB_DECAY,
   ENEMY_ROLL_KB_VX, ENEMY_ROLL_KB_DECAY,
-  ENEMY_DOWN_BURST_LOOP_FRAMES, ENEMY_DOWN_BOUND_FRAMES,
+  ENEMY_DOWN_BURST_START_FRAMES, ENEMY_DOWN_BURST_LOOP_FRAMES, ENEMY_DOWN_BOUND_FRAMES,
+  KB_BURST_VX, KB_BURST_VY, KB_BURST_SPIN_RATE, KB_BURST_GRAV_MULT,
   ENEMY_AIRBORNE_Y_THRESHOLD,
   KB_LV05_BOUNCE_VY,
 } from './states.js';
-import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG } from './config.js';
-import { spawnHitParticles, triggerShake, tryThrownChainHit, triggerBurstState, combo } from './hit-engine.js';
+import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG } from './config.js';
+import { spawnHitParticles, triggerShake, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion } from './hit-engine.js';
 import { isHitstunState, tryHitPlayer } from './damage-system.js';
 import { getActiveWallX } from './camera.js';
 
@@ -87,13 +88,19 @@ export function buildDummyMesh() {
   group.add(stand);
 
   // 向き確認用ノーズ（頭前面 +Z にコーン）：赤は METEO と被るので黄に変更（2026-05-20）
+  //   2026-05-20：head の子に配置（dying 抽選で「鼻だけ単独で飛ぶ」を防止）
+  //   local 座標：head の local 原点 (0, 165, 0) からの差分 → (0, 0, 30)
   const noseMat = new _THREE.MeshToonMaterial({ color: 0xffdd22 });
   const nose = new _THREE.Mesh(new _THREE.ConeGeometry(6, 20, 8), noseMat);
   nose.rotation.x = -Math.PI / 2; // コーン先端を +Z（前方）に向ける
-  nose.position.set(0, 165, 30);
-  group.add(nose);
+  nose.position.set(0, 0, 30);
+  head.add(nose);
 
-  group.userData.parts = { body, head, stand, nose };
+  // parts dict は body / head / stand のみ（nose は head のサブ）
+  // → detachOnePart の抽選で nose 単独になることを排除
+  // → head が detach されると Three.js 親子で nose も付いてくる
+  group.userData.parts = { body, head, stand };
+  group.userData.subParts = { nose };  // 参考用に残す（material 操作などで参照）
   return group;
 }
 
@@ -110,11 +117,16 @@ export function spawnDummy(x, z, opts = {}) {
   mesh.rotation.order = 'ZYX';
   mesh.rotation.y = -Math.PI / 2; // 初期向き：左向き（プレイヤー方向）
   _scene.add(mesh);
+  const _maxHp = (typeof opts.maxHp === 'number' && opts.maxHp > 0) ? opts.maxHp : 100;
   const e = {
     mesh,
     x: x, y: 0, z: z,
-    hp:             100,
-    maxHp:          100,
+    // Phase 3-B：リスポーン用に初期位置と opts を保存（mortal 自動リスポーン時に再利用）
+    _spawnX: x,
+    _spawnZ: z,
+    _spawnOpts: { ...opts },
+    hp:             _maxHp,
+    maxHp:          _maxHp,
     hitFlashTimer:  0,
     knockbackVx:    0,
     knockbackVz:    0,
@@ -151,6 +163,28 @@ export function spawnDummy(x, z, opts = {}) {
     atkTimer:         0,
     atkCooldown:      opts.atkCooldown ?? 90,  // 初期は少し溜め（同時カウントを避けるため敵ごとに変える）
     hitDelivered:     false,
+    // === Phase 3 AI ステート明示化 ===
+    // aiPhase: 'idle' / 'chase' / 'attack' / 'retreat' / 'hitstun'
+    //   - e.state とは独立軸。物理・見た目は state、AI 意思決定は aiPhase。
+    //   - hitstun は state が被弾系/grabbed/dying/status_stun 等のときに自動同期（読み取り専用ラベル）。
+    aiPhase:          'idle',
+    aiRetreatTimer:   0,    // retreat 残F
+    // === Phase 3 ステータス系（status_stun）===
+    statusStunTimer:  0,    // status_stun 残F
+    // === Phase 3-A/3-B 敵死亡（gore-scrap・2026-05-20 フラグ方式へリファクタ）===
+    // instantRespawn=true：従来の練習用「HP 0 で即復活」モード（既存スポーン互換）
+    // instantRespawn=false：HP 0 → e.dying=true。state は変えず、被弾系/AI 抑制は dying フラグで判定
+    instantRespawn:   opts.instantRespawn ?? true,
+    dying:            false,    // dying プロセス進行中フラグ（state とは独立）
+    dyingPhase:       null,     // 'reacting' | 'stunned' | 'burst' | 'final' | 'exploded'
+    dyingFadeTimer:   0,        // 色フェード残F
+    dyingHoldTimer:   0,        // フォールバック分解タイマー（reacting/stunned 中に並列消費・満了で強制 final）
+    dyingStunnedTimer: 0,       // stunned フェーズ残F（約 2 秒・直立操作不能）
+    dyingFinalTimer:  0,        // final フェーズ（後方吹き飛び→爆散）残F
+    dyingInvincible:  false,    // final 中の完全無敵フラグ（hit-engine が skip）
+    removed:          false,    // 最終消滅 → cleanup pass で配列除去
+    // === Phase 3-B 爆散（パーツ飛散・逐次分離型 2026-05-20）===
+    flyingParts:      null,    // Array<{ mesh, name, x/y/z, vx/vy/vz, bounced, fadeTimer, angV* }>
     // === 投擲弾（グラブ投げ → 他敵衝突連鎖）===
     thrownProjectile: false,  // 飛行中フラグ（true なら他敵との衝突判定が走る）
     thrownByPlayer:   null,   // ダメージ帰属（コンボ・SP 加算用）
@@ -158,6 +192,519 @@ export function spawnDummy(x, z, opts = {}) {
   };
   _enemies.push(e);
   return e;
+}
+
+// ============================================================
+//  ステータス：スタン付与（Phase 3・将来 freeze / poison 等と同形）
+//   - 地上の敵のみ（e.y > 5 なら無視・空中個体には付与しない）
+//   - state===wait01 または enemy_attacking 以外（被弾系/status_stun中）は付与スキップ
+//   - 付与時は進行中の攻撃を中断（atkPhase/Timer リセット・トークン解放）
+//   - 返り値：付与した true / 無視した false（テスト/デバッグ用）
+// ============================================================
+export function applyStatusStun(e, frames, ctx) {
+  if (!e || !e.isAlive) return false;
+  if (e.y > 5) return false;                          // 空中無視
+  if (e.state !== STATE.wait01 && e.state !== STATE.enemy_attacking) return false;
+  // 進行中の攻撃を中断（トークン解放）
+  if (e.state === STATE.enemy_attacking) {
+    e.atkPhase = null;
+    e.atkTimer = 0;
+    e.hitDelivered = false;
+    if (ctx && ctx.enemyAttackToken && ctx.enemyAttackToken.get() === e) {
+      ctx.enemyAttackToken.set(null);
+    }
+  }
+  e.state           = STATE.status_stun;
+  e.statusStunTimer = (typeof frames === 'number' && frames > 0) ? frames : STATUS_STUN_CONFIG.defaultDuration;
+  return true;
+}
+
+// ============================================================
+//  敵死亡フロー開始（Phase 3-A/B/C・gore-scrap-mob-prototype.md 仕様）
+//   - 2026-05-20 フラグ方式：state は変更せず、e.dying=true を立てて並列にフェーズ管理
+//   - 被弾モーション（knockback/down_* 等）はそのまま再生継続
+//   - AI のみ抑制（aiEnabled=false）、token 解放
+//   - 色は _applyDyingColorOverride() で毎フレーム lerp(current→black) を適用
+//   - 既に dying なら何もしない
+//   - 返り値：開始した true / 既に dying または無効なら false
+// ============================================================
+export function enterEnemyDying(e, ctx) {
+  if (!e || e.dying) return false;
+  e.dying            = true;
+  e.dyingPhase       = 'reacting';   // 通常被弾モーション再生中（hold タイマー並列消費・wait01 到達待ち）
+  e.dyingFadeTimer   = GORE_CONFIG.FADE_DURATION;
+  e.dyingHoldTimer   = GORE_CONFIG.HOLD_DURATION;  // フォールバック：3.5s で強制 final
+  e.dyingStunnedTimer = 0;
+  e.dyingFinalTimer  = 0;
+  e.dyingInvincible  = false;
+  e.aiEnabled        = false;
+  e.atkPhase         = null;
+  e.hitDelivered     = false;
+  if (ctx && ctx.enemyAttackToken && ctx.enemyAttackToken.get() === e) {
+    ctx.enemyAttackToken.set(null);
+  }
+  return true;
+}
+
+// ============================================================
+//  Phase 3-C：lv06 ヒット時のバーストダウン即爆散ルート（黒フェード経由しない直行）
+//   - HP 0 を lv06 攻撃で達成した瞬間に呼ばれる
+//   - 即座に色を黒に（fade=0）、hold=0、phase='burst' でカウントダウン開始
+//   - 既存 down_burst_* state の物理を流用（きりもみ吹っ飛び）
+//   - 完全無敵（dyingInvincible=true）
+//   - BURST_SPIN_DURATION 経過 → _triggerFinalExplosion（爆散・パーツ全飛散）
+//   - 進行中は _updateDyingTimers でオイルトレイル発生
+// ============================================================
+export function enterEnemyDyingBurst(e, ctx, hitFacing) {
+  if (!e || e.dying) return false;
+  e.dying           = true;
+  e.dyingPhase      = 'burst';
+  e.dyingFadeTimer  = 0;   // フェード省略：即完全黒（色は _applyDyingColorOverride が t=1 で固定）
+  e.dyingHoldTimer  = 0;
+  e.dyingFinalTimer = GORE_CONFIG.BURST_SPIN_DURATION;
+  e.dyingInvincible = true;
+  e.aiEnabled       = false;
+  e.atkPhase        = null;
+  e.hitDelivered    = false;
+  if (ctx && ctx.enemyAttackToken && ctx.enemyAttackToken.get() === e) {
+    ctx.enemyAttackToken.set(null);
+  }
+  // 速度は触らない：直前の hit-engine lv6 dispatch が attack 由来の値を既に設定済
+  //   （knockbackVx = facing * attack.knockback * 0.4 * sameScale * kb_vx_mult_lv6）
+  //   （vy = attack.kb_vy_lv6 or KB_LV06_VY、kbDecay = attack.kb_vx_decay_lv6 等）
+  //   → SP4 の慣性などがそのままきりもみ飛行に反映される
+  // フォールバック：コンソール手動発火で velocity 未設定の場合は KB_BURST_* を流し込む
+  if (!e.knockbackVx && !e.vy) {
+    const p0 = _players && _players[0];
+    const backDir = (p0 && p0.x > e.x) ? -1 : (p0 ? 1 : ((typeof hitFacing === 'number') ? hitFacing : 1));
+    e.knockbackVx = backDir * KB_BURST_VX;
+    e.vy = KB_BURST_VY;
+    e.fallDir = backDir;
+  } else {
+    // dispatch 由来の knockbackVx の符号で fallDir 決定（吹き飛び方向 = fallDir）
+    e.fallDir = (e.knockbackVx >= 0) ? 1 : -1;
+  }
+  // スピン用パラメータ（既存 down_burst_* state 機械が rotation に使う）
+  e.burstSpinRate = KB_BURST_SPIN_RATE;
+  e.burstGravMult = KB_BURST_GRAV_MULT;
+  e.burstRollAngle = 0;
+  // state を down_burst_start にスワップ（lv6 dispatch が down_super_start にしていてもオーバーライド）
+  e.state = STATE.down_burst_start;
+  e.downTimer = ENEMY_DOWN_BURST_START_FRAMES;
+  e.hitFlashTimer = 0;
+  e.burstFlashTimer = 0;
+  return true;
+}
+
+// ============================================================
+//  コンソール用：敵を強制的に死亡フローへ（テスト・デバッグ用）
+//   SB.killEnemy(SB.enemies[0])
+//   - instantRespawn フラグを無視して強制的に enemy_dying へ
+// ============================================================
+export function killEnemy(e, ctx) {
+  if (!e || !e.isAlive || e.dying) return false;
+  e.hp = 0;
+  return enterEnemyDying(e, ctx);
+}
+
+// 黒色（フェード目標）— モジュールスコープで使い回し
+let _BLACK = null;
+let _THREE_REF = null;  // パーツ独立化時の mesh 親付け替えで Vector3 等に使う
+export function initEnemyGoreBlack(THREE) {
+  _BLACK = new THREE.Color(GORE_CONFIG.TARGET_COLOR);
+  _THREE_REF = THREE;
+}
+
+// ============================================================
+//  Phase 3-B：パーツ 1 つを抽選で分離（2026-05-20 逐次分離型）
+//   - 本体 mesh から残存パーツのうち 1 つをランダムに抽選 → scene 直下へ独立化
+//   - 残りは本体に付いたまま、fade/hold タイマーは継続
+//   - 戻り値：分離した part 名 / 残パーツ無しなら null
+//   - 共有 material は clone して個別化（detach 後の opacity 操作が本体に波及しないように）
+// ============================================================
+export function detachOnePart(e, hitFacing) {
+  if (!e || !e.mesh || !e.mesh.userData || !e.mesh.userData.parts) return null;
+  const parts = e.mesh.userData.parts;
+  // 本体にまだ付いている part の名前リスト
+  const attachedNames = Object.keys(parts).filter(name => {
+    const m = parts[name];
+    return m && m.parent === e.mesh;
+  });
+  if (attachedNames.length === 0) return null;
+  const pickedName = attachedNames[Math.floor(Math.random() * attachedNames.length)];
+
+  // Phase 3-B（2026-05-20）：胴体抽選 → 上半身（body + head + nose）を
+  //   **connected silhouette のまま** 1 つのバンドルとして分離（親子関係保持）
+  //   仕様（ユーザー指示・画像参照）：上半身の各パーツは保持したまま、まとまった輪郭で飛ぶ
+  //   実装：head + nose を body の子に reparent（world 座標保持）→ body 全体を flying part として scene 直下化
+  if (pickedName === 'body') {
+    return _detachBodyBundle(e, hitFacing);
+  }
+
+  // 通常：単一パーツのランダム分離
+  return _detachOneNamed(e, pickedName, null);
+}
+
+// 内部ヘルパ：胴体バンドル（body + head + nose の親子構造を保持）として分離
+//   - 全 part の material を MeshBasicMaterial(0x000000) に置換
+//   - head + nose を body の子に reparent（Object3D.attach で world 座標保持）
+//   - body 自体を scene 直下に attach（同じく world 座標保持）
+//   - flyingParts に 1 つだけエントリ追加（mesh=body, _materials=[3 つ]）
+//   - 残り（stand）は _triggerFinalExplosion で別途分離 + 即爆散
+function _detachBodyBundle(e, hitFacing) {
+  const parts = e.mesh && e.mesh.userData && e.mesh.userData.parts;
+  if (!parts || !parts.body || parts.body.parent !== e.mesh) return null;
+  const body = parts.body;
+  const head = (parts.head && parts.head.parent === e.mesh) ? parts.head : null;
+  // nose は head の子（subParts.nose）として保持されている：head に付随して飛ぶ
+  const nose = e.mesh.userData.subParts && e.mesh.userData.subParts.nose;
+  // 全 part の material を unlit 黒へ
+  const bundleMaterials = [];
+  if (_THREE_REF) {
+    body.material = new _THREE_REF.MeshBasicMaterial({ color: 0x000000 });
+    bundleMaterials.push(body.material);
+    if (head) {
+      head.material = new _THREE_REF.MeshBasicMaterial({ color: 0x000000 });
+      bundleMaterials.push(head.material);
+    }
+    if (nose && nose.material) {
+      nose.material = new _THREE_REF.MeshBasicMaterial({ color: 0x000000 });
+      bundleMaterials.push(nose.material);
+    }
+  }
+  // head を body の子に reparent（world 座標保持）— nose は head の子なので自動追従
+  if (head) body.attach(head);
+  // body 自体を scene 直下に attach（world 座標保持・head + nose は body の子のまま）
+  const worldPos = new _THREE_REF.Vector3();
+  body.getWorldPosition(worldPos);
+  _scene.attach(body);
+  // velocity：ランダム単発（後続パーツに合わせて散らかし）
+  const rand = ([lo, hi]) => lo + Math.random() * (hi - lo);
+  const sign = (hitFacing !== undefined) ? -Math.sign(hitFacing) : (Math.random() < 0.5 ? -1 : 1);
+  if (!e.flyingParts) e.flyingParts = [];
+  e.flyingParts.push({
+    mesh: body, name: 'body+upper',
+    x: worldPos.x, y: worldPos.y, z: worldPos.z,
+    vx: sign * rand(GORE_CONFIG.PART_VX_RANGE),
+    vy: rand(GORE_CONFIG.PART_VY_INITIAL),
+    vz: rand(GORE_CONFIG.PART_VZ_RANGE),
+    bounced: false, fadeTimer: 0,
+    angVx: (Math.random() - 0.5) * 0.3,
+    angVy: (Math.random() - 0.5) * 0.3,
+    angVz: (Math.random() - 0.5) * 0.3,
+    _materials: bundleMaterials,    // フェード時にまとめて opacity 操作
+  });
+  // 残り（stand）を爆散 + 本体 mesh 除去 + 共用爆発
+  _triggerFinalExplosion(e);
+  return 'body+upper';
+}
+
+// 内部ヘルパ：1 パーツを「指定 velocity（null ならランダム）」で分離
+function _detachOneNamed(e, name, sharedVelocity) {
+  const parts = e.mesh && e.mesh.userData && e.mesh.userData.parts;
+  if (!parts) return null;
+  const partMesh = parts[name];
+  if (!partMesh || partMesh.parent !== e.mesh) return null;
+  // MeshBasicMaterial（unlit）で完全黒シルエットを保証
+  const bundleMaterials = [];
+  if (partMesh.material && _THREE_REF) {
+    partMesh.material = new _THREE_REF.MeshBasicMaterial({ color: 0x000000 });
+    bundleMaterials.push(partMesh.material);
+  }
+  // head detach: nose は head の子なので Three.js 親子で自動追従
+  //   nose の material も unlit 黒へ swap し、bundle 内に含めてフェード時にまとめて消す
+  if (name === 'head') {
+    const nose = e.mesh.userData.subParts && e.mesh.userData.subParts.nose;
+    if (nose && nose.material && _THREE_REF) {
+      nose.material = new _THREE_REF.MeshBasicMaterial({ color: 0x000000 });
+      bundleMaterials.push(nose.material);
+    }
+  }
+  // world 座標を保持して scene 直下へ
+  const worldPos = new _THREE_REF.Vector3();
+  partMesh.getWorldPosition(worldPos);
+  const worldQuat = new _THREE_REF.Quaternion();
+  partMesh.getWorldQuaternion(worldQuat);
+  partMesh.parent.remove(partMesh);
+  _scene.add(partMesh);
+  partMesh.position.copy(worldPos);
+  partMesh.quaternion.copy(worldQuat);
+  // velocity 決定（shared なら共有・null ならランダム）
+  let vx, vy, vz;
+  if (sharedVelocity) {
+    vx = sharedVelocity.vx;
+    vy = sharedVelocity.vy;
+    vz = sharedVelocity.vz;
+  } else {
+    const rand = ([lo, hi]) => lo + Math.random() * (hi - lo);
+    const sign = (Math.random() < 0.5 ? -1 : 1);
+    vx = sign * rand(GORE_CONFIG.PART_VX_RANGE);
+    vy = rand(GORE_CONFIG.PART_VY_INITIAL);
+    vz = rand(GORE_CONFIG.PART_VZ_RANGE);
+  }
+  if (!e.flyingParts) e.flyingParts = [];
+  e.flyingParts.push({
+    mesh: partMesh, name,
+    x: worldPos.x, y: worldPos.y, z: worldPos.z,
+    vx, vy, vz,
+    bounced: false, fadeTimer: 0,
+    angVx: (Math.random() - 0.5) * 0.3,
+    angVy: (Math.random() - 0.5) * 0.3,
+    angVz: (Math.random() - 0.5) * 0.3,
+    _materials: bundleMaterials,    // 単一 part でも配列：head 時は nose も含む
+  });
+  return name;
+}
+
+// 後方互換：旧 enterEnemyExplode は「残り全パーツを一気に分離 + 共用爆発」として残す（テスト用）
+// 非 dying でも強制的に dying 化してから爆散させ、flyingParts の cleanup が回るようにする
+export function enterEnemyExplode(e, hitFacing) {
+  if (!e) return false;
+  if (!e.dying) enterEnemyDying(e, null);
+  _triggerFinalExplosion(e);
+  return true;
+}
+
+// 飛翔中パーツの毎フレーム更新（重力 + 1 回バウンド + フェード消滅）
+// 注：empty/null でも何もしないだけ。消滅判定は _updateEnemyDying 側に集約
+function _updateFlyingParts(e) {
+  if (!e.flyingParts || e.flyingParts.length === 0) return;
+  const alive = [];
+  for (const p of e.flyingParts) {
+    // 物理進行
+    p.x += p.vx;
+    p.y += p.vy;
+    p.z += p.vz;
+    p.vy -= GORE_CONFIG.PART_GRAVITY;
+    // 着地判定：1 回バウンド → 第二着地で settled（フェード開始）
+    if (p.y <= 0 && p.vy < 0) {
+      if (!p.bounced) {
+        p.y = 0;
+        p.vy = -p.vy * GORE_CONFIG.PART_BOUNCE_DAMP;
+        p.vx *= 0.7;
+        p.vz *= 0.7;
+        p.bounced = true;
+        // fadeTimer は設定しない（バウンド中は full opacity を維持）
+      } else if (!p.settled) {
+        // 第二着地：完全静止 + フェード開始（0.3s = PART_FADE_AFTER_BOUNCE）
+        p.y = 0;
+        p.vy = 0;
+        p.vx *= 0.7;
+        p.vz *= 0.7;
+        p.settled = true;
+        p.fadeTimer = GORE_CONFIG.PART_FADE_AFTER_BOUNCE;
+      }
+    }
+    // mesh 位置反映
+    p.mesh.position.set(p.x, p.y, p.z);
+    p.mesh.rotation.x += p.angVx;
+    p.mesh.rotation.y += p.angVy;
+    p.mesh.rotation.z += p.angVz;
+    // 第二着地（settled）後フェードタイマー：バウンド中はフルオパシティ、settled で 0.3s フェード
+    if (p.settled) {
+      p.fadeTimer--;
+      const opacity = Math.max(0, p.fadeTimer / GORE_CONFIG.PART_FADE_AFTER_BOUNCE);
+      // 透過フェード（バンドル時は複数 material をまとめて、単発時は mesh.material のみ）
+      if (p._materials) {
+        for (const mat of p._materials) {
+          if (!mat) continue;
+          mat.transparent = true;
+          mat.opacity = opacity;
+        }
+      } else if (p.mesh.material) {
+        p.mesh.material.transparent = true;
+        p.mesh.material.opacity = opacity;
+      }
+      if (p.fadeTimer <= 0) {
+        // 消滅：scene から外す + material dispose（メモリリーク防止）
+        if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
+        if (p._materials) {
+          for (const mat of p._materials) if (mat && mat.dispose) mat.dispose();
+        } else if (p.mesh.material && p.mesh.material.dispose) {
+          p.mesh.material.dispose();
+        }
+        continue;  // alive に加えない
+      }
+    }
+    alive.push(p);
+  }
+  e.flyingParts = alive;
+  if (alive.length === 0) {
+    e.removed = true;
+    e.isAlive = false;
+  }
+}
+
+// ============================================================
+//  Phase 3-B：dying 中ヒットのハンドラ（hit-engine から divert・2026-05-20 逐次分離型）
+//   - 必ず黒オイルパーティクルを発火（ヒット感）
+//   - 確率判定 → 当選なら detachOnePart で残存パーツから 1 つ抽選分離
+//   - 残パーツ無し時は何もしない（hold 満了まで本体は黒シルエットのまま）
+// ============================================================
+export function handleEnemyDyingHit(e, hitX, hitY, hitZ, hitFacing) {
+  if (!e || !e.dying) return false;
+  // stunned 中に殴られたら reacting に戻す（被弾モーション再生のため）
+  //   → 通常被弾 dispatch（hit-engine 後段）で state が knockback などに変わる
+  //   → wait01 復帰でまた stunned に入る
+  if (e.dyingPhase === 'stunned') {
+    e.dyingPhase = 'reacting';
+    e.dyingStunnedTimer = 0;
+  }
+  // reacting 中のみ受け付け（final/burst/exploded は無敵 or 既爆散）
+  if (e.dyingPhase !== 'reacting') return false;
+  // 黒オイルパーティクル（命中位置・常時）
+  spawnHitParticles(hitX, hitY, hitZ, GORE_CONFIG.OIL_PARTICLE_COLOR, GORE_CONFIG.OIL_PARTICLE_COUNT);
+  // 確率判定 → 抽選で 1 パーツ分離
+  if (Math.random() < GORE_CONFIG.PART_BREAK_PROB) {
+    const detached = detachOnePart(e, hitFacing);
+    if (detached) {
+      triggerShake(4, 8);  // 1 パーツ単位なので軽め
+      return true;
+    }
+  }
+  return false;
+}
+
+// ============================================================
+//  Phase 3 dying タイマー進行（フェード/ホールド/最終フェーズ）
+//   - 'fading'：fade と hold を並列で消費。hold 満了 → 'final' へ
+//   - 'final'：state=down_front_start で後方吹き飛び＋無敵。FINAL_EXPLODE_DELAY 後 → 'exploded'
+//   - 'exploded'：全パーツ分離・本体 mesh 除去済。flyingParts 消滅で removed=true
+//   毎フレーム updateEnemies の冒頭で e.dying のときに呼ばれる（normal state machine は維持）
+// ============================================================
+function _updateDyingTimers(e, ctx) {
+  if (e.dyingPhase === 'reacting') {
+    // 通常被弾モーション中・color フェード進行・wait01 到達待ち
+    // 分解タイマー（hold = 3.5s）が最優先：先に切れたらその時点で強制 final
+    if (e.dyingFadeTimer > 0) e.dyingFadeTimer--;
+    if (e.dyingHoldTimer > 0) e.dyingHoldTimer--;
+    if (e.dyingHoldTimer <= 0) {
+      // hold 優先：reacting 中でも分解タイマー切れで即 final
+      _enterDyingFinal(e, ctx);
+    } else if (e.state === STATE.wait01) {
+      // wait01 到達 → stunned へ（直立操作不能・残留速度ゼロ化で完全静止）
+      e.dyingPhase = 'stunned';
+      e.dyingStunnedTimer = GORE_CONFIG.STUN_DURATION;
+      e.knockbackVx = 0;
+      e.knockbackVz = 0;
+      if (e.y <= 0) e.vy = 0;
+    }
+  } else if (e.dyingPhase === 'stunned') {
+    // 直立操作不能。hold 最優先（先に切れたら stun 残量関わらず final）／ 通常は stun 約 2 秒で final
+    if (e.dyingFadeTimer > 0) e.dyingFadeTimer--;
+    if (e.dyingHoldTimer > 0) e.dyingHoldTimer--;
+    if (e.dyingStunnedTimer > 0) e.dyingStunnedTimer--;
+    if (e.dyingHoldTimer <= 0 || e.dyingStunnedTimer <= 0) {
+      _enterDyingFinal(e, ctx);
+    }
+  } else if (e.dyingPhase === 'final') {
+    if (e.dyingFinalTimer > 0) e.dyingFinalTimer--;
+    if (e.dyingFinalTimer <= 0) _triggerFinalExplosion(e);
+  } else if (e.dyingPhase === 'burst') {
+    // Phase 3-C：lv06 即きりもみ。BURST_SPIN_DURATION 経過で爆散へ
+    if (e.dyingFinalTimer > 0) e.dyingFinalTimer--;
+    // オイルトレイル：一定間隔で黒粒子を撒く（速度低めで漂う）
+    if (e.dyingFinalTimer % GORE_CONFIG.OIL_TRAIL_INTERVAL === 0) {
+      spawnHitParticles(e.x, e.y + 60, e.z,
+        GORE_CONFIG.OIL_PARTICLE_COLOR,
+        GORE_CONFIG.OIL_TRAIL_PER_FRAME,
+        { type: 'omni', sizeScale: 0.9, speedMul: 0.45, lifeMul: 1.2 });
+    }
+    if (e.dyingFinalTimer <= 0) _triggerFinalExplosion(e);
+  }
+  // exploded フェーズは flying parts の自然消滅を待つだけ
+  _updateFlyingParts(e);
+  // 最終消滅判定
+  if (e.dyingPhase === 'exploded' && (!e.flyingParts || e.flyingParts.length === 0)) {
+    e.removed = true;
+    e.isAlive = false;
+  }
+}
+
+// final フェーズ突入：後方へ強制 knockback + 完全無敵
+function _enterDyingFinal(e, ctx) {
+  e.dyingPhase = 'final';
+  e.dyingFinalTimer = GORE_CONFIG.FINAL_EXPLODE_DELAY;
+  e.dyingInvincible = true;
+  // プレイヤー方向の逆を「後方」と定義
+  const p0 = _players && _players[0];
+  const backDir = (p0 && p0.x > e.x) ? -1 : (p0 ? 1 : (Math.random() < 0.5 ? -1 : 1));
+  e.knockbackVx = backDir * GORE_CONFIG.FINAL_BACKWARD_VX;
+  e.knockbackVz = 0;
+  e.vy = GORE_CONFIG.FINAL_BACKWARD_VY;
+  e.fallDir = backDir;
+  // 既存の down_front_start 物理を流用（24F のランプで横倒し → down_front_loop へ自動遷移）
+  e.state = STATE.down_front_start;
+  e.downTimer = ENEMY_DOWN_FRONT_FRAMES;
+  // hitFlash 解除（フラッシュが残ると色が浮く）
+  e.hitFlashTimer = 0;
+  e.burstFlashTimer = 0;
+}
+
+// 最終爆散：保持パーツ＋本体 mesh を瞬間消去 + 共用爆発エフェクト（2026-05-20 改修）
+//   - ユーザー指示：「爆発時、保持しているパーツと下半身は瞬間的に消してください」
+//   - つまり爆散時に残ってる attached parts（body/head/stand/nose）は飛ばさずに消す
+//   - 既に飛翔中の flyingParts（hit で抽選分離済）はそのまま継続（自然にバウンド・フェード）
+//   - 爆発感は spawnDeathExplosion に集約
+function _triggerFinalExplosion(e) {
+  e.dyingPhase = 'exploded';
+  e.dyingInvincible = true;  // 念のため維持
+  // 本体 mesh ごと scene から除去 → 子の attached parts も全て一括消去
+  if (e.mesh && e.mesh.parent) e.mesh.parent.remove(e.mesh);
+  // 共用死亡爆発（プレイヤー dying と同じ・多層パーティクル+shake+hitstop）
+  spawnDeathExplosion(e.x, e.y + 80, e.z);
+}
+
+// ============================================================
+//  Phase 3 dying 色オーバーレイ（毎フレーム最後に適用）
+//   - hitFlash/burstFlash 等が設定した「現在の色」を起点に黒へ lerp
+//   - fade 進行とともに t が 0→1。t=1 で完全黒
+//   - 共有 material（accentMat 等）は同じ mat を 2 回 lerp しないようユニーク化
+// ============================================================
+function _applyDyingColorOverride(e) {
+  if (!e.mesh || !e.mesh.userData || !e.mesh.userData.parts) return;
+  if (!_BLACK) return;
+  const total = GORE_CONFIG.FADE_DURATION;
+  const t = Math.min(1, Math.max(0, 1 - Math.max(0, e.dyingFadeTimer) / total));
+  if (t <= 0) return;
+  const parts = e.mesh.userData.parts;
+  const seenMats = new Set();
+  for (const m of Object.values(parts)) {
+    if (!m || m.parent !== e.mesh || !m.material || !m.material.color) continue;
+    if (seenMats.has(m.material)) continue;
+    seenMats.add(m.material);
+    m.material.color.lerp(_BLACK, t);
+  }
+  // subParts（nose 等・head の子）も同様に lerp（fade 中も nose の黄色が黒へ）
+  const subParts = e.mesh.userData.subParts;
+  if (subParts) {
+    for (const m of Object.values(subParts)) {
+      if (!m || !m.material || !m.material.color) continue;
+      if (seenMats.has(m.material)) continue;
+      seenMats.add(m.material);
+      m.material.color.lerp(_BLACK, t);
+    }
+  }
+}
+
+// ============================================================
+//  Phase 3 爆発直前の白フラッシュ（2026-05-20 ユーザー指示）
+//   - final / burst フェーズの dyingFinalTimer が PREEXPLODE_FLASH_FRAMES 以下のとき発火
+//   - 残存 attached パーツ + subParts の material.color を白（1,1,1）に上書き
+//   - _applyDyingColorOverride の後に呼ばれるので、黒 lerp 結果を白で上書きする形
+//   - 直後に _triggerFinalExplosion で本体 mesh 除去 + 爆発 → 視覚的に「光って → 爆発」
+// ============================================================
+function _applyPreExplodeFlash(e) {
+  if (!e.mesh || !e.mesh.userData) return;
+  const parts = e.mesh.userData.parts || {};
+  const subParts = e.mesh.userData.subParts || {};
+  const seenMats = new Set();
+  for (const m of [...Object.values(parts), ...Object.values(subParts)]) {
+    if (!m || !m.material || !m.material.color) continue;
+    if (seenMats.has(m.material)) continue;
+    seenMats.add(m.material);
+    m.material.color.setRGB(1, 1, 1);
+  }
 }
 
 // ============================================================
@@ -170,10 +717,21 @@ export function spawnDummy(x, z, opts = {}) {
 export function updateEnemies(ctx) {
   for (const e of _enemies) {
     if (!e.isAlive) continue;
+    // Phase 3：dying タイマー進行（state machine は維持・色フェード/最終フェーズ遷移を回す）
+    //   exploded フェーズに入ると mesh が無いので、その時点で本フレームの残処理は skip
+    if (e.dying) {
+      _updateDyingTimers(e, ctx);
+      if (e.dyingPhase === 'exploded') continue;
+    }
     // ULT 発動中の時間停止：最初のヒットを受けるまで凍結（state / vy / downTimer すべて維持）
     if (e.frozenByUlt) continue;
     // グラブ被害中：position・state は処理側（processGrabInput）で固定維持
-    if (e.state === STATE.grabbed) continue;
+    if (e.state === STATE.grabbed) { e.aiPhase = 'hitstun'; continue; }
+    // Phase 3 AI ステート明示化：state が wait01 / enemy_attacking 以外なら hitstun ラベル
+    // 注：status_stun もここで hitstun ラベルになる（被弾意味の汎用 AI 非介入ラベル）
+    if (e.state !== STATE.wait01 && e.state !== STATE.enemy_attacking) {
+      e.aiPhase = 'hitstun';
+    }
     // wait01 復帰時：必殺技ヒット履歴 + コンボルートをクリア（敵単位の各種ループ制限のリセット）
     if (e.state === STATE.wait01) {
       if (e.specialHitBy && e.specialHitBy.size > 0) e.specialHitBy.clear();
@@ -185,17 +743,36 @@ export function updateEnemies(ctx) {
       if (e.lateralCombatInvincible) e.lateralCombatInvincible = false;
       if (e.skipWallCollision) e.skipWallCollision = false;
       if (e.isWallBounce) e.isWallBounce = false;  // 壁バウンス中フラグもクリア
+      // Phase 3：被弾→wait01 復帰検出（aiPhase が hitstun のまま wait01 に来た瞬間）→ retreat 発火
+      if (e.aiPhase === 'hitstun') {
+        e.aiPhase = 'retreat';
+        e.aiRetreatTimer = DUMMY_ATK_CONFIG.postHitRetreatFrames;
+        // 攻撃中に被弾していた場合のトークン解放（保険）
+        if (ctx.enemyAttackToken.get() === e) ctx.enemyAttackToken.set(null);
+        e.atkPhase = null;
+        e.hitDelivered = false;
+        if (e.atkCooldown < 30) e.atkCooldown = 30;
+      }
     }
-    // 死亡判定（ダミーは即復活で無限練習用）
+    // 死亡判定（Phase 3-A/B：instantRespawn フラグで分岐 / 2026-05-20 e.dying へ）
     if (e.hp <= 0) {
-      e.hp = e.maxHp;
-      // ★ステートは上書きしない：ダウン誘発技で hp 0 にした場合も
-      //   そのフレームに dispatch された down_front_start 等のステートを残し、
-      //   ダウン animation を最後まで見せる。
-      //   各 down ステートは自分でタイマー満了して wait01 に戻るので
-      //   ダミーは「ダウン演出 → 立ち直り」の自然なサイクルでループ復活する
-      spawnHitParticles(e.x, e.y + 100, e.z, 0xff8844, 24);
-      triggerShake(8, 14);
+      if (e.instantRespawn) {
+        // 練習用：即復活で無限ループ（既存挙動・3 体スポーンの互換）
+        // ★ステートは上書きしない：ダウン誘発技で hp 0 にした場合も
+        //   そのフレームに dispatch された down_front_start 等のステートを残し、
+        //   ダウン animation を最後まで見せる。
+        //   各 down ステートは自分でタイマー満了して wait01 に戻るので
+        //   ダミーは「ダウン演出 → 立ち直り」の自然なサイクルでループ復活する
+        e.hp = e.maxHp;
+        spawnHitParticles(e.x, e.y + 100, e.z, 0xff8844, 24);
+        triggerShake(8, 14);
+      } else if (!e.dying) {
+        // 本実装：死亡フロー開始（フラグだけ立てる・state は維持）
+        // → 被弾モーション (knockback/down_*) は普通に再生されつつ、並列でフェード/分解進行
+        spawnHitParticles(e.x, e.y + 100, e.z, 0xff8844, 24);
+        triggerShake(8, 14);
+        enterEnemyDying(e, ctx);
+      }
     }
     // ノックバック減衰（水平）— 攻撃側で e.kbDecay 上書き可（lv06 c01_atk_l_01_air は 0.92 で直線軌道）
     e.x += e.knockbackVx;
@@ -408,11 +985,14 @@ export function updateEnemies(ctx) {
       e.mesh.position.y = e.y;
     }
 
-    // === ミニマム AI（Phase 2.4 ダミー敵）===
-    // wait01 ⇄ enemy_attacking の小ループ。被弾系 state では発動しない。
+    // === Phase 3 AI: aiPhase 明示化（idle / chase / attack / retreat / stun）===
+    // - e.state（物理・見た目）と e.aiPhase（AI 意思決定）を独立軸で運用
+    // - state===wait01 のときに aiPhase で idle / chase / retreat を切り替え
+    // - state===enemy_attacking のとき aiPhase='attack'（atkPhase が細部を制御）
+    // - 被弾系 state（stun ラベル）は上部の同期で自動設定済
     // ローテーション攻撃：enemyAttackToken を取得した敵だけが attacking に遷移可能。
     // 被弾中追撃禁止：プレイヤーが isHitstunState の間は新規 attacking 遷移しない。
-    if (ENEMY_AI.enabled && e.aiEnabled && _players[0] &&
+    if (ENEMY_AI.enabled && e.aiEnabled && !e.dying && _players[0] &&
         _players[0].state !== STATE.dying && _players[0].state !== STATE.dead) {
       const p0 = _players[0];
       const playerInHitstun = isHitstunState(p0);
@@ -422,35 +1002,60 @@ export function updateEnemies(ctx) {
         const dz = p0.z - e.z;
         const adx = Math.abs(dx);
         const adz = Math.abs(dz);
-        // 向きをプレイヤーに合わせる（接近/攻撃時のみ）
-        // 追跡範囲は X / Z ともに approachRange（Z 軸を離しても追う・以前は adz<200 で打ち切られていた）
-        if (adx < DUMMY_ATK_CONFIG.approachRange && adz < DUMMY_ATK_CONFIG.approachRange) {
+        // 向きはプレイヤー方向に揃える（retreat 中も含めて常に対面）
+        if (dx !== 0) {
           e.facing = dx >= 0 ? 1 : -1;
           e.mesh.rotation.y = e.facing * Math.PI / 2;
-          // 攻撃発動条件：距離 + cooldown + 接地 + 「トークン取得可」+ 「プレイヤー被弾中でない」
-          const inAttackRange = (adx <= DUMMY_ATK_CONFIG.attackRange && adz < 100 && e.atkCooldown <= 0 && e.y <= ENEMY_AIRBORNE_Y_THRESHOLD);
-          const curToken = ctx.enemyAttackToken.get();
-          const tokenAvailable = (curToken === null || curToken === e);
-          if (inAttackRange && tokenAvailable && !playerInHitstun) {
-            // 攻撃発動：トークン取得 + 攻撃 state へ遷移
-            ctx.enemyAttackToken.set(e);
-            e.state         = STATE.enemy_attacking;
-            e.atkPhase      = 'wind';
-            e.atkTimer      = DUMMY_ATK_CONFIG.windupFrames;
-            e.hitDelivered  = false;
-          } else {
-            // 接近移動（X / Z 両軸・Z は 2.5D 圧縮考慮で 0.7 倍）
-            // トークン不所持でも接近は OK（位置取り）
-            if (adx > DUMMY_ATK_CONFIG.attackRange) {
-              e.x += Math.sign(dx) * DUMMY_ATK_CONFIG.approachSpeed;
+        }
+
+        if (e.aiPhase === 'retreat') {
+          // === retreat: プレイヤーから離れる方向に一定F 後退 ===
+          if (e.aiRetreatTimer > 0) {
+            e.aiRetreatTimer--;
+            // 後退方向 = -sign(dx)（プレイヤー逆側）
+            if (adx > 0) {
+              e.x -= Math.sign(dx) * DUMMY_ATK_CONFIG.retreatSpeed;
             }
-            if (adz > 80) {  // active ヒットの rangeZ 圏内まで詰める
-              e.z += Math.sign(dz) * DUMMY_ATK_CONFIG.approachSpeed * 0.7;
+            // Z 軸はそのまま（前後ジリジリ感を保つ）
+          } else {
+            // タイマー満了 → 距離で再判定（次フレームで chase / idle へ）
+            e.aiPhase = (adx < DUMMY_ATK_CONFIG.approachRange && adz < DUMMY_ATK_CONFIG.approachRange)
+              ? 'chase' : 'idle';
+          }
+        } else {
+          // === idle / chase 判定 + 接近・攻撃発動 ===
+          const inRange = (adx < DUMMY_ATK_CONFIG.approachRange && adz < DUMMY_ATK_CONFIG.approachRange);
+          if (!inRange) {
+            e.aiPhase = 'idle';
+          } else {
+            e.aiPhase = 'chase';
+            // 攻撃発動条件：距離 + cooldown + 接地 + 「トークン取得可」+ 「プレイヤー被弾中でない」
+            const inAttackRange = (adx <= DUMMY_ATK_CONFIG.attackRange && adz < 100 && e.atkCooldown <= 0 && e.y <= ENEMY_AIRBORNE_Y_THRESHOLD);
+            const curToken = ctx.enemyAttackToken.get();
+            const tokenAvailable = (curToken === null || curToken === e);
+            if (inAttackRange && tokenAvailable && !playerInHitstun) {
+              // 攻撃発動：トークン取得 + 攻撃 state へ遷移
+              ctx.enemyAttackToken.set(e);
+              e.state         = STATE.enemy_attacking;
+              e.atkPhase      = 'wind';
+              e.atkTimer      = DUMMY_ATK_CONFIG.windupFrames;
+              e.hitDelivered  = false;
+              e.aiPhase       = 'attack';
+            } else {
+              // 接近移動（X / Z 両軸・Z は 2.5D 圧縮考慮で 0.7 倍）
+              // トークン不所持でも接近は OK（位置取り）
+              if (adx > DUMMY_ATK_CONFIG.attackRange) {
+                e.x += Math.sign(dx) * DUMMY_ATK_CONFIG.approachSpeed;
+              }
+              if (adz > 80) {  // active ヒットの rangeZ 圏内まで詰める
+                e.z += Math.sign(dz) * DUMMY_ATK_CONFIG.approachSpeed * 0.7;
+              }
+              // attackRange 内だが token 不可 / player 被弾中 → その場で待機（ジリジリ感）
             }
           }
-          // attackRange 内だが token 不可 / player 被弾中 → その場で待機（ジリジリ感）
         }
       } else if (e.state === STATE.enemy_attacking) {
+        e.aiPhase = 'attack';
         e.atkTimer--;
         if (e.atkPhase === 'wind') {
           // カウントダウン中もプレイヤーに追従（向き合わせ + X/Z 両軸で詰める）
@@ -475,6 +1080,7 @@ export function updateEnemies(ctx) {
             e.atkPhase      = null;
             e.atkCooldown   = 30;
             e.hitDelivered  = false;
+            e.aiPhase       = 'idle';  // wind キャンセル → 次F に距離再判定
             if (ctx.enemyAttackToken.get() === e) ctx.enemyAttackToken.set(null);  // トークン解放
           } else if (e.atkTimer <= 0) {
             e.atkPhase = 'active';
@@ -498,12 +1104,22 @@ export function updateEnemies(ctx) {
             e.atkPhase      = null;
             e.atkCooldown   = DUMMY_ATK_CONFIG.cooldownFrames;
             e.hitDelivered  = false;
+            // Phase 3：recover 完了 → retreat フェーズへ
+            e.aiPhase       = 'retreat';
+            e.aiRetreatTimer = DUMMY_ATK_CONFIG.retreatFrames;
             if (ctx.enemyAttackToken.get() === e) ctx.enemyAttackToken.set(null);  // トークン解放
           }
         }
       }
     }
 
+    // ステータス系：status_stun のタイマー駆動（duration 経過で wait01）
+    if (e.state === STATE.status_stun) {
+      if (--e.statusStunTimer <= 0) {
+        e.state = STATE.wait01;
+        e.statusStunTimer = 0;
+      }
+    }
     // ダウン・被弾ステート機械（タイマー駆動の遷移のみ・tiltAngle は後段で一括計算）
     if (e.state === STATE.down_up_start) {
       if (--e.downTimer <= 0) e.state = STATE.down_up_loop;
@@ -723,20 +1339,26 @@ export function updateEnemies(ctx) {
     }
 
     // ヒットフラッシュ（2026-05-20 緑配色対応：元色 0x2d4a22 / 0x77aa55）
+    //   2026-05-20：detach 済（parent !== e.mesh）の part には書き込まない
+    //   → MeshBasicMaterial(0x000000) で上書き済の飛翔中パーツが緑に戻ってしまうバグ対策
+    const _body = e.mesh.userData.parts.body;
+    const _head = e.mesh.userData.parts.head;
+    const _bodyAtt = _body && _body.parent === e.mesh;
+    const _headAtt = _head && _head.parent === e.mesh;
     if (e.hitFlashTimer > 0) {
       e.hitFlashTimer--;
       const t = e.hitFlashTimer / 7;
       // body: 0x2d4a22 (0.176, 0.290, 0.133) → flash bright green (0.6, 1.0, 0.4)
-      e.mesh.userData.parts.body.material.color.setRGB(
+      if (_bodyAtt) _body.material.color.setRGB(
         0.176 + t * 0.424, 0.290 + t * 0.710, 0.133 + t * 0.267
       );
       // head: 0x77aa55 (0.467, 0.667, 0.333) → flash brighter (0.85, 1.0, 0.55)
-      e.mesh.userData.parts.head.material.color.setRGB(
+      if (_headAtt) _head.material.color.setRGB(
         0.467 + t * 0.383, 0.667 + t * 0.333, 0.333 + t * 0.217
       );
     } else {
-      e.mesh.userData.parts.body.material.color.setHex(0x2d4a22);
-      e.mesh.userData.parts.head.material.color.setHex(0x77aa55);
+      if (_bodyAtt) _body.material.color.setHex(0x2d4a22);
+      if (_headAtt) _head.material.color.setHex(0x77aa55);
     }
 
     // きりもみやられ突入フラッシュ：紫を「乗算」で body/head 色に被せる
@@ -752,11 +1374,11 @@ export function updateEnemies(ctx) {
       // 紫乗算後
       const bMr = bR * PURPLE_R, bMg = bG * PURPLE_G, bMb = bB * PURPLE_B;
       const hMr = hR * PURPLE_R, hMg = hG * PURPLE_G, hMb = hB * PURPLE_B;
-      // lerp: t=1 紫乗算 / t=0 元色
-      e.mesh.userData.parts.body.material.color.setRGB(
+      // lerp: t=1 紫乗算 / t=0 元色 — detach 済パーツには書き込まない
+      if (_bodyAtt) _body.material.color.setRGB(
         bR + (bMr - bR) * t, bG + (bMg - bG) * t, bB + (bMb - bB) * t,
       );
-      e.mesh.userData.parts.head.material.color.setRGB(
+      if (_headAtt) _head.material.color.setRGB(
         hR + (hMr - hR) * t, hG + (hMg - hG) * t, hB + (hMb - hB) * t,
       );
       e._burstFlashWasOn = true;
@@ -764,6 +1386,32 @@ export function updateEnemies(ctx) {
       // 直後の元色復帰は上の hitFlash else 分岐が毎フレーム行うので追加リセット不要
       e._burstFlashWasOn = false;
     }
+    // Phase 3：dying 色オーバーライ（毎フレーム最後・hitFlash/burstFlash 結果を黒へ lerp）
+    if (e.dying && e.dyingPhase !== 'exploded') _applyDyingColorOverride(e);
+    // Phase 3：爆発直前の白フラッシュ（final/burst の最後 N フレーム）
+    if (e.dying
+        && (e.dyingPhase === 'final' || e.dyingPhase === 'burst')
+        && e.dyingFinalTimer > 0
+        && e.dyingFinalTimer <= GORE_CONFIG.PREEXPLODE_FLASH_FRAMES) {
+      _applyPreExplodeFlash(e);
+    }
+  }
+  // Phase 3-A：cleanup pass — フェード完了で removed=true の敵を scene + 配列から除去
+  //   Phase 3-B（2026-05-20）：mortal モードなら同じ位置に即リスポーン
+  const _respawnQueue = [];
+  for (let i = _enemies.length - 1; i >= 0; i--) {
+    if (_enemies[i].removed) {
+      const dead = _enemies[i];
+      if (dead.mesh) _scene.remove(dead.mesh);
+      // mortal モード時：元の spawn 位置に同条件で復活させる（HP は _spawnOpts.maxHp に従う）
+      if (window.SB && window.SB.MORTAL_MODE && dead._spawnX !== undefined) {
+        _respawnQueue.push({ x: dead._spawnX, z: dead._spawnZ, opts: dead._spawnOpts });
+      }
+      _enemies.splice(i, 1);
+    }
+  }
+  for (const r of _respawnQueue) {
+    spawnDummy(r.x, r.z, r.opts);
   }
 }
 

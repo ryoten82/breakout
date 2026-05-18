@@ -90,7 +90,9 @@ export function updateDebug() {
     `x:${p.x.toFixed(0)} z:${p.z.toFixed(0)} y:${p.y.toFixed(0)} | ` +
     `state:${p.state} chain:${p.attackChainIdx} | ` +
     `grounded:${p.isGrounded ? 'Y' : 'N'}`;
-  _dummyHpEl.textContent = `${_enemies[0].hp}/${_enemies[0].maxHp}`;
+  // Phase 3-A：敵が全部消滅すると _enemies[0] が undefined になる（cleanup pass で配列縮小）
+  const _e0 = _enemies[0];
+  _dummyHpEl.textContent = _e0 ? `${_e0.hp}/${_e0.maxHp}` : '-/-';
   // ステートHUD更新（未設定の場合は「未設定」表示）
   _stateHudPlayerEl.textContent = _players[0]?.state ?? '未設定';
   _stateHudEnemyEl.textContent  = _enemies[0]?.state ?? '未設定';

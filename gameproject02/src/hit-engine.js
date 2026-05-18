@@ -37,6 +37,7 @@ import {
   PHYSICS, SP_CONFIG, HOMING_CONFIG, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, SAME_ATK_CONFIG,
 } from './config.js';
 import { resolveAttackAttr } from './attacks.js';
+import { handleEnemyDyingHit, enterEnemyDyingBurst } from './enemy-system.js';
 
 let _THREE = null;
 let _scene = null;
@@ -267,11 +268,22 @@ export function triggerShake(strength, frames) {
 // ============================================================
 export const particles = [];
 
+// モジュール内で BoxGeometry をキャッシュ（2026-05-20 メモリリーク対策）
+// 毎回 new BoxGeometry すると Three.js 側でハンドル累積 → 爆発多発時に fps 劣化や描画破綻の原因
+let _PARTICLE_GEOM = null;
+function _getParticleGeom() {
+  if (!_PARTICLE_GEOM && _THREE) _PARTICLE_GEOM = new _THREE.BoxGeometry(7, 7, 7);
+  return _PARTICLE_GEOM;
+}
+
 // opts.type : 'normal'(攻撃方向放射) | 'launch'(Y軸上方) | 'slam'(叩きつけ放射) | 'omni'(全方向・旧来)
 // opts.dirX / opts.dirZ : 攻撃方向（normal 時に使用・正規化不要）
+// opts.sizeScale : 初期スケール倍率（既定 1.0）
+// opts.lifeMul : 寿命倍率（既定 1.0・余韻演出時に > 1）
+// opts.speedMul : 速度倍率（既定 1.0・大きい爆発で広範囲化）
 export function spawnHitParticles(x, y, z, color = 0xffee44, count = 10, opts = {}) {
-  const { type = 'omni', dirX = 1, dirZ = 0 } = opts;
-  const geom = new _THREE.BoxGeometry(7, 7, 7);
+  const { type = 'omni', dirX = 1, dirZ = 0, sizeScale = 1, lifeMul = 1, speedMul = 1 } = opts;
+  const geom = _getParticleGeom();
 
   // 攻撃方向の正規化と垂直ベクトル（XZ平面）
   const dLen = Math.sqrt(dirX * dirX + dirZ * dirZ) || 1;
@@ -284,6 +296,7 @@ export function spawnHitParticles(x, y, z, color = 0xffee44, count = 10, opts = 
     const mat = new _THREE.MeshBasicMaterial({ color });
     const mesh = new _THREE.Mesh(geom, mat);
     mesh.position.set(x, y, z);
+    if (sizeScale !== 1) mesh.scale.setScalar(sizeScale);
     _scene.add(mesh);
 
     let vx, vy, vz;
@@ -315,7 +328,8 @@ export function spawnHitParticles(x, y, z, color = 0xffee44, count = 10, opts = 
       vz = (r() - 0.5) * 14;
     }
 
-    particles.push({ mesh, vx, vy, vz, life: 22 + r() * 10 });
+    if (speedMul !== 1) { vx *= speedMul; vy *= speedMul; vz *= speedMul; }
+    particles.push({ mesh, vx, vy, vz, life: (22 + r() * 10) * lifeMul, initSize: sizeScale });
   }
 }
 
@@ -343,6 +357,31 @@ export function spawnLaunchSmoke(x, y, z) {
       life: 32 + Math.random() * 14,
     });
   }
+}
+
+// ============================================================
+//  Phase 3-B：共用「死亡爆発」エフェクト（プレイヤー＆敵共通・2026-05-20）
+//   - 1.5x スケール / 速度・寿命強化 / 30F 余韻（後段に大きく・遅く・長寿命の層）
+//   - 白／黄／橙／赤の多層パーティクル＋黒 debris
+//   - 既存プレイヤー dying 演出と同じ位置（mesh の頭上 y+80）を想定
+// ============================================================
+export function spawnDeathExplosion(x, y, z) {
+  const main = { type: 'omni', sizeScale: 1.5, speedMul: 1.35, lifeMul: 1.0 };
+  // 中心の閃光（少数だが白）
+  spawnHitParticles(x, y, z, 0xffffff, 14, main);
+  // 黄→橙→赤 の多層爆炎
+  spawnHitParticles(x, y, z, 0xffee44, 24, main);
+  spawnHitParticles(x, y, z, 0xff8822, 32, main);
+  spawnHitParticles(x, y, z, 0xff3322, 38, main);
+  // 暗色 debris（飛び散る破片風・少し速め）
+  spawnHitParticles(x, y, z, 0x222222, 18, { type: 'omni', sizeScale: 1.2, speedMul: 1.6, lifeMul: 1.0 });
+  // 余韻層（30F ほど残る・大きく・低速で漂う煙感）
+  const lingerLife = (50 / 22);  // 約 50F 寿命（既存22Fベース → lifeMul で 50F 相当）
+  const linger = { type: 'omni', sizeScale: 2.0, speedMul: 0.45, lifeMul: lingerLife };
+  spawnHitParticles(x, y, z, 0xff7733, 10, linger);
+  spawnHitParticles(x, y, z, 0x553311, 8,  linger);
+  triggerHitstop(10);
+  triggerShake(16, 26);
 }
 
 // ============================================================
@@ -430,6 +469,8 @@ export function tryHitEnemies(p, attack, ctx) {
   let anyHit = false;
   for (const e of enemies) {
     if (!e.isAlive) continue;
+    // Phase 3：dying final フェーズ中は完全無敵（後方吹き飛び中の爆発待ち）
+    if (e.dyingInvincible) continue;
     // down_burst_* 中は完全無敵：判定もダメージも一切受けない
     // ※ attack.forceBurstDown:true（ULT 等）はこの保護をバイパスして必ずヒットさせる
     const _DBG_SP2AIR = window.SB?.DEBUG_SP2AIR && p.attackId === 'c01_sp_02_air';
@@ -496,6 +537,8 @@ export function tryHitEnemies(p, attack, ctx) {
     const _scaledDamage = Math.max(SAME_ATK_CONFIG.MIN_DAMAGE, Math.round(attack.damage * _sameAtkDmgScale));
     // ヒット
     e.hp = Math.max(0, e.hp - _scaledDamage);
+    // Phase 3-B：dying 中の追加処理（黒オイル + 抽選で 1 パーツ分離）— 通常被弾モーションは継続
+    if (e.dying) handleEnemyDyingHit(e, e.x, e.y + 60, e.z, p.facing);
     e.hitFlashTimer = 7;
     e.frozenByUlt   = false;  // ULT 凍結解除（ヒットを受けた敵だけ時間が進み始める）
     // 被弾時：倒れ方向を記録。IDLEのみ向きスナップ（FALL/DOWN/RISE中は回転競合のため不変）
@@ -854,6 +897,17 @@ export function tryHitEnemies(p, attack, ctx) {
       p.attackHitCounts.set(_sameAtkBaseId, (p.attackHitCounts.get(_sameAtkBaseId) ?? 0) + 1);
       p._sameAtkCounted = true;
     }
+    // Phase 3-C：lv06 killing hit → バーストダウン即爆散（黒フェード経由なし）
+    //   dispatch 完了後に変換することで、attack の knockbackVx/vy/kbDecay（SP4 等の慣性）をそのまま継承
+    //   state だけ down_burst_start にスワップしてスピンアニメへ
+    {
+      const _killLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
+        ? attack.atk_lv_air
+        : (attack.atk_lv ?? 1);
+      if (e.hp <= 0 && !e.dying && !e.instantRespawn && _killLv === 6) {
+        enterEnemyDyingBurst(e, ctx, p.facing);
+      }
+    }
     anyHit = true;
   }
   return anyHit;
@@ -1084,6 +1138,9 @@ export function tryThrownChainHit(thrower, ctx) {
 }
 
 // 毎フレームの粒子更新（位置進行・寿命減・スケール縮小・消滅）
+//   2026-05-20：sizeScale (initSize) を考慮して縮小開始サイズを保持
+//   2026-05-20：material は per-particle なので消滅時に dispose（メモリリーク防止）
+//   geometry はモジュール内キャッシュなので dispose しない
 export function updateParticles() {
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
@@ -1093,9 +1150,11 @@ export function updateParticles() {
     p.vy -= 0.7;
     p.life--;
     const lifeRatio = Math.max(0, p.life / 22);
-    p.mesh.scale.setScalar(lifeRatio);
+    const initSize = p.initSize ?? 1;
+    p.mesh.scale.setScalar(lifeRatio * initSize);
     if (p.life <= 0 || p.mesh.position.y < 0) {
       _scene.remove(p.mesh);
+      if (p.mesh.material && p.mesh.material.dispose) p.mesh.material.dispose();
       particles.splice(i, 1);
     }
   }
