@@ -1,6 +1,11 @@
 # Stage 1 — CRUSHER（廃工場）テストプレイ用 最小構成 仕様
 
-> **ステータス**：最小構成 仕様確定（2026-05-18）。実装は stage-room worktree で着手。
+> ⚠️ **構造改編に伴う注記（2026-05-18）**：
+> Act 構造の確定（memory `project_scrapblitz_act_scale_aesthetic.md`）により、本ファイルが扱う「廃工場内部・柱組装飾」は**概念上 Act 1 / Stage 2（工場内部）の素材**となった。
+> ファイル名は `stage01/layout.md` のままだが、移管準備中のため**仮置き状態**。物理的な移管（index.html インライン関数の props/ 切り出し含む）は zealous-hertz と被らない別タスクで実施予定（[`../stage02/README.md`](../stage02/README.md)）。
+> 現状この最小構成実装はテストプレイ用途で**そのまま動作する**。
+>
+> **ステータス**：最小構成 仕様確定（2026-05-18）。実装は stage-room worktree で着手済み。
 > 議論の派生・揺れは `stage-layout-room.md` 側に残し、本ファイルは「実装が参照する確定版」。
 
 ## ゴール
