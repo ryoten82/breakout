@@ -761,6 +761,8 @@
     } from './src/enemy-system.js';
     // === stages（背景部屋・stage-room worktree 由来）：Stage 1 テストプレイ最小構成 ===
     import { initStage01, tickStage01, getStage01DebugState } from './src/stages/index.js';
+    // Stage 1 外周ヤード書割（プロト・オプトイン）：window.STAGE01_EXTERIOR = true で起動
+    import { initExterior as initStage01Exterior } from './src/stages/stage01/exterior.js';
     // === input-system（keys / padKeys / inp / action / pollGamepad）は src/input-system.js に分離（Step E-6）===
     import {
       initInputSystem, inp, action, pollGamepad,
@@ -1075,7 +1077,7 @@
 
       // === 斜め平行線（ベルスク偽パース：SOR4 風の "板張り" 視点）===
       //   45 度の平行線でタイル間シームレス（W=H 前提）。
-      //   底辺から右上に向かう方向＝プレイヤー視点から「床が奥に行く」錯覚。
+      //   進行方向（→ +X）に合わせて ↘ 方向のスラント（2026-05-18 統一）。
       const numD = 6;
       const dSpace = W / numD;
       // i 範囲：タイル端を跨ぐ斜線も書く（タイリング継続性のため広めに）
@@ -1085,15 +1087,15 @@
         ctx.strokeStyle = 'rgba(95,80,55,0.55)';
         ctx.lineWidth   = 2.4;
         ctx.beginPath();
-        ctx.moveTo(xStart, H);
-        ctx.lineTo(xStart + H, 0);  // 45度（H=W で seamless）
+        ctx.moveTo(xStart, 0);
+        ctx.lineTo(xStart + H, H);  // 45°↘（H=W で seamless）
         ctx.stroke();
         // 影（1.5px 下にずらして溝感）
         ctx.strokeStyle = 'rgba(0,0,0,0.50)';
         ctx.lineWidth   = 1.2;
         ctx.beginPath();
-        ctx.moveTo(xStart + 1.5, H);
-        ctx.lineTo(xStart + 1.5 + H, 0);
+        ctx.moveTo(xStart + 1.5, 0);
+        ctx.lineTo(xStart + 1.5 + H, H);
         ctx.stroke();
       }
 
@@ -2092,6 +2094,14 @@
     } else {
       initStage01({ spawnDummy, players, enemies, scene, THREE });
     }
+
+    // Stage 1 外周ヤード書割（プロト・デフォルト ON）
+    // 内部装飾に戻したい時は window.STAGE01_EXTERIOR = false; をリロード前に設定
+    // 既存の内部装飾（柱組・奥の柱ネオン）は非表示になる。
+    if (window.STAGE01_EXTERIOR !== false) {
+      initStage01Exterior({ scene, THREE, backWallPillars, bgElements, ground });
+    }
+
     // 互換用エイリアス（既存コードで dummy を直接参照していた所が残っていれば動く保険）
     const dummy = enemies[0];
 
