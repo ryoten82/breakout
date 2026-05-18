@@ -197,6 +197,8 @@
       pointer-events: none;
       z-index: 100;
       text-align: right;
+      max-width: 460px;
+      word-break: break-word;
     }
     #build-info .lbl { color: #aaaa66; font-size: 11px; }
 
@@ -705,7 +707,7 @@
     import {
       PHYSICS, SP_CONFIG, ULT_CONFIG, GRAB_CONFIG, MEGA_CONFIG,
       SPECIAL_CONFIG, SAME_ATK_CONFIG, HOMING_CONFIG, GUARD_CONFIG,
-      ENEMY_AI, DUMMY_ATK_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG,
+      ENEMY_AI, DUMMY_ATK_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE,
       CAM_CONFIG, PIXEL_SHADER, OUTLINE_CONFIG,
       CHARGE_RING_CONFIG, CHARGE_PARTICLE_CONFIG,
       COMBO_LEVELS, getComboLevel, SLOWMO, KEY_CONFIG,
@@ -1995,7 +1997,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-20 / 爆発直前の白フラッシュ（6F）／ final/burst 終端で残存パーツが白く発光してから爆散 ／ 鼻廃止 nose を head の子に降格';
+    const LAST_UPDATE = '2026-05-18 ゴア・クリティカル基本構造 + METEO gc_06（壁吹き飛ばし）/ gc_03（後方分裂）/ HP バー / nwt helper';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2365,6 +2367,12 @@
             for (const p of en.flyingParts) {
               if (p.mesh && p.mesh.parent) p.mesh.parent.remove(p.mesh);
             }
+          }
+          // HP バー meshes も撤去（敵 mesh の子ではないので別途）
+          const _hpBar = en.mesh && en.mesh.userData && en.mesh.userData.hpBar;
+          if (_hpBar) {
+            if (_hpBar.bg && _hpBar.bg.parent) _hpBar.bg.parent.remove(_hpBar.bg);
+            if (_hpBar.fill && _hpBar.fill.parent) _hpBar.fill.parent.remove(_hpBar.fill);
           }
         }
         enemies.length = 0;
@@ -3030,6 +3038,12 @@
       //   SB.enemies[0].instantRespawn = false; // 個別に練習モード解除（次回 HP 0 で死亡）
       //   SB.GORE_CONFIG.FADE_DURATION = 60     // フェード時間調整（フレーム）
       GORE_CONFIG, killEnemy: (e) => killEnemy(e, hitCtx),
+      // ゴア・クリティカル（必殺技/キャラ固有フィニッシャー演出・2026-05-18 導入）
+      //   SB.GORE_CRITICAL_CONFIG.PROBABILITY = 1.0  // 連続発火確認用
+      //   SB.PLAYER_PROFILE.METEO.gore.canArmGoreCritical  // 条件関数の差し替えも可
+      GORE_CRITICAL_CONFIG, PLAYER_PROFILE,
+      // ゴアクリ抽選フローのデバッグログ ON/OFF（コンソールで `SB.DEBUG_GORE_CRITICAL = true` でフローを追える）
+      DEBUG_GORE_CRITICAL: false,
       // Phase 3-B：dying 中ヒットで 1 パーツ抽選分離（2026-05-20 逐次分離型）
       //   SB.detachOnePart(SB.enemies[0])                  // 1 つだけ分離（戻り値：分離した part 名 or null）
       //   SB.enterEnemyExplode(SB.enemies[0])              // 残り全パーツを一気に分離（テスト用）

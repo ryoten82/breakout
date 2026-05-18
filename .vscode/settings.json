@@ -1,5 +1,6 @@
 {
   "liveServer.settings.root": "/gameproject02",
   "liveServer.settings.file": "index.html",
-  "liveServer.settings.NoBrowser": false
+  "liveServer.settings.NoBrowser": false,
+  "liveServer.settings.port": 5501
 }

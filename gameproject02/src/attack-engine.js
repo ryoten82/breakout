@@ -707,6 +707,8 @@ export function triggerMegaCrash(p) {
     if (dist > MEGA_CONFIG.RADIUS) continue;
     // ダメージ適用
     e.hp = Math.max(0, e.hp - attack.damage);
+    // 最終ヒッター記録（ゴアクリ抽選で参照・メガクラ killing hit でも attribute される）
+    e.lastHitter = { attackId: 'c01_sp_mega01', profileKey: 'METEO', facing: p.facing, lv: attack.atk_lv ?? 1 };
     e.hitFlashTimer = 7;
     e.frozenByUlt   = false;  // ULT 凍結解除（メガクラを ULT 中に発動した場合の安全側）
     // 外向きノックバック方向（プレイヤー中心からの dx 符号）
@@ -1027,6 +1029,7 @@ export function processGrabInput(p) {
 
 export function executeGrabPunch(p, e) {
   e.hp = Math.max(0, e.hp - GRAB_CONFIG.PUNCH_DAMAGE);
+  e.lastHitter = { attackId: 'c01_grab_punch', profileKey: 'METEO', facing: p.facing, lv: 0 };
   e.hitFlashTimer = 7;
   spawnHitParticles(e.x, e.y + 80, e.z, 0xffee44, 8,
     { type: 'normal', dirX: p.facing, dirZ: 0 });
@@ -1041,6 +1044,7 @@ export function executeGrabPunch(p, e) {
 
 export function executeGrabThrow(p, e, dir) {
   e.hp = Math.max(0, e.hp - GRAB_CONFIG.THROW_DAMAGE);
+  e.lastHitter = { attackId: 'c01_grab_throw', profileKey: 'METEO', facing: p.facing, lv: 3 };
   e.hitFlashTimer = 7;
   e.fallDir       = dir;
   // 投げ初速：通常 lv03 より上に持ち上げてから飛ばす（打ち上げ気味）

@@ -537,8 +537,24 @@ export function tryHitEnemies(p, attack, ctx) {
     const _scaledDamage = Math.max(SAME_ATK_CONFIG.MIN_DAMAGE, Math.round(attack.damage * _sameAtkDmgScale));
     // ヒット
     e.hp = Math.max(0, e.hp - _scaledDamage);
-    // Phase 3-B：dying 中の追加処理（黒オイル + 抽選で 1 パーツ分離）— 通常被弾モーションは継続
-    if (e.dying) handleEnemyDyingHit(e, e.x, e.y + 60, e.z, p.facing);
+    // 最終ヒッター記録（ゴア・クリティカル抽選で参照・enterEnemyDying 内で profile lookup に使う）
+    // lv は実効値（敵が空中なら atk_lv_air、地上なら atk_lv）。variants の atk_lv マッチで使う
+    const _hitLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
+      ? attack.atk_lv_air
+      : (attack.atk_lv ?? 1);
+    e.lastHitter = { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: _hitLv };
+    // Phase 3-B：dying 中の追加処理（黒オイル + 抽選で 1 パーツ分離 / ゴアクリ抽選）
+    if (e.dying) {
+      handleEnemyDyingHit(e, e.x, e.y + 60, e.z, p.facing);
+      // armed 発火した場合は以降の dispatch をスキップ（knockback / state 上書きで wall_blast setup が消えるのを防ぐ）
+      if (e.goreCritical && e.goreCritical.armed) {
+        bumpCombo(e);
+        triggerHitstop(attack.hitstop ?? 4);
+        triggerShake(attack.shake ?? 4, (attack.shake ?? 4) * 2 + 4);
+        anyHit = true;
+        continue;
+      }
+    }
     e.hitFlashTimer = 7;
     e.frozenByUlt   = false;  // ULT 凍結解除（ヒットを受けた敵だけ時間が進み始める）
     // 被弾時：倒れ方向を記録。IDLEのみ向きスナップ（FALL/DOWN/RISE中は回転競合のため不変）
@@ -982,6 +998,22 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     }
     // ヒット適用（中間）
     e.hp = Math.max(0, e.hp - (attack.damagePerHit ?? 5));
+    // 最終ヒッター記録（マルチヒットでも毎発上書き：最終ヒットの attackId が記録される）
+    // 中間ヒットの lv は便宜上 attack.atk_lv（最終ヒットの想定値）を使う
+    const _midLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
+      ? attack.atk_lv_air
+      : (attack.atk_lv ?? 1);
+    e.lastHitter = { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: _midLv };
+    // dying 中の中間ヒット：ゴアクリ抽選も回す（仕様：完全消滅まで毎ヒット抽選）
+    if (e.dying) {
+      handleEnemyDyingHit(e, e.x, e.y + 60, e.z, p.facing);
+      // armed 発火：以降の flinch/state 上書きをスキップ（wall_blast setup を保護）
+      if (e.goreCritical && e.goreCritical.armed) {
+        bumpCombo(e);
+        anyHit = true;
+        continue;
+      }
+    }
     e.hitFlashTimer = 7;
     e.frozenByUlt = false;
     e.fallDir = (e.x !== p.x) ? Math.sign(e.x - p.x) : p.facing;
@@ -1090,6 +1122,8 @@ export function tryThrownChainHit(thrower, ctx) {
     const dir = thrower.thrownDir;
     // 受け手：投げ手と同方向に吹き飛び
     other.hp = Math.max(0, other.hp - THROW_CHAIN_CONFIG.damage);
+    // 投げ手 (thrower) の最終ヒッター情報を継承（chain death の attribute 用）
+    other.lastHitter = { attackId: 'c01_thrown_chain', profileKey: 'METEO', facing: thrower.thrownDir, lv: 3 };
     other.hitFlashTimer = 7;
     other.fallDir       = dir;
     other.vy            = THROW_CHAIN_CONFIG.kbVy;
