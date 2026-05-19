@@ -778,6 +778,12 @@
       dumpInvariants as _invDump,
       clearInvariantHistory as _invClearHistory,
       summarizeInvariants as _invSummarize,
+      invariantWatch as _invWatch,
+      markPlayStart as _invMarkPlayStart,
+      markInput as _invMarkInput,
+      setWatchPaused as _invSetPaused,
+      shouldWatch as _invShouldWatch,
+      dumpNewSinceLastCheck as _invDumpNew,
     } from './src/debug-invariants.js';
     // === damage-area（ダメージ範囲可視化：共通モジュール・AoE 攻撃や爆発範囲に転用可）===
     import {
@@ -2028,7 +2034,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-19 debug-invariants 履歴蓄積 + dump API（テストプレイ中の警告を後から取得可能）';
+    const LAST_UPDATE = '2026-05-19 invariant 監視セッション：ESC pause 連動・初回入力で自動起動・右下 HUD バッジ・10 分非アクティブで自動停止';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2080,6 +2086,8 @@
       PAUSE_CONFIG.paused = !PAUSE_CONFIG.paused;
       const overlay = document.getElementById('pause-overlay');
       if (overlay) overlay.classList.toggle('show', PAUSE_CONFIG.paused);
+      // invariant 監視と連動：pause 中は監視停止 / 復帰で再開
+      _invSetPaused(PAUSE_CONFIG.paused);
       console.log(`[PAUSE] ${PAUSE_CONFIG.paused ? 'PAUSED' : 'RESUMED'} (${source})`);
     }
 
@@ -2096,6 +2104,49 @@
     initDamageArea({ scene, THREE });
     // debug-invariants 初期化（STATE 値セットを登録して state 妥当性検査を有効化）
     _invSetKnownStates(STATE);
+    // 初回キー入力で監視セッション開始（タイトル画面未実装のため自動起動）
+    // 既存リスナーと並行（input-system.js とは独立）
+    window.addEventListener('keydown', () => {
+      if (!_invWatch.active) _invMarkPlayStart();
+      else _invMarkInput();
+    });
+    window.addEventListener('mousedown', () => {
+      if (!_invWatch.active) _invMarkPlayStart();
+      else _invMarkInput();
+    });
+    // HUD バッジ：右下に [INV: N] 表示・致命カウントは赤・クリックで dump 出力
+    (function _initInvHud() {
+      const el = document.createElement('div');
+      el.id = 'inv-hud-badge';
+      el.style.cssText = [
+        'position:absolute', 'bottom:8px', 'right:8px',
+        'padding:4px 10px',
+        'background:rgba(20,20,40,0.85)',
+        'color:#aaccff', 'font-family:monospace', 'font-size:11px',
+        'border:1px solid rgba(100,160,255,0.5)',
+        'border-radius:3px',
+        'cursor:pointer', 'z-index:200',
+        'pointer-events:auto',
+      ].join(';');
+      el.textContent = 'INV: 0';
+      el.title = 'クリックで履歴を console に出力';
+      el.addEventListener('click', () => {
+        console.log('[INV-HUD] dump latest 30:', _invDump(30));
+        console.log('[INV-HUD] summary:', _invSummarize());
+      });
+      const layer = document.getElementById('hud-layer') || document.body;
+      layer.appendChild(el);
+      // 毎秒バッジ更新（performance 配慮で毎フレームではなく setInterval）
+      setInterval(() => {
+        const s = _invSummarize();
+        const fatal = s.byLevel.fatal || 0;
+        const warn  = s.byLevel.warn  || 0;
+        el.textContent = `INV: ${s.total}${fatal ? ` 🔴${fatal}` : ''}${warn ? ` 🟡${warn}` : ''}`;
+        // 致命があれば赤縁
+        el.style.borderColor = fatal > 0 ? 'rgba(255,80,80,0.9)' : 'rgba(100,160,255,0.5)';
+        el.style.color       = fatal > 0 ? '#ff8888' : '#aaccff';
+      }, 1000);
+    })();
     // breakables 初期化（壊れ物プロップ：crate / canister の破壊と飛び散り）
     // 依存：triggerHitstop（ヒット時の hitstop）/ damagePlayer / killEnemy（爆発で AoE ダメージ）
     initBreakables({
@@ -3164,6 +3215,15 @@
       dumpInvariants:        _invDump,
       summarizeInvariants:   _invSummarize,
       clearInvariantHistory: _invClearHistory,
+      // 監視セッション管理（/loop 自動取得用・コンテキスト消費抑制）
+      //   SB.invariantWatch          { active, playStartTime, lastInputTime, ... }
+      //   SB.invariantShouldWatch()  /loop が監視継続すべきか判定（false なら即終了）
+      //   SB.invariantDumpNew()      前回以降の新規警告のみ取得（差分・節約）
+      //   SB.markPlayStart()         明示的に監視開始（タイトル画面 PLAY ボタン等から）
+      invariantWatch:        _invWatch,
+      invariantShouldWatch:  _invShouldWatch,
+      invariantDumpNew:      _invDumpNew,
+      markPlayStart:         _invMarkPlayStart,
       // Phase 3-B：mortal モード（数字キー 9）。ON で HP 0 が即復活 → 死亡フローへ
       MORTAL_MODE: false,
       // Phase 3：ステータス系（status_stun）。コンソールから付与テスト：

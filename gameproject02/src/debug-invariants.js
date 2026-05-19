@@ -87,6 +87,74 @@ export function dumpInvariants(n = 50) {
   return history.slice(-n);
 }
 
+// === 監視セッション管理（/loop 自動取得用）===
+// コンテキスト消費を抑えるため、「監視すべき状態」を厳密に判定する。
+// active=true の条件：markPlayStart 後 / pause 中でない / 10 分以内に入力あり
+export const invariantWatch = {
+  active: false,
+  playStartTime: null,
+  lastInputTime: 0,
+  noWarnRunCount: 0,        // 新規警告なしの連続回数（/loop 側で利用）
+  prevHistoryLength: 0,     // 前回 /loop 取得時の history 長
+  paused: false,            // ゲーム側の pause と連動
+};
+
+const IDLE_TIMEOUT_MS = 10 * 60 * 1000;  // 10 分
+
+// プレイ開始マーカー：初回キー入力 or タイトル PLAY ボタンで呼ぶ
+export function markPlayStart() {
+  invariantWatch.active = true;
+  invariantWatch.playStartTime = Date.now();
+  invariantWatch.lastInputTime = Date.now();
+  invariantWatch.noWarnRunCount = 0;
+  invariantWatch.prevHistoryLength = history.length;
+  invariantWatch.paused = false;
+}
+
+// 入力検知時に呼ぶ（lastInputTime を更新）
+export function markInput() {
+  if (!invariantWatch.active) return;
+  invariantWatch.lastInputTime = Date.now();
+}
+
+// ゲーム一時停止と連動
+export function setWatchPaused(paused) {
+  invariantWatch.paused = !!paused;
+  if (!paused) {
+    // 再開時に入力時刻も更新（idle タイムアウトをリセット）
+    invariantWatch.lastInputTime = Date.now();
+  }
+}
+
+// /loop が「監視すべきか」を判定（false なら即終了して context 節約）
+export function shouldWatch() {
+  if (!invariantWatch.active) return false;
+  if (invariantWatch.paused) return false;
+  const idleMs = Date.now() - invariantWatch.lastInputTime;
+  if (idleMs > IDLE_TIMEOUT_MS) {
+    invariantWatch.active = false;  // 自動停止
+    return false;
+  }
+  return true;
+}
+
+// /loop 専用：前回呼び出し以降の新規警告のみ返す（差分取得・context 節約）
+export function dumpNewSinceLastCheck() {
+  const newEntries = history.slice(invariantWatch.prevHistoryLength);
+  invariantWatch.prevHistoryLength = history.length;
+  if (newEntries.length === 0) {
+    invariantWatch.noWarnRunCount++;
+  } else {
+    invariantWatch.noWarnRunCount = 0;
+  }
+  return {
+    newWarnings: newEntries,
+    noWarnRunCount: invariantWatch.noWarnRunCount,
+    watching: invariantWatch.active && !invariantWatch.paused,
+    idleMs: Date.now() - invariantWatch.lastInputTime,
+  };
+}
+
 // 履歴をクリア（リスタート時等）
 export function clearInvariantHistory() {
   history.length = 0;
