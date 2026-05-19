@@ -65,6 +65,11 @@ export const PLAYER_KB_VX_DECAY       = 0.92;  // 被弾中の水平減衰
 export const STATE = {
   // ── 通常 ───────────────────────────────────────────────────
   wait01:           'wait01',            // 立ち・通常待機
+  // 移動系（プレイヤー / 敵共通・2026-05-19 追加）
+  // wait01 のまま移動していると見た目が固まる問題への対策。アニメーション切替の起点。
+  walk_fwd:         'walk_fwd',          // 前歩き（facing 方向への低速移動）
+  walk_back:        'walk_back',         // 後ろ歩き（後ずさり・facing は固定）
+  dash:             'dash',              // ダッシュ走行（プレイヤー dashActive と並走・敵は距離大時に使用）
   // ── プレイヤー行動（敵が攻撃するようになったら共用予定）─────────
   attacking:        'attacking',         // 攻撃モーション中
   hit_confirm:      'hit_confirm',       // ヒット確認後のキャンセル受付中
@@ -133,6 +138,10 @@ export const STATE = {
   enemy_stagger:    'enemy_stagger',    // 連続被弾で蓄積する怯み（accumStaggerVal が閾値超で発火）
   enemy_taunt:      'enemy_taunt',      // 挑発（無防備に何もしない数秒間・性格 brave 専用）
   enemy_block_hit:  'enemy_block_hit',  // ガード成立直後の硬直（kb 軽め・1F 遅れて attack 可能に）
+  // 興奮発生モーション（aiPhase='enraged' とは別軸・専用モーションの起点）
+  // 発生時のみ短時間（推奨 30-60F）この state を取り、終了後は wait01 に戻る。
+  // aiPhase は 'enraged' のまま継続して攻撃頻度等の挙動変化を持続。
+  enraged_intro:    'enraged_intro',
 };
 
 // ============================================================
@@ -241,6 +250,11 @@ export const STATE_TILT_TARGET = {
   enemy_stagger:    0,
   enemy_taunt:      0,
   enemy_block_hit:  0,
+  enraged_intro:    0,
+  // 移動系（プレイヤー/敵共通・全て立ち姿勢 0）
+  walk_fwd:         0,
+  walk_back:        0,
+  dash:             0,
 };
 export const STATE_TILT_LERP = 0.25;          // 補間係数（0.25 で約12F でほぼ目標到達）
 
