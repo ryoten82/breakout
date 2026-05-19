@@ -42,3 +42,34 @@ location.search = '?stage=stage02';
 ### なぜ移管が別タスクか
 
 `index.html` への手入れが必要なため、**zealous-hertz worktree（実装本流）と同時編集を避けるタイミング**で実施しなければならない（ROOM_README.md 衝突回避ルール 3）。
+
+---
+
+## Stage 2 編成仕様（独立実装時の出発点・2026-05-19 確定）
+
+stage01 wrap から独立実装へ移管する際の編成方針。テーマ：**応用・群れの脅威 / cunning 比率上昇 / キャリア初登場**。
+
+### 性格分布カーブ
+**brave 50% / cunning 40% / coward 10%**（キャリア coward 初登場）
+
+### ウェーブ構成（4 wave）
+
+| W# | trig x | spawnPattern | 敵編成（tier × 性格）| 学習目標 |
+|---|---|---|---|---|
+| W1 | 800 | **simultaneous** | brave tier01 × 2 | ステージ感覚リセット |
+| W2 | 1600 | **staggered**（30F おき）| brave × 1 + **cunning × 2** + tier03 | cunning 多め・**にらみ合い**練習 |
+| W3 | 2500 | **encircle**（前 2 + 後 1）| brave × 1 + cunning × 2 + tier05 + **キャリア coward × 1** | **アイテム狙い vs 戦闘優先**の判断初体験 |
+| W4 | 3400 | **reinforcement**（初手撃破で増援）| brave × 1 + cunning × 1 + tier06、後 brave × 1 増援 | 「終わったと思ったら…」サプライズ + 中ボス |
+
+### キャリア coward（enem06 仕様・stage02 W3 初登場）
+- 攻撃ロジック完全 OFF（性格 coward の挙動ルール準拠）
+- プレイヤー接近で `walk_back` / `dodge` で距離取り
+- 倒すと**特別ドロップ**（CR / 強化チップ / SP 回復素材等・経済設計と直結）
+- 詳細：`chars/enem01.md` §coward の発生経路
+
+### spawn パターン定義
+`../stage01/layout.md` §spawn パターン定義 を参照（共通仕様）。
+
+### 連携
+- `chars/enem01.md` §性格軸 × 攻撃頻度分布 / §複数体時 attack token 制御
+- 性格・spawn・編成・キャリアすべて連携した仕様セット

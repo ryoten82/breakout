@@ -102,18 +102,30 @@ stage3 内を **A → B → C → D → E** の 5 段階で遷移させる構成
 - D も 1400 wu 確保：敵なし、巨大装置の威容を歩いて見せる演出時間（プレイヤーが「ヤバい」を体感する）
 - E 1200 wu：ボス前広場 + 台座エリア
 
-### ウェーブトリガー X（叩き台・テストプレイで調整）
+### ウェーブトリガー X（2026-05-19 編成更新・テーマ：クライマックス総力戦）
 
-| Wave | Trigger X | Section | 敵編成（叩き台） |
-|---|---|---|---|
-| W1 | 500 | A | tier01 ×2 |
-| W2 | 1300 | B | tier01 ×2 + tier03 ×1（SF 装甲機の初遭遇感） |
-| W3 | 2400 | C | tier01 ×3 + tier03 ×1 |
-| W4 | 3000 | C | tier01 ×2 + tier05 ×1 |
-| BOSS | 5400 | E | Act ボス（汎用台座から起動） |
+**性格分布カーブ**：brave 40% / cunning 40% / coward 20%（escort + キャリア混入）
+
+| Wave | Trigger X | Section | spawnPattern | 敵編成（tier × 性格）|
+|---|---|---|---|---|
+| W1 | 500 | A | **simultaneous** | brave tier01 × 2（量産ライン感・短いウォームアップ）|
+| W2 | 1300 | B | **staggered**（30F おき）| brave × 2 + cunning × 1 + tier03（SF 装甲機 + 連続増援）|
+| W3 | 2400 | C | **encircle**（前 2 + 後 2）| brave × 2 + cunning × 2（**包囲ピーク・最高密度**）|
+| W4 | 3000 | C | **ambush**（待ち構え演出）| brave × 2 + cunning × 1 + **キャリア coward × 1** + tier06（中ボス + 最後の報酬チャンス）|
+| BOSS | 5400 | E | （別演出）| ボス（tier06）+ **escort（brave × 1 + cunning × 1）** ※ leaderless 演出はボス仕様議論で詰める |
 
 D セクションは敵なし、プレイヤーが歩いて装置を眺める時間。
-※ 敵編成・X 位置は実装後のテストプレイで調整
+※ 敵編成・X 位置は実装後のテストプレイで調整。
+
+spawn パターン定義は `../stage01/layout.md` §spawn パターン定義 を参照（共通仕様）。
+
+### escort 配置（BOSS wave・leaderless 演出予約）
+
+- ボスと同時に escort × 2（brave / cunning 各 1）を配置
+- escort はボスに追従して位置取り（boss-room で詳細議論予定）
+- **ボス HP 0 で `e.leaderless = true`** → escort の性格が coward に切替 → `aiPhase = flee` で逃走
+- プレイヤーは「逃げる escort を倒すか・無視して進むか」のドラマチック最終局面
+- **leaderless 演出の詳細はボス仕様議論で確定**（本ファイルでは枠予約のみ）
 
 ## 設計論点（背景部屋で詰めるべき項目）
 
