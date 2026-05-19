@@ -556,6 +556,14 @@ export function _cancelHitstunForReversal(p) {
   p.kbVx            = 0;
   p.kbVy            = 0;
   p.invincibleFrames = 0;
+  // 2026-05-19 バグ修正：被弾で空中に吹き飛ばされた状態でメガクラ等のリバーサルを発動すると、
+  //   y > 0 のまま wait01 に戻って「空中歩き」状態になる事故があった。
+  //   y / vy / isGrounded / 浮き系フラグを強制リセットして接地状態に整合させる。
+  p.y                = 0;
+  p.vy               = 0;
+  p.isGrounded       = true;
+  p.launcherAirborne = false;
+  p.peakHangTimer    = 0;
 }
 
 export function revivePlayer(p) {

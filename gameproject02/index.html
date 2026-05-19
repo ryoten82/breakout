@@ -2097,7 +2097,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-19 開始画面オーバーレイ：タイトル + ログ収集注意 + PRESS ANY KEY で markPlayStart 明示発火';
+    const LAST_UPDATE = '2026-05-19 fix: 空中被弾→メガクラ後の空中歩きバグ修正（_cancelHitstunForReversal で y/vy/isGrounded リセット）';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
