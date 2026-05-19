@@ -768,7 +768,7 @@ export function triggerMegaCrash(p) {
   p.attackBuffered = false;
   p.kBuffered      = false;
 
-  console.log('[MEGA CRASH] SP残:', p.sp.toFixed(1));
+  if (window.SB?.DEBUG_MEGA) console.log('[MEGA CRASH] SP残:', p.sp.toFixed(1));
 }
 
 // メガクラ無敵解除：暗転フェードが終わったタイミング（演出終了 ≒ megaDarkenFade==0）で false
@@ -841,7 +841,7 @@ export function triggerUlt(p) {
   _fxRefs.ultCamZoomFrames.set(ULT_CONFIG.CAM_ZOOM_FRAMES);
   _fxRefs.ultCamZoomTotal.set(ULT_CONFIG.CAM_ZOOM_FRAMES);
 
-  console.log('[ULT] c01_sp_ult01 起動・SP残:', p.sp.toFixed(1));
+  if (window.SB?.DEBUG_ULT) console.log('[ULT] c01_sp_ult01 起動・SP残:', p.sp.toFixed(1));
 }
 
 // バッファ消化

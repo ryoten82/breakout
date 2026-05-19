@@ -376,7 +376,7 @@ function startSpecial(p, id) {
   // 方向入力履歴クリア：同じコマンドが連打で再成立しないように
   // （1 コマンド = 1 発動。次に出すには方向を再入力する必要がある）
   p.dirHistory.length = 0;
-  console.log('[SPECIAL]', id, '発動');
+  if (window.SB?.DEBUG_SPECIAL) console.log('[SPECIAL]', id, '発動');
   return true;
 }
 
