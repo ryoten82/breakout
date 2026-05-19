@@ -58,8 +58,8 @@ stage01 wrap から独立実装へ移管する際の編成方針。テーマ：*
 |---|---|---|---|---|
 | W1 | 800 | **simultaneous** | brave tier01 × 2 | ステージ感覚リセット |
 | W2 | 1600 | **staggered**（30F おき）| brave × 1 + **cunning × 2** + tier03 | cunning 多め・**にらみ合い**練習 |
-| W3 | 2500 | **encircle**（前 2 + 後 1）| brave × 1 + cunning × 2 + tier05 + **キャリア coward × 1** | **アイテム狙い vs 戦闘優先**の判断初体験 |
-| W4 | 3400 | **reinforcement**（初手撃破で増援）| brave × 1 + cunning × 1 + tier06、後 brave × 1 増援 | 「終わったと思ったら…」サプライズ + 中ボス |
+| W3 | 2500 | **encircle**（前 2 + 後 1）| brave × 1 + cunning × 2 + **キャリア coward × 1** | **アイテム狙い vs 戦闘優先**の判断初体験 |
+| W4 | 3400 | **midboss 単体 wave**（推奨）| **midboss01 シールドガーダー × 1**（中盤の山場・障害として登場）| **盾を割って倒す**動機付け・berserker 体験 |
 
 ### キャリア coward（enem06 仕様・stage02 W3 初登場）
 - 攻撃ロジック完全 OFF（性格 coward の挙動ルール準拠）

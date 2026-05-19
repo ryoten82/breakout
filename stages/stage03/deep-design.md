@@ -111,8 +111,8 @@ stage3 内を **A → B → C → D → E** の 5 段階で遷移させる構成
 | W1 | 500 | A | **simultaneous** | brave tier01 × 2（量産ライン感・短いウォームアップ）|
 | W2 | 1300 | B | **staggered**（30F おき）| brave × 2 + cunning × 1 + tier03（SF 装甲機 + 連続増援）|
 | W3 | 2400 | C | **encircle**（前 2 + 後 2）| brave × 2 + cunning × 2（**包囲ピーク・最高密度**）|
-| W4 | 3000 | C | **ambush**（待ち構え演出）| brave × 2 + cunning × 1 + **キャリア coward × 1** + tier06（中ボス + 最後の報酬チャンス）|
-| BOSS | 5400 | E | （別演出）| ボス（tier06）+ **escort（brave × 1 + cunning × 1）** ※ leaderless 演出はボス仕様議論で詰める |
+| W4 | 3000 | C | **ambush**（待ち構え演出）| brave × 2 + cunning × 1 + **キャリア coward × 1** + **midboss01 シールドガーダー × 1**（雑魚 + 中ボスの最終 wave 直前壁）|
+| BOSS | 5400 | E | （別演出）| ボス（tier06）+ **escort（brave × 1 + cunning × 1）** ※ leaderless 演出 + キャリア相当ドロップは chars/midboss01.md および enem01.md §leaderless escort 参照 |
 
 D セクションは敵なし、プレイヤーが歩いて装置を眺める時間。
 ※ 敵編成・X 位置は実装後のテストプレイで調整。
