@@ -18,6 +18,7 @@ import { initWaveHud, updateWaveHud } from '../stage01/wave-hud.js';
 import { triggerStageClear, isStageCleared } from '../stage01/clear.js';
 import { addCentralPlant } from './central-plant.js';
 import { addSfBackdrop } from './sf-backdrop.js';
+import { showArrowHud, hideArrowHud } from '../arrow-hud.js';
 import { levelWalls } from '../../camera.js';
 
 let _spawnDummy = null;
@@ -94,6 +95,7 @@ export function tickStage03() {
       // TODO: BOSS の場合はここで boss-intro シーケンスを呼ぶ（別タスク）
       spawnWave(wave);
       updateWaveHud(_nextWaveIndex + 1, STAGE03_META.totalWaves, true);
+      hideArrowHud();
     }
   }
 
@@ -107,10 +109,12 @@ export function tickStage03() {
       _nextWaveIndex++;
       releaseLock();
       if (wasLastWave) {
-        if (!isStageCleared()) triggerStageClear();
+        if (!isStageCleared()) triggerStageClear({ nextStageId: STAGE03_META.nextStageId });
         updateWaveHud(STAGE03_META.totalWaves, STAGE03_META.totalWaves, false);
+        hideArrowHud();
       } else {
         updateWaveHud(_nextWaveIndex, STAGE03_META.totalWaves, false);
+        showArrowHud();
       }
     }
   }

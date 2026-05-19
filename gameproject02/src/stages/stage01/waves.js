@@ -66,4 +66,6 @@ export const STAGE01_META = {
   worldXMin: 0,
   worldXMax: 4000,
   sectionBoundaries: [1200, 3000],
+  // クリア後の遷移先（null なら GAME CLEAR）
+  nextStageId: 'stage02',
 };

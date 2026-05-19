@@ -764,6 +764,7 @@
     // === stages（背景部屋・stage-room worktree 由来）===
     import {
       initStage01, tickStage01, getStage01DebugState,
+      initStage02, tickStage02, getStage02DebugState,
       initStage03, tickStage03, getStage03DebugState,
     } from './src/stages/index.js';
     // Stage 1 外周ヤード書割（プロト・オプトイン）：window.STAGE01_EXTERIOR = true で起動
@@ -2004,7 +2005,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-19 gc_03 triggers から c01_sp_ult01 除外：ULT 発動で gc_03 が誤発火するのを防止（ULT 演出と gc は将来別途検討）';
+    const LAST_UPDATE = '2026-05-19 壊れ物プロップ（黄色コンテナ + 黄黒警告ドラム缶）を stage01 に仮配置・見た目比較用';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2090,18 +2091,24 @@
     // 死亡フローをテストする場合は `SB.killEnemy(SB.enemies[0])` か個別に `e.instantRespawn=false` 後にダメージ
     //
     // ステージ選択：
-    //   URL クエリ ?stage=stage03 で Stage 3 起動（リロードまたいで保持）
+    //   URL クエリ ?stage=stage01|stage02|stage03（リロードまたいで保持）
     //   コンソールで切替する場合は `location.search = '?stage=stage03'` で URL ごと変更
     //   window.STAGE01_ENABLED = false で完全 OFF（demo 敵のみ）
+    //   ステージクリア時の遷移は src/stages/stage01/clear.js が ?stage=<next> でリロードして実現
     const STAGE01_ENABLED = (window.STAGE01_ENABLED !== false);
     const _stageURLParam = new URLSearchParams(window.location.search).get('stage');
-    const SELECTED_STAGE = (_stageURLParam === 'stage03' || window.STAGE === 'stage03') ? 'stage03' : 'stage01';
+    const _validStages = new Set(['stage01', 'stage02', 'stage03']);
+    const SELECTED_STAGE = _validStages.has(_stageURLParam)
+      ? _stageURLParam
+      : (_validStages.has(window.STAGE) ? window.STAGE : 'stage01');
     if (!STAGE01_ENABLED) {
       spawnDummy(280, 300, { atkCooldown:  60, instantRespawn: true });   // 一番近い：最初に攻撃
       spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: true });   // 中：2 番目に攻撃
       spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: true });   // 一番遠い：3 番目に攻撃
     } else if (SELECTED_STAGE === 'stage03') {
       initStage03({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
+    } else if (SELECTED_STAGE === 'stage02') {
+      initStage02({ spawnDummy, players, enemies, scene, THREE });
     } else {
       initStage01({ spawnDummy, players, enemies, scene, THREE });
     }
@@ -2626,6 +2633,7 @@
       updateEnemies(hitCtx);
       // ステージ tick：選択されたステージのみ走らせる
       if (SELECTED_STAGE === 'stage03') tickStage03();
+      else if (SELECTED_STAGE === 'stage02') tickStage02();
       else tickStage01();
       updateParticles();
       updateSuperFlightTrails(players, enemies);
@@ -3052,7 +3060,24 @@
       // 壁システム（コンソールから状態確認用・levelWalls に push して静的壁追加可能）
       getActiveWallX, levelWalls,
       // ステージ デバッグ：window.SB.stage() で現在ステージの内部状態を覗ける
-      stage: () => SELECTED_STAGE === 'stage03' ? getStage03DebugState() : getStage01DebugState(),
+      stage: () => {
+        if (SELECTED_STAGE === 'stage03') return getStage03DebugState();
+        if (SELECTED_STAGE === 'stage02') return getStage02DebugState();
+        return getStage01DebugState();
+      },
+      // ステージ デバッグ詳細：各ステージの内部状態を個別に覗く / 手動 tick / 選択中ステージ ID
+      stageDbg: {
+        selected: SELECTED_STAGE,
+        s1: getStage01DebugState,
+        s2: getStage02DebugState,
+        s3: getStage03DebugState,
+        tickS1: tickStage01,
+        tickS2: tickStage02,
+        tickS3: tickStage03,
+      },
+      // 敵スポーン（コンソールから直接呼べる）。stages から呼ばれる同じ関数
+      // 例: SB.spawnDummy(1500, 0, { maxHp: 80, instantRespawn: false })
+      spawnDummy,
       // ダッシュ（例: SB.startDash(SB.players[0], 1, 0) で右ダッシュ強制発動）
       startDash,
       // Phase 2.4 被ダメージシステム

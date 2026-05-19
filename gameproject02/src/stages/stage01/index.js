@@ -10,6 +10,9 @@ import { lockArena, release as releaseLock } from './progress-lock.js';
 import { initWaveHud, updateWaveHud } from './wave-hud.js';
 import { triggerStageClear, isStageCleared } from './clear.js';
 import { addSectionMarkers } from './section-markers.js';
+import { showArrowHud, hideArrowHud } from '../arrow-hud.js';
+import { createCrate } from '../../props/factory/crate.js';
+import { createDrum } from '../../props/factory/drum.js';
 import { levelWalls } from '../../camera.js';
 
 let _spawnDummy = null;
@@ -29,6 +32,10 @@ export function initStage01(deps) {
   // セクション境界マーカー（黄黒テープ × 2）— scene + THREE が渡された時だけ生成
   if (deps.scene && deps.THREE) {
     addSectionMarkers(deps.scene, deps.THREE);
+    // 壊れ物（仮配置・破壊判定なし・見た目比較用）
+    // - crate（コンテナ型）と drum（警告ドラム缶型）を交互に配置
+    // - 配置位置は wave 間の「移動だけセクション」イメージ
+    _placeBreakablesForTest(deps.scene, deps.THREE);
   }
   // ステージ範囲の静的壁を登録（左端 x=0 / 右端 x=4000）
   // 既に同条件で push 済みなら重複させない（複数回 init 対策）
@@ -42,6 +49,26 @@ export function initStage01(deps) {
   _started = true;
   // 初期表示：未発火状態（非表示）
   updateWaveHud(0, STAGE01_META.totalWaves, false);
+}
+
+// 壊れ物の仮配置（破壊判定なし・見た目比較用）
+// 配置：W1 終了〜W2 trigger（x=1100〜1600）と W3 終了〜W4 trigger（x=3000〜3400）の合間に
+function _placeBreakablesForTest(scene, THREE) {
+  const placements = [
+    // W1〜W2 セクション：コンテナ 2 個 + ドラム 1 個
+    { type: 'crate', x: 1300, z:  -20 },
+    { type: 'crate', x: 1380, z:   20 },
+    { type: 'drum',  x: 1450, z:    0 },
+    // W3〜W4 セクション：ドラム 2 個 + コンテナ 1 個
+    { type: 'drum',  x: 3150, z:  -20 },
+    { type: 'drum',  x: 3220, z:   20 },
+    { type: 'crate', x: 3300, z:    0 },
+  ];
+  for (const p of placements) {
+    const mesh = (p.type === 'crate') ? createCrate({ THREE }) : createDrum({ THREE });
+    mesh.position.set(p.x, 0, p.z);
+    scene.add(mesh);
+  }
 }
 
 function isEnemyDead(e) {
@@ -95,6 +122,7 @@ export function tickStage01() {
       lockArena(maxEnemyX + 200);
       spawnWave(wave);
       updateWaveHud(_nextWaveIndex + 1, STAGE01_META.totalWaves, true);
+      hideArrowHud();
     }
   }
 
@@ -108,10 +136,12 @@ export function tickStage01() {
       _nextWaveIndex++;
       releaseLock();
       if (wasLastWave) {
-        if (!isStageCleared()) triggerStageClear();
+        if (!isStageCleared()) triggerStageClear({ nextStageId: STAGE01_META.nextStageId });
         updateWaveHud(STAGE01_META.totalWaves, STAGE01_META.totalWaves, false);
+        hideArrowHud();
       } else {
         updateWaveHud(_nextWaveIndex, STAGE01_META.totalWaves, false);
+        showArrowHud();
       }
     }
   }

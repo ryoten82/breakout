@@ -68,4 +68,6 @@ export const STAGE03_META = {
   sectionBoundaries: [800, 2000, 3400, 4800],  // A/B, B/C, C/D, D/E
   // 各境界の色（A/B 普通工場・B/C SF 転換・C/D 警告・D/E ボス前赤予感）
   sectionBoundaryColors: [0xffaa22, 0x3399ff, 0xffaa22, 0xff3344],
+  // クリア後の遷移先（null = GAME CLEAR で停止）
+  nextStageId: null,
 };

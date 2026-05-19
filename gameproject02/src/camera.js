@@ -28,7 +28,7 @@ import { fxState } from './hit-engine.js';
 // X / Z はキャラ約 2 人分相当の追従中心相対デッドゾーン
 // Y は「絶対位置（地面 y=0）基準」で運用：プレイヤーが y > Y_UP の時のみ camFollowY 追従、
 // それ以外は camFollowY = 0 に戻す。ジャンプ降下後カメラが地面に自動で戻る
-const DEAD_ZONE_X = 380;        // 画像の赤枠サイズに合わせて再拡張
+const DEAD_ZONE_X = 180;        // 2026-05-19 380→180：左右 2 キャラ分（≒200wu）詰めて先が見えるように
 const DEAD_ZONE_Y_UP = 200;     // 物理 Y 軸（既存ロジック互換のため残置・現在は screenY 基準）
 const DEAD_ZONE_Y_DOWN = 500;   // 地下ステージ対応・下方向の許容
 const DEAD_ZONE_Z = 420;

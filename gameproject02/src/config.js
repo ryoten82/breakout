@@ -375,7 +375,7 @@ export const GORE_CONFIG = {
 //   - キャラ拡張で爆散方向・追加 FX を上書き可能（criticalExplosionVariant）
 // ============================================================
 export const GORE_CRITICAL_CONFIG = {
-  PROBABILITY:             1.0,          // 【テスト中：常時発火】通常運用では 0.20 に戻す。SB.GORE_CRITICAL_CONFIG.PROBABILITY で実行時上書きも可
+  PROBABILITY:             0.20,         // 通常運用値。テスト時は SB.GORE_CRITICAL_CONFIG.PROBABILITY = 1.0 で常時発火に
   FREEZE_FRAMES:           18,           // 発火直後の hitstop（0.3 秒）
   SHAKE_MAG:               22,           // 強画ぶれ振幅
   SHAKE_FRAMES:            34,           // 画ぶれ持続
