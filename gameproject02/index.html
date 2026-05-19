@@ -775,6 +775,9 @@
       checkAttackToken as _invCheckAttackToken,
       clearFrameWarnings as _invClearFrameWarnings,
       getInvariantState as _invGetState,
+      dumpInvariants as _invDump,
+      clearInvariantHistory as _invClearHistory,
+      summarizeInvariants as _invSummarize,
     } from './src/debug-invariants.js';
     // === damage-area（ダメージ範囲可視化：共通モジュール・AoE 攻撃や爆発範囲に転用可）===
     import {
@@ -2025,7 +2028,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-19 debug-invariants：意図しない挙動を自動検知（致命常時 ON / 警告は SB.DEBUG_INVARIANTS）';
+    const LAST_UPDATE = '2026-05-19 debug-invariants 履歴蓄積 + dump API（テストプレイ中の警告を後から取得可能）';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2704,7 +2707,7 @@
       for (const _e of enemies)  _invCheckEnemy(_e, _invFrame);
       for (const _b of getBreakables()) _invCheckBreakable(_b, _invFrame);
       _invCheckAttackToken(enemyAttackToken, _invFrame);
-      _invClearFrameWarnings();
+      _invClearFrameWarnings(_invFrame);
     }
 
 
@@ -3152,8 +3155,15 @@
       // 意図しない挙動を自動検知（致命は常時 ON / 警告・情報は本フラグで切替）
       //   SB.DEBUG_INVARIANTS = true でコンソールに [INV-P/E/B/T] 警告を出す
       DEBUG_INVARIANTS: false,
-      // invariant 現状確認（フラグ ON/OFF・今フレームの警告件数）
-      invariantState: _invGetState,
+      // invariant API：状態確認・履歴取得・サマリ・履歴クリア
+      //   SB.invariantState()        現状（フラグ ON/OFF・今フレームの警告件数）
+      //   SB.dumpInvariants(50)      最新 50 件の履歴（snapshot 込み）
+      //   SB.summarizeInvariants()   レベル別・タグ別の集計
+      //   SB.clearInvariantHistory() 履歴を全消去
+      invariantState:        _invGetState,
+      dumpInvariants:        _invDump,
+      summarizeInvariants:   _invSummarize,
+      clearInvariantHistory: _invClearHistory,
       // Phase 3-B：mortal モード（数字キー 9）。ON で HP 0 が即復活 → 死亡フローへ
       MORTAL_MODE: false,
       // Phase 3：ステータス系（status_stun）。コンソールから付与テスト：

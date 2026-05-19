@@ -22,10 +22,43 @@ const MAX_WARNS_PER_FRAME = 10;
 const warnedThisFrame = new Set();
 let warnCountThisFrame = 0;
 
+// === 履歴蓄積（テストプレイ中に取得・分析するため）===
+const HISTORY_MAX = 200;  // 最新 200 件まで保持（古いものから捨てる）
+const history = [];        // { level, msg, frame, time, snapshot }[]
+let _frameCounter = 0;
+
 // 既知の STATE 値セット（state 文字列の妥当性チェック用）
 let _knownStates = null;
 export function setKnownStates(stateObj) {
   _knownStates = new Set(Object.values(stateObj));
+}
+
+// オブジェクトの主要プロパティだけ取り出し（循環参照回避・履歴保存用）
+function _snapshot(obj) {
+  if (!obj || typeof obj !== 'object') return null;
+  const snap = {};
+  // 共通フィールド
+  if (obj.x !== undefined) snap.x = obj.x;
+  if (obj.y !== undefined) snap.y = obj.y;
+  if (obj.z !== undefined) snap.z = obj.z;
+  if (obj.vy !== undefined) snap.vy = obj.vy;
+  if (obj.hp !== undefined) snap.hp = obj.hp;
+  if (obj.state !== undefined) snap.state = obj.state;
+  if (obj.dying !== undefined) snap.dying = obj.dying;
+  if (obj.dyingPhase !== undefined) snap.dyingPhase = obj.dyingPhase;
+  if (obj.isAlive !== undefined) snap.isAlive = obj.isAlive;
+  if (obj.removed !== undefined) snap.removed = obj.removed;
+  // breakable 系
+  if (obj.userData) {
+    if (obj.userData.fuseTimer !== undefined) snap.fuseTimer = obj.userData.fuseTimer;
+    if (obj.userData.kind !== undefined) snap.kind = obj.userData.kind;
+  }
+  // mesh 位置（breakable）
+  if (obj.position) {
+    snap.posX = obj.position.x;
+    snap.posY = obj.position.y;
+  }
+  return snap;
 }
 
 function _warn(level, msg, obj) {
@@ -33,9 +66,50 @@ function _warn(level, msg, obj) {
   if (warnCountThisFrame >= MAX_WARNS_PER_FRAME) return;
   warnedThisFrame.add(msg);
   warnCountThisFrame++;
+  // 履歴に追加
+  history.push({
+    level,
+    msg,
+    frame: _frameCounter,
+    time: Date.now(),
+    snapshot: _snapshot(obj),
+  });
+  if (history.length > HISTORY_MAX) history.shift();
   // 致命=warn / 警告/情報=warn だが、prefix で区別可能に
   if (level === 'fatal') console.warn(msg, obj || '');
   else console.warn(msg, obj || '');
+}
+
+// === 履歴 API（テストプレイ取得用）===
+
+// 最新 n 件を取得（既定 50 件）
+export function dumpInvariants(n = 50) {
+  return history.slice(-n);
+}
+
+// 履歴をクリア（リスタート時等）
+export function clearInvariantHistory() {
+  history.length = 0;
+}
+
+// 履歴サマリ：レベル別・タグ別の集計
+export function summarizeInvariants() {
+  const byLevel = {};
+  const byPrefix = {};
+  for (const h of history) {
+    byLevel[h.level] = (byLevel[h.level] || 0) + 1;
+    // [INV-X🔴/🟡/🟢] xxx の X 部分でグルーピング
+    const m = h.msg.match(/^\[INV-(\w)/);
+    const prefix = m ? m[1] : '?';
+    byPrefix[prefix] = (byPrefix[prefix] || 0) + 1;
+  }
+  return {
+    total: history.length,
+    byLevel,
+    byPrefix,
+    oldest: history[0]?.time ?? null,
+    newest: history[history.length - 1]?.time ?? null,
+  };
 }
 
 function _isFlagOn() {
@@ -139,9 +213,11 @@ export function checkAttackToken(token, frame) {
 }
 
 // === 毎フレーム末尾で呼ぶ：警告セットをクリア ===
-export function clearFrameWarnings() {
+// frame を引数で受けると履歴にフレーム番号が乗る（呼び出し側 getGameFrame() 推奨）
+export function clearFrameWarnings(frame) {
   warnedThisFrame.clear();
   warnCountThisFrame = 0;
+  if (typeof frame === 'number') _frameCounter = frame;
 }
 
 // === デバッグ用ヘルパ：現在の警告状況を返す ===
