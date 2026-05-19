@@ -125,6 +125,34 @@ export const STATE = {
   //   - 仕様：spec-room/discussions/gore-scrap-mob-prototype.md
   //   - Phase 3-A はフェードのみ。3-B でパーツ飛散・3-C でバーストダウン即爆散
   enemy_dying:      'enemy_dying',
+  // ── 基本雑魚の能動行動 state（2026-05-19 枠だけ予約・実装は後段）─────
+  // 各 state は「物理・見た目」軸で、AI 意思決定（aiPhase）と独立に発火される。
+  // 仕様：chars/enem01.md §基本雑魚の行動カテゴリ
+  enemy_dodge:      'enemy_dodge',      // 回避モーション（バックステップ / サイドステップ・無敵 F あり）
+  enemy_guard:      'enemy_guard',      // ガード姿勢（前面被弾を低 lv に降格）
+  enemy_stagger:    'enemy_stagger',    // 連続被弾で蓄積する怯み（accumStaggerVal が閾値超で発火）
+  enemy_taunt:      'enemy_taunt',      // 挑発（無防備に何もしない数秒間・性格 brave 専用）
+  enemy_block_hit:  'enemy_block_hit',  // ガード成立直後の硬直（kb 軽め・1F 遅れて attack 可能に）
+};
+
+// ============================================================
+//  AI_PHASE — 敵の意思決定 phase（e.aiPhase 用の文字列定数）
+//  e.state（物理・見た目）と独立軸。被弾中は 'hitstun' に自動同期される。
+//  仕様：chars/enem01.md §AI ステート設計
+// ============================================================
+export const AI_PHASE = {
+  idle:      'idle',       // approachRange 外で待機
+  chase:     'chase',      // プレイヤーへ接近
+  attack:    'attack',     // 攻撃モーション中（atkPhase: wind→active→recover）
+  retreat:   'retreat',    // 攻撃後/被弾復帰後の強制後退
+  hitstun:   'hitstun',    // 被弾中・読取専用
+  // 2026-05-19 追加（基本雑魚行動の枠）
+  strafe:    'strafe',     // プレイヤー側面に回り込み（cunning 性格寄り）
+  dodge:     'dodge',      // プレイヤー攻撃モーション検知時の回避（cunning / coward）
+  guard:     'guard',      // ガード姿勢で被弾を軽減（受け身寄り個体）
+  enraged:   'enraged',    // HP 低下時の攻撃頻度上昇モード
+  flee:      'flee',       // 統率喪失時の逃走（coward / leaderless escort）
+  taunt:     'taunt',      // 挑発（brave 性格・連勝時のみ）
 };
 
 // 敵側の被弾・ダウン持続F
@@ -207,6 +235,12 @@ export const STATE_TILT_TARGET = {
   status_stun:      0,
   // 敵死亡フェード（直立姿勢のまま黒く消える）
   enemy_dying:      0,
+  // 基本雑魚の能動行動（2026-05-19 枠予約・全て立ち姿勢 0）
+  enemy_dodge:      0,
+  enemy_guard:      0,
+  enemy_stagger:    0,
+  enemy_taunt:      0,
+  enemy_block_hit:  0,
 };
 export const STATE_TILT_LERP = 0.25;          // 補間係数（0.25 で約12F でほぼ目標到達）
 
