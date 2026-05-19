@@ -766,6 +766,16 @@
       initBreakables, registerBreakable, tryHitBreakables, updateBreakables, getBreakables,
       getFlyingPartsCount, hitBreakableExternal, findBreakableHitBy,
     } from './src/breakables.js';
+    // === debug-invariants（意図しない挙動の自動検知・致命検知は常時 ON）===
+    import {
+      setKnownStates as _invSetKnownStates,
+      checkPlayer as _invCheckPlayer,
+      checkEnemy as _invCheckEnemy,
+      checkBreakable as _invCheckBreakable,
+      checkAttackToken as _invCheckAttackToken,
+      clearFrameWarnings as _invClearFrameWarnings,
+      getInvariantState as _invGetState,
+    } from './src/debug-invariants.js';
     // === damage-area（ダメージ範囲可視化：共通モジュール・AoE 攻撃や爆発範囲に転用可）===
     import {
       initDamageArea, addStaticArea, updateAreaPosition, removeArea,
@@ -2015,7 +2025,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-19 移動 state（walk_fwd/walk_back/dash・プレイヤー敵共通）+ enraged_intro を追加';
+    const LAST_UPDATE = '2026-05-19 debug-invariants：意図しない挙動を自動検知（致命常時 ON / 警告は SB.DEBUG_INVARIANTS）';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2081,6 +2091,8 @@
     initEnemyGoreBlack(THREE);  // 黒フェード目標色（gore-scrap）の初期化
     // damage-area 初期化（ダメージ範囲リング・パルスの共通基盤）
     initDamageArea({ scene, THREE });
+    // debug-invariants 初期化（STATE 値セットを登録して state 妥当性検査を有効化）
+    _invSetKnownStates(STATE);
     // breakables 初期化（壊れ物プロップ：crate / canister の破壊と飛び散り）
     // 依存：triggerHitstop（ヒット時の hitstop）/ damagePlayer / killEnemy（爆発で AoE ダメージ）
     initBreakables({
@@ -2686,6 +2698,13 @@
       updateEnemyAiPhaseHud();
       updateStatusStunHud();
       updateDebug();
+      // === debug-invariants：意図しない挙動を自動検知（致命は常時 ON / 警告/情報は SB.DEBUG_INVARIANTS）===
+      const _invFrame = getGameFrame();
+      for (const _p of players)  _invCheckPlayer(_p, _invFrame);
+      for (const _e of enemies)  _invCheckEnemy(_e, _invFrame);
+      for (const _b of getBreakables()) _invCheckBreakable(_b, _invFrame);
+      _invCheckAttackToken(enemyAttackToken, _invFrame);
+      _invClearFrameWarnings();
     }
 
 
@@ -3130,6 +3149,11 @@
       TEST_CONFIG, PAUSE_CONFIG, GAME_SPEED,
       // Phase 3：敵 aiPhase 頭上ラベル ON/OFF（数字キー 8）
       DEBUG_AI: false,
+      // 意図しない挙動を自動検知（致命は常時 ON / 警告・情報は本フラグで切替）
+      //   SB.DEBUG_INVARIANTS = true でコンソールに [INV-P/E/B/T] 警告を出す
+      DEBUG_INVARIANTS: false,
+      // invariant 現状確認（フラグ ON/OFF・今フレームの警告件数）
+      invariantState: _invGetState,
       // Phase 3-B：mortal モード（数字キー 9）。ON で HP 0 が即復活 → 死亡フローへ
       MORTAL_MODE: false,
       // Phase 3：ステータス系（status_stun）。コンソールから付与テスト：

@@ -1,0 +1,155 @@
+// 自動 invariant 検知システム
+//
+// 「意図しない挙動を起こしたら自動でログを出す」仕組み。
+// プレイヤー・敵・壊れ物の状態を毎フレーム検査して、矛盾や数値異常を console.warn で出す。
+//
+// 3 階層：
+//   🔴 致命（NaN / Infinity / 必須フィールド undefined）：フラグ不問で常時 ON・即座に警告
+//   🟡 警告（HP 大幅マイナス / state ↔ フラグ矛盾）：window.SB?.DEBUG_INVARIANTS で ON
+//   🟢 情報（worldXMax 超過等）：同上
+//
+// 重複抑止：同一フレーム内で同じ警告メッセージは 1 回まで
+// レート制限：1 フレーム 10 件まで（コンソール汚染防止）
+//
+// 呼び出し：
+//   毎フレーム update() ループ内で
+//   - checkPlayer(p, frame)
+//   - checkEnemy(e, frame)
+//   - checkBreakable(b, frame)
+//   ループ末尾で clearFrameWarnings()
+
+const MAX_WARNS_PER_FRAME = 10;
+const warnedThisFrame = new Set();
+let warnCountThisFrame = 0;
+
+// 既知の STATE 値セット（state 文字列の妥当性チェック用）
+let _knownStates = null;
+export function setKnownStates(stateObj) {
+  _knownStates = new Set(Object.values(stateObj));
+}
+
+function _warn(level, msg, obj) {
+  if (warnedThisFrame.has(msg)) return;
+  if (warnCountThisFrame >= MAX_WARNS_PER_FRAME) return;
+  warnedThisFrame.add(msg);
+  warnCountThisFrame++;
+  // 致命=warn / 警告/情報=warn だが、prefix で区別可能に
+  if (level === 'fatal') console.warn(msg, obj || '');
+  else console.warn(msg, obj || '');
+}
+
+function _isFlagOn() {
+  return !!(window.SB && window.SB.DEBUG_INVARIANTS);
+}
+
+// === プレイヤー検査 ===
+export function checkPlayer(p, frame) {
+  if (!p) return;
+  // 🔴 致命：数値の健全性（フラグ不問・常時 ON）
+  if (!Number.isFinite(p.x))  _warn('fatal', `[INV-P🔴] p${p._dbgIdx ?? ''}.x not finite (${p.x})`, p);
+  if (!Number.isFinite(p.y))  _warn('fatal', `[INV-P🔴] p${p._dbgIdx ?? ''}.y not finite (${p.y})`, p);
+  if (!Number.isFinite(p.z))  _warn('fatal', `[INV-P🔴] p${p._dbgIdx ?? ''}.z not finite (${p.z})`, p);
+  if (!Number.isFinite(p.vy)) _warn('fatal', `[INV-P🔴] p${p._dbgIdx ?? ''}.vy not finite (${p.vy})`, p);
+  if (!Number.isFinite(p.hp)) _warn('fatal', `[INV-P🔴] p${p._dbgIdx ?? ''}.hp not finite (${p.hp})`, p);
+  // 🔴 state が undefined / null
+  if (p.state == null) _warn('fatal', `[INV-P🔴] p${p._dbgIdx ?? ''}.state is ${p.state}`, p);
+
+  if (!_isFlagOn()) return;
+  // 🟡 警告：state が既知の STATE 値外
+  if (_knownStates && p.state != null && !_knownStates.has(p.state)) {
+    _warn('warn', `[INV-P🟡] p.state unknown: "${p.state}"`, p);
+  }
+  // 🟡 HP 大幅マイナス（dying 経路で多少のマイナスは許容、-100 以下は異常）
+  if (p.hp < -100) _warn('warn', `[INV-P🟡] p.hp << 0 (${p.hp})`, p);
+}
+
+// === 敵検査 ===
+export function checkEnemy(e, frame) {
+  if (!e) return;
+  // 🔴 致命：数値の健全性
+  if (!Number.isFinite(e.x))  _warn('fatal', `[INV-E🔴] e.x not finite (${e.x})`, e);
+  if (!Number.isFinite(e.y))  _warn('fatal', `[INV-E🔴] e.y not finite (${e.y})`, e);
+  if (!Number.isFinite(e.z))  _warn('fatal', `[INV-E🔴] e.z not finite (${e.z})`, e);
+  if (!Number.isFinite(e.vy)) _warn('fatal', `[INV-E🔴] e.vy not finite (${e.vy})`, e);
+  if (e.hp != null && !Number.isFinite(e.hp)) _warn('fatal', `[INV-E🔴] e.hp not finite (${e.hp})`, e);
+  // 🔴 state が undefined / null
+  if (e.state == null) _warn('fatal', `[INV-E🔴] e.state is ${e.state}`, e);
+  // 🔴 dying と dyingPhase の整合
+  if (e.dying && !e.dyingPhase) _warn('fatal', `[INV-E🔴] e dying=true but dyingPhase=${e.dyingPhase}`, e);
+
+  if (!_isFlagOn()) return;
+  // 🟡 警告：state が既知の STATE 値外
+  if (_knownStates && e.state != null && !_knownStates.has(e.state)) {
+    _warn('warn', `[INV-E🟡] e.state unknown: "${e.state}"`, e);
+  }
+  // 🟡 HP 大幅マイナス
+  if (e.hp != null && e.hp < -100) _warn('warn', `[INV-E🟡] e.hp << 0 (${e.hp})`, e);
+  // 🟡 dyingPhase 単独セット
+  if (!e.dying && e.dyingPhase) _warn('warn', `[INV-E🟡] e dyingPhase=${e.dyingPhase} but dying=false`, e);
+  // 🟡 isAlive=false なのに hp > 0
+  if (e.isAlive === false && e.hp > 0) _warn('warn', `[INV-E🟡] e isAlive=false but hp=${e.hp} > 0`, e);
+  // 🟢 情報：world 範囲外（極端な値のみ）
+  if (Math.abs(e.x) > 100000) _warn('info', `[INV-E🟢] e.x very large (${e.x})`, e);
+  if (e.y > 10000)            _warn('info', `[INV-E🟢] e.y very high (${e.y})`, e);
+}
+
+// === breakable 検査 ===
+export function checkBreakable(b, frame) {
+  if (!b || !b.userData) return;
+  // 🔴 致命：mesh position の健全性
+  if (b.position && !Number.isFinite(b.position.x)) {
+    _warn('fatal', `[INV-B🔴] breakable position.x not finite`, b);
+  }
+  if (b.position && !Number.isFinite(b.position.y)) {
+    _warn('fatal', `[INV-B🔴] breakable position.y not finite`, b);
+  }
+  // 🔴 fuseTimer マイナス（負のタイマーは爆発判定の事故）
+  if (b.userData.fuseTimer != null && b.userData.fuseTimer < -5) {
+    _warn('fatal', `[INV-B🔴] fuseTimer << 0 (${b.userData.fuseTimer})`, b);
+  }
+  // 🔴 vy 異常値
+  if (b.userData.vy != null && !Number.isFinite(b.userData.vy)) {
+    _warn('fatal', `[INV-B🔴] vy not finite (${b.userData.vy})`, b);
+  }
+
+  if (!_isFlagOn()) return;
+  // 🟡 警告：alive=false なのにシーンに残ってる
+  if (b.userData.alive === false && b.parent != null) {
+    _warn('warn', `[INV-B🟡] breakable alive=false but still in scene`, b);
+  }
+  // 🟡 dying=true なのに fuseTimer=0 で長時間放置（爆散経路を通っていない）
+  if (b.userData.dying && b.userData.fuseTimer === 0 && b.userData.isExplosive) {
+    _warn('warn', `[INV-B🟡] dying canister with fuseTimer=0 (should be detonating)`, b);
+  }
+}
+
+// === 攻撃トークン整合性検査 ===
+// enemyAttackToken が dying / removed の敵を保持していないか
+export function checkAttackToken(token, frame) {
+  if (!token) return;
+  // 🔴 token が enemy 参照だが、その敵が removed / isAlive=false
+  if (token.removed || token.isAlive === false) {
+    _warn('fatal', `[INV-T🔴] enemyAttackToken refers removed/dead enemy`, token);
+  }
+  if (!_isFlagOn()) return;
+  // 🟡 dying enemy を持ち続けている
+  if (token.dying) {
+    _warn('warn', `[INV-T🟡] enemyAttackToken refers dying enemy (state=${token.state})`, token);
+  }
+}
+
+// === 毎フレーム末尾で呼ぶ：警告セットをクリア ===
+export function clearFrameWarnings() {
+  warnedThisFrame.clear();
+  warnCountThisFrame = 0;
+}
+
+// === デバッグ用ヘルパ：現在の警告状況を返す ===
+export function getInvariantState() {
+  return {
+    flagOn:         _isFlagOn(),
+    warnCountThisFrame,
+    warnedCount:    warnedThisFrame.size,
+    maxPerFrame:    MAX_WARNS_PER_FRAME,
+  };
+}
