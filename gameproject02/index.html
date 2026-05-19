@@ -478,6 +478,60 @@
       text-shadow: 2px 2px 0 #000;
     }
 
+    /* 開始画面オーバーレイ（初回キー入力で消える・markPlayStart トリガー） */
+    #start-screen-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(5, 10, 20, 0.92);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      z-index: 250;
+      pointer-events: none;
+      opacity: 1;
+      transition: opacity 0.45s ease;
+    }
+    #start-screen-overlay.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #start-screen-overlay .start-title {
+      font-family: 'Courier New', monospace;
+      font-size: 64px;
+      font-weight: bold;
+      color: #ffee44;
+      letter-spacing: 12px;
+      text-shadow: 0 0 24px #ff8844, 4px 4px 0 #000;
+      margin-bottom: 28px;
+    }
+    #start-screen-overlay .start-msg {
+      font-family: 'Courier New', monospace;
+      font-size: 18px;
+      color: #cccccc;
+      line-height: 1.7;
+      text-align: center;
+      letter-spacing: 1px;
+      margin-bottom: 36px;
+      max-width: 720px;
+      padding: 0 24px;
+    }
+    #start-screen-overlay .start-msg .warn {
+      color: #ffaa66;
+    }
+    #start-screen-overlay .start-prompt {
+      font-family: 'Courier New', monospace;
+      font-size: 22px;
+      color: #88ddff;
+      letter-spacing: 6px;
+      text-shadow: 2px 2px 0 #000;
+      animation: start-prompt-blink 1.2s ease-in-out infinite;
+    }
+    @keyframes start-prompt-blink {
+      0%, 100% { opacity: 1; }
+      50%      { opacity: 0.35; }
+    }
+
     /* ULT 用画面暗転オーバーレイ（メガクラより少し濃い） */
     #ult-darken {
       position: absolute;
@@ -497,6 +551,15 @@
   <div id="pause-overlay">
     <div class="pause-text">PAUSED</div>
     <div class="pause-hint">ESC で再開</div>
+  </div>
+  <!-- 開始画面：初回入力で markPlayStart 発火 → フェードアウト -->
+  <div id="start-screen-overlay">
+    <div class="start-title">SCRAP BLITZ</div>
+    <div class="start-msg">
+      プレイ開始します。<br>
+      <span class="warn">⚠ 自動でログを収集するので連続プレイ時は注意してください。</span>
+    </div>
+    <div class="start-prompt">PRESS ANY KEY</div>
   </div>
   <!-- デバッグ：時計 HUD（時間の停止/スロー視認用） -->
   <div id="clock-hud">
@@ -2034,7 +2097,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-19 invariant 監視セッション：ESC pause 連動・初回入力で自動起動・右下 HUD バッジ・10 分非アクティブで自動停止';
+    const LAST_UPDATE = '2026-05-19 開始画面オーバーレイ：タイトル + ログ収集注意 + PRESS ANY KEY で markPlayStart 明示発火';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2104,15 +2167,28 @@
     initDamageArea({ scene, THREE });
     // debug-invariants 初期化（STATE 値セットを登録して state 妥当性検査を有効化）
     _invSetKnownStates(STATE);
-    // 初回キー入力で監視セッション開始（タイトル画面未実装のため自動起動）
+    // 開始画面オーバーレイの制御：初回入力で dismiss + markPlayStart 発火
+    // ESC pause メニューから再開した時は別経路（既存 togglePause が _invSetPaused を呼ぶ）
+    let _startScreenShown = true;
+    function _dismissStartScreen() {
+      if (!_startScreenShown) return;
+      _startScreenShown = false;
+      const ov = document.getElementById('start-screen-overlay');
+      if (ov) {
+        ov.classList.add('hide');
+        // 0.45s フェード後に display:none で完全に消す（操作妨害なし）
+        setTimeout(() => { if (ov) ov.style.display = 'none'; }, 500);
+      }
+      _invMarkPlayStart();
+    }
     // 既存リスナーと並行（input-system.js とは独立）
     window.addEventListener('keydown', () => {
-      if (!_invWatch.active) _invMarkPlayStart();
-      else _invMarkInput();
+      if (_startScreenShown) _dismissStartScreen();
+      else if (_invWatch.active) _invMarkInput();
     });
     window.addEventListener('mousedown', () => {
-      if (!_invWatch.active) _invMarkPlayStart();
-      else _invMarkInput();
+      if (_startScreenShown) _dismissStartScreen();
+      else if (_invWatch.active) _invMarkInput();
     });
     // HUD バッジ：右下に [INV: N] 表示・致命カウントは赤・クリックで dump 出力
     (function _initInvHud() {
