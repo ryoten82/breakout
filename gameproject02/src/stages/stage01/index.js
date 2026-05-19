@@ -6,7 +6,7 @@
 import { STAGE01_WAVES, ENEMY_TEMPLATES, STAGE01_META } from './waves.js';
 import { addSectionMarkers } from './section-markers.js';
 import { createCrate } from '../../props/factory/crate.js';
-import { createDrum } from '../../props/factory/drum.js';
+import { createCanister } from '../../props/factory/gas-canister.js';
 import { registerBreakable } from '../../breakables.js';
 import { createWaveRunner } from '../wave-runner.js';
 
@@ -14,15 +14,15 @@ import { createWaveRunner } from '../wave-runner.js';
 // 配置：W1 終了〜W2 trigger（x=1100〜1600）と W3 終了〜W4 trigger（x=3000〜3400）の合間
 function _placeBreakablesForTest(scene, THREE) {
   const placements = [
-    { type: 'crate', x: 1300, z:  -20 },
-    { type: 'crate', x: 1380, z:   20 },
-    { type: 'drum',  x: 1450, z:    0 },
-    { type: 'drum',  x: 3150, z:  -20 },
-    { type: 'drum',  x: 3220, z:   20 },
-    { type: 'crate', x: 3300, z:    0 },
+    { type: 'crate',    x: 1300, z:  -20 },
+    { type: 'crate',    x: 1380, z:   20 },
+    { type: 'canister', x: 1450, z:    0 },
+    { type: 'canister', x: 3150, z:  -20 },
+    { type: 'canister', x: 3220, z:   20 },
+    { type: 'crate',    x: 3300, z:    0 },
   ];
   for (const p of placements) {
-    const mesh = (p.type === 'crate') ? createCrate({ THREE }) : createDrum({ THREE });
+    const mesh = (p.type === 'crate') ? createCrate({ THREE }) : createCanister({ THREE });
     mesh.position.set(p.x, 0, p.z);
     scene.add(mesh);
     registerBreakable(mesh);

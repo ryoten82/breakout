@@ -764,7 +764,7 @@
     // === breakables（壊れ物プロップの破壊・パーツ飛び散り）===
     import {
       initBreakables, registerBreakable, tryHitBreakables, updateBreakables, getBreakables,
-      hitBreakableExternal, findBreakableHitBy,
+      getFlyingPartsCount, hitBreakableExternal, findBreakableHitBy,
     } from './src/breakables.js';
     // === damage-area（ダメージ範囲可視化：共通モジュール・AoE 攻撃や爆発範囲に転用可）===
     import {
@@ -2015,7 +2015,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-19 chore: 無条件 console.log を DEBUG_MEGA / ULT / SPECIAL でガード';
+    const LAST_UPDATE = '2026-05-19 refactor: drum.js → gas-canister.js リネーム + SB.breakables debug API 整備';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -3110,6 +3110,18 @@
       // 敵スポーン（コンソールから直接呼べる）。stages から呼ばれる同じ関数
       // 例: SB.spawnDummy(1500, 0, { maxHp: 80, instantRespawn: false })
       spawnDummy,
+      // 壊れ物プロップのデバッグ API（参照・強制ヒット・状態確認）
+      //   SB.breakables.list()         → 配置中の breakable mesh 一覧
+      //   SB.breakables.flyingCount()  → 飛び散り中のパーツ数
+      //   SB.breakables.hit(p, atk)    → プレイヤー attack 範囲でヒット判定（通常経路）
+      //   SB.breakables.kill(mesh)     → 範囲判定なしで強制ヒット（外部スクリプト用）
+      breakables: {
+        list:        getBreakables,
+        flyingCount: getFlyingPartsCount,
+        hit:         tryHitBreakables,
+        kill:        hitBreakableExternal,
+        find:        findBreakableHitBy,
+      },
       // ダッシュ（例: SB.startDash(SB.players[0], 1, 0) で右ダッシュ強制発動）
       startDash,
       // Phase 2.4 被ダメージシステム

@@ -1,6 +1,6 @@
-// ガスボンベ（廃工場プロップ・旧ドラム缶から差し替え）
-// 旧版はプレイヤーサイズに対してドラム缶 1 個が大き過ぎ＆「典型ドラム缶」が
-// テーマに馴染まなかったため、円筒形ガスボンベに置き換え（2026-05-19）。
+// ガスボンベ（廃工場プロップ）
+// 旧 drum.js / createDrum / DRUM_DIMS から 2026-05-19 リネーム。
+// ファイル名と中身（ドラム缶ではなくガスボンベ）の乖離を解消。
 //
 // スケール：直径 36wu × 高さ 90wu（≒ 0.7m × 1.8m）。プレイヤー機体長 100wu より低めで
 // 「立っている円筒タンク」のシルエット。胴体スリム + 上にバルブ的ディテール。
@@ -20,7 +20,7 @@ const COLOR_BAND  = 0x202020;
 const COLOR_VALVE = 0x606060;
 const COLOR_KNOB  = 0x303030;
 
-export function createDrum({ THREE }) {
+export function createCanister({ THREE }) {
   const g = new THREE.Group();
 
   const matMain  = new THREE.MeshLambertMaterial({ color: COLOR_MAIN });
@@ -79,4 +79,4 @@ export function createDrum({ THREE }) {
   return g;
 }
 
-export const DRUM_DIMS = { r: R, h: H_BODY + H_NECK + H_TOP + 10 };
+export const CANISTER_DIMS = { r: R, h: H_BODY + H_NECK + H_TOP + 10 };
