@@ -53,6 +53,14 @@ export const PLAYER_DOWN_FRONT_START_FRAMES = 28;
 export const PLAYER_DOWN_BAS_START_FRAMES   = 22;
 export const PLAYER_DOWN_BAS_LOOP_FRAMES    = 50;
 export const PLAYER_DOWN_BAS_END_FRAMES     = 32;
+export const PLAYER_DOWN_UP_FRAMES          = 36;  // lv4 打ち上げ（敵 ENEMY_FALL_FRAMES と同値）
+export const PLAYER_KB_AIR_FRAMES           = 28;  // 空中 lv1/lv2 フリンチ持続F → fall_loop へ
+export const PLAYER_LAND_FRAMES             = 14;  // 着地モーション → wait01
+export const PLAYER_AIRBORNE_Y_THRESHOLD    = 10;  // この値以上で空中扱い（敵側と同じ思想）
+export const PLAYER_JUMP_START_FRAMES       = 4;   // 通常ジャンプ離陸 → jump_loop へ
+export const PLAYER_JUMP_D_START_FRAMES     = 6;   // ダッシュジャンプ離陸 → jump_d_loop へ
+export const PLAYER_JUMP_END_FRAMES         = 5;   // 通常ジャンプ着地（短・cancel 可）
+export const PLAYER_JUMP_D_END_FRAMES       = 14;  // ダッシュジャンプ着地（やや長・cancel 可）
 export const PLAYER_DYING_FRAMES      = 60;
 export const PLAYER_KB_GRAV           = 0.55;  // 被弾中の落下重力
 export const PLAYER_KB_VX_DECAY       = 0.92;  // 被弾中の水平減衰
@@ -81,7 +89,15 @@ export const STATE = {
   knockback_air01:  'knockback_air01',   // lv01/lv02 空中ヒット → fall_loop
   knockback03:      'knockback03',       // ダウン中ヒット用フリンチ（45F → down_bas_loop）
   fall_loop:        'fall_loop',         // 自由落下 → 着地で land
-  land:             'land',              // 着地モーション → wait01
+  land:             'land',              // 空中被弾系の着地モーション（長め・cancel 不可）→ wait01
+  // 通常ジャンプ state（2026-05-19 追加）：state machine の見える化と着地演出フック用。
+  // すべて攻撃/ジャンプ入力で即 cancel 可能。hitstun 扱いではない。
+  jump_start:       'jump_start',        // 通常ジャンプ離陸（数F）→ jump_loop
+  jump_loop:        'jump_loop',         // 空中（上昇・滞空・落下）→ 着地で jump_end
+  jump_end:         'jump_end',          // 通常ジャンプ着地（短・cancel 可）→ wait01
+  jump_d_start:     'jump_d_start',      // ダッシュジャンプ離陸 → jump_d_loop
+  jump_d_loop:      'jump_d_loop',       // ダッシュジャンプ空中 → 着地で jump_d_end
+  jump_d_end:       'jump_d_end',        // ダッシュジャンプ着地（やや長・cancel 可）→ wait01
   // ── 吹き飛び（lv03）────────────────────────────────────────
   down_front_start: 'down_front_start',  // 後方へ吹き飛び開始 → down_front_loop
   down_front_loop:  'down_front_loop',   // 吹き飛び中 → 着地で down_bas_end
@@ -220,6 +236,12 @@ export const STATE_TILT_TARGET = {
   knockback03:      Math.PI / 2,    // 横倒し（ダウン中フリンチ）
   fall_loop:        0,
   land:             0,
+  jump_start:       0,
+  jump_loop:        0,
+  jump_end:         0,
+  jump_d_start:     0,
+  jump_d_loop:      0,
+  jump_d_end:       0,
   // down_front_start はランプ系（0→π/2）— STATE_TILT_TARGET 経由ではなく後段で個別計算
   down_super_start:  0,
   down_super_loop:   0,

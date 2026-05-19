@@ -9,6 +9,7 @@
 // 重力は gs より弱め（0.5）でふわっと飛ばす
 
 import { GORE_CONFIG } from './config.js';
+import { STATE, ENEMY_FALL_FRAMES } from './states.js';
 
 // 物理：壊れ物パーツは gs より「軽く・短く」収まる肌感
 const GRAVITY      = 0.5;                                        // gs の PART_GRAVITY=0.7 より弱く
@@ -24,6 +25,7 @@ const EXPLOSION_DAMAGE   = 50;    // 敵・プレイヤー共通ダメージ
 const EXPLOSION_HITSTOP  = 12;    // 爆発時のヒットストップ
 const FUSE_BLINK_MIN     = 2;     // 爆発直前の点滅周期（F）
 const FUSE_BLINK_MAX     = 12;    // 点火直後の点滅周期（F）
+const PROXIMITY_TRIGGER_RANGE = 400;  // 地雷モード：プレイヤー接近で点火する半径（爆発範囲と同値）
 // 攻撃ヒット時の壊れ物用ヒットストップ（attack.hitstop が無い場合のフォールバック）
 const HIT_DEFAULT_HITSTOP = 6;
 
@@ -236,7 +238,21 @@ function _explode(mesh) {
       const dz = (e.z || 0) - cz;
       if (Math.hypot(dx, dy, dz) > EXPLOSION_RANGE) continue;
       e.hp = Math.max(0, e.hp - EXPLOSION_DAMAGE);
-      if (e.hp <= 0 && _killEnemy) _killEnemy(e);
+      if (e.hp <= 0 && _killEnemy) {
+        _killEnemy(e);
+      } else {
+        // 生存敵は lv4 打ち上げ（player 側と同等の挙動・敵 down_up_* state machine に委譲）
+        const dir = (dx >= 0) ? 1 : -1;          // 爆発中心から見た敵の側（+ なら右にいる）
+        e.vy           = 18;
+        e.knockbackVx  = dir * 6;
+        e.fallDir      = dir;
+        e.launcherAirborne = false;
+        e.state        = STATE.down_up_start;
+        e.downTimer    = ENEMY_FALL_FRAMES;
+        // 爆心側を向く（ボンベを攻撃源として facing を強制）
+        e.facing = -dir;
+        if (e.mesh) e.mesh.rotation.y = e.facing * Math.PI / 2;
+      }
     }
   }
   // プレイヤー
@@ -250,7 +266,7 @@ function _explode(mesh) {
       // damagePlayer 用に最小限の attack オブジェクトと source を用意
       _damagePlayer(
         p,
-        { damage: EXPLOSION_DAMAGE, atk_lv: 4, knockback: 30 },
+        { damage: EXPLOSION_DAMAGE, atk_lv: 4, knockback: 30, launchVy: 18 },
         { x: cx, y: cy, z: cz },
       );
     }
@@ -323,6 +339,19 @@ function _detonate(mesh) {
 export function updateBreakables() {
   // canister の点火カウントダウン + 点火直後の小ジャンプ物理
   for (const b of breakables) {
+    // 地雷モード：未点火 canister のうち proximityTrigger フラグ持ちは
+    //   プレイヤーが範囲内に入ったら自動点火（_startBreakSequence 経由）。
+    if (b.userData.proximityTrigger && b.userData.alive && !b.userData.dying && b.userData.fuseTimer === 0 && _players) {
+      for (const pp of _players) {
+        if (!pp || !pp.mesh) continue;
+        const dx = pp.x - b.position.x;
+        const dz = (pp.z || 0) - b.position.z;
+        if (Math.hypot(dx, dz) <= PROXIMITY_TRIGGER_RANGE) {
+          _startBreakSequence(b);
+          break;
+        }
+      }
+    }
     if (b.userData.fuseTimer > 0) _updateFuse(b);
     // mesh 全体の物理：vy が非ゼロなら浮上 → 重力で落下 → 床で停止
     if (b.userData.vy !== 0 || b.position.y > b.userData.groundY) {

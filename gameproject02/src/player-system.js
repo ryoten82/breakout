@@ -28,7 +28,11 @@
 //    - chargeReadyRing: THREE.Mesh     チャージ完成リング mesh
 // ============================================================
 
-import { STATE, STATE_PITCH_TARGET, ENEMY_AIRBORNE_Y_THRESHOLD } from './states.js';
+import {
+  STATE, STATE_PITCH_TARGET, ENEMY_AIRBORNE_Y_THRESHOLD,
+  PLAYER_JUMP_START_FRAMES, PLAYER_JUMP_D_START_FRAMES,
+  PLAYER_JUMP_END_FRAMES, PLAYER_JUMP_D_END_FRAMES,
+} from './states.js';
 import {
   PHYSICS, SP_CONFIG,
   GUARD_CONFIG, SPECIAL_CONFIG, HOMING_CONFIG,
@@ -237,7 +241,10 @@ export function updateChargeJ(p) {
   // 通常コンボの最中に裏で sp_03 を溜めるパターンを許可（プレイヤー側の主体的キャンセル繋ぎ）。
   // 空中でも蓄積可：難度高めだが「裏で溜めて空中 sp_03_air に繋ぐ」ルートをプレイヤー裁量で開放。
   const canCharge =
-    (p.state === STATE.wait01 || p.state === STATE.attacking || p.state === STATE.hit_confirm)
+    (p.state === STATE.wait01 || p.state === STATE.attacking || p.state === STATE.hit_confirm ||
+     p.state === STATE.jump_start || p.state === STATE.jump_loop ||
+     p.state === STATE.jump_d_start || p.state === STATE.jump_d_loop ||
+     p.state === STATE.jump_end || p.state === STATE.jump_d_end)
     && !p.guarding && !p.ultActive
     && p.state !== STATE.grabbing;
   const wasReady = p.chargeReady;
@@ -308,6 +315,10 @@ function canStartSpecial(p, opts) {
   if (p.state === STATE.wait01) return true;
   if (p.state === STATE.hit_confirm) return true;
   if (p.state === STATE.attacking) return true; // attacking もキャンセル発動可
+  // ジャンプ系 state は wait01 と同じ受付（演出フック）
+  if (p.state === STATE.jump_start || p.state === STATE.jump_loop ||
+      p.state === STATE.jump_d_start || p.state === STATE.jump_d_loop ||
+      p.state === STATE.jump_end || p.state === STATE.jump_d_end) return true;
   return false;
 }
 // 必殺技 ID の正規化：地上/空中の派生は同じ base として 1 コンボ 1 回ルールを共有する
@@ -643,6 +654,12 @@ export function updatePlayer(p) {
     if (canReverse) _processMegaCrashUltInput(p);
     updatePlayerHitstun(p);
     updateCrisisEffect(p);
+    // 被弾で kbVx により壁外まで吹き飛ぶのを防ぐ：通常 update と同じ壁クランプを適用。
+    // ここを忘れると着地時に通常 update のクランプが走って「壁向こう→ワープで戻る」現象になる。
+    const wallL = getActiveWallX('left');
+    const wallR = getActiveWallX('right');
+    p.x = Math.max(Math.max(PHYSICS.STAGE_LEFT, wallL), Math.min(Math.min(PHYSICS.STAGE_RIGHT, wallR), p.x));
+    if (p.mesh) p.mesh.position.x = p.x;
     return;
   }
   if (p.invincibleFrames > 0) p.invincibleFrames--;
@@ -933,6 +950,22 @@ export function updatePlayer(p) {
     p.isGrounded = false;
     p.thrustFramesLeft = PHYSICS.THRUST_FRAMES;
     p.jumpConsumed = true;
+    // 離陸 state（ダッシュジャンプは jump_d_*）。攻撃中・grabbing はジャンプ条件で除外済み。
+    if (p.airWasDash) {
+      p.state      = STATE.jump_d_start;
+      p.stateTimer = PLAYER_JUMP_D_START_FRAMES;
+    } else {
+      p.state      = STATE.jump_start;
+      p.stateTimer = PLAYER_JUMP_START_FRAMES;
+    }
+  }
+  // 離陸 → ループ遷移
+  if (p.state === STATE.jump_start) {
+    p.stateTimer--;
+    if (p.stateTimer <= 0) p.state = STATE.jump_loop;
+  } else if (p.state === STATE.jump_d_start) {
+    p.stateTimer--;
+    if (p.stateTimer <= 0) p.state = STATE.jump_d_loop;
   }
 
   // 小ジャンプ廃止（2026-05-18）：SPACE 短押しでも常に THRUST_FRAMES 分のブースト発火。
@@ -970,6 +1003,7 @@ export function updatePlayer(p) {
     }
     p.y += p.vy;
     if (p.y <= 0) {
+      const _wasDashJump = !!p.airWasDash;  // 後段で airWasDash が false 化される前に保持
       p.y = 0;
       p.vy = 0;
       p.isGrounded    = true;
@@ -979,9 +1013,15 @@ export function updatePlayer(p) {
       p.homingFrames  = 0;
       p.homingTarget  = null;
       p._aerialGraceTimer = 0;  // 着地で AERIAL_GRACE をクリア（次ジャンプに軽重力が漏れるのを防ぐ・2026-05-20）
-      // attackChainArr は wait01 時のみクリア（攻撃継続中の状態を壊さない）
-      // → wait01 でないと cancelOnLand ブロックで処理される or 攻撃継続なのでクリア不要
-      if (p.state === STATE.wait01) p.attackChainArr = null;
+      // attackChainArr は wait01 または新ジャンプ airborne state（loop/start）でのみクリア。
+      // 2026-05-20：旧コードは state==wait01 限定だったが、jump_loop / jump_d_loop / jump_start /
+      //   jump_d_start state を導入したためクリア漏れ発生 → 次ジャンプで inAerialCombo 誤判定。
+      //   hit_confirm 着地で chainArr が残る挙動（ground J → hit_confirm 経由の高高度ジャンプ等）は旧仕様維持。
+      if (p.state === STATE.wait01 ||
+          p.state === STATE.jump_start    || p.state === STATE.jump_loop ||
+          p.state === STATE.jump_d_start  || p.state === STATE.jump_d_loop) {
+        p.attackChainArr = null;
+      }
       // 着地で wait01 に即降格：
       //   - diveVy 系（c01_sp_03_air 急降下踏みつけ（旧 c01_atk_l_01_air_down））
       //   - cancelOnLand:true（空中 J 系 / 空中 K：着地後すぐ立ち J/K に行きたい技）
@@ -1014,7 +1054,27 @@ export function updatePlayer(p) {
       p.aerialHopCount = 0;      // 着地で連続ホップ減衰カウンタもリセット
       p.airVx = 0;
       p.airVz = 0;
+      // 通常ジャンプ着地 → jump_end / jump_d_end へ（攻撃中・ダッシュ中は介入しない）。
+      // 2026-05-20：state 化。攻撃/ジャンプ入力で即 cancel される演出フック。
+      // 上の cancelOnLand ブロックで state==wait01 に降ろされた場合や、ただ落ちて wait01 のままの場合に該当。
+      const inJumpAirState = (p.state === STATE.jump_loop || p.state === STATE.jump_d_loop ||
+                              p.state === STATE.jump_start || p.state === STATE.jump_d_start);
+      if ((p.state === STATE.wait01 || inJumpAirState) && !p.dashActive) {
+        if (_wasDashJump) {
+          p.state      = STATE.jump_d_end;
+          p.stateTimer = PLAYER_JUMP_D_END_FRAMES;
+        } else {
+          p.state      = STATE.jump_end;
+          p.stateTimer = PLAYER_JUMP_END_FRAMES;
+        }
+      }
     }
+  }
+  // jump_end / jump_d_end の自然終了：タイマー満了で wait01。
+  // 攻撃/ジャンプ入力は他処理で state を上書きするので cancel される。
+  if (p.state === STATE.jump_end || p.state === STATE.jump_d_end) {
+    p.stateTimer--;
+    if (p.stateTimer <= 0) p.state = STATE.wait01;
   }
 
   if (p.bigBurstTimer > 0) p.bigBurstTimer--;

@@ -532,6 +532,14 @@ export function processAttackInput(p) {
   if (p.state === STATE.grabbing) return; // グラブ中は processGrabInput 側で扱う
   if (!justPressed) return;
 
+  // ジャンプ系 state（離陸/空中/着地）は wait01 と同じ「即攻撃可能」扱い。
+  // 演出フックとしての state なので、攻撃入力は通常通り受け付ける。
+  if (p.state === STATE.jump_start || p.state === STATE.jump_loop ||
+      p.state === STATE.jump_d_start || p.state === STATE.jump_d_loop ||
+      p.state === STATE.jump_end || p.state === STATE.jump_d_end) {
+    p.state = STATE.wait01;
+    p.stateTimer = 0;
+  }
   if (p.state === STATE.wait01) {
     // 地上ダッシュ中の派生：ステップJ（スライディング）
     if (p.dashActive && p.isGrounded) {

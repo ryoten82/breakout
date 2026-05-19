@@ -2097,7 +2097,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-19 fix: F5 リロードで stage01 に戻る（自動遷移は sessionStorage 経由・URL を汚さない）';
+    const LAST_UPDATE = '2026-05-20 fix: 着地時の chainArr クリア条件を最小化（hit_confirm 経由の高高度ジャンプを保持・jump airborne state でのみリーク防止クリア）';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -3294,6 +3294,24 @@
       startDash,
       // Phase 2.4 被ダメージシステム
       HP_CONFIG, damagePlayer, revivePlayer, isHitstunState, resetCombo,
+      // デバッグ：1 行でプレイヤーに被弾発火（やられステート開発支援）
+      //   SB.debugHit({ lv: 1 })                      → 地上 lv1 ヒット（後方から）
+      //   SB.debugHit({ lv: 4, fromX: -100 })         → lv4 打ち上げ、左から
+      //   SB.debugHit({ lv: 1, jumpFirst: true })     → 一度ジャンプさせてから空中 lv1（fall_loop 検証用）
+      debugHit: (opts = {}) => {
+        const p = players[0];
+        if (!p) return false;
+        const lv         = opts.lv ?? 1;
+        const knockback  = opts.knockback ?? 30;
+        const damage     = opts.damage ?? 3;
+        const launchVy   = opts.launchVy;
+        const fromX      = (opts.fromX !== undefined) ? opts.fromX : (p.x + 100);
+        if (opts.jumpFirst) { p.y = 120; p.vy = 0; p.isGrounded = false; }
+        p.invincibleFrames = 0; p.invincible = false;
+        const atk = { damage, atk_lv: lv, knockback };
+        if (launchVy !== undefined) atk.launchVy = launchVy;
+        return damagePlayer(p, atk, { x: fromX, y: p.y, z: p.z });
+      },
       DUMMY_ATK_CONFIG, ENEMY_AI, tryHitPlayer,
       TEST_CONFIG, PAUSE_CONFIG, GAME_SPEED,
       // Phase 3：敵 aiPhase 頭上ラベル ON/OFF（数字キー 8）

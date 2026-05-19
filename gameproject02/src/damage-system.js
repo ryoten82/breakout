@@ -32,6 +32,8 @@ import {
   PLAYER_KB01_FRAMES, PLAYER_KB02_FRAMES,
   PLAYER_DOWN_FRONT_START_FRAMES,
   PLAYER_DOWN_BAS_START_FRAMES, PLAYER_DOWN_BAS_LOOP_FRAMES, PLAYER_DOWN_BAS_END_FRAMES,
+  PLAYER_DOWN_UP_FRAMES,
+  PLAYER_KB_AIR_FRAMES, PLAYER_LAND_FRAMES, PLAYER_AIRBORNE_Y_THRESHOLD,
 } from './states.js';
 import { SP_CONFIG, GUARD_CONFIG } from './config.js';
 
@@ -102,7 +104,9 @@ export function restoreBodyColor(playerMesh) {
 // ============================================================
 const _HITSTUN_STATES = new Set([
   STATE.knockback01, STATE.knockback02,
+  STATE.knockback_air01, STATE.fall_loop, STATE.land,
   STATE.down_front_start, STATE.down_front_loop,
+  STATE.down_up_start, STATE.down_up_loop,
   STATE.down_bas_start, STATE.down_bas_loop, STATE.down_bas_end,
   STATE.guard_crash, STATE.dying, STATE.dead, STATE.respawning,
 ]);
@@ -293,25 +297,48 @@ export function damagePlayer(p, attack, source) {
     p.kbVx = facingFromAttacker * (knockback * 0.8);
     p.kbVy = 6;
   } else if (lv === 4) {
-    p.state = STATE.down_front_start;
-    p.stateTimer = PLAYER_DOWN_FRONT_START_FRAMES;
+    // lv4 打ち上げ：敵側 down_up_* を移植（第 1 段共用試作）。
+    //   - tilt は 0→π/2 のランプ（updatePlayerHitstun で計算）
+    //   - 着地で down_bas_start に合流
+    //   - 打ち上げ高度は attack.launchVy 優先（敵側 hit-engine.js と同じ規約）。
+    //     ボンベ爆発のように低く打ち上げたい場合は attack 側で launchVy 指定。
+    p.state = STATE.down_up_start;
+    p.stateTimer = PLAYER_DOWN_UP_FRAMES;
     p.kbVx = facingFromAttacker * (knockback * 0.3);
-    p.kbVy = 22;
+    p.kbVy = (attack.launchVy !== undefined) ? attack.launchVy : 22;
+    p.fallDir = facingFromAttacker;   // 爆心側に頭が倒れる（敵 down_up_* と同方向）
+    p.launcherAirborne = !!attack.peakHang;
   } else if (lv === 3) {
     p.state = STATE.down_front_start;
     p.stateTimer = PLAYER_DOWN_FRONT_START_FRAMES;
     p.kbVx = facingFromAttacker * (knockback * 0.5);
     p.kbVy = 14;
   } else if (lv === 2) {
-    p.state = STATE.knockback02;
-    p.stateTimer = PLAYER_KB02_FRAMES;
-    p.kbVx = facingFromAttacker * (knockback * 0.4);
-    p.kbVy = 0;
+    if (p.y > PLAYER_AIRBORNE_Y_THRESHOLD) {
+      // 空中 lv2 → knockback_air01（フリンチ → fall_loop → land）
+      p.state = STATE.knockback_air01;
+      p.stateTimer = PLAYER_KB_AIR_FRAMES;
+      p.kbVx = facingFromAttacker * (knockback * 0.4);
+      p.kbVy = 4;   // 軽く浮かせる
+    } else {
+      p.state = STATE.knockback02;
+      p.stateTimer = PLAYER_KB02_FRAMES;
+      p.kbVx = facingFromAttacker * (knockback * 0.4);
+      p.kbVy = 0;
+    }
   } else {
-    p.state = STATE.knockback01;
-    p.stateTimer = PLAYER_KB01_FRAMES;
-    p.kbVx = facingFromAttacker * (knockback * 0.3);
-    p.kbVy = 0;
+    if (p.y > PLAYER_AIRBORNE_Y_THRESHOLD) {
+      // 空中 lv1 → knockback_air01
+      p.state = STATE.knockback_air01;
+      p.stateTimer = PLAYER_KB_AIR_FRAMES;
+      p.kbVx = facingFromAttacker * (knockback * 0.3);
+      p.kbVy = 2;
+    } else {
+      p.state = STATE.knockback01;
+      p.stateTimer = PLAYER_KB01_FRAMES;
+      p.kbVx = facingFromAttacker * (knockback * 0.3);
+      p.kbVy = 0;
+    }
   }
 
   // (9) 演出
@@ -357,6 +384,41 @@ export function updatePlayerHitstun(p) {
       p.state = STATE.wait01;
       p.kbVx = 0;
     }
+  } else if (s === STATE.knockback_air01) {
+    // 空中フリンチ：軽く流されつつ落下、タイマー終了で fall_loop
+    p.x += p.kbVx;
+    p.kbVx *= PLAYER_KB_VX_DECAY;
+    p.vy = p.kbVy;
+    p.y += p.vy;
+    p.kbVy -= PLAYER_KB_GRAV;
+    p.stateTimer--;
+    if (p.y <= 0) {
+      p.y = 0; p.kbVy = 0; p.kbVx = 0; p.vy = 0;
+      p.state = STATE.land;
+      p.stateTimer = PLAYER_LAND_FRAMES;
+      _spawnHitParticles(p.x, 10, p.z, 0xaaaaaa, 10);
+    } else if (p.stateTimer <= 0) {
+      p.state = STATE.fall_loop;
+    }
+  } else if (s === STATE.fall_loop) {
+    // 自由落下：着地で land へ
+    p.x += p.kbVx;
+    p.kbVx *= PLAYER_KB_VX_DECAY;
+    p.vy = p.kbVy;
+    p.y += p.vy;
+    p.kbVy -= PLAYER_KB_GRAV;
+    if (p.y <= 0) {
+      p.y = 0; p.kbVy = 0; p.kbVx = 0; p.vy = 0;
+      p.state = STATE.land;
+      p.stateTimer = PLAYER_LAND_FRAMES;
+      _spawnHitParticles(p.x, 10, p.z, 0xaaaaaa, 10);
+    }
+  } else if (s === STATE.land) {
+    // 着地モーション：タイマー終了で wait01
+    p.stateTimer--;
+    if (p.stateTimer <= 0) {
+      p.state = STATE.wait01;
+    }
   } else if (s === STATE.down_front_start) {
     p.x += p.kbVx;
     p.kbVx *= 0.98;
@@ -381,6 +443,25 @@ export function updatePlayerHitstun(p) {
     p.kbVy -= PLAYER_KB_GRAV;
     if (p.y <= 0) {
       p.y = 0; p.kbVy = 0; p.kbVx = 0; p.vy = 0;
+      p.state = STATE.down_bas_start;
+      p.stateTimer = PLAYER_DOWN_BAS_START_FRAMES;
+      _spawnHitParticles(p.x, 10, p.z, 0xaaaaaa, 14);
+      _triggerShake(3, 6);
+    }
+  } else if (s === STATE.down_up_start || s === STATE.down_up_loop) {
+    // lv4 打ち上げ：横倒し落下（敵 down_up_* 共用試作）。launcherAirborne で滞空延長。
+    p.x += p.kbVx;
+    p.kbVx *= 0.98;
+    p.vy = p.kbVy;
+    p.y += p.vy;
+    p.kbVy -= PLAYER_KB_GRAV * (p.launcherAirborne ? 0.6 : 1);
+    if (s === STATE.down_up_start) {
+      p.stateTimer--;
+      if (p.stateTimer <= 0) p.state = STATE.down_up_loop;
+    }
+    if (p.y <= 0) {
+      p.y = 0; p.kbVy = 0; p.kbVx = 0; p.vy = 0;
+      p.launcherAirborne = false;
       p.state = STATE.down_bas_start;
       p.stateTimer = PLAYER_DOWN_BAS_START_FRAMES;
       _spawnHitParticles(p.x, 10, p.z, 0xaaaaaa, 14);
@@ -474,11 +555,27 @@ export function updatePlayerHitstun(p) {
   // mesh 反映
   if (p.mesh) {
     p.mesh.position.set(p.x, p.y, p.z);
-    p.mesh.rotation.z = 0;
+    // rotation.z は down_up_* のときだけ tilt を反映、それ以外は 0
+    if (s === STATE.down_up_start) {
+      const tilt = (1 - p.stateTimer / PLAYER_DOWN_UP_FRAMES) * (Math.PI / 2);
+      p.mesh.rotation.z = -(p.fallDir ?? 1) * tilt;
+    } else if (s === STATE.down_up_loop) {
+      p.mesh.rotation.z = -(p.fallDir ?? 1) * (Math.PI / 2);
+    } else {
+      p.mesh.rotation.z = 0;
+    }
     if (s === STATE.knockback01 || s === STATE.knockback02) {
       p.mesh.rotation.x = -0.3 * Math.min(1, p.stateTimer / 12);
+    } else if (s === STATE.knockback_air01) {
+      p.mesh.rotation.x = -0.2;   // 軽く後傾
+    } else if (s === STATE.fall_loop) {
+      p.mesh.rotation.x = -0.1;   // 落下中はほぼ立て直し
+    } else if (s === STATE.land) {
+      p.mesh.rotation.x = 0.15;   // 着地で軽く前屈
     } else if (s === STATE.down_front_start || s === STATE.down_front_loop) {
       p.mesh.rotation.x = -0.6;
+    } else if (s === STATE.down_up_start || s === STATE.down_up_loop) {
+      p.mesh.rotation.x = 0;  // tilt（rotation.z）が姿勢を支配するので x はクリア
     } else if (s === STATE.down_bas_start || s === STATE.down_bas_loop || s === STATE.down_bas_end) {
       p.mesh.rotation.x = 0;
     } else if (s === STATE.guard_crash) {
@@ -551,19 +648,25 @@ export function updateCrisisEffect(p) {
 //  リバーサル用 hitstun 強制解除 & リスポーン
 // ============================================================
 export function _cancelHitstunForReversal(p) {
-  p.state           = STATE.wait01;
-  p.stateTimer      = 0;
-  p.kbVx            = 0;
-  p.kbVy            = 0;
+  p.state            = STATE.wait01;
+  p.stateTimer       = 0;
+  p.kbVx             = 0;
+  p.kbVy             = 0;
   p.invincibleFrames = 0;
-  // 2026-05-19 バグ修正：被弾で空中に吹き飛ばされた状態でメガクラ等のリバーサルを発動すると、
-  //   y > 0 のまま wait01 に戻って「空中歩き」状態になる事故があった。
-  //   y / vy / isGrounded / 浮き系フラグを強制リセットして接地状態に整合させる。
-  p.y                = 0;
-  p.vy               = 0;
-  p.isGrounded       = true;
   p.launcherAirborne = false;
   p.peakHangTimer    = 0;
+  // 2026-05-19 三度目の修正：fall_loop はプレイヤー側専用処理がなく着地遷移しない（攻撃不能化）。
+  //   プレイヤー通常更新は state ではなく isGrounded で重力・着地を扱うため、
+  //   state は wait01 のままにし、空中なら isGrounded=false で自然落下に委ねる。
+  //   これで「空中歩き」（前回バグ）も「地面ワープ」（前々回バグ）も「着地後攻撃不能」も同時に防げる。
+  if (p.y > 0) {
+    p.vy          = 0;
+    p.isGrounded  = false;
+  } else {
+    p.y           = 0;
+    p.vy          = 0;
+    p.isGrounded  = true;
+  }
 }
 
 export function revivePlayer(p) {
