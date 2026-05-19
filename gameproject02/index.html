@@ -2005,7 +2005,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-19 壊れ物プロップ（黄色コンテナ + 黄黒警告ドラム缶）を stage01 に仮配置・見た目比較用';
+    const LAST_UPDATE = '2026-05-19 stage-room の Stage 2 工場内部（stage01 wrap）を merge + 自動遷移を URL ベース判定でループ回避';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2091,8 +2091,9 @@
     // 死亡フローをテストする場合は `SB.killEnemy(SB.enemies[0])` か個別に `e.instantRespawn=false` 後にダメージ
     //
     // ステージ選択：
-    //   URL クエリ ?stage=stage01|stage02|stage03（リロードまたいで保持）
-    //   コンソールで切替する場合は `location.search = '?stage=stage03'` で URL ごと変更
+    //   URL クエリ ?stage=stage01 / stage02 / stage03 で切替（リロードまたいで保持）
+    //   stage02 は工場内部（テスト用確定 2026-05-19）：stage01 のウェーブ＋内部装飾を流用
+    //   コンソールから切替なら `location.search = '?stage=stage02'`
     //   window.STAGE01_ENABLED = false で完全 OFF（demo 敵のみ）
     //   ステージクリア時の遷移は src/stages/stage01/clear.js が ?stage=<next> でリロードして実現
     const STAGE01_ENABLED = (window.STAGE01_ENABLED !== false);
@@ -2102,12 +2103,13 @@
       ? _stageURLParam
       : (_validStages.has(window.STAGE) ? window.STAGE : 'stage01');
     if (!STAGE01_ENABLED) {
-      spawnDummy(280, 300, { atkCooldown:  60, instantRespawn: true });   // 一番近い：最初に攻撃
-      spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: true });   // 中：2 番目に攻撃
-      spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: true });   // 一番遠い：3 番目に攻撃
+      spawnDummy(280, 300, { atkCooldown:  60, instantRespawn: true });
+      spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: true });
+      spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: true });
     } else if (SELECTED_STAGE === 'stage03') {
       initStage03({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
     } else if (SELECTED_STAGE === 'stage02') {
+      // Stage 2 = 工場内部（テスト用確定 2026-05-19）：stage01 のウェーブ＋内部装飾を流用
       initStage02({ spawnDummy, players, enemies, scene, THREE });
     } else {
       initStage01({ spawnDummy, players, enemies, scene, THREE });

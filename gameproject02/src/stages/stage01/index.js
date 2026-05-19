@@ -136,7 +136,12 @@ export function tickStage01() {
       _nextWaveIndex++;
       releaseLock();
       if (wasLastWave) {
-        if (!isStageCleared()) triggerStageClear({ nextStageId: STAGE01_META.nextStageId });
+        // 遷移先は「現在 URL の ?stage=」から決定（stage02 は stage01 を wrap して呼び出すため
+        // stage01 自身の固定 nextStageId を見ると stage02 が stage02 にループしてしまう）
+        const _cur = new URLSearchParams(window.location.search).get('stage') || 'stage01';
+        const _transitionMap = { stage01: 'stage02', stage02: 'stage03', stage03: null };
+        const _nextId = (_cur in _transitionMap) ? _transitionMap[_cur] : STAGE01_META.nextStageId;
+        if (!isStageCleared()) triggerStageClear({ nextStageId: _nextId });
         updateWaveHud(STAGE01_META.totalWaves, STAGE01_META.totalWaves, false);
         hideArrowHud();
       } else {

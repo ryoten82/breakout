@@ -1,11 +1,12 @@
 # Stage 1 — CRUSHER（廃工場）テストプレイ用 最小構成 仕様
 
-> ⚠️ **構造改編に伴う注記（2026-05-18）**：
-> Act 構造の確定（memory `project_scrapblitz_act_scale_aesthetic.md`）により、本ファイルが扱う「廃工場内部・柱組装飾」は**概念上 Act 1 / Stage 2（工場内部）の素材**となった。
-> ファイル名は `stage01/layout.md` のままだが、移管準備中のため**仮置き状態**。物理的な移管（index.html インライン関数の props/ 切り出し含む）は zealous-hertz と被らない別タスクで実施予定（[`../stage02/README.md`](../stage02/README.md)）。
-> 現状この最小構成実装はテストプレイ用途で**そのまま動作する**。
+> ⚠️ **構造改編に伴う注記（2026-05-19 更新）**：
+> Act 構造の確定（memory `project_scrapblitz_act_scale_aesthetic.md`）により、本ファイルが扱う「廃工場内部・柱組装飾」は**Act 1 / Stage 2（工場内部）の素材**となった。
+> ファイル名は `stage01/layout.md` のままだが、内容は **Stage 2 テスト用確定版** として 2026-05-19 から扱う（[`../stage02/README.md`](../stage02/README.md)）。
+> 起動：URL `?stage=stage02` → 本仕様で動く。
+> 物理的な移管（index.html インライン関数の props/ 切り出し、本 md の `stage02/layout.md` への移動）は zealous-hertz と被らない別タスクで実施予定。それまで本ファイルが Stage 2 の仕様を表す。
 >
-> **ステータス**：最小構成 仕様確定（2026-05-18）。実装は stage-room worktree で着手済み。
+> **ステータス**：Stage 2 テスト用確定（2026-05-19）。実装は stage-room worktree で着手済み・プレイ可能。
 > 議論の派生・揺れは `stage-layout-room.md` 側に残し、本ファイルは「実装が参照する確定版」。
 
 ## ゴール
