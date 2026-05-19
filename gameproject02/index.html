@@ -2097,7 +2097,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-19 fix: 空中被弾→メガクラ後の空中歩きバグ修正（_cancelHitstunForReversal で y/vy/isGrounded リセット）';
+    const LAST_UPDATE = '2026-05-19 fix: F5 リロードで stage01 に戻る（自動遷移は sessionStorage 経由・URL を汚さない）';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2181,6 +2181,8 @@
       }
       _invMarkPlayStart();
     }
+    // 自動遷移直後の開始画面スキップロジックは SELECTED_STAGE 判定の後（下方）に移動した
+    // （TDZ 違反回避：_IS_AUTO_TRANSITION はそこで定義される）
     // 既存リスナーと並行（input-system.js とは独立）
     window.addEventListener('keydown', () => {
       if (_startScreenShown) _dismissStartScreen();
@@ -2253,18 +2255,35 @@
     // Phase 3-A：3 体は練習用に instantRespawn=true（HP 0 で即復活ループ・既存挙動互換）
     // 死亡フローをテストする場合は `SB.killEnemy(SB.enemies[0])` か個別に `e.instantRespawn=false` 後にダメージ
     //
-    // ステージ選択：
-    //   URL クエリ ?stage=stage01 / stage02 / stage03 で切替（リロードまたいで保持）
-    //   stage02 は工場内部（テスト用確定 2026-05-19）：stage01 のウェーブ＋内部装飾を流用
-    //   コンソールから切替なら `location.search = '?stage=stage02'`
-    //   window.STAGE01_ENABLED = false で完全 OFF（demo 敵のみ）
-    //   ステージクリア時の遷移は src/stages/stage01/clear.js が ?stage=<next> でリロードして実現
+    // ステージ選択（2026-05-19 改修：sessionStorage 経由の自動遷移）：
+    //   - 自動遷移（ステージクリア後）：sessionStorage._sbAutoTransition に次ステージ ID を保存して reload
+    //     起動時にこれを取り出してから削除（1 回限り）→ F5 で続行されない
+    //   - URL クエリ ?stage=stage01/02/03 で切替（直接指定・ブックマーク等）→ 尊重
+    //   - 何もなければ stage01 から（F5 リロードもここに来る）
+    //   - window.STAGE01_ENABLED = false で完全 OFF（demo 敵のみ）
     const STAGE01_ENABLED = (window.STAGE01_ENABLED !== false);
-    const _stageURLParam = new URLSearchParams(window.location.search).get('stage');
     const _validStages = new Set(['stage01', 'stage02', 'stage03']);
-    const SELECTED_STAGE = _validStages.has(_stageURLParam)
-      ? _stageURLParam
-      : (_validStages.has(window.STAGE) ? window.STAGE : 'stage01');
+    // 自動遷移直後フラグ（1 回限り消費）
+    let _autoTransitionStage = null;
+    try {
+      _autoTransitionStage = sessionStorage.getItem('_sbAutoTransition');
+      if (_autoTransitionStage) sessionStorage.removeItem('_sbAutoTransition');
+    } catch (_) { /* ignore */ }
+    const _stageURLParam = new URLSearchParams(window.location.search).get('stage');
+    const _candidate = _autoTransitionStage || _stageURLParam || window.STAGE;
+    const SELECTED_STAGE = _validStages.has(_candidate) ? _candidate : 'stage01';
+    // stage runner（wave-runner）が「現在ステージ」を参照できるようグローバルに公開
+    // → URL ベースから SELECTED_STAGE 参照に切替（sessionStorage 経由で URL に依存しないため）
+    window.__SB_SELECTED_STAGE = SELECTED_STAGE;
+    // 自動遷移直後は開始画面をスキップ（連続プレイ感維持）
+    const _IS_AUTO_TRANSITION = !!_autoTransitionStage;
+    // 自動遷移直後は開始画面を出さずに即プレイ開始（連続プレイ感維持・2026-05-19 移設）
+    if (_IS_AUTO_TRANSITION) {
+      _startScreenShown = false;
+      const _ov = document.getElementById('start-screen-overlay');
+      if (_ov) _ov.style.display = 'none';
+      _invMarkPlayStart();
+    }
     if (!STAGE01_ENABLED) {
       spawnDummy(280, 300, { atkCooldown:  60, instantRespawn: true });
       spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: true });

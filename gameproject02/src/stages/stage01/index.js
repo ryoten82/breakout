@@ -30,9 +30,11 @@ function _placeBreakablesForTest(scene, THREE) {
 }
 
 // 遷移先：stage02 は stage01 を完全 wrap するため、stage01 自身の固定 nextStageId を
-// 見ると stage02 → stage02 にループする。URL の ?stage= を見て決定する。
+// 見ると stage02 → stage02 にループする。
+// 2026-05-19：URL ?stage= から sessionStorage 経由の自動遷移に変更したため、
+//   現在ステージは window.__SB_SELECTED_STAGE（index.html で公開）を参照する。
 function _resolveNextStageId() {
-  const cur = new URLSearchParams(window.location.search).get('stage') || 'stage01';
+  const cur = window.__SB_SELECTED_STAGE || 'stage01';
   const map = { stage01: 'stage02', stage02: 'stage03', stage03: null };
   return (cur in map) ? map[cur] : STAGE01_META.nextStageId;
 }

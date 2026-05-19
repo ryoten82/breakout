@@ -60,8 +60,12 @@ export function triggerStageClear(opts = {}) {
     el.style.background = 'rgba(0,0,0,1)';
     el.style.opacity = '1';
     setTimeout(() => {
-      // ?stage=<id> でリロード遷移
-      window.location.search = `?stage=${encodeURIComponent(nextStageId)}`;
+      // 自動遷移先を sessionStorage に保存してリロード
+      // → URL を汚さないので、後で F5 した時は stage01 から再スタートできる
+      try {
+        sessionStorage.setItem('_sbAutoTransition', nextStageId);
+      } catch (_) { /* ignore */ }
+      window.location.reload();
     }, FADE_OUT_MS);
   }, CLEAR_TO_TRANSITION_MS);
 }
