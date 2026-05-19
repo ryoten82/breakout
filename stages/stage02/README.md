@@ -1,35 +1,44 @@
 # Act 1 / Stage 2 — 工場内部（生産フロア）
 
-> **ステータス**：概念整理のみ完了（2026-05-18）。実体は未移管。
+> **ステータス**：**テスト用確定（2026-05-19）**。プレイ可能。
 > 上位設計：[`../../stage-layout-room.md`](../../stage-layout-room.md) のステージ全体の流れ参照
+> 起動方法：URL `?stage=stage02` でアクセス → 工場内部柱組＋床↘パース＋4 ウェーブ＋tier06 中ボス
 
 ## 位置づけ
 
 Act 1 = factory の 2 番目のステージ。**工場内部の生産フロア**。屋外開放感（Stage 1 外周ヤード）から「中に入った」体感を出す。Stage 3 の工場深部（CRUSHER 戦）への通路役。
 
-## 実体の所在（2026-05-18 時点）
+## テスト用確定版の実装内容（2026-05-19）
 
-**本ステージの実体（装飾・データ・実装）は現在 Stage 1 側に残存している**：
+`gameproject02/src/stages/stage02/index.js` は **stage01 のシステム一式を流用するラッパー**：
 
-- 装飾：`gameproject02/index.html` 内のインライン関数（`buildBackWallPillars()` 等）
-- データ：[`../stage01/layout.md`](../stage01/layout.md)（内部・テストプレイ最小構成）
-- 実装：`gameproject02/src/stages/stage01/`（waves.js / progress-lock.js / wave-hud.js / clear.js / section-markers.js / index.js）
+- ウェーブシステム：stage01 と同じ（4 waves：tier01×2 / tier01×3+tier03×1 / tier01×2+tier05×1 / tier01×2+tier06×1）
+- 装飾：既存の内部柱組（`buildBackWallPillars`）＋床↘パース＋bgElements
+- 動作：exterior は適用しない（`SELECTED_STAGE === 'stage02'` 時は initStage01Exterior をスキップ）
+- 仕様参照：[`../stage01/layout.md`](../stage01/layout.md)（テストプレイ最小構成・Stage 2 装飾相当）
 
-## 移管タスク（別セッション）
+## 起動例
 
-新構想（Act 1 内で stage1=外周ヤード、stage2=内部）に整合させるため、以下を**別タスク**として実施する：
+```
+http://127.0.0.1:5502/index.html?stage=stage02
+```
 
-1. `gameproject02/index.html` の `buildBackWallPillars()` 等インライン関数を `gameproject02/src/props/factory/back-wall.js` 等に切り出し
-2. 現 `stages/stage01/layout.md` の内容を本 `stages/stage02/layout.md` に移動＋更新
-3. `gameproject02/src/stages/stage02/index.js` を新設し、現 stage01 実装と同じ枠組みで動かす
-4. waves.js / progress-lock.js / wave-hud.js / clear.js / section-markers.js を stage02 側に移管 or 共通化
+または DevTools コンソール：
+```js
+location.search = '?stage=stage02';
+```
 
-### なぜ別タスクか
+## 「テスト用」という限定の意味
 
-`index.html` への手入れが必要なため、**zealous-hertz worktree（実装本流）と同時編集を避けるタイミング**で実施しなければならない（ROOM_README.md 衝突回避ルール 3）。stage-room スコープ内では完結しない。
+- 装飾の実体は **まだ stage01 側にある**（`buildBackWallPillars` 等）
+- 本実装フェーズ（zealous-hertz と被らないタイミング）で以下を実施する想定：
+  1. `index.html` の `buildBackWallPillars()` 等を `gameproject02/src/props/factory/back-wall.js` 等に切り出し
+  2. `gameproject02/src/stages/stage02/index.js` を stage01 ラッパーから独立実装に置き換え
+  3. `stages/stage02/layout.md` を作成（現 stage01/layout.md の内容を移植・更新）
+  4. waves / progress-lock / wave-hud / clear / section-markers を stage02 専用化 or 共通化
 
-## 今は何ができるか
+それまではテスト用としてそのまま使う。プレイ機能は完全に動く。
 
-- Stage 1 外周ヤード（exterior プロト）の実装と**並走可能**
-- Stage 2 の追加議論（マップレイアウト・カバー配置・敵編成）は [`../../stage-layout-room.md`](../../stage-layout-room.md) で継続
-- 確定版仕様（`stages/stage02/layout.md`）は実体移管時に作る
+### なぜ移管が別タスクか
+
+`index.html` への手入れが必要なため、**zealous-hertz worktree（実装本流）と同時編集を避けるタイミング**で実施しなければならない（ROOM_README.md 衝突回避ルール 3）。

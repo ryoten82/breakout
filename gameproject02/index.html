@@ -764,6 +764,7 @@
     // === stages（背景部屋・stage-room worktree 由来）===
     import {
       initStage01, tickStage01, getStage01DebugState,
+      initStage02, tickStage02, getStage02DebugState,
       initStage03, tickStage03, getStage03DebugState,
     } from './src/stages/index.js';
     // Stage 1 外周ヤード書割（プロト・オプトイン）：window.STAGE01_EXTERIOR = true で起動
@@ -2090,18 +2091,25 @@
     // 死亡フローをテストする場合は `SB.killEnemy(SB.enemies[0])` か個別に `e.instantRespawn=false` 後にダメージ
     //
     // ステージ選択：
-    //   URL クエリ ?stage=stage03 で Stage 3 起動（リロードまたいで保持）
-    //   コンソールで切替する場合は `location.search = '?stage=stage03'` で URL ごと変更
+    //   URL クエリ ?stage=stage01 / stage02 / stage03 で切替（リロードまたいで保持）
+    //   コンソールから切替なら `location.search = '?stage=stage02'`
     //   window.STAGE01_ENABLED = false で完全 OFF（demo 敵のみ）
+    //   デフォルトは stage01
     const STAGE01_ENABLED = (window.STAGE01_ENABLED !== false);
     const _stageURLParam = new URLSearchParams(window.location.search).get('stage');
-    const SELECTED_STAGE = (_stageURLParam === 'stage03' || window.STAGE === 'stage03') ? 'stage03' : 'stage01';
+    const SELECTED_STAGE =
+      (_stageURLParam === 'stage03' || window.STAGE === 'stage03') ? 'stage03' :
+      (_stageURLParam === 'stage02' || window.STAGE === 'stage02') ? 'stage02' :
+      'stage01';
     if (!STAGE01_ENABLED) {
-      spawnDummy(280, 300, { atkCooldown:  60, instantRespawn: true });   // 一番近い：最初に攻撃
-      spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: true });   // 中：2 番目に攻撃
-      spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: true });   // 一番遠い：3 番目に攻撃
+      spawnDummy(280, 300, { atkCooldown:  60, instantRespawn: true });
+      spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: true });
+      spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: true });
     } else if (SELECTED_STAGE === 'stage03') {
       initStage03({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
+    } else if (SELECTED_STAGE === 'stage02') {
+      // Stage 2 = 工場内部（テスト用確定 2026-05-19）：stage01 のウェーブ＋内部装飾を流用
+      initStage02({ spawnDummy, players, enemies, scene, THREE });
     } else {
       initStage01({ spawnDummy, players, enemies, scene, THREE });
     }
@@ -2626,6 +2634,7 @@
       updateEnemies(hitCtx);
       // ステージ tick：選択されたステージのみ走らせる
       if (SELECTED_STAGE === 'stage03') tickStage03();
+      else if (SELECTED_STAGE === 'stage02') tickStage02();
       else tickStage01();
       updateParticles();
       updateSuperFlightTrails(players, enemies);
@@ -3052,7 +3061,10 @@
       // 壁システム（コンソールから状態確認用・levelWalls に push して静的壁追加可能）
       getActiveWallX, levelWalls,
       // ステージ デバッグ：window.SB.stage() で現在ステージの内部状態を覗ける
-      stage: () => SELECTED_STAGE === 'stage03' ? getStage03DebugState() : getStage01DebugState(),
+      stage: () =>
+        SELECTED_STAGE === 'stage03' ? getStage03DebugState() :
+        SELECTED_STAGE === 'stage02' ? getStage02DebugState() :
+        getStage01DebugState(),
       // ダッシュ（例: SB.startDash(SB.players[0], 1, 0) で右ダッシュ強制発動）
       startDash,
       // Phase 2.4 被ダメージシステム
