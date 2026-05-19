@@ -495,7 +495,9 @@ export function updateSuperFlightTrails(...entitySets) {
 //  関数引数経由で getter/setter を渡す。
 // ============================================================
 export function tryHitEnemies(p, attack, ctx) {
-  const { enemies, enemyAttackToken } = ctx;
+  const { enemies, enemyAttackToken, breakablesHitFn } = ctx;
+  // 並行して壊れ物プロップにも同じ攻撃 range を当てる（依存注入：循環 import 回避）
+  if (breakablesHitFn) breakablesHitFn(p, attack);
   const facing = p.facing;
   let anyHit = false;
   for (const e of enemies) {
@@ -972,6 +974,8 @@ export function tryHitEnemies(p, attack, ctx) {
 //  Step D-2c-2 で分離。gameFrameCounter は ctx.getFrame() 経由で参照。
 // ============================================================
 export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
+  // multiHit の最初のヒットだけ壊れ物にも当てる（連打で何度も破壊シーケンス起動を防ぐ）
+  if (!isLastHit && ctx.breakablesHitFn) ctx.breakablesHitFn(p, attack);
   const { enemies } = ctx;
   const facing = p.facing;
   const _DBG = window.SB?.DEBUG_MULTIHIT && p.attackId === 'c01_sp_01_air';

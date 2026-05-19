@@ -761,6 +761,16 @@
       enterEnemyDying, killEnemy, initEnemyGoreBlack,
       enterEnemyExplode, handleEnemyDyingHit, detachOnePart, enterEnemyDyingBurst,
     } from './src/enemy-system.js';
+    // === breakables（壊れ物プロップの破壊・パーツ飛び散り）===
+    import {
+      initBreakables, registerBreakable, tryHitBreakables, updateBreakables, getBreakables,
+      hitBreakableExternal, findBreakableHitBy,
+    } from './src/breakables.js';
+    // === damage-area（ダメージ範囲可視化：共通モジュール・AoE 攻撃や爆発範囲に転用可）===
+    import {
+      initDamageArea, addStaticArea, updateAreaPosition, removeArea,
+      spawnExpandPulse, updateAreas,
+    } from './src/fx/damage-area.js';
     // === stages（背景部屋・stage-room worktree 由来）===
     import {
       initStage01, tickStage01, getStage01DebugState,
@@ -2005,7 +2015,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-19 stage-room の Stage 2 工場内部（stage01 wrap）を merge + 自動遷移を URL ベース判定でループ回避';
+    const LAST_UPDATE = '2026-05-19 ピンボール衝突実装：lv6→rakka・sp1_air→super 跳ね返り・壊れ物巻き込み（pinball.js 新規）';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2069,6 +2079,17 @@
     // enemy-system 初期化（spawnDummy / updateEnemies が使う依存を注入）
     initEnemySystem({ THREE, scene, players, enemies });
     initEnemyGoreBlack(THREE);  // 黒フェード目標色（gore-scrap）の初期化
+    // damage-area 初期化（ダメージ範囲リング・パルスの共通基盤）
+    initDamageArea({ scene, THREE });
+    // breakables 初期化（壊れ物プロップ：crate / canister の破壊と飛び散り）
+    // 依存：triggerHitstop（ヒット時の hitstop）/ damagePlayer / killEnemy（爆発で AoE ダメージ）
+    initBreakables({
+      scene, THREE,
+      triggerHitstop, damagePlayer, killEnemy,
+      enemies, players,
+      // 範囲可視化（canister 点火時 + 爆発時に呼ぶ）
+      damageArea: { addStaticArea, updateAreaPosition, removeArea, spawnExpandPulse },
+    });
 
     // player-system 初期化（ガード/特殊技/チャージ等）
     //   inp / spawnChargeParticle / clearChargeParticles / chargeReadyRing は既に
@@ -2155,6 +2176,11 @@
         set: (v) => { enemyAttackToken = v; },
       },
       getFrame: () => getGameFrame(),
+      // 壊れ物プロップへの並行ヒット判定（依存注入で循環 import 回避）
+      breakablesHitFn: tryHitBreakables,
+      // ピンボール衝突で使う：壊れ物検索 + 強制ヒット / 演出ヘルパ
+      breakablesApi: { findBreakableHitBy, hitBreakableExternal },
+      spawnHitParticles, triggerHitstop, triggerShake,
     };
 
     // attack-engine 初期化
@@ -2633,6 +2659,10 @@
     function update() {
       players.forEach(updatePlayer);
       updateEnemies(hitCtx);
+      // 壊れ物プロップ：フラッシュ進行・飛び散りパーツ物理
+      updateBreakables();
+      // ダメージ範囲可視化（リング寿命・パルス拡張）
+      updateAreas();
       // ステージ tick：選択されたステージのみ走らせる
       if (SELECTED_STAGE === 'stage03') tickStage03();
       else if (SELECTED_STAGE === 'stage02') tickStage02();

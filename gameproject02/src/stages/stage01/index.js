@@ -13,6 +13,7 @@ import { addSectionMarkers } from './section-markers.js';
 import { showArrowHud, hideArrowHud } from '../arrow-hud.js';
 import { createCrate } from '../../props/factory/crate.js';
 import { createDrum } from '../../props/factory/drum.js';
+import { registerBreakable } from '../../breakables.js';
 import { levelWalls } from '../../camera.js';
 
 let _spawnDummy = null;
@@ -68,6 +69,7 @@ function _placeBreakablesForTest(scene, THREE) {
     const mesh = (p.type === 'crate') ? createCrate({ THREE }) : createDrum({ THREE });
     mesh.position.set(p.x, 0, p.z);
     scene.add(mesh);
+    registerBreakable(mesh);
   }
 }
 

@@ -42,6 +42,7 @@ import {
 } from './states.js';
 import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE } from './config.js';
 import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, fxState } from './hit-engine.js';
+import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
 import { isHitstunState, tryHitPlayer } from './damage-system.js';
 import { getActiveWallX } from './camera.js';
@@ -1563,6 +1564,9 @@ export function updateEnemies(ctx) {
         e.thrownByPlayer   = null;
       }
     }
+    // === ピンボール衝突（lv6 super / 空中 sp1_air 等で吹き飛び中の敵が他敵・壊れ物に当たる）===
+    // mover の軌道変化（lv6→rakka, sp1_air→super 跳ね返り）+ target の後方吹き飛び
+    tryPinballHit(e, ctx);
     // ステージバウンド壁ヒット
     // 超吹き飛ばし中（down_super_start/loop）に壁に到達 → 強制 down_wall_start
     //   ※ skipWallCollision フラグ（同コンボ 2 回目以降の super 飛行）は壁張り付きをスキップして
