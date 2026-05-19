@@ -19,9 +19,13 @@ import {
   KB_LV05_VY,
   KB_LV06_VY, KB_LV06_VX_MULT,
   ENEMY_DOWN_SUPER_FRAMES, ENEMY_DOWN_RAKKA_FRAMES, ENEMY_DOWN_FRONT_FRAMES,
+  ENEMY_FALL_FRAMES,
   ENEMY_AIRBORNE_Y_THRESHOLD,
   applyHitInitialPitch,
 } from './states.js';
+
+// lv6 衝突時のボウリング打ち上げ（sp_02 の launchVy=22 と同じ挙動）
+const BOWLING_LAUNCH_VY = 22;
 
 // 衝突判定範囲（mover サイズ感）
 const HIT_RANGE_X = 80;
@@ -79,17 +83,19 @@ function _redirectMover(mover) {
     applyHitInitialPitch(mover);
     return 'redirect_super';
   }
-  // 2) lv6（down_super）→ 垂直叩きつけ（down_rakka）に変換
+  // 2) lv6（down_super）→ ボウリング打ち上げ（sp_02 の launchVy=22 と同じ挙動）
+  //    旧仕様 down_rakka（下叩き）→ ユーザー指示で打ち上げに変更（2026-05-19）
+  //    sp_02 と同じ「down_up_start + launcherAirborne(頂点スロー)」で緩やかに落下
   if (lv === 6 || mover.state === STATE.down_super_start || mover.state === STATE.down_super_loop) {
-    mover.state         = STATE.down_rakka_start;
-    mover.downTimer     = ENEMY_DOWN_RAKKA_FRAMES;
-    mover.vy            = KB_LV05_VY * 0.6;    // KB_LV05_VY=-18 → -10.8 で真下に叩きつけ
-    mover.knockbackVx  *= 0.2;                  // 水平は急減速
-    mover.kbDecay       = 0.4;
-    mover.peakHangTimer = 0;
-    mover.launcherAirborne = false;
+    mover.state            = STATE.down_up_start;
+    mover.downTimer        = ENEMY_FALL_FRAMES;
+    mover.vy               = BOWLING_LAUNCH_VY;
+    mover.knockbackVx     *= 0.2;
+    mover.kbDecay          = 0.78;
+    mover.launcherAirborne = true;             // LAUNCH_COMBO 相当：頂点スローで「重力緩やか」感
+    mover.peakHangTimer    = 0;
     applyHitInitialPitch(mover);
-    return 'redirect_rakka';
+    return 'redirect_bowling_launch';
   }
   // 3) その他：軽い反射のみ
   mover.knockbackVx *= -0.4;

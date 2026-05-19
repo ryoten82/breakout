@@ -302,7 +302,8 @@ export const ATTACKS = {
   // tiltX: 擬似アニメ用 rotation.x 目標値（YXZ 順・+前傾 / -後傾）— 正式アニメ実装まで
   c01_atk_01_step: {
     label:        'c01_atk_01_step (METEO ステップJ・スライディング)',
-    duration:     14, hitFrame: 4, hitDuration: 4, cancelWindow: 14,  // 20/10 → 14/14（硬直短縮＋キャンセル受付拡大）
+    // 2026-05-19：発生前硬直 +8F（ダッシュ攻撃の差し合いリスク付与）
+    duration:     22, hitFrame: 12, hitDuration: 4, cancelWindow: 14,
     damage:       8,
     rangeX:       150, rangeZ: 70, rangeY: 60,
     knockback:    18, hitstop: 5, shake: 4,
@@ -353,7 +354,8 @@ export const ATTACKS = {
   // ============================================================
   c01_sp_01: {
     label:        'c01_sp_01 (METEO 波動コマンド・弱ビーム・連続ヒット)',
-    duration:     30, hitFrame: 14, hitDuration: 6, cancelWindow: 14,
+    // 2026-05-19：発生前硬直 +10F（敵に対するリスク付与・発生に重み）
+    duration:     40, hitFrame: 24, hitDuration: 6, cancelWindow: 14,
     // === 連続ヒット：3 段（フレーム 14 / 19 / 24）===
     // ビームの「ジリジリ」感を多段で表現。最終ヒットで吹き飛び（atk_lv 3）
     isMultiHit:     true,
@@ -387,7 +389,8 @@ export const ATTACKS = {
   // METEO 固有の挙動（VIPER 等は別の傾向にする予定）。pickSpecialAttackId で地上/空中を分岐
   c01_sp_01_air: {
     label:        'c01_sp_01_air (METEO 波動コマンド・空中版・パイルバンカー連続ヒット)',
-    duration:     26, hitFrame: 10, hitDuration: 6, cancelWindow: 22,  // cw 14→22（空中SPキャンセル受付拡張・2026-05-20）
+    // 2026-05-19：発生前硬直 +10F（敵に対するリスク付与・発生に重み）
+    duration:     36, hitFrame: 20, hitDuration: 6, cancelWindow: 22,
     // === 連続ヒット：3 段（フレーム 10 / 14 / 18）===
     // パイルバンカーの「ドリル」感を多段で表現。最終ヒットで叩きつけ or 超吹き飛ばし
     isMultiHit:     true,
@@ -499,7 +502,8 @@ export const ATTACKS = {
   //   旧名 c01_sp_04 / c01_sp_04_max は 2026-05-20 リネーム（_NN 連番化で stage3+ 追加に備える）
   c01_sp_04_01: {
     label:        'c01_sp_04_01 (METEO 溜めパンチ・stage1・地上版)',
-    duration:     36, hitFrame: 16, hitDuration: 6, cancelWindow: 16,
+    // 2026-05-19：発生前硬直 +8F（溜め技は溜めで補えるがリスク付与）
+    duration:     44, hitFrame: 24, hitDuration: 6, cancelWindow: 16,
     damage:       28,
     rangeX:       360, rangeZ: 260,   // Z 130→260（2026-05-15 二倍化）
     rangeY:       130,
@@ -526,7 +530,8 @@ export const ATTACKS = {
   // 空中版：地上版とほぼ同等の触感で、空中で J 長押し→離しでディスパッチされる
   c01_sp_04_01_air: {
     label:        'c01_sp_04_01_air (METEO 溜めパンチ・stage1・空中版)',
-    duration:     36, hitFrame: 16, hitDuration: 6, cancelWindow: 25,  // cw 16→25（空中SPキャンセル受付拡張・2026-05-20）
+    // 2026-05-19：発生前硬直 +8F
+    duration:     44, hitFrame: 24, hitDuration: 6, cancelWindow: 25,
     damage:       28,
     rangeX:       360, rangeZ: 260,   // Z 130→260（2026-05-15 二倍化）
     rangeY:       130,
@@ -555,7 +560,8 @@ export const ATTACKS = {
   // 将来 stage3+ を OC/チップで足す場合は c01_sp_04_03, c01_sp_04_04 ... と _NN を増やして対応。
   c01_sp_04_02: {
     label:        'c01_sp_04_02 (METEO 溜めパンチ・stage2 MAX・地上版)',
-    duration:     40, hitFrame: 18, hitDuration: 7, cancelWindow: 16,   // 振りはやや重く（+4F）／ヒット猶予広め
+    // 2026-05-19：発生前硬直 +8F
+    duration:     48, hitFrame: 26, hitDuration: 7, cancelWindow: 16,
     damage:       40,                       // 28 → 40：MAX 報酬
     rangeX:       500, rangeZ: 300,         // Z 150→300（2026-05-15 二倍化）・前方リーチ強調
     rangeY:       170,                      // 上方向もやや拡張
@@ -583,7 +589,8 @@ export const ATTACKS = {
   },
   c01_sp_04_02_air: {
     label:        'c01_sp_04_02_air (METEO 溜めパンチ・stage2 MAX・空中版)',
-    duration:     40, hitFrame: 18, hitDuration: 7, cancelWindow: 25,  // cw 16→25（空中SPキャンセル受付拡張・2026-05-20）
+    // 2026-05-19：発生前硬直 +8F
+    duration:     48, hitFrame: 26, hitDuration: 7, cancelWindow: 25,
     damage:       40,
     rangeX:       500, rangeZ: 300,   // Z 150→300（2026-05-15 二倍化）
     rangeY:       170,
