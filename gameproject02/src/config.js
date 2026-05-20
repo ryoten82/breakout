@@ -212,7 +212,7 @@ export const SAME_ATK_CONFIG = {
 //  - 値はランタイム調整可：window.SB.CRIT_CONFIG.DAMAGE_MULT = 2 など
 // ============================================================
 export const CRIT_CONFIG = {
-  BASE_CHANCE:   0.10,  // 通常ヒットの基礎クリティカル率（カウンターは確率を介さず確定）
+  BASE_CHANCE:   0.05,  // 通常ヒットの基礎クリティカル率（カウンターは確率を介さず確定 100%）
   DAMAGE_MULT:   1.5,   // クリティカルダメージ倍率（仮値・実プレイで詰める）
   HITSTOP_BONUS: 4,     // クリティカル時の追加ヒットストップF
   SHAKE_BONUS:   3,     // クリティカル時の追加シェイク強度
