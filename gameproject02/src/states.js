@@ -25,6 +25,7 @@
 export const HP_CONFIG = {
   MAX:                 100,
   INVINCIBLE_FRAMES:   12,   // 被弾直後の追加無敵F（連続ヒット防止）
+  HITSTUN_RECOVER_INVINCIBLE: 180,  // 被弾→起き上がり開始からの無敵F（3秒・透明点滅・コンボ拒否）
   DEAD_FRAMES:         60,   // dying 演出終了後 dead で待機する長さ（演出時間とは別）
   REVIVE_INVINCIBLE:   240,  // リバイブ後の無敵F（4秒・透明点滅）
   // 死亡演出（dying state の中で時系列に切り替わる）
@@ -333,12 +334,14 @@ export const STATE_PITCH_LERP = 0.18;
 //   after Rx(θ): (0, h·cosθ, h·sinθ) → after Ry(φ): (h·sinθ·sinφ, h·cosθ, h·sinθ·cosφ)
 // world hip を (x, y+h, z) に固定したいので mesh.position を逆オフセットする。
 export const ROLL_HIP_PIVOT = 70;  // 腰高さ（body 中心 80・脚台座 15-30 の間）
-export function applyRollHipPivot(mesh, x, y, z, rollAngle) {
+// pivot は腰高さの上書き用（既定 ROLL_HIP_PIVOT）。敵・プレイヤーで転がり感を
+// 変えたくなった時に呼び出し側から個別指定できる。
+export function applyRollHipPivot(mesh, x, y, z, rollAngle, pivot = ROLL_HIP_PIVOT) {
   const sinT = Math.sin(rollAngle), cosT = Math.cos(rollAngle);
   const sinP = Math.sin(mesh.rotation.y), cosP = Math.cos(mesh.rotation.y);
-  mesh.position.x = x - ROLL_HIP_PIVOT * sinT * sinP;
-  mesh.position.y = y + ROLL_HIP_PIVOT * (1 - cosT);
-  mesh.position.z = z - ROLL_HIP_PIVOT * sinT * cosP;
+  mesh.position.x = x - pivot * sinT * sinP;
+  mesh.position.y = y + pivot * (1 - cosT);
+  mesh.position.z = z - pivot * sinT * cosP;
 }
 
 // ============================================================

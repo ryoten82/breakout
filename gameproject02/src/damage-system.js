@@ -165,17 +165,6 @@ export function resetCombo() {
   }
 }
 
-// 被弾 state の lv 順位（lv 比較用：高いほど強い被弾）
-function _hitLv(state) {
-  switch (state) {
-    case STATE.knockback01: return 1;
-    case STATE.knockback02: return 2;
-    case STATE.down_front_start:
-    case STATE.down_front_loop: return 3;
-    default: return 0;
-  }
-}
-
 // ============================================================
 //  damagePlayer / tryHitPlayer 本体
 // ============================================================
@@ -186,10 +175,10 @@ export function damagePlayer(p, attack, source) {
   if (p.invincibleFrames > 0) return false;
   if (p.state === STATE.dying || p.state === STATE.dead) return false;
 
-  // (2) 被弾 state 中の lv 比較（同等以上で refresh、下なら無視）
+  // (2) 被弾中は完全無敵（プレイヤー区別化）：吹き飛び中・ダウン中は一切ヒットを受けず
+  //   コンボでハメられない。guard_crash はガード崩れの隙なので無敵にしない（反撃を受ける）。
+  if (isHitstunState(p) && p.state !== STATE.guard_crash) return false;
   const incomingLv = attack.atk_lv ?? 1;
-  const currentLv  = _hitLv(p.state);
-  if (currentLv > 0 && incomingLv < currentLv) return false;
 
   // (3) ガード判定（前方からのみ）
   const srcFromRight = (source && (source.x - p.x) > 0) ? 1 : -1;
@@ -415,6 +404,7 @@ export function updatePlayerHitstun(p) {
     if (p.stateTimer <= 0) {
       p.state = STATE.wait01;
       p.kbVx = 0;
+      p.invincibleFrames = HP_CONFIG.HITSTUN_RECOVER_INVINCIBLE;  // 復帰後 3 秒の点滅無敵
     }
   } else if (s === STATE.knockback_air01) {
     // 空中フリンチ：軽く流されつつ落下、タイマー終了で fall_loop
@@ -442,6 +432,7 @@ export function updatePlayerHitstun(p) {
     p.stateTimer--;
     if (p.stateTimer <= 0) {
       p.state = STATE.wait01;
+      p.invincibleFrames = HP_CONFIG.HITSTUN_RECOVER_INVINCIBLE;  // 復帰後 3 秒の点滅無敵
     }
   } else if (s === STATE.down_front_start) {
     _applyKbStep(p, 0.98);
@@ -590,6 +581,8 @@ export function updatePlayerHitstun(p) {
     if (p.stateTimer <= 0) {
       p.state = STATE.down_bas_end;
       p.stateTimer = PLAYER_DOWN_BAS_END_FRAMES;
+      // 起き上がり開始から 3 秒の点滅無敵（起き上がり〜復帰後をカバー）
+      p.invincibleFrames = HP_CONFIG.HITSTUN_RECOVER_INVINCIBLE;
     }
   } else if (s === STATE.down_bas_end) {
     p.stateTimer--;
