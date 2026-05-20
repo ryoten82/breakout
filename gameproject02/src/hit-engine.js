@@ -34,7 +34,7 @@ import {
 } from './states.js';
 import {
   COMBO_LEVELS, getComboLevel,
-  PHYSICS, SP_CONFIG, HOMING_CONFIG, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, SAME_ATK_CONFIG,
+  PHYSICS, SP_CONFIG, HOMING_CONFIG, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG,
 } from './config.js';
 import { resolveAttackAttr } from './attacks.js';
 import { handleEnemyDyingHit, enterEnemyDyingBurst } from './enemy-system.js';
@@ -569,10 +569,18 @@ export function tryHitEnemies(p, attack, ctx) {
       return Math.max(v, SAME_ATK_CONFIG.MIN_KB_RATIO);
     })();
     const _scaledDamage = Math.max(SAME_ATK_CONFIG.MIN_DAMAGE, Math.round(attack.damage * _sameAtkDmgScale));
+    // クリティカル判定：カウンターヒット（敵の攻撃発生中 wind/active）は確定。
+    //   それ以外は基礎確率。敵 state は直後の被弾 dispatch で上書きされるため、ここで先に判定。
+    const _isCounterHit = (e.state === STATE.enemy_attacking &&
+                           (e.atkPhase === 'wind' || e.atkPhase === 'active'));
+    const _isCrit = _isCounterHit || (Math.random() < CRIT_CONFIG.BASE_CHANCE);
+    const _finalDamage = _isCrit
+      ? Math.round(_scaledDamage * CRIT_CONFIG.DAMAGE_MULT)
+      : _scaledDamage;
     // ヒット
-    e.hp = Math.max(0, e.hp - _scaledDamage);
-    // 与ダメージ数値ポップ（ヒット位置の頭上）
-    spawnDamageNumber(e.x, e.y + 110, e.z, _scaledDamage, { crit: !!attack.isCritical });
+    e.hp = Math.max(0, e.hp - _finalDamage);
+    // 与ダメージ数値ポップ（ヒット位置の頭上・クリティカルは橙強調）
+    spawnDamageNumber(e.x, e.y + 110, e.z, _finalDamage, { crit: _isCrit });
     // 最終ヒッター記録（ゴア・クリティカル抽選で参照・enterEnemyDying 内で profile lookup に使う）
     // lv は実効値（敵が空中なら atk_lv_air、地上なら atk_lv）。variants の atk_lv マッチで使う
     const _hitLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
@@ -932,9 +940,11 @@ export function tryHitEnemies(p, attack, ctx) {
       // カウンタも空中敵相手では加算しない（次に地上敵を殴った時にリセットされた状態に近い扱い）
       if (!targetAirborne) p.aerialHopCount = count + 1;
     }
-    // 演出
-    triggerHitstop(attack.hitstop);
-    triggerShake(attack.shake, attack.shake * 2 + 4);
+    // 演出（クリティカルはヒットストップ・シェイクを上乗せ）
+    const _hitstop = (attack.hitstop ?? 0) + (_isCrit ? CRIT_CONFIG.HITSTOP_BONUS : 0);
+    const _shake   = (attack.shake ?? 0) + (_isCrit ? CRIT_CONFIG.SHAKE_BONUS : 0);
+    triggerHitstop(_hitstop);
+    triggerShake(_shake, _shake * 2 + 4);
     // ヒット演出：攻撃ごとに色・パーティクル数を変える（差別化）
     const hitColor = attack.hitColor ?? 0xffee44;
     const hitCount = attack.hitCount ?? 10;
@@ -1041,10 +1051,11 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
       const _lv = (attack.atk_lv_down !== undefined) ? attack.atk_lv_down : (attack.atk_lv ?? 1);
       if (_lv !== 5 && _lv !== 7) continue;
     }
-    // ヒット適用（中間）
+    // ヒット適用（中間）。クリティカル判定は最終ヒット（tryHitEnemies 経由）に集約し、
+    //   多段の中間ヒットは通常表示（毎ティック抽選で過剰クリにしない）。
     const _midDamage = attack.damagePerHit ?? 5;
     e.hp = Math.max(0, e.hp - _midDamage);
-    spawnDamageNumber(e.x, e.y + 110, e.z, _midDamage, { crit: !!attack.isCritical });
+    spawnDamageNumber(e.x, e.y + 110, e.z, _midDamage, {});
     // 最終ヒッター記録（マルチヒットでも毎発上書き：最終ヒットの attackId が記録される）
     // 中間ヒットの lv は便宜上 attack.atk_lv（最終ヒットの想定値）を使う
     const _midLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
