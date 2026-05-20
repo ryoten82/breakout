@@ -32,6 +32,8 @@ const HIT_DEFAULT_HITSTOP = 6;
 
 const breakables = [];
 const flyingParts = [];
+// 爆発後リスポーン待ち（{ factory, timer }）。userData.respawn 指定の breakable 用。
+const _respawnQueue = [];
 
 let _scene = null;
 let _THREE = null;
@@ -344,6 +346,11 @@ function _detonate(mesh) {
   mesh.userData.alive = false;
   const idx = breakables.indexOf(mesh);
   if (idx >= 0) breakables.splice(idx, 1);
+  // リスポーン指定（デバッグ地雷）：一定F後に factory で再生成
+  const rs = mesh.userData.respawn;
+  if (rs && typeof rs.factory === 'function') {
+    _respawnQueue.push({ factory: rs.factory, timer: rs.delayFrames ?? 180 });
+  }
 }
 
 // 毎フレーム呼ばれる：fuse 進行 + mesh 物理（点火ジャンプ） + 飛び散りパーツ物理
@@ -426,6 +433,14 @@ export function updateBreakables() {
         });
         flyingParts.splice(i, 1);
       }
+    }
+  }
+  // リスポーン待ちの消化（タイマー満了で factory 実行 → 新しい breakable を生成）
+  for (let i = _respawnQueue.length - 1; i >= 0; i--) {
+    if (--_respawnQueue[i].timer <= 0) {
+      const fn = _respawnQueue[i].factory;
+      _respawnQueue.splice(i, 1);
+      fn();
     }
   }
 }

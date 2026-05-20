@@ -5,11 +5,13 @@
 import * as stage01 from './stage01/index.js';
 import * as stage02 from './stage02/index.js';
 import * as stage03 from './stage03/index.js';
+import * as actionTest from './action-test/index.js';
 
 export const stageRegistry = {
   stage01,
   stage02,
   stage03,
+  actionTest,
 };
 
 export function registerStage(id, module) {
@@ -20,3 +22,4 @@ export function registerStage(id, module) {
 export const { initStage01, tickStage01, getStage01DebugState } = stage01;
 export const { initStage02, tickStage02, getStage02DebugState } = stage02;
 export const { initStage03, tickStage03, getStage03DebugState } = stage03;
+export const { initActionTest, tickActionTest, getActionTestDebugState } = actionTest;

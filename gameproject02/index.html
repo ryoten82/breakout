@@ -519,17 +519,28 @@
     #start-screen-overlay .start-msg .warn {
       color: #ffaa66;
     }
-    #start-screen-overlay .start-prompt {
+    #start-screen-overlay .start-modes {
+      display: flex;
+      gap: 32px;
+    }
+    #start-screen-overlay .start-mode-btn {
+      pointer-events: auto;   /* オーバーレイは pointer-events:none なのでボタンで再有効化 */
       font-family: 'Courier New', monospace;
       font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 4px;
       color: #88ddff;
-      letter-spacing: 6px;
+      background: rgba(20, 30, 48, 0.92);
+      border: 2px solid #4488bb;
+      padding: 20px 40px;
+      cursor: pointer;
       text-shadow: 2px 2px 0 #000;
-      animation: start-prompt-blink 1.2s ease-in-out infinite;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     }
-    @keyframes start-prompt-blink {
-      0%, 100% { opacity: 1; }
-      50%      { opacity: 0.35; }
+    #start-screen-overlay .start-mode-btn:hover {
+      background: rgba(40, 72, 112, 0.96);
+      border-color: #88ddff;
+      color: #ffffff;
     }
 
     /* ULT 用画面暗転オーバーレイ（メガクラより少し濃い） */
@@ -552,14 +563,17 @@
     <div class="pause-text">PAUSED</div>
     <div class="pause-hint">ESC で再開</div>
   </div>
-  <!-- 開始画面：初回入力で markPlayStart 発火 → フェードアウト -->
+  <!-- 開始画面：モード選択 → markPlayStart 発火 → フェードアウト -->
   <div id="start-screen-overlay">
     <div class="start-title">SCRAP BLITZ</div>
     <div class="start-msg">
-      プレイ開始します。<br>
+      モードを選択してください。<br>
       <span class="warn">⚠ 自動でログを収集するので連続プレイ時は注意してください。</span>
     </div>
-    <div class="start-prompt">PRESS ANY KEY</div>
+    <div class="start-modes">
+      <button class="start-mode-btn" id="mode-play">通しプレイ</button>
+      <button class="start-mode-btn" id="mode-actiontest">アクションテスト</button>
+    </div>
   </div>
   <!-- デバッグ：時計 HUD（時間の停止/スロー視認用） -->
   <div id="clock-hud">
@@ -858,6 +872,7 @@
       initStage01, tickStage01, getStage01DebugState,
       initStage02, tickStage02, getStage02DebugState,
       initStage03, tickStage03, getStage03DebugState,
+      initActionTest, tickActionTest, getActionTestDebugState,
     } from './src/stages/index.js';
     // Stage 1 外周ヤード書割（プロト・オプトイン）：window.STAGE01_EXTERIOR = true で起動
     import { initExterior as initStage01Exterior } from './src/stages/stage01/exterior.js';
@@ -2097,7 +2112,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-20 debug: proximity 地雷をエッジ判定化（範囲外→内の瞬間のみ点火・被弾居座りで誤爆しない）';
+    const LAST_UPDATE = '2026-05-20 debug: 開始画面にモード選択（通しプレイ/アクションテスト）+ アクションテスト部屋を新設';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2170,6 +2185,9 @@
     // 開始画面オーバーレイの制御：初回入力で dismiss + markPlayStart 発火
     // ESC pause メニューから再開した時は別経路（既存 togglePause が _invSetPaused を呼ぶ）
     let _startScreenShown = true;
+    // モード選択メニュー表示中フラグ：true の間はキー/クリックで自動 dismiss しない
+    //   （通しプレイ / アクションテストのボタン押下のみで閉じる）
+    let _modeMenuActive = false;
     function _dismissStartScreen() {
       if (!_startScreenShown) return;
       _startScreenShown = false;
@@ -2185,12 +2203,12 @@
     // （TDZ 違反回避：_IS_AUTO_TRANSITION はそこで定義される）
     // 既存リスナーと並行（input-system.js とは独立）
     window.addEventListener('keydown', () => {
-      if (_startScreenShown) _dismissStartScreen();
-      else if (_invWatch.active) _invMarkInput();
+      if (_startScreenShown && !_modeMenuActive) _dismissStartScreen();
+      else if (!_startScreenShown && _invWatch.active) _invMarkInput();
     });
     window.addEventListener('mousedown', () => {
-      if (_startScreenShown) _dismissStartScreen();
-      else if (_invWatch.active) _invMarkInput();
+      if (_startScreenShown && !_modeMenuActive) _dismissStartScreen();
+      else if (!_startScreenShown && _invWatch.active) _invMarkInput();
     });
     // HUD バッジ：右下に [INV: N] 表示・致命カウントは赤・クリックで dump 出力
     (function _initInvHud() {
@@ -2264,7 +2282,7 @@
     //   - 何もなければ stage01 から（F5 リロードもここに来る）
     //   - window.STAGE01_ENABLED = false で完全 OFF（demo 敵のみ）
     const STAGE01_ENABLED = (window.STAGE01_ENABLED !== false);
-    const _validStages = new Set(['stage01', 'stage02', 'stage03']);
+    const _validStages = new Set(['stage01', 'stage02', 'stage03', 'actionTest']);
     // 自動遷移直後フラグ（1 回限り消費）
     let _autoTransitionStage = null;
     try {
@@ -2276,34 +2294,67 @@
     const SELECTED_STAGE = _validStages.has(_candidate) ? _candidate : 'stage01';
     // stage runner（wave-runner）が「現在ステージ」を参照できるようグローバルに公開
     // → URL ベースから SELECTED_STAGE 参照に切替（sessionStorage 経由で URL に依存しないため）
-    window.__SB_SELECTED_STAGE = SELECTED_STAGE;
-    // 自動遷移直後は開始画面をスキップ（連続プレイ感維持）
     const _IS_AUTO_TRANSITION = !!_autoTransitionStage;
-    // 自動遷移直後は開始画面を出さずに即プレイ開始（連続プレイ感維持・2026-05-19 移設）
-    if (_IS_AUTO_TRANSITION) {
+
+    // 選択されたステージを実際に初期化する（モード選択ボタン or 即時起動から呼ぶ）。
+    //   stage01 外周書割（exterior）も stage01 起動時にここで併せて適用する。
+    let _activeStageId = null;
+    let _stageInited = false;
+    function _initStageById(id) {
+      _activeStageId = id;
+      window.__SB_SELECTED_STAGE = id;
+      if (id === 'actionTest') {
+        initActionTest({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
+      } else if (id === 'stage03') {
+        initStage03({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
+      } else if (id === 'stage02') {
+        initStage02({ spawnDummy, players, enemies, scene, THREE });
+      } else {
+        initStage01({ spawnDummy, players, enemies, scene, THREE });
+        if (window.STAGE01_EXTERIOR !== false) {
+          initStage01Exterior({ scene, THREE, backWallPillars, bgElements, ground });
+        }
+      }
+      _stageInited = true;
+    }
+    // オーバーレイを即閉じ + markPlayStart（モード選択を挟まない経路用）
+    function _skipStartOverlay() {
       _startScreenShown = false;
       const _ov = document.getElementById('start-screen-overlay');
       if (_ov) _ov.style.display = 'none';
       _invMarkPlayStart();
     }
+
+    // 開始画面でモード選択を出すか：プレーンな初回ロードのみ。
+    //   自動遷移・URL ?stage= 指定・window.STAGE 指定はメニューを挟まず直接起動。
+    const _showModeMenu = STAGE01_ENABLED && !_IS_AUTO_TRANSITION
+      && !_stageURLParam && !window.STAGE;
+
     if (!STAGE01_ENABLED) {
+      // デモ敵のみ（ステージ無し）
       spawnDummy(280, 300, { atkCooldown:  60, instantRespawn: true });
       spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: true });
       spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: true });
-    } else if (SELECTED_STAGE === 'stage03') {
-      initStage03({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
-    } else if (SELECTED_STAGE === 'stage02') {
-      // Stage 2 = 工場内部（テスト用確定 2026-05-19）：stage01 のウェーブ＋内部装飾を流用
-      initStage02({ spawnDummy, players, enemies, scene, THREE });
+      window.__SB_SELECTED_STAGE = 'stage01';
+      _skipStartOverlay();
+    } else if (_showModeMenu) {
+      // 開始画面のモード選択：ボタン押下でステージ init → オーバーレイを閉じる
+      _modeMenuActive = true;
+      window.__SB_SELECTED_STAGE = 'stage01';  // 暫定（選択で上書きされる）
+      const _pickMode = (id) => {
+        if (_stageInited) return;
+        _modeMenuActive = false;
+        _initStageById(id);
+        _dismissStartScreen();
+      };
+      const _btnPlay = document.getElementById('mode-play');
+      const _btnTest = document.getElementById('mode-actiontest');
+      if (_btnPlay) _btnPlay.addEventListener('click', () => _pickMode('stage01'));
+      if (_btnTest) _btnTest.addEventListener('click', () => _pickMode('actionTest'));
     } else {
-      initStage01({ spawnDummy, players, enemies, scene, THREE });
-    }
-
-    // Stage 1 外周ヤード書割（プロト・Stage 1 のみ・デフォルト ON）
-    // Stage 3（中央プラント）は工場内部テーマなので exterior 適用しない
-    // 内部装飾に戻したい時は window.STAGE01_EXTERIOR = false; をリロード前に設定
-    if (SELECTED_STAGE === 'stage01' && window.STAGE01_EXTERIOR !== false) {
-      initStage01Exterior({ scene, THREE, backWallPillars, bgElements, ground });
+      // 自動遷移 / URL 直接指定：モード選択を挟まず即起動
+      _initStageById(SELECTED_STAGE);
+      _skipStartOverlay();
     }
 
     // 互換用エイリアス（既存コードで dummy を直接参照していた所が残っていれば動く保険）
@@ -2826,10 +2877,13 @@
       updateBreakables();
       // ダメージ範囲可視化（リング寿命・パルス拡張）
       updateAreas();
-      // ステージ tick：選択されたステージのみ走らせる
-      if (SELECTED_STAGE === 'stage03') tickStage03();
-      else if (SELECTED_STAGE === 'stage02') tickStage02();
-      else tickStage01();
+      // ステージ tick：init 済みのステージのみ走らせる（モード選択中は未 init）
+      if (_stageInited) {
+        if (_activeStageId === 'stage03') tickStage03();
+        else if (_activeStageId === 'stage02') tickStage02();
+        else if (_activeStageId === 'actionTest') tickActionTest();
+        else tickStage01();
+      }
       updateParticles();
       updateSuperFlightTrails(players, enemies);
       players.forEach(p => updateDashTrail(p));
@@ -3263,19 +3317,22 @@
       getActiveWallX, levelWalls,
       // ステージ デバッグ：window.SB.stage() で現在ステージの内部状態を覗ける
       stage: () => {
-        if (SELECTED_STAGE === 'stage03') return getStage03DebugState();
-        if (SELECTED_STAGE === 'stage02') return getStage02DebugState();
+        if (_activeStageId === 'actionTest') return getActionTestDebugState();
+        if (_activeStageId === 'stage03') return getStage03DebugState();
+        if (_activeStageId === 'stage02') return getStage02DebugState();
         return getStage01DebugState();
       },
       // ステージ デバッグ詳細：各ステージの内部状態を個別に覗く / 手動 tick / 選択中ステージ ID
       stageDbg: {
-        selected: SELECTED_STAGE,
+        get selected() { return _activeStageId; },
         s1: getStage01DebugState,
         s2: getStage02DebugState,
         s3: getStage03DebugState,
+        sAT: getActionTestDebugState,
         tickS1: tickStage01,
         tickS2: tickStage02,
         tickS3: tickStage03,
+        tickAT: tickActionTest,
       },
       // 敵スポーン（コンソールから直接呼べる）。stages から呼ばれる同じ関数
       // 例: SB.spawnDummy(1500, 0, { maxHp: 80, instantRespawn: false })
