@@ -29,7 +29,7 @@
 // ============================================================
 
 import {
-  STATE, STATE_PITCH_TARGET, ENEMY_AIRBORNE_Y_THRESHOLD,
+  STATE, PLAYER_JUMP_STATES, STATE_PITCH_TARGET, ENEMY_AIRBORNE_Y_THRESHOLD,
   PLAYER_JUMP_START_FRAMES, PLAYER_JUMP_D_START_FRAMES,
   PLAYER_JUMP_END_FRAMES, PLAYER_JUMP_D_END_FRAMES,
 } from './states.js';
@@ -242,9 +242,7 @@ export function updateChargeJ(p) {
   // 空中でも蓄積可：難度高めだが「裏で溜めて空中 sp_03_air に繋ぐ」ルートをプレイヤー裁量で開放。
   const canCharge =
     (p.state === STATE.wait01 || p.state === STATE.attacking || p.state === STATE.hit_confirm ||
-     p.state === STATE.jump_start || p.state === STATE.jump_loop ||
-     p.state === STATE.jump_d_start || p.state === STATE.jump_d_loop ||
-     p.state === STATE.jump_end || p.state === STATE.jump_d_end)
+     PLAYER_JUMP_STATES.has(p.state))
     && !p.guarding && !p.ultActive
     && p.state !== STATE.grabbing;
   const wasReady = p.chargeReady;
@@ -316,9 +314,7 @@ function canStartSpecial(p, opts) {
   if (p.state === STATE.hit_confirm) return true;
   if (p.state === STATE.attacking) return true; // attacking もキャンセル発動可
   // ジャンプ系 state は wait01 と同じ受付（演出フック）
-  if (p.state === STATE.jump_start || p.state === STATE.jump_loop ||
-      p.state === STATE.jump_d_start || p.state === STATE.jump_d_loop ||
-      p.state === STATE.jump_end || p.state === STATE.jump_d_end) return true;
+  if (PLAYER_JUMP_STATES.has(p.state)) return true;
   return false;
 }
 // 必殺技 ID の正規化：地上/空中の派生は同じ base として 1 コンボ 1 回ルールを共有する

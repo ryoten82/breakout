@@ -28,7 +28,7 @@
 
 import { ATTACKS, Z_CHAIN, A_CHAIN } from './attacks.js';
 import {
-  STATE, STATE_PITCH_INITIAL, applyHitInitialPitch,
+  STATE, PLAYER_JUMP_STATES, STATE_PITCH_INITIAL, applyHitInitialPitch,
   KB_LV05_BOUNCE_VY,
   ENEMY_DOWN_BOUND_FRAMES, ENEMY_AIRBORNE_Y_THRESHOLD,
   ENEMY_KB_AIR_FRAMES, ENEMY_KB02_FRAMES,
@@ -534,9 +534,7 @@ export function processAttackInput(p) {
 
   // ジャンプ系 state（離陸/空中/着地）は wait01 と同じ「即攻撃可能」扱い。
   // 演出フックとしての state なので、攻撃入力は通常通り受け付ける。
-  if (p.state === STATE.jump_start || p.state === STATE.jump_loop ||
-      p.state === STATE.jump_d_start || p.state === STATE.jump_d_loop ||
-      p.state === STATE.jump_end || p.state === STATE.jump_d_end) {
+  if (PLAYER_JUMP_STATES.has(p.state)) {
     p.state = STATE.wait01;
     p.stateTimer = 0;
   }

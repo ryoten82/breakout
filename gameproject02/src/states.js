@@ -64,6 +64,9 @@ export const PLAYER_JUMP_D_END_FRAMES       = 14;  // ダッシュジャンプ�
 export const PLAYER_DYING_FRAMES      = 60;
 export const PLAYER_KB_GRAV           = 0.55;  // 被弾中の落下重力
 export const PLAYER_KB_VX_DECAY       = 0.92;  // 被弾中の水平減衰
+// 打ち上げ launchVy のフォールバック値（attack 個別指定が無い時に使う共通値）
+export const DEFAULT_LAUNCH_VY        = 22;  // lv4 打ち上げで attack.launchVy 未指定時のフォールバック
+export const EXPLOSION_LAUNCH_VY      = 18;  // ボンベ/地雷の爆発による打ち上げ初速
 
 // ============================================================
 //  #section state-table — ステート定数 / tilt / pitch テーブル
@@ -159,6 +162,14 @@ export const STATE = {
   // aiPhase は 'enraged' のまま継続して攻撃頻度等の挙動変化を持続。
   enraged_intro:    'enraged_intro',
 };
+
+// プレイヤーのジャンプ系 state 集合（離陸/空中/着地の演出フック）。
+// 攻撃・SP・チャージの受付は wait01 と同等に扱うため、入力ゲートで一括判定する。
+// 新しいジャンプ派生 state を STATE に足したら、ここにも必ず追加すること。
+export const PLAYER_JUMP_STATES = new Set([
+  STATE.jump_start, STATE.jump_loop, STATE.jump_end,
+  STATE.jump_d_start, STATE.jump_d_loop, STATE.jump_d_end,
+]);
 
 // ============================================================
 //  AI_PHASE — 敵の意思決定 phase（e.aiPhase 用の文字列定数）

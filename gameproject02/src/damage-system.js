@@ -34,6 +34,7 @@ import {
   PLAYER_DOWN_BAS_START_FRAMES, PLAYER_DOWN_BAS_LOOP_FRAMES, PLAYER_DOWN_BAS_END_FRAMES,
   PLAYER_DOWN_UP_FRAMES,
   PLAYER_KB_AIR_FRAMES, PLAYER_LAND_FRAMES, PLAYER_AIRBORNE_Y_THRESHOLD,
+  DEFAULT_LAUNCH_VY,
 } from './states.js';
 import { SP_CONFIG, GUARD_CONFIG } from './config.js';
 
@@ -305,7 +306,7 @@ export function damagePlayer(p, attack, source) {
     p.state = STATE.down_up_start;
     p.stateTimer = PLAYER_DOWN_UP_FRAMES;
     p.kbVx = facingFromAttacker * (knockback * 0.3);
-    p.kbVy = (attack.launchVy !== undefined) ? attack.launchVy : 22;
+    p.kbVy = (attack.launchVy !== undefined) ? attack.launchVy : DEFAULT_LAUNCH_VY;
     p.fallDir = facingFromAttacker;   // 爆心側に頭が倒れる（敵 down_up_* と同方向）
     p.launcherAirborne = !!attack.peakHang;
   } else if (lv === 3) {
@@ -659,7 +660,8 @@ export function _cancelHitstunForReversal(p) {
   //   プレイヤー通常更新は state ではなく isGrounded で重力・着地を扱うため、
   //   state は wait01 のままにし、空中なら isGrounded=false で自然落下に委ねる。
   //   これで「空中歩き」（前回バグ）も「地面ワープ」（前々回バグ）も「着地後攻撃不能」も同時に防げる。
-  if (p.y > 0) {
+  //   空中判定はコードベース共通の PLAYER_AIRBORNE_Y_THRESHOLD で統一（着地ノイズ域は接地扱い）。
+  if (p.y > PLAYER_AIRBORNE_Y_THRESHOLD) {
     p.vy          = 0;
     p.isGrounded  = false;
   } else {

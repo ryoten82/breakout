@@ -9,7 +9,7 @@
 // 重力は gs より弱め（0.5）でふわっと飛ばす
 
 import { GORE_CONFIG } from './config.js';
-import { STATE, ENEMY_FALL_FRAMES } from './states.js';
+import { STATE, ENEMY_FALL_FRAMES, EXPLOSION_LAUNCH_VY } from './states.js';
 
 // 物理：壊れ物パーツは gs より「軽く・短く」収まる肌感
 const GRAVITY      = 0.5;                                        // gs の PART_GRAVITY=0.7 より弱く
@@ -26,6 +26,7 @@ const EXPLOSION_HITSTOP  = 12;    // 爆発時のヒットストップ
 const FUSE_BLINK_MIN     = 2;     // 爆発直前の点滅周期（F）
 const FUSE_BLINK_MAX     = 12;    // 点火直後の点滅周期（F）
 const PROXIMITY_TRIGGER_RANGE = 400;  // 地雷モード：プレイヤー接近で点火する半径（爆発範囲と同値）
+const PROXIMITY_TRIGGER_RANGE_SQ = PROXIMITY_TRIGGER_RANGE * PROXIMITY_TRIGGER_RANGE;  // 毎フレーム判定用（sqrt 回避）
 // 攻撃ヒット時の壊れ物用ヒットストップ（attack.hitstop が無い場合のフォールバック）
 const HIT_DEFAULT_HITSTOP = 6;
 
@@ -189,6 +190,10 @@ function _startBreakSequence(mesh) {
 function _setRedTint(mesh, k) {
   const origMap = mesh.userData.origColors;
   if (!origMap) return;
+  // k は周期内で一定（赤 0.85 / 元色 0.0 を period F ごとに切替）。
+  // 同じ k の再適用は traverse を丸ごと省ける。
+  if (mesh.userData._lastTintK === k) return;
+  mesh.userData._lastTintK = k;
   mesh.traverse(c => {
     if (!c.material || !c.material.color) return;
     const orig = origMap.get(c.material);
@@ -266,7 +271,7 @@ function _explode(mesh) {
       // damagePlayer 用に最小限の attack オブジェクトと source を用意
       _damagePlayer(
         p,
-        { damage: EXPLOSION_DAMAGE, atk_lv: 4, knockback: 30, launchVy: 18 },
+        { damage: EXPLOSION_DAMAGE, atk_lv: 4, knockback: 30, launchVy: EXPLOSION_LAUNCH_VY },
         { x: cx, y: cy, z: cz },
       );
     }
@@ -346,7 +351,7 @@ export function updateBreakables() {
         if (!pp || !pp.mesh) continue;
         const dx = pp.x - b.position.x;
         const dz = (pp.z || 0) - b.position.z;
-        if (Math.hypot(dx, dz) <= PROXIMITY_TRIGGER_RANGE) {
+        if (dx * dx + dz * dz <= PROXIMITY_TRIGGER_RANGE_SQ) {
           _startBreakSequence(b);
           break;
         }

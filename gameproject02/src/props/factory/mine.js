@@ -38,15 +38,9 @@ export function createMine({ THREE }) {
     );
     // 脚を +X 方向に倒す（rotation.z 負で右倒れ）
     leg.rotation.z = -LEG_TILT;
-    // 倒した後の重心位置：上端を胴体の根本（y≈4）に、下端を外側＋接地へ。
-    // leg ローカルの (0,+L/2,0) と (0,-L/2,0) が両端。z 回転後：
-    //   上端: (+sin(t)*L/2, +cos(t)*L/2)
-    //   下端: (-sin(t)*L/2, -cos(t)*L/2)
-    // 上端を (0, H_ATTACH) に置きたい → 中心を (-sin(t)*L/2, H_ATTACH - cos(t)*L/2)
+    // 上端ピボットを胴体下面 (0, H_ATTACH) に揃える。
+    // CylinderGeometry は中心原点なので、z 回転後に中心を半長分オフセットする。
     const H_ATTACH = 8;   // 胴体下面への接続高さ
-    leg.position.x = -Math.sin(LEG_TILT) * (LEG_LEN / 2) + Math.sin(LEG_TILT) * LEG_LEN;
-    leg.position.y = H_ATTACH - Math.cos(LEG_TILT) * (LEG_LEN / 2) + Math.cos(LEG_TILT) * LEG_LEN * 0;
-    // ↑ 計算が混乱したので、シンプル化：上端ピボットを (0, H_ATTACH) に揃える
     leg.position.x = Math.sin(LEG_TILT) * (LEG_LEN / 2);
     leg.position.y = H_ATTACH - Math.cos(LEG_TILT) * (LEG_LEN / 2);
     wrap.add(leg);
