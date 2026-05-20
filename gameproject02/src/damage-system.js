@@ -33,8 +33,10 @@ import {
   PLAYER_DOWN_FRONT_START_FRAMES,
   PLAYER_DOWN_BAS_START_FRAMES, PLAYER_DOWN_BAS_LOOP_FRAMES, PLAYER_DOWN_BAS_END_FRAMES,
   PLAYER_DOWN_UP_FRAMES,
+  PLAYER_DOWN_RAKKA_FRAMES, PLAYER_DOWN_BOUND_FRAMES,
   PLAYER_KB_AIR_FRAMES, PLAYER_LAND_FRAMES, PLAYER_AIRBORNE_Y_THRESHOLD,
   DEFAULT_LAUNCH_VY,
+  KB_LV05_VY, KB_LV05_VX_MULT, KB_LV05_BOUNCE_VY,
 } from './states.js';
 import { SP_CONFIG, GUARD_CONFIG } from './config.js';
 
@@ -108,6 +110,7 @@ const _HITSTUN_STATES = new Set([
   STATE.knockback_air01, STATE.fall_loop, STATE.land,
   STATE.down_front_start, STATE.down_front_loop,
   STATE.down_up_start, STATE.down_up_loop,
+  STATE.down_rakka_start, STATE.down_rakka_loop, STATE.down_bound_start,
   STATE.down_bas_start, STATE.down_bas_loop, STATE.down_bas_end,
   STATE.guard_crash, STATE.dying, STATE.dead, STATE.respawning,
 ]);
@@ -293,10 +296,13 @@ export function damagePlayer(p, attack, source) {
     p.kbVx = facingFromAttacker * (knockback * 1.2);
     p.kbVy = 16;
   } else if (lv === 5) {
-    p.state = STATE.down_front_start;
-    p.stateTimer = PLAYER_DOWN_FRONT_START_FRAMES;
-    p.kbVx = facingFromAttacker * (knockback * 0.8);
-    p.kbVy = 6;
+    // lv5 叩きつけ：敵側 down_rakka_* を移植（第 3 段共用）。
+    //   真下に高速落下（あおむけ姿勢）→ 着地で 1回バウンド → 再着地で down_bas へ。
+    //   水平 KB はほぼ殺す（KB_LV05_VX_MULT）。地上ヒット時は即着地→バウンド。地雷被弾にも転用可。
+    p.state = STATE.down_rakka_start;
+    p.stateTimer = PLAYER_DOWN_RAKKA_FRAMES;
+    p.kbVx = facingFromAttacker * (knockback * KB_LV05_VX_MULT);
+    p.kbVy = KB_LV05_VY;   // 下向き初速（真下に高速）
   } else if (lv === 4) {
     // lv4 打ち上げ：敵側 down_up_* を移植（第 1 段共用試作）。
     //   - tilt は 0→π/2 のランプ（updatePlayerHitstun で計算）
@@ -468,6 +474,46 @@ export function updatePlayerHitstun(p) {
       _spawnHitParticles(p.x, 10, p.z, 0xaaaaaa, 14);
       _triggerShake(3, 6);
     }
+  } else if (s === STATE.down_rakka_start || s === STATE.down_rakka_loop) {
+    // lv5 叩きつけ：真下に高速落下（敵 down_rakka_* 共用）。あおむけ姿勢のまま落下し、
+    //   着地で 1回バウンド（down_bound_start）へ。地上ヒット時は即着地 → バウンド。
+    p.x += p.kbVx;
+    p.kbVx *= 0.98;
+    p.vy = p.kbVy;
+    p.y += p.vy;
+    p.kbVy -= PLAYER_KB_GRAV;
+    if (s === STATE.down_rakka_start) {
+      p.stateTimer--;
+      if (p.stateTimer <= 0) p.state = STATE.down_rakka_loop;
+    }
+    if (p.y <= 0) {
+      p.y = 0; p.kbVx = 0; p.vy = 0;
+      p.state = STATE.down_bound_start;
+      p.kbVy = KB_LV05_BOUNCE_VY;   // 上向き初速で 1回バウンド（下向き vy を上書き）
+      p.stateTimer = PLAYER_DOWN_BOUND_FRAMES;
+      _spawnHitParticles(p.x, 10, p.z, 0xaaaaaa, 16);
+      _triggerShake(4, 8);
+    }
+  } else if (s === STATE.down_bound_start) {
+    // バウンド上昇 → 落下。再着地で down_bas_loop へ（仕様 §4.1：bas_start イントロはスキップ。
+    //   バウンド自体が「落ちて崩れる」演出を担うため）。敵 down_bound_start と同じ合流先。
+    p.x += p.kbVx;
+    p.kbVx *= 0.96;
+    p.vy = p.kbVy;
+    p.y += p.vy;
+    p.kbVy -= PLAYER_KB_GRAV;
+    p.stateTimer--;
+    if (p.y <= 0) {
+      p.y = 0; p.kbVy = 0; p.kbVx = 0; p.vy = 0;
+      p.state = STATE.down_bas_loop;
+      p.stateTimer = PLAYER_DOWN_BAS_LOOP_FRAMES;
+      _spawnHitParticles(p.x, 10, p.z, 0xaaaaaa, 14);
+      _triggerShake(3, 6);
+    } else if (p.stateTimer <= 0) {
+      // フォールバック：着地検知漏れ（万一）→ ダウン静止ループへ
+      p.state = STATE.down_bas_loop;
+      p.stateTimer = PLAYER_DOWN_BAS_LOOP_FRAMES;
+    }
   } else if (s === STATE.down_bas_start) {
     p.stateTimer--;
     if (p.stateTimer <= 0) {
@@ -577,6 +623,8 @@ export function updatePlayerHitstun(p) {
       p.mesh.rotation.x = -0.6;
     } else if (s === STATE.down_up_start || s === STATE.down_up_loop) {
       p.mesh.rotation.x = 0;  // tilt（rotation.z）が姿勢を支配するので x はクリア
+    } else if (s === STATE.down_rakka_start || s === STATE.down_rakka_loop || s === STATE.down_bound_start) {
+      p.mesh.rotation.x = -Math.PI / 2;  // あおむけ姿勢（lv5 叩きつけ・敵 down_rakka_* と同じ）
     } else if (s === STATE.down_bas_start || s === STATE.down_bas_loop || s === STATE.down_bas_end) {
       p.mesh.rotation.x = 0;
     } else if (s === STATE.guard_crash) {

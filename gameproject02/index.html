@@ -2097,7 +2097,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-20 fix: 着地時の chainArr クリア条件を最小化（hit_confirm 経由の高高度ジャンプを保持・jump airborne state でのみリーク防止クリア）';
+    const LAST_UPDATE = '2026-05-20 feat: プレイヤー lv5 叩きつけ被弾を敵側 down_rakka_* 共用化（真下落下→1回バウンド→down_bas）';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
