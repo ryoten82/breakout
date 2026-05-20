@@ -30,6 +30,8 @@ import {
   STATE_PITCH_TARGET, STATE_PITCH_LERP,
   ENEMY_JUMP_START_FRAMES, ENEMY_JUMP_D_START_FRAMES,
   ENEMY_JUMP_END_FRAMES, ENEMY_JUMP_D_END_FRAMES,
+  ENEMY_STAGGER_FRAMES, ENEMY_DODGE_FRAMES, ENEMY_DODGE_INVULN,
+  ENEMY_GUARD_FRAMES, ENEMY_BLOCK_HIT_FRAMES,
   ENEMY_FALL_FRAMES, ENEMY_RISE_FRAMES,
   ENEMY_DOWN_BAS_START_FRAMES, ENEMY_DOWN_BAS_LOOP_FRAMES,
   ENEMY_LAND_FRAMES, ENEMY_DOWN_FRONT_FRAMES,
@@ -43,7 +45,7 @@ import {
   KB_LV06_VY, KB_LV06_VX_MULT,
   applyRollHipPivot,
 } from './states.js';
-import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY } from './config.js';
+import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG } from './config.js';
 import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, fxState } from './hit-engine.js';
 import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
@@ -233,10 +235,13 @@ export function spawnDummy(x, z, opts = {}) {
     // === #14 雑魚行動：性格・役割・行動傾向 ===
     personality:      _personality,            // 'brave' / 'cunning'
     role:             opts.role ?? 'standalone',// 'standalone' / 'carrier' / 'escort'
-    guardTendency:    _persona.guardTendency,   // 前面被弾をガード成立させる確率（14-B）
-    dodgeTendency:    _persona.dodgeTendency,   // プレイヤー攻撃 wind 検知で回避する確率（14-B）
+    guardTendency:    _persona.guardTendency,   // 攻撃検知でガード姿勢に入る確率（14-B）
+    dodgeTendency:    _persona.dodgeTendency,   // 攻撃検知で回避する確率（14-B）
     accumStagger:     0,                        // 連続被弾累積（閾値超で enemy_stagger・14-B）
     staggerThreshold: _persona.staggerThreshold,// よろめき発火の累積閾値（性格差）
+    reactCooldown:    0,                        // dodge/guard 再発動クールダウン残F
+    _reactArmed:      true,                     // 現プレイヤー攻撃に未反応なら true（1 攻撃 1 判定）
+    dodgeInvuln:      false,                    // enemy_dodge 前半の無敵フラグ
     // === Phase 3 ステータス系（status_stun）===
     statusStunTimer:  0,    // status_stun 残F
     // === Phase 3-A/3-B 敵死亡（gore-scrap・2026-05-20 フラグ方式へリファクタ）===
@@ -1540,7 +1545,8 @@ export function updateEnemies(ctx) {
     // Phase 3 AI ステート明示化：state が AI 行動系（wait01 / 移動 / 攻撃）以外なら hitstun ラベル
     // 注：status_stun もここで hitstun ラベルになる（被弾意味の汎用 AI 非介入ラベル）
     if (e.state !== STATE.wait01 && e.state !== STATE.enemy_attacking &&
-        e.state !== STATE.walk_fwd && e.state !== STATE.walk_back && e.state !== STATE.dash) {
+        e.state !== STATE.walk_fwd && e.state !== STATE.walk_back && e.state !== STATE.dash &&
+        e.state !== STATE.enemy_dodge && e.state !== STATE.enemy_guard) {
       e.aiPhase = 'hitstun';
     }
     // wait01 復帰時：必殺技ヒット履歴 + コンボルートをクリア（敵単位の各種ループ制限のリセット）
@@ -1554,6 +1560,7 @@ export function updateEnemies(ctx) {
       if (e.lateralCombatInvincible) e.lateralCombatInvincible = false;
       if (e.skipWallCollision) e.skipWallCollision = false;
       if (e.isWallBounce) e.isWallBounce = false;  // 壁バウンス中フラグもクリア
+      if (e.accumStagger > 0) e.accumStagger = 0;  // 連続被弾累積リセット（#14-B・コンボ終了）
       // Phase 3：被弾→wait01 復帰検出（aiPhase が hitstun のまま wait01 に来た瞬間）→ retreat 発火
       if (e.aiPhase === 'hitstun') {
         e.aiPhase = 'retreat';
@@ -1907,7 +1914,43 @@ export function updateEnemies(ctx) {
           e.mesh.rotation.y = e.facing * Math.PI / 2;
         }
 
-        if (e.aiPhase === 'retreat') {
+        // === 防御リアクション（#14-B）：プレイヤー攻撃の windup を読んで dodge / guard ===
+        //   被弾時 RNG ではなく「攻撃を検知して先に防御へ入る」確率（先出し＝読ませる）。
+        //   1 プレイヤー攻撃につき 1 回だけ判定（_reactArmed）。
+        let _reacted = false;
+        if (e.reactCooldown > 0) e.reactCooldown--;
+        const _pAtk = (p0.state === STATE.attacking && p0.attackId) ? ATTACKS[p0.attackId] : null;
+        const _pInWindup = !!_pAtk && (_pAtk.duration - p0.stateTimer) < _pAtk.hitFrame;
+        if (!_pInWindup) {
+          e._reactArmed = true;  // プレイヤー非 windup で再武装
+        } else if (e._reactArmed && e.reactCooldown <= 0 &&
+                   adx < ENEMY_REACT_CONFIG.DETECT_RANGE_X &&
+                   adz < ENEMY_REACT_CONFIG.DETECT_RANGE_Z) {
+          e._reactArmed = false;
+          const _r = Math.random();
+          if (_r < e.dodgeTendency) {
+            // 回避：facing 逆方向へバックステップ + 前半無敵
+            e.state         = STATE.enemy_dodge;
+            e.downTimer     = ENEMY_DODGE_FRAMES;
+            e.dodgeInvuln   = true;
+            e.knockbackVx   = -e.facing * ENEMY_REACT_CONFIG.DODGE_VX;
+            e.kbDecay       = ENEMY_REACT_CONFIG.DODGE_DECAY;
+            e.reactCooldown = ENEMY_REACT_CONFIG.REACT_COOLDOWN;
+            e.aiPhase       = 'dodge';
+            _reacted = true;
+          } else if (_r < e.dodgeTendency + e.guardTendency) {
+            // ガード：構えに入る（前面 lv≤3 のヒットは hit-engine で enemy_block_hit に降格）
+            e.state         = STATE.enemy_guard;
+            e.downTimer     = ENEMY_GUARD_FRAMES;
+            e.reactCooldown = ENEMY_REACT_CONFIG.REACT_COOLDOWN;
+            e.aiPhase       = 'guard';
+            _reacted = true;
+          }
+        }
+
+        if (_reacted) {
+          // dodge / guard に遷移済み：この frame は chase/retreat を走らせない
+        } else if (e.aiPhase === 'retreat') {
           // === retreat: プレイヤーから離れる方向に一定F 後退 ===
           if (e.aiRetreatTimer > 0) {
             e.aiRetreatTimer--;
@@ -2091,6 +2134,20 @@ export function updateEnemies(ctx) {
     } else if (e.state === STATE.jump_loop || e.state === STATE.jump_d_loop) {
       // 空中（着地は y<=0 ブロックで jump_end / jump_d_end へ）
     } else if (e.state === STATE.jump_end || e.state === STATE.jump_d_end) {
+      if (--e.downTimer <= 0) e.state = STATE.wait01;
+    } else if (e.state === STATE.enemy_dodge) {
+      // バックステップ回避（#14-B）：水平移動は共通 KB ブロックが担当。前半のみ無敵。
+      e.downTimer--;
+      if (e.downTimer <= ENEMY_DODGE_FRAMES - ENEMY_DODGE_INVULN) e.dodgeInvuln = false;
+      if (e.downTimer <= 0) { e.state = STATE.wait01; e.dodgeInvuln = false; }
+    } else if (e.state === STATE.enemy_guard) {
+      // ガード姿勢を保持 → タイマー満了で wait01（ガード成立処理は hit-engine 側）
+      if (--e.downTimer <= 0) e.state = STATE.wait01;
+    } else if (e.state === STATE.enemy_block_hit) {
+      // ガード成立硬直 → wait01（軽 KB は共通 KB ブロックが減衰）
+      if (--e.downTimer <= 0) e.state = STATE.wait01;
+    } else if (e.state === STATE.enemy_stagger) {
+      // 連続被弾よろめき → wait01
       if (--e.downTimer <= 0) e.state = STATE.wait01;
     } else if (e.state === STATE.down_front_start) {
       if (--e.downTimer <= 0) e.state = STATE.down_front_loop;

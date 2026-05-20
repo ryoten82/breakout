@@ -336,6 +336,22 @@ export const ENEMY_PERSONALITY = {
 };
 
 // ============================================================
+//  #section enemy-react — 雑魚敵の防御リアクション（#14-B：dodge / guard）
+//  - プレイヤー攻撃の windup を検知し、性格の dodgeTendency / guardTendency で抽選
+//  - 被弾時 RNG ではなく「攻撃を読んで先に防御行動へ入る」確率（先出し＝読ませる演出）
+//  - 値はランタイム調整可：window.SB.ENEMY_REACT_CONFIG.DODGE_VX = 12 など
+// ============================================================
+export const ENEMY_REACT_CONFIG = {
+  DETECT_RANGE_X:    300,   // プレイヤー攻撃を「自分への脅威」と見なす X 距離
+  DETECT_RANGE_Z:    130,   // 同 Z 距離
+  REACT_COOLDOWN:    50,    // dodge/guard 発動後、次の防御判定までのクールダウンF
+  DODGE_VX:          9.5,   // バックステップの水平初速（facing 逆方向）
+  DODGE_DECAY:       0.86,  // バックステップ減衰
+  GUARD_DAMAGE_MULT: 0.25,  // ガード成立時のダメージ倍率
+  GUARD_KB_VX:       6,     // enemy_block_hit の軽ノックバック水平速度
+};
+
+// ============================================================
 //  #section status-stun — ステータス：スタン（Phase 3・将来 freeze/poison 等と並ぶ）
 //  - applyStatusStun(e, frames?) で付与（地上の敵のみ・空中は無視）
 //  - duration 経過で wait01 に自動復帰

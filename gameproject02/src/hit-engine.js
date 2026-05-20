@@ -26,6 +26,7 @@ import {
   ENEMY_DOWN_SUPER_FRAMES, ENEMY_DOWN_RAKKA_FRAMES, ENEMY_DOWN_BOUND_FRAMES,
   ENEMY_DOWN_BURST_START_FRAMES,
   ENEMY_KB01_FRAMES, ENEMY_KB02_FRAMES, ENEMY_KB_AIR_FRAMES, ENEMY_KB03_FRAMES,
+  ENEMY_STAGGER_FRAMES, ENEMY_BLOCK_HIT_FRAMES,
   ENEMY_AIRBORNE_Y_THRESHOLD,
   KB_BURST_VY, KB_BURST_VX, KB_BURST_VX_DECAY, KB_BURST_SPIN_RATE, KB_BURST_GRAV_MULT,
   KB_LV03_VY, KB_LV03_VX_MULT,
@@ -34,7 +35,7 @@ import {
 } from './states.js';
 import {
   COMBO_LEVELS, getComboLevel,
-  PHYSICS, SP_CONFIG, HOMING_CONFIG, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG,
+  PHYSICS, SP_CONFIG, HOMING_CONFIG, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG,
 } from './config.js';
 import { resolveAttackAttr } from './attacks.js';
 import { handleEnemyDyingHit, enterEnemyDyingBurst } from './enemy-system.js';
@@ -515,6 +516,7 @@ export function tryHitEnemies(p, attack, ctx) {
     }
     if (e.ultBurstInvincible) { if (_DBG_SP2AIR) console.log('[SP2AIR] skip ultBurstInvincible'); continue; }
     if (e.lateralCombatInvincible) { if (_DBG_SP2AIR) console.log('[SP2AIR] skip lateralCombatInvincible'); continue; }
+    if (e.dodgeInvuln) continue;  // #14-B：バックステップ回避の前半無敵
     const dx = e.x - p.x;
     const dz = e.z - p.z;
     if (_DBG_SP2AIR) console.log(`[SP2AIR] candidate state=${e.state} dx=${dx.toFixed(0)} dz=${dz.toFixed(0)} dy=${(e.y-p.y).toFixed(0)} pY=${p.y.toFixed(0)} eY=${e.y.toFixed(0)} facing=${facing} eyAbove=${e.y > 10}`);
@@ -569,23 +571,28 @@ export function tryHitEnemies(p, attack, ctx) {
       return Math.max(v, SAME_ATK_CONFIG.MIN_KB_RATIO);
     })();
     const _scaledDamage = Math.max(SAME_ATK_CONFIG.MIN_DAMAGE, Math.round(attack.damage * _sameAtkDmgScale));
+    // 実効 atk_lv：敵が空中なら atk_lv_air、地上なら atk_lv（variants マッチ・ガード判定・stagger に共用）
+    const _hitLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
+      ? attack.atk_lv_air
+      : (attack.atk_lv ?? 1);
+    // ガード成立判定（#14-B）：enemy_guard 中・前面・atk_lv ≤ 3 のヒットはガードで軽減。
+    //   lv4 以上 / 背面はガード崩れ → 通常 dispatch（下流の lv 振り分け）に流す。
+    const _hitFromFront = (Math.sign(p.x - e.x) === e.facing) || (p.x === e.x);
+    const _guarded = (e.state === STATE.enemy_guard) && _hitFromFront && _hitLv <= 3;
     // クリティカル判定：カウンターヒット（敵の攻撃発生中 wind/active）は確定。
-    //   それ以外は基礎確率。敵 state は直後の被弾 dispatch で上書きされるため、ここで先に判定。
+    //   それ以外は基礎確率。ガード成立時はクリ無効。敵 state は直後に上書きされるため先に判定。
     const _isCounterHit = (e.state === STATE.enemy_attacking &&
                            (e.atkPhase === 'wind' || e.atkPhase === 'active'));
-    const _isCrit = _isCounterHit || (Math.random() < CRIT_CONFIG.BASE_CHANCE);
-    const _finalDamage = _isCrit
+    const _isCrit = !_guarded && (_isCounterHit || (Math.random() < CRIT_CONFIG.BASE_CHANCE));
+    let _finalDamage = _isCrit
       ? Math.round(_scaledDamage * CRIT_CONFIG.DAMAGE_MULT)
       : _scaledDamage;
+    if (_guarded) _finalDamage = Math.max(1, Math.round(_finalDamage * ENEMY_REACT_CONFIG.GUARD_DAMAGE_MULT));
     // ヒット
     e.hp = Math.max(0, e.hp - _finalDamage);
     // 与ダメージ数値ポップ（ヒット位置の頭上・クリティカルは橙強調）
     spawnDamageNumber(e.x, e.y + 110, e.z, _finalDamage, { crit: _isCrit });
     // 最終ヒッター記録（ゴア・クリティカル抽選で参照・enterEnemyDying 内で profile lookup に使う）
-    // lv は実効値（敵が空中なら atk_lv_air、地上なら atk_lv）。variants の atk_lv マッチで使う
-    const _hitLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
-      ? attack.atk_lv_air
-      : (attack.atk_lv ?? 1);
     // wasGrounded：被弾"前"の接地状態を記録（gc 抽選の requireGrounded 判定で使用）。
     //   この時点ではまだ攻撃の vy/knockback が dispatch されてないので、ここで取れば「打ち上げ前」の値が取れる。
     e.lastHitter = { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: _hitLv, wasGrounded: e.y <= ENEMY_AIRBORNE_Y_THRESHOLD };
@@ -601,8 +608,26 @@ export function tryHitEnemies(p, attack, ctx) {
         continue;
       }
     }
+    // ガード成立（#14-B）：通常 dispatch をスキップして enemy_block_hit へ。
+    //   ダメージは上で軽減済み・軽 KB・青パーティクル。コンボカウントは増やさない（防御は中立）。
+    if (_guarded) {
+      e.hitFlashTimer = 5;
+      e.frozenByUlt   = false;
+      e.fallDir       = (e.x !== p.x) ? Math.sign(e.x - p.x) : p.facing;
+      e.state         = STATE.enemy_block_hit;
+      e.downTimer     = ENEMY_BLOCK_HIT_FRAMES;
+      e.knockbackVx   = e.fallDir * ENEMY_REACT_CONFIG.GUARD_KB_VX;
+      e.kbDecay       = 0.8;
+      applyHitInitialPitch(e);
+      spawnHitParticles(e.x + e.facing * 50, e.y + 90, e.z, 0x66ccff, 12);  // 青＝ガード
+      triggerHitstop(3);
+      anyHit = true;
+      continue;
+    }
     e.hitFlashTimer = 7;
     e.frozenByUlt   = false;  // ULT 凍結解除（ヒットを受けた敵だけ時間が進み始める）
+    // 連続被弾累積（#14-B）：閾値超で次の小フリンチが enemy_stagger に降格（中ボス以降で主に発火）
+    e.accumStagger = (e.accumStagger ?? 0) + 1;
     // 被弾時：倒れ方向を記録。IDLEのみ向きスナップ（FALL/DOWN/RISE中は回転競合のため不変）
     e.fallDir = (e.x !== p.x) ? Math.sign(e.x - p.x) : p.facing;
     if (e.state === STATE.wait01) {
@@ -793,6 +818,9 @@ export function tryHitEnemies(p, attack, ctx) {
       e.state === STATE.enemy_attacking ||  // Phase 2.4：敵 AI 攻撃中もカウンター被弾を受け付ける
       // 移動中（walk_fwd/back/dash）の敵も被弾を受け付ける（#14：被弾 state へ正しく遷移）
       e.state === STATE.walk_fwd || e.state === STATE.walk_back || e.state === STATE.dash ||
+      // 防御/よろめき行動中（#14-B）。enemy_guard はガード成立判定、他は被弾再ディスパッチ可
+      e.state === STATE.enemy_dodge || e.state === STATE.enemy_guard ||
+      e.state === STATE.enemy_stagger || e.state === STATE.enemy_block_hit ||
       // 自発ジャンプ中の敵も被弾を受け付ける（空中ヒット → knockback_air01 等・プレイヤーと同期）
       e.state === STATE.jump_start || e.state === STATE.jump_loop || e.state === STATE.jump_end ||
       e.state === STATE.jump_d_start || e.state === STATE.jump_d_loop || e.state === STATE.jump_d_end ||
@@ -878,12 +906,23 @@ export function tryHitEnemies(p, attack, ctx) {
         e.downTimer = Math.round(ENEMY_KB_AIR_FRAMES * (attack.kbTimeMult ?? 1.0));
         e.kbFromMega = false;  // 通常ヒット時はメガクラフラグをクリア
       } else if (lv === 2) {
-        e.state    = STATE.knockback02;
-        e.downTimer = Math.round(ENEMY_KB02_FRAMES * (attack.kbTimeMult ?? 1.0));
+        // #14-B：連続被弾の累積が閾値超なら小フリンチを enemy_stagger に降格
+        if (e.accumStagger > e.staggerThreshold) {
+          e.state    = STATE.enemy_stagger;
+          e.downTimer = ENEMY_STAGGER_FRAMES;
+        } else {
+          e.state    = STATE.knockback02;
+          e.downTimer = Math.round(ENEMY_KB02_FRAMES * (attack.kbTimeMult ?? 1.0));
+        }
       } else {
-        // lv01 / それ以外（未指定）地上 → knockback01
-        e.state    = STATE.knockback01;
-        e.downTimer = Math.round(ENEMY_KB01_FRAMES * (attack.kbTimeMult ?? 1.0));
+        // lv01 / それ以外（未指定）地上 → knockback01（accumStagger 閾値超で enemy_stagger）
+        if (e.accumStagger > e.staggerThreshold) {
+          e.state    = STATE.enemy_stagger;
+          e.downTimer = ENEMY_STAGGER_FRAMES;
+        } else {
+          e.state    = STATE.knockback01;
+          e.downTimer = Math.round(ENEMY_KB01_FRAMES * (attack.kbTimeMult ?? 1.0));
+        }
       }
       applyHitInitialPitch(e);
     }

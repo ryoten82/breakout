@@ -203,6 +203,13 @@ export const ENEMY_JUMP_D_START_FRAMES = 6;   // ダッシュジャンプ離陸 
 export const ENEMY_JUMP_END_FRAMES     = 5;   // 通常ジャンプ着地 → wait01
 export const ENEMY_JUMP_D_END_FRAMES   = 14;  // ダッシュジャンプ着地 → wait01
 
+// 雑魚行動（#14-B）の state 持続F
+export const ENEMY_STAGGER_FRAMES   = 38;  // 連続被弾よろめき（enemy_stagger）
+export const ENEMY_DODGE_FRAMES     = 22;  // バックステップ回避（enemy_dodge）
+export const ENEMY_DODGE_INVULN     = 15;  // dodge 前半の無敵F
+export const ENEMY_GUARD_FRAMES     = 34;  // ガード姿勢の保持（enemy_guard）
+export const ENEMY_BLOCK_HIT_FRAMES = 14;  // ガード成立硬直（enemy_block_hit）
+
 // 敵側の被弾・ダウン持続F
 export const ENEMY_FALL_FRAMES = 36; // 0.6s：倒れ終わるまで（down_up_start）
 export const ENEMY_RISE_FRAMES = 30; // 0.5s：起き上がり（down_bas_end）
@@ -316,6 +323,11 @@ export const STATE_PITCH_TARGET = {
   knockback_air01: 0,        // 立ち直り（INITIAL から 0 へ徐々に lerp）
   grabbing:        +0.175,   // ≈ +10°（敵を掴んで前傾・kb01 と同じ見た目）
   grabbed:         +0.175,   // ≈ +10°（掴まれて前傾・kb01 と同じ見た目）
+  // 雑魚行動（#14-B）
+  enemy_stagger:   -0.40,    // 連続被弾よろめき：大きくのけぞる
+  enemy_block_hit: -0.30,    // ガード成立：軽くのけぞる
+  enemy_guard:     +0.22,    // ガード構え：前傾の防御姿勢
+  enemy_dodge:     -0.15,    // バックステップ：後ろ重心
 };
 export const STATE_PITCH_INITIAL = {
   knockback01:     +0.175,   // 即座に前傾の姿勢へ
@@ -323,6 +335,9 @@ export const STATE_PITCH_INITIAL = {
   knockback_air01: +0.262,   // ≈ +15° 開始（徐々に立ち直る）
   grabbing:        +0.175,
   grabbed:         +0.175,
+  // 雑魚行動（#14-B）：被弾系は即スナップで衝撃を出す
+  enemy_stagger:   -0.40,
+  enemy_block_hit: -0.30,
 };
 // 被弾ステート遷移時に呼ぶ：状態に応じた pitch 初期値をセット
 export function applyHitInitialPitch(e) {
