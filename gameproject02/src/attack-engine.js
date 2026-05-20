@@ -135,7 +135,13 @@ export function startAttackById(p, id, chainIdx) {
   }
   // 踏み込み攻撃：lungeVx 指定があれば facing 方向へ短時間前進
   // ステップ攻撃と違って tilt 等の特別演出はせず、純粋に前進運動量だけを与える
-  p.lungeMomentum = ATTACKS[id].lungeVx ?? 0;
+  // lungeDelay 指定時は発動瞬間には出さず、updateAttack が elapsed===lungeDelay で仕込む
+  //   （踏み込みと攻撃発生をほぼ同時にする・金剛灼火イメージ）
+  p.lungeMomentum = (ATTACKS[id].lungeDelay > 0) ? 0 : (ATTACKS[id].lungeVx ?? 0);
+  // 発生前の小さな引き：windupBackVx 指定で facing 逆へ少し下がってから踏み込む
+  if (ATTACKS[id].windupBackVx !== undefined) {
+    p.selfRecoilMomentum = ATTACKS[id].windupBackVx;
+  }
   // ステップ攻撃：ダッシュ運動量を引き継いで前進開始
   // 非ダッシュ起動（例：静止状態で →K のタックル）時は半減 momentum で「軽い踏み込み」感
   if (ATTACKS[id].isStepAttack) {
@@ -234,6 +240,11 @@ export function updateAttack(p) {
   // p.selfRecoilMomentum を立てて、player-system の毎フレーム update で位置を反映。
   if (elapsed === atk.hitFrame && atk.selfRecoilVx !== undefined) {
     p.selfRecoilMomentum = atk.selfRecoilVx;
+  }
+
+  // === 踏み込み遅延（lungeDelay）：攻撃発生付近で lungeMomentum を仕込む（金剛灼火イメージ）===
+  if (atk.lungeDelay && elapsed === atk.lungeDelay && atk.lungeVx !== undefined) {
+    p.lungeMomentum = atk.lungeVx;
   }
 
   // === 空中必殺技のホップ：攻撃発生フレームで一度だけ適用 ===

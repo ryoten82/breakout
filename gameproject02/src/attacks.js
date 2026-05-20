@@ -23,6 +23,7 @@
 //    plyrLiftVy / plyrLiftVx                          : プレイヤー自身が浮く
 //    aerialHop / aerialHopVy / aerialHopVx            : 空中ヒット時のホップ
 //    lungeVx / lungeDecay                             : 踏み込み（前進量）
+//    lungeDelay / windupBackVx                        : 踏み込み開始 F の遅延 / 発生前の引き
 //    kb_vy_lv5 / kb_vy_lv6 / kb_vx_mult_lv*           : 被弾ベクトル上書き（lv 別）
 //    isSpecial / isStepAttack / showHitbox            : 系統フラグ
 //    hitColor / hitCount / hitstop / shake / partsAnim : 演出
@@ -376,10 +377,12 @@ export const ATTACKS = {
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
-    // 踏み込み：発動瞬間に前進、敵の懐に潜り込む（2026-05-18）
-    // 2026-05-18 微調整：lungeVx 28→20（70%）、selfRecoilVx 12→2.4（20%）
+    // 踏み込み（2026-05-20 改：金剛灼火イメージ）：発動直後は windupBackVx で少し下がり、
+    //   lungeDelay フレームで初めて前進開始 → 踏み込みと攻撃発生（最初のヒット14F）をほぼ同時に。
     lungeVx:      20,                    // 20 / 0.15 ≈ 133wu 総距離（約 1.3 キャラ分）
     lungeDecay:   0.85,
+    lungeDelay:   12,                    // この elapsed F で踏み込み開始（最初のヒット 14F の直前）
+    windupBackVx:  5,                    // 発生前の小さな引き（facing 逆へ・約 28wu）
     targetOvershootGuard: true,          // comboTarget の手前 50wu で X クランプ（貫通防止）
     // 攻撃発生時の自己ノックバック（軽い反動）：hitFrame で後方にわずかに押される
     selfRecoilVx: 2.4,
