@@ -655,7 +655,10 @@ export function updatePlayer(p) {
     const wallL = getActiveWallX('left');
     const wallR = getActiveWallX('right');
     p.x = Math.max(Math.max(PHYSICS.STAGE_LEFT, wallL), Math.min(Math.min(PHYSICS.STAGE_RIGHT, wallR), p.x));
-    if (p.mesh) p.mesh.position.x = p.x;
+    // lv6 転がり中は updatePlayerHitstun が腰ピボット補正込みで mesh.x を設定済 → 上書きしない。
+    if (p.mesh && p.state !== STATE.down_roll_start && p.state !== STATE.down_roll_loop) {
+      p.mesh.position.x = p.x;
+    }
     return;
   }
   if (p.invincibleFrames > 0) p.invincibleFrames--;

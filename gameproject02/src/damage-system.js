@@ -34,11 +34,17 @@ import {
   PLAYER_DOWN_BAS_START_FRAMES, PLAYER_DOWN_BAS_LOOP_FRAMES, PLAYER_DOWN_BAS_END_FRAMES,
   PLAYER_DOWN_UP_FRAMES,
   PLAYER_DOWN_RAKKA_FRAMES, PLAYER_DOWN_BOUND_FRAMES,
+  PLAYER_DOWN_SUPER_FRAMES, PLAYER_WALL_START_FRAMES,
+  PLAYER_ROLL_START_FRAMES, PLAYER_ROLL_LOOP_FRAMES,
   PLAYER_KB_AIR_FRAMES, PLAYER_LAND_FRAMES, PLAYER_AIRBORNE_Y_THRESHOLD,
   DEFAULT_LAUNCH_VY,
   KB_LV05_VY, KB_LV05_VX_MULT, KB_LV05_BOUNCE_VY,
+  KB_LV06_VY, KB_LV06_VX_MULT,
+  ENEMY_WALL_BOUNCE_VY, ENEMY_WALL_BOUNCE_KB_VX, ENEMY_WALL_BOUNCE_KB_DECAY,
+  ENEMY_ROLL_KB_VX, ENEMY_ROLL_KB_DECAY,
 } from './states.js';
-import { SP_CONFIG, GUARD_CONFIG } from './config.js';
+import { SP_CONFIG, GUARD_CONFIG, PHYSICS } from './config.js';
+import { getActiveWallX } from './camera.js';
 
 // ============================================================
 //  依存注入（initDamageSystem で外部関数とグローバル参照をバインド）
@@ -111,6 +117,8 @@ const _HITSTUN_STATES = new Set([
   STATE.down_front_start, STATE.down_front_loop,
   STATE.down_up_start, STATE.down_up_loop,
   STATE.down_rakka_start, STATE.down_rakka_loop, STATE.down_bound_start,
+  STATE.down_super_start, STATE.down_super_loop, STATE.down_wall_start,
+  STATE.down_roll_start, STATE.down_roll_loop,
   STATE.down_bas_start, STATE.down_bas_loop, STATE.down_bas_end,
   STATE.guard_crash, STATE.dying, STATE.dead, STATE.respawning,
 ]);
@@ -291,10 +299,15 @@ export function damagePlayer(p, attack, source) {
       p.kbVy = 0;
     }
   } else if (lv === 6) {
-    p.state = STATE.down_front_start;
-    p.stateTimer = PLAYER_DOWN_FRONT_START_FRAMES;
-    p.kbVx = facingFromAttacker * (knockback * 1.2);
-    p.kbVy = 16;
+    // lv6 超吹き飛ばし：敵側 down_super_* を移植（被弾 state 共用 第4段）。
+    //   高速で吹き飛び → 壁ヒットで張り付き＋反作用バウンス、地面ヒットで転がり → down_bas。
+    //   水平初速は敵 dispatch と同式（knockback × 0.4 × KB_LV06_VX_MULT）。
+    p.state = STATE.down_super_start;
+    p.stateTimer = PLAYER_DOWN_SUPER_FRAMES;
+    p.kbVx = facingFromAttacker * (knockback * 0.4 * KB_LV06_VX_MULT);
+    p.kbVy = KB_LV06_VY;
+    p.fallDir = facingFromAttacker;
+    p.wallHitCount = 0;   // 壁張り付きは 1 回まで（壁ピンポンの被弾ループ防止）
   } else if (lv === 5) {
     // lv5 叩きつけ：敵側 down_rakka_* を移植（第 3 段共用）。
     //   真下に高速落下（あおむけ姿勢）→ 着地で 1回バウンド → 再着地で down_bas へ。
@@ -514,6 +527,78 @@ export function updatePlayerHitstun(p) {
       p.state = STATE.down_bas_loop;
       p.stateTimer = PLAYER_DOWN_BAS_LOOP_FRAMES;
     }
+  } else if (s === STATE.down_super_start || s === STATE.down_super_loop) {
+    // lv6 超吹き飛ばし：高速で吹き飛ぶ（敵 down_super_* 共用）。
+    //   壁ヒット → down_wall_start（張り付き）／ 地面ヒット → down_roll_start（転がり）。
+    p.x += p.kbVx;
+    p.kbVx *= 0.96;
+    p.vy = p.kbVy;
+    p.y += p.vy;
+    p.kbVy -= PLAYER_KB_GRAV;
+    if (s === STATE.down_super_start) {
+      p.stateTimer--;
+      if (p.stateTimer <= 0) p.state = STATE.down_super_loop;
+    }
+    // 壁ヒット判定（getActiveWallX：画面端追従 or levelWalls）。strict 比較で
+    //   バウンス直後（x == 壁）の即再ヒットを防ぐ。
+    const wallL = Math.max(PHYSICS.STAGE_LEFT, getActiveWallX('left'));
+    const wallR = Math.min(PHYSICS.STAGE_RIGHT, getActiveWallX('right'));
+    if (p.y <= 0) {
+      // 地面ヒット → 転がり開始
+      p.y = 0; p.vy = 0; p.kbVy = 0;
+      const rollDir = Math.sign(p.kbVx) || p.fallDir || 1;
+      p.state = STATE.down_roll_start;
+      p.stateTimer = PLAYER_ROLL_START_FRAMES;
+      p.kbVx = rollDir * ENEMY_ROLL_KB_VX;
+      p.rollAngle = 0;
+      _spawnHitParticles(p.x, 10, p.z, 0xaaaaaa, 18);
+      _triggerShake(4, 8);
+    } else if (p.x < wallL || p.x > wallR) {
+      // 壁ヒット
+      p.x = (p.x < wallL) ? wallL : wallR;
+      if ((p.wallHitCount ?? 0) < 1) {
+        // 1 回目：張り付き（重力スキップ・静止）→ タイマー満了で反作用バウンス
+        p.wallHitCount = (p.wallHitCount ?? 0) + 1;
+        p.state = STATE.down_wall_start;
+        p.stateTimer = PLAYER_WALL_START_FRAMES;
+        p.kbVx = 0; p.kbVy = 0; p.vy = 0;
+        _spawnHitParticles(p.x, p.y + 40, p.z, 0xaaaaaa, 14);
+        _triggerShake(4, 8);
+      } else {
+        // 2 回目以降：張り付かず kbVx を殺し、壁づたいに落下 → 地面で転がりへ。
+        //   壁ピンポン（壁→バウンス→反対の壁→…）の被弾ループを断つ。
+        p.kbVx = 0;
+        _spawnHitParticles(p.x, p.y + 40, p.z, 0xaaaaaa, 8);
+      }
+    }
+  } else if (s === STATE.down_wall_start) {
+    // 壁張り付き（重力スキップ・静止）。タイマー満了で反作用バウンス → down_super_loop へ。
+    p.stateTimer--;
+    if (p.stateTimer <= 0) {
+      p.kbVy = ENEMY_WALL_BOUNCE_VY;
+      p.kbVx = -(p.fallDir ?? 1) * ENEMY_WALL_BOUNCE_KB_VX;
+      p.state = STATE.down_super_loop;
+      _spawnHitParticles(p.x, p.y + 40, p.z, 0xffffff, 10);
+      _triggerShake(3, 6);
+    }
+  } else if (s === STATE.down_roll_start || s === STATE.down_roll_loop) {
+    // lv6 着地後の転がり（敵 down_roll_* 共用）。X 軸で後方ごろごろ回転。
+    p.x += p.kbVx;
+    p.kbVx *= ENEMY_ROLL_KB_DECAY;
+    p.y = 0; p.vy = 0;
+    p.rollAngle = (p.rollAngle ?? 0) - 0.35;   // ≒ 20°/F
+    p.stateTimer--;
+    if (s === STATE.down_roll_start) {
+      if (p.stateTimer <= 0) {
+        p.state = STATE.down_roll_loop;
+        p.stateTimer = PLAYER_ROLL_LOOP_FRAMES;
+      }
+    } else if (p.stateTimer <= 0) {
+      p.state = STATE.down_bas_loop;
+      p.stateTimer = PLAYER_DOWN_BAS_LOOP_FRAMES;
+      p.rollAngle = 0;
+      _triggerShake(3, 6);
+    }
   } else if (s === STATE.down_bas_start) {
     p.stateTimer--;
     if (p.stateTimer <= 0) {
@@ -625,12 +710,27 @@ export function updatePlayerHitstun(p) {
       p.mesh.rotation.x = 0;  // tilt（rotation.z）が姿勢を支配するので x はクリア
     } else if (s === STATE.down_rakka_start || s === STATE.down_rakka_loop || s === STATE.down_bound_start) {
       p.mesh.rotation.x = -Math.PI / 2;  // あおむけ姿勢（lv5 叩きつけ・敵 down_rakka_* と同じ）
+    } else if (s === STATE.down_roll_start || s === STATE.down_roll_loop) {
+      p.mesh.rotation.x = p.rollAngle ?? 0;  // lv6 転がり：X 軸ごろごろ回転（敵 down_roll_* と同じ）
     } else if (s === STATE.down_bas_start || s === STATE.down_bas_loop || s === STATE.down_bas_end) {
       p.mesh.rotation.x = 0;
     } else if (s === STATE.guard_crash) {
       p.mesh.rotation.x = 0.4;
     } else {
-      p.mesh.rotation.x = 0;
+      p.mesh.rotation.x = 0;  // down_super_* / down_wall_start 等は直立で飛ぶ
+    }
+    // === 転がり中の腰ピボット補正（敵 down_roll_* と同式）===
+    //   rotation.x をメッシュ原点（足元）でなく腰高さ ROLL_HIP_PIVOT 周りに見せる。
+    //   ZYX 順なので hip local (0,h,0) は Rx → Ry の順で変換され、world hip を
+    //   (x, y+h, z) に固定するよう position をオフセットする。
+    if (s === STATE.down_roll_start || s === STATE.down_roll_loop) {
+      const ROLL_HIP_PIVOT = 70;
+      const th = p.rollAngle ?? 0;
+      const ph = p.mesh.rotation.y;
+      const sinT = Math.sin(th), cosT = Math.cos(th);
+      p.mesh.position.x = p.x - ROLL_HIP_PIVOT * sinT * Math.sin(ph);
+      p.mesh.position.y = p.y + ROLL_HIP_PIVOT * (1 - cosT);
+      p.mesh.position.z = p.z - ROLL_HIP_PIVOT * sinT * Math.cos(ph);
     }
   }
   // 無敵中の透明点滅（dying/dead/respawning は別演出が visibility を制御するので除外）
