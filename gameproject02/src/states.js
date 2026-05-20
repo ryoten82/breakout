@@ -197,6 +197,12 @@ export const AI_PHASE = {
   taunt:     'taunt',      // 挑発（brave 性格・連勝時のみ）
 };
 
+// 敵のジャンプ系 state 持続F（プレイヤー PLAYER_JUMP_*_FRAMES と同値・将来キャラ別に調整可）
+export const ENEMY_JUMP_START_FRAMES   = 4;   // 通常ジャンプ離陸 → jump_loop
+export const ENEMY_JUMP_D_START_FRAMES = 6;   // ダッシュジャンプ離陸 → jump_d_loop
+export const ENEMY_JUMP_END_FRAMES     = 5;   // 通常ジャンプ着地 → wait01
+export const ENEMY_JUMP_D_END_FRAMES   = 14;  // ダッシュジャンプ着地 → wait01
+
 // 敵側の被弾・ダウン持続F
 export const ENEMY_FALL_FRAMES = 36; // 0.6s：倒れ終わるまで（down_up_start）
 export const ENEMY_RISE_FRAMES = 30; // 0.5s：起き上がり（down_bas_end）

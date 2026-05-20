@@ -827,6 +827,7 @@
       initEnemySystem, buildDummyMesh, spawnDummy, updateEnemies, applyStatusStun,
       enterEnemyDying, killEnemy, initEnemyGoreBlack,
       enterEnemyExplode, handleEnemyDyingHit, detachOnePart, enterEnemyDyingBurst,
+      jumpEnemy,
     } from './src/enemy-system.js';
     // === breakables（壊れ物プロップの破壊・パーツ飛び散り）===
     import {
@@ -2109,7 +2110,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-20 fix: 必殺技中に被弾→攻撃ポーズ固着/ヒットボックス残留を修正 / 受け身 連打対策(1被弾1回)8F / lv1,2軽フリンチ復帰無敵なし / 被弾中バーニア修正';
+    const LAST_UPDATE = '2026-05-20 feat: 敵ジャンプ state（jump_*・プレイヤー共用）/ 空中の敵被弾をプレイヤーと同期（hit allowlist 拡張）';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {
@@ -3372,6 +3373,16 @@
         if (launchVy !== undefined) atk.launchVy = launchVy;
         return damagePlayer(p, atk, { x: fromX, y: p.y, z: p.z });
       },
+      // デバッグ：敵にジャンプさせる（空中被弾の同期検証用）
+      //   SB.debugEnemyJump()                    → enemies[0] が垂直ジャンプ
+      //   SB.debugEnemyJump({ idx: 1, vx: 6 })   → 2 体目を前進ジャンプ
+      //   SB.debugEnemyJump({ dash: true })      → ダッシュジャンプ版
+      debugEnemyJump: (opts = {}) => {
+        const e = enemies[opts.idx ?? 0];
+        if (!e) return false;
+        return jumpEnemy(e, opts);
+      },
+      jumpEnemy,
       DUMMY_ATK_CONFIG, ENEMY_AI, tryHitPlayer,
       TEST_CONFIG, PAUSE_CONFIG, GAME_SPEED,
       // Phase 3：敵 aiPhase 頭上ラベル ON/OFF（数字キー 8）

@@ -25,9 +25,11 @@
 // ============================================================
 
 import {
-  STATE,
+  STATE, PLAYER_JUMP_STATES,
   STATE_TILT_TARGET, STATE_TILT_LERP,
   STATE_PITCH_TARGET, STATE_PITCH_LERP,
+  ENEMY_JUMP_START_FRAMES, ENEMY_JUMP_D_START_FRAMES,
+  ENEMY_JUMP_END_FRAMES, ENEMY_JUMP_D_END_FRAMES,
   ENEMY_FALL_FRAMES, ENEMY_RISE_FRAMES,
   ENEMY_DOWN_BAS_START_FRAMES, ENEMY_DOWN_BAS_LOOP_FRAMES,
   ENEMY_LAND_FRAMES, ENEMY_DOWN_FRONT_FRAMES,
@@ -58,6 +60,30 @@ export function initEnemySystem(deps) {
   _scene = deps.scene;
   _players = deps.players;
   _enemies = deps.enemies;
+}
+
+// ============================================================
+//  敵ジャンプ — プレイヤーの jump_* state を共用（被弾の空中同期に必要）
+// ============================================================
+//  自発的にジャンプする敵は少ない想定だが、攻撃や AI で空中へ移行する敵を
+//  カバーするための入口。物理は updateEnemies の重力ブロックが担い、
+//  jump_loop 着地で jump_end → wait01 に戻る。
+//  opts: { vy?: 上昇初速（既定 PHYSICS.JUMP_V）/ vx?: 水平初速 / dash?: ダッシュ版 }
+export function jumpEnemy(e, opts = {}) {
+  if (!e || !e.isAlive || e.state !== STATE.wait01) return false;
+  if (e.y > ENEMY_AIRBORNE_Y_THRESHOLD) return false;  // 既に空中なら不可
+  const dash = !!opts.dash;
+  e.vy = opts.vy ?? PHYSICS.JUMP_V;
+  if (opts.vx !== undefined) {
+    e.knockbackVx = opts.vx;
+    e.kbDecay     = opts.vxDecay ?? 0.98;  // ジャンプ移動は緩減衰（被弾 KB と区別）
+  }
+  e.state            = dash ? STATE.jump_d_start : STATE.jump_start;
+  e.downTimer        = dash ? ENEMY_JUMP_D_START_FRAMES : ENEMY_JUMP_START_FRAMES;
+  e.launcherAirborne = false;
+  e.peakHangTimer    = 0;
+  e.prevVy           = e.vy;
+  return true;
 }
 
 // ============================================================
@@ -1671,7 +1697,10 @@ export function updateEnemies(ctx) {
       e.prevVy = e.vy;
 
       let gravFactor;
-      if (e.peakHangTimer > 0) {
+      if (PLAYER_JUMP_STATES.has(e.state)) {
+        // 敵の自発ジャンプはプレイヤー通常ジャンプと同じ等重力アーク（被弾の浮遊軽減は適用しない）
+        gravFactor = 1.0;
+      } else if (e.peakHangTimer > 0) {
         // フェードイン：最初の FADE F かけて重力を base→DEPTH へ滑らかに落とす
         // DEPTH を 0.05 → 0.2 に上げて peakHang 中も微速度で降下、終了時の段差を小さくする（2026-05-20）
         const elapsed  = e.peakHangTotal - e.peakHangTimer;
@@ -1789,6 +1818,19 @@ export function updateEnemies(ctx) {
           e.mesh.rotation.x = 0;
           e.mesh.rotation.z = 0;
           e.tiltAngle = 0;
+        } else if (e.state === STATE.jump_loop) {
+          // 自発ジャンプ着地 → 短い着地モーション（プレイヤー jump_end と同等）
+          e.state       = STATE.jump_end;
+          e.downTimer   = ENEMY_JUMP_END_FRAMES;
+          e.knockbackVx = 0;
+        } else if (e.state === STATE.jump_d_loop) {
+          e.state       = STATE.jump_d_end;
+          e.downTimer   = ENEMY_JUMP_D_END_FRAMES;
+          e.knockbackVx = 0;
+        } else if (e.state === STATE.jump_start || e.state === STATE.jump_d_start) {
+          // 離陸イントロ中に着地（極小ジャンプ）→ 直接 wait01
+          e.state       = STATE.wait01;
+          e.knockbackVx = 0;
         }
       }
       e.mesh.position.y = e.y;
@@ -2018,6 +2060,14 @@ export function updateEnemies(ctx) {
     } else if (e.state === STATE.fall_loop) {
       // 自由落下中（着地は y<=0 ブロック）
     } else if (e.state === STATE.land) {
+      if (--e.downTimer <= 0) e.state = STATE.wait01;
+    } else if (e.state === STATE.jump_start) {
+      if (--e.downTimer <= 0) e.state = STATE.jump_loop;
+    } else if (e.state === STATE.jump_d_start) {
+      if (--e.downTimer <= 0) e.state = STATE.jump_d_loop;
+    } else if (e.state === STATE.jump_loop || e.state === STATE.jump_d_loop) {
+      // 空中（着地は y<=0 ブロックで jump_end / jump_d_end へ）
+    } else if (e.state === STATE.jump_end || e.state === STATE.jump_d_end) {
       if (--e.downTimer <= 0) e.state = STATE.wait01;
     } else if (e.state === STATE.down_front_start) {
       if (--e.downTimer <= 0) e.state = STATE.down_front_loop;
