@@ -1911,6 +1911,7 @@
       kbVy:             0,    // 被弾中の垂直 KB（down_front_* 用）
       // === 受け身（ukemi）===
       ukemiBuffer:      0,    // ジャンプ受け身の入力バッファ残F
+      ukemiAttempted:   false,// 当該ノックバックで受け身入力を消費済か（1被弾1回・連打対策）
       ukemiInvuln:      false,// 受け身上昇中の無敵フラグ
       ukemiFlashTimer:  0,    // 受け身成立の白フラッシュ残F
       _ukemiJumpPrev:   false,// ジャンプキー押下エッジ検出用
@@ -2108,7 +2109,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-20 feat: 受け身アクション（被弾着地時ジャンプ→吹き飛び方向へ無敵ホップ）';
+    const LAST_UPDATE = '2026-05-20 fix: 必殺技中に被弾→攻撃ポーズ固着/ヒットボックス残留を修正 / 受け身 連打対策(1被弾1回)8F / lv1,2軽フリンチ復帰無敵なし / 被弾中バーニア修正';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {

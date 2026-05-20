@@ -291,7 +291,8 @@ export function damagePlayer(p, attack, source) {
   // 倒れ向き：全 lv 共通で攻撃者と反対側に頭を倒す。
   //   down_up の横倒しランプ・ダウン姿勢 down_bas_* の横倒し方向（敵と統一）に使う。
   p.fallDir = facingFromAttacker;
-  p.ukemiBuffer = 0;   // 新規被弾：受け身バッファをリセット（前被弾の押下を持ち越さない）
+  p.ukemiBuffer = 0;       // 新規被弾：受け身バッファをリセット（前被弾の押下を持ち越さない）
+  p.ukemiAttempted = false;// 新規被弾ごとに受け身1回の権利を再付与（吹き飛ばし→受け身の連鎖は許容）
   if (lv === 7) {
     if (isPlayerDowned) {
       p.state = STATE.down_bas_loop;
@@ -412,6 +413,10 @@ function _triggerUkemi(p) {
   p.invincibleFrames = 0;                 // 受け身＝能動回復：通常の復帰グレースは付かない
   p.recoverGrace = false;
   p.attackChainArr = null;
+  // 被弾 state（down_up の横倒し rotation.z / down_rakka・down_front の rotation.x 等）が
+  //   mesh に残ったまま jump_loop へ移ると「寝たまま跳ぶ」。updatePlayer は rotation.z を
+  //   触らないため、ここで明示的にゼロへ戻す（全 down 系の受け身共通の正規化）。
+  if (p.mesh) { p.mesh.rotation.x = 0; p.mesh.rotation.z = 0; }
   _spawnHitParticles(p.x, p.y + 60, p.z, 0xffffff, 16);  // 成立の白パーティクル
 }
 
@@ -446,8 +451,8 @@ export function updatePlayerHitstun(p) {
     if (p.stateTimer <= 0) {
       p.state = STATE.wait01;
       p.kbVx = 0;
-      p.invincibleFrames = HP_CONFIG.HITSTUN_RECOVER_INVINCIBLE;  // 復帰後 3 秒の点滅無敵
-      p.recoverGrace = true;   // 敵に攻撃を当てたら解除（再交戦＝救済終了）
+      // lv1/lv2 の軽フリンチ復帰には無敵を付けない（敵コンボを許容する設計）。
+      // 復帰無敵はダウン（lv3+ → down_bas_end）の救済専用。
     }
   } else if (s === STATE.knockback_air01) {
     // 空中フリンチ：軽く流されつつ落下、タイマー終了で fall_loop
@@ -471,12 +476,12 @@ export function updatePlayerHitstun(p) {
       _spawnHitParticles(p.x, 10, p.z, 0xaaaaaa, 10);
     }
   } else if (s === STATE.land) {
-    // 着地モーション：タイマー終了で wait01
+    // 着地モーション：タイマー終了で wait01。
+    // land は lv1/lv2 空中フリンチ（knockback_air01 / fall_loop）からの着地のみ。
+    // 軽フリンチ扱いのため復帰無敵は付けない（knockback01/02 と同方針）。
     p.stateTimer--;
     if (p.stateTimer <= 0) {
       p.state = STATE.wait01;
-      p.invincibleFrames = HP_CONFIG.HITSTUN_RECOVER_INVINCIBLE;  // 復帰後 3 秒の点滅無敵
-      p.recoverGrace = true;
     }
   } else if (s === STATE.down_front_start) {
     _applyKbStep(p, 0.98);

@@ -653,8 +653,13 @@ export function updatePlayer(p) {
   if (isHitstunState(p)) {
     const canReverse = (p.state !== STATE.dying && p.state !== STATE.dead && p.state !== STATE.guard_crash);
     if (canReverse) _processMegaCrashUltInput(p);
-    // 受け身入力：被弾中にジャンプ押下 → バッファ。着地予測フレームで updatePlayerHitstun が受け身発動
-    if (_ukemiJumpEdge) p.ukemiBuffer = UKEMI_CONFIG.BUFFER_FRAMES;
+    // 受け身入力：被弾中の最初のジャンプ押下だけをバッファ投入に使う（1被弾1回）。
+    //   連打でバッファを再充填し続けると受け身が確定してしまうため、ukemiAttempted で締める。
+    //   早すぎる1回目はバッファが切れて不成立 → 連打は自滅。＝タイミングを読む技。
+    if (_ukemiJumpEdge && !p.ukemiAttempted) {
+      p.ukemiBuffer = UKEMI_CONFIG.BUFFER_FRAMES;
+      p.ukemiAttempted = true;
+    }
     updatePlayerHitstun(p);
     updateCrisisEffect(p);
     // 被弾で kbVx により壁外まで吹き飛ぶのを防ぐ：通常 update と同じ壁クランプを適用。
@@ -665,6 +670,26 @@ export function updatePlayer(p) {
     // lv6 転がり中は updatePlayerHitstun が腰ピボット補正込みで mesh.x を設定済 → 上書きしない。
     if (p.mesh && p.state !== STATE.down_roll_start && p.state !== STATE.down_roll_loop) {
       p.mesh.position.x = p.x;
+    }
+    // 被弾中はブースター演出を消す。updatePlayer 本体（thruster 可視制御）を return で
+    //   スキップするため、ジャンプ中に被弾するとバーニアが点いたまま固まる不具合の対策。
+    // thrustFramesLeft も 0 に：残ったままだと復帰直後 1F だけ thrustingNow が再点灯する。
+    p.thrustFramesLeft = 0;
+    const _hsParts = p.mesh && p.mesh.userData.parts;
+    if (_hsParts) {
+      _hsParts.thrusterL.visible = false;
+      _hsParts.thrusterR.visible = false;
+      _hsParts.yawL.visible = false;
+      _hsParts.yawR.visible = false;
+    }
+    // 必殺技中などに被弾した場合、攻撃ポーズ・攻撃エフェクトが固まって残るのを防ぐ。
+    //   updatePlayer 本体（パーツ姿勢・必殺技ヒットボックス・本体発光）を return でスキップするため、
+    //   ここで明示的に rest 姿勢へ戻し、攻撃エフェクトを消す（attackId は被弾で既に null）。
+    updatePartAnims(p);
+    if (_specialHitboxMesh) _specialHitboxMesh.visible = false;
+    if (p._bodyEmissiveWasOn) {
+      _applyBodyEmissive(p.mesh, 0, 0, 0);
+      p._bodyEmissiveWasOn = false;
     }
     return;
   }
@@ -686,9 +711,12 @@ export function updatePlayer(p) {
 
   // === 攻撃入力処理（毎フレーム）===
   _processMegaCrashUltInput(p);
-  processSpecialInput(p);
-  processAttackInput(p);
-  processStrongAttackInput(p);
+  // 受け身ジャンプ上昇中（ukemiInvuln）は攻撃を封印：受け身でテンポを上げすぎない（2026-05-20）
+  if (!p.ukemiInvuln) {
+    processSpecialInput(p);
+    processAttackInput(p);
+    processStrongAttackInput(p);
+  }
 
   if (p.specialFlashTimer > 0) p.specialFlashTimer--;
   if (p.ukemiFlashTimer > 0) p.ukemiFlashTimer--;
