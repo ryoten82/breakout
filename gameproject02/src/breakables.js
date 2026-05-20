@@ -43,8 +43,9 @@ let _killEnemy = null;
 let _enemies = null;
 let _players = null;
 let _damageArea = null;  // { addStaticArea, updateAreaPosition, removeArea, spawnExpandPulse }
+let _isHitstunState = null;  // 被弾中判定（proximity 点火を被弾中プレイヤーで誘発させないため）
 
-export function initBreakables({ scene, THREE, triggerHitstop, damagePlayer, killEnemy, enemies, players, damageArea }) {
+export function initBreakables({ scene, THREE, triggerHitstop, damagePlayer, killEnemy, enemies, players, damageArea, isHitstunState }) {
   _scene = scene;
   _THREE = THREE;
   _vec3Tmp = new THREE.Vector3();
@@ -54,6 +55,7 @@ export function initBreakables({ scene, THREE, triggerHitstop, damagePlayer, kil
   _enemies        = enemies || null;
   _players        = players || null;
   _damageArea     = damageArea || null;
+  _isHitstunState = isHitstunState || null;
 }
 
 // 配置済の mesh（group）を破壊可能オブジェクトとして登録する
@@ -233,6 +235,8 @@ function _explode(mesh) {
   const cx = mesh.position.x;
   const cy = mesh.position.y + (mesh.userData.aabb?.hh ?? 50);
   const cz = mesh.position.z;
+  // 爆発ダメージは個体上書き可（デバッグ地雷など）。未指定は通常値。
+  const dmg = mesh.userData.explosionDamage ?? EXPLOSION_DAMAGE;
   // 敵
   if (_enemies) {
     for (const e of _enemies) {
@@ -242,7 +246,7 @@ function _explode(mesh) {
       const dy = (e.y || 0) - cy;
       const dz = (e.z || 0) - cz;
       if (Math.hypot(dx, dy, dz) > EXPLOSION_RANGE) continue;
-      e.hp = Math.max(0, e.hp - EXPLOSION_DAMAGE);
+      e.hp = Math.max(0, e.hp - dmg);
       if (e.hp <= 0 && _killEnemy) {
         _killEnemy(e);
       } else {
@@ -268,10 +272,12 @@ function _explode(mesh) {
       const dy = (p.y || 0) - cy;
       const dz = (p.z || 0) - cz;
       if (Math.hypot(dx, dy, dz) > EXPLOSION_RANGE) continue;
-      // damagePlayer 用に最小限の attack オブジェクトと source を用意
+      // damagePlayer 用に最小限の attack オブジェクトと source を用意。
+      // testAtkLv が指定された個体（被弾 state テスト用デバッグ地雷）はその lv で被弾させる。
+      const atkLv = mesh.userData.testAtkLv ?? 4;
       _damagePlayer(
         p,
-        { damage: EXPLOSION_DAMAGE, atk_lv: 4, knockback: 30, launchVy: EXPLOSION_LAUNCH_VY },
+        { damage: dmg, atk_lv: atkLv, knockback: 30, launchVy: EXPLOSION_LAUNCH_VY },
         { x: cx, y: cy, z: cz },
       );
     }
@@ -345,17 +351,28 @@ export function updateBreakables() {
   // canister の点火カウントダウン + 点火直後の小ジャンプ物理
   for (const b of breakables) {
     // 地雷モード：未点火 canister のうち proximityTrigger フラグ持ちは
-    //   プレイヤーが範囲内に入ったら自動点火（_startBreakSequence 経由）。
+    //   プレイヤーが範囲外 → 範囲内に「入った瞬間」に自動点火（エッジ判定）。
+    //   - 被弾中（吹き飛び・ダウン中）のプレイヤーでは点火しない（co-trigger 防止）。
+    //   - エッジ判定：ノックバックで範囲内に投げ込まれて居座っても誤爆せず、
+    //     一度範囲外へ出て入り直すと再武装する。
     if (b.userData.proximityTrigger && b.userData.alive && !b.userData.dying && b.userData.fuseTimer === 0 && _players) {
+      // 個体ごとの proximityRange 上書き対応（デバッグ地雷は狭めにして個別発火させる）
+      const rangeSq = (b.userData.proximityRange !== undefined)
+        ? b.userData.proximityRange * b.userData.proximityRange
+        : PROXIMITY_TRIGGER_RANGE_SQ;
+      let anyInRange = false;
+      let fire = false;
       for (const pp of _players) {
         if (!pp || !pp.mesh) continue;
         const dx = pp.x - b.position.x;
         const dz = (pp.z || 0) - b.position.z;
-        if (dx * dx + dz * dz <= PROXIMITY_TRIGGER_RANGE_SQ) {
-          _startBreakSequence(b);
-          break;
-        }
+        if (dx * dx + dz * dz > rangeSq) continue;
+        anyInRange = true;
+        if (_isHitstunState && _isHitstunState(pp)) continue;  // 被弾中は点火させない
+        if (!b.userData._proxWasInRange) fire = true;           // 範囲外→内のエッジでのみ点火
       }
+      b.userData._proxWasInRange = anyInRange;
+      if (fire) _startBreakSequence(b);
     }
     if (b.userData.fuseTimer > 0) _updateFuse(b);
     // mesh 全体の物理：vy が非ゼロなら浮上 → 重力で落下 → 床で停止

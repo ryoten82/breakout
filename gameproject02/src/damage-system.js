@@ -287,6 +287,9 @@ export function damagePlayer(p, attack, source) {
     p.state === STATE.down_bas_loop ||
     p.state === STATE.down_bas_end
   );
+  // 倒れ向き：全 lv 共通で攻撃者と反対側に頭を倒す。
+  //   down_up の横倒しランプ・ダウン姿勢 down_bas_* の横倒し方向（敵と統一）に使う。
+  p.fallDir = facingFromAttacker;
   if (lv === 7) {
     if (isPlayerDowned) {
       p.state = STATE.down_bas_loop;
@@ -306,7 +309,6 @@ export function damagePlayer(p, attack, source) {
     p.stateTimer = PLAYER_DOWN_SUPER_FRAMES;
     p.kbVx = facingFromAttacker * (knockback * 0.4 * KB_LV06_VX_MULT);
     p.kbVy = KB_LV06_VY;
-    p.fallDir = facingFromAttacker;
     p.wallHitCount = 0;   // 壁張り付きは 1 回まで（壁ピンポンの被弾ループ防止）
   } else if (lv === 5) {
     // lv5 叩きつけ：敵側 down_rakka_* を移植（第 3 段共用）。
@@ -326,7 +328,6 @@ export function damagePlayer(p, attack, source) {
     p.stateTimer = PLAYER_DOWN_UP_FRAMES;
     p.kbVx = facingFromAttacker * (knockback * 0.3);
     p.kbVy = (attack.launchVy !== undefined) ? attack.launchVy : DEFAULT_LAUNCH_VY;
-    p.fallDir = facingFromAttacker;   // 爆心側に頭が倒れる（敵 down_up_* と同方向）
     p.launcherAirborne = !!attack.peakHang;
   } else if (lv === 3) {
     p.state = STATE.down_front_start;
@@ -691,8 +692,14 @@ export function updatePlayerHitstun(p) {
     if (s === STATE.down_up_start) {
       const tilt = (1 - p.stateTimer / PLAYER_DOWN_UP_FRAMES) * (Math.PI / 2);
       p.mesh.rotation.z = -(p.fallDir ?? 1) * tilt;
-    } else if (s === STATE.down_up_loop) {
+    } else if (s === STATE.down_up_loop ||
+               s === STATE.down_bas_start || s === STATE.down_bas_loop) {
+      // 横倒し姿勢（敵 STATE_TILT_TARGET の down_bas_* = π/2 と統一）
       p.mesh.rotation.z = -(p.fallDir ?? 1) * (Math.PI / 2);
+    } else if (s === STATE.down_bas_end) {
+      // 起き上がり：π/2 → 0 へランプ（敵 down_bas_end と同じ）
+      const tilt = (p.stateTimer / PLAYER_DOWN_BAS_END_FRAMES) * (Math.PI / 2);
+      p.mesh.rotation.z = -(p.fallDir ?? 1) * tilt;
     } else {
       p.mesh.rotation.z = 0;
     }

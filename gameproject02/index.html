@@ -2097,7 +2097,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-20 feat: プレイヤー lv6 超吹き飛ばし被弾を敵側 down_super_* 共用化（飛行→壁張り付き/反作用バウンス→地面転がり→down_bas）';
+    const LAST_UPDATE = '2026-05-20 debug: proximity 地雷をエッジ判定化（範囲外→内の瞬間のみ点火・被弾居座りで誤爆しない）';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2233,6 +2233,8 @@
       enemies, players,
       // 範囲可視化（canister 点火時 + 爆発時に呼ぶ）
       damageArea: { addStaticArea, updateAreaPosition, removeArea, spawnExpandPulse },
+      // 被弾中プレイヤーで proximity 点火を誘発しないための判定
+      isHitstunState,
     });
 
     // player-system 初期化（ガード/特殊技/チャージ等）
