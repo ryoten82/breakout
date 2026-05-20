@@ -24,7 +24,6 @@
 // ============================================================
 export const HP_CONFIG = {
   MAX:                 100,
-  INVINCIBLE_FRAMES:   12,   // 被弾直後の追加無敵F（連続ヒット防止）
   HITSTUN_RECOVER_INVINCIBLE: 180,  // 被弾→起き上がり開始からの無敵F（3秒・透明点滅・コンボ拒否）
   DEAD_FRAMES:         60,   // dying 演出終了後 dead で待機する長さ（演出時間とは別）
   REVIVE_INVINCIBLE:   240,  // リバイブ後の無敵F（4秒・透明点滅）

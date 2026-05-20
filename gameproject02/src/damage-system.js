@@ -358,8 +358,8 @@ export function damagePlayer(p, attack, source) {
   if (attack.hitstop) _triggerHitstop(attack.hitstop);
   if (attack.shake) _triggerShake(attack.shake, attack.shake * 2 + 4);
 
-  // (10) 連続ヒット防止の無敵F
-  p.invincibleFrames = HP_CONFIG.INVINCIBLE_FRAMES;
+  // 連続ヒット防止の無敵F は撤去：被弾中は (2) の被弾 state ガードで完全無敵のため不要。
+  // invincibleFrames は「起き上がり後の点滅グレース」専用に。吹き飛び中は点滅しない。
   return true;
 }
 
