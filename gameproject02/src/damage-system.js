@@ -405,6 +405,7 @@ export function updatePlayerHitstun(p) {
       p.state = STATE.wait01;
       p.kbVx = 0;
       p.invincibleFrames = HP_CONFIG.HITSTUN_RECOVER_INVINCIBLE;  // 復帰後 3 秒の点滅無敵
+      p.recoverGrace = true;   // 敵に攻撃を当てたら解除（再交戦＝救済終了）
     }
   } else if (s === STATE.knockback_air01) {
     // 空中フリンチ：軽く流されつつ落下、タイマー終了で fall_loop
@@ -433,6 +434,7 @@ export function updatePlayerHitstun(p) {
     if (p.stateTimer <= 0) {
       p.state = STATE.wait01;
       p.invincibleFrames = HP_CONFIG.HITSTUN_RECOVER_INVINCIBLE;  // 復帰後 3 秒の点滅無敵
+      p.recoverGrace = true;
     }
   } else if (s === STATE.down_front_start) {
     _applyKbStep(p, 0.98);
@@ -583,6 +585,7 @@ export function updatePlayerHitstun(p) {
       p.stateTimer = PLAYER_DOWN_BAS_END_FRAMES;
       // 起き上がり開始から 3 秒の点滅無敵（起き上がり〜復帰後をカバー）
       p.invincibleFrames = HP_CONFIG.HITSTUN_RECOVER_INVINCIBLE;
+      p.recoverGrace = true;   // 敵に攻撃を当てたら解除（再交戦＝救済終了）
     }
   } else if (s === STATE.down_bas_end) {
     p.stateTimer--;
@@ -798,6 +801,7 @@ export function revivePlayer(p) {
   p.respawnBlinkTimer = 0;
   p.y = HP_CONFIG.RESPAWN_FALL_HEIGHT;
   p.invincibleFrames = HP_CONFIG.REVIVE_INVINCIBLE;
+  p.recoverGrace = false;  // リバイブ無敵は被弾回復グレースとは別物（攻撃ヒットで解除しない）
   // カメラ追従値をプレイヤーの新位置に即スナップ（追従ラグでデッドゾーンがズレるバグ修正）
   if (_resetCameraToPlayer) _resetCameraToPlayer(p);
   if (p.mesh) {

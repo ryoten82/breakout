@@ -290,6 +290,9 @@ export function updateAttack(p) {
     ) {
       if (tryHitEnemies(p, atk, _hitCtx)) {
         p.hitDelivered = true;
+        // 起き上がり後の被弾回復グレース中に敵へ攻撃を当てたら無敵を即解除（再交戦＝救済終了）。
+        // リバイブ無敵（recoverGrace=false）は対象外。
+        if (p.recoverGrace) { p.invincibleFrames = 0; p.recoverGrace = false; }
         // ステップ攻撃のヒット時は前進運動量を即停止（ぶつかって止まる重量感）
         // ただし keepMomentumOnHit:true の技は慣性を維持して敵に潜り込む（ダッシュJ等）
         if (atk.isStepAttack && !atk.keepMomentumOnHit) p.stepMomentum = 0;
