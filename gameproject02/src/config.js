@@ -330,9 +330,21 @@ export const DUMMY_ATK_CONFIG = {
 //  - coward は通常雑魚には付かない（leader 死亡降格 / キャリア型のみ・将来実装）
 //  - 値はランタイム調整可：window.SB.ENEMY_PERSONALITY.cunning.dodgeTendency = 0.6 など
 // ============================================================
+//  - enragedHp：HP がこの割合以下で興奮（enraged）。brave は早発（高 HP で発火）
 export const ENEMY_PERSONALITY = {
-  brave:   { guardTendency: 0.12, dodgeTendency: 0.08, staggerThreshold: 6 },
-  cunning: { guardTendency: 0.40, dodgeTendency: 0.45, staggerThreshold: 4 },
+  brave:   { guardTendency: 0.12, dodgeTendency: 0.08, staggerThreshold: 6, enragedHp: 0.50 },
+  cunning: { guardTendency: 0.40, dodgeTendency: 0.45, staggerThreshold: 4, enragedHp: 0.38 },
+};
+
+// ============================================================
+//  #section enemy-enrage — 雑魚敵の興奮（#14-C：HP 低下で攻撃頻度上昇）
+//  - HP が personality.enragedHp 以下で 1 度だけ enraged 化（enraged_intro モーション → 継続）
+//  - 興奮中は攻撃クールダウン短縮 + 接近速度上昇。フィニッシュ局面の盛り上げ
+// ============================================================
+export const ENEMY_ENRAGE_CONFIG = {
+  INTRO_FRAMES:  40,    // enraged_intro モーションの長さ
+  COOLDOWN_MULT: 0.5,   // 興奮中の攻撃クールダウン倍率（攻撃頻度↑）
+  APPROACH_MULT: 1.25,  // 興奮中の接近速度倍率
 };
 
 // ============================================================

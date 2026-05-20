@@ -821,6 +821,7 @@ export function tryHitEnemies(p, attack, ctx) {
       // 防御/よろめき行動中（#14-B）。enemy_guard はガード成立判定、他は被弾再ディスパッチ可
       e.state === STATE.enemy_dodge || e.state === STATE.enemy_guard ||
       e.state === STATE.enemy_stagger || e.state === STATE.enemy_block_hit ||
+      e.state === STATE.enraged_intro ||  // 興奮モーション中も被弾可（ロアを潰せる・#14-C）
       // 自発ジャンプ中の敵も被弾を受け付ける（空中ヒット → knockback_air01 等・プレイヤーと同期）
       e.state === STATE.jump_start || e.state === STATE.jump_loop || e.state === STATE.jump_end ||
       e.state === STATE.jump_d_start || e.state === STATE.jump_d_loop || e.state === STATE.jump_d_end ||

@@ -45,7 +45,7 @@ import {
   KB_LV06_VY, KB_LV06_VX_MULT,
   applyRollHipPivot,
 } from './states.js';
-import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG } from './config.js';
+import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG } from './config.js';
 import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, fxState } from './hit-engine.js';
 import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
@@ -242,6 +242,8 @@ export function spawnDummy(x, z, opts = {}) {
     reactCooldown:    0,                        // dodge/guard 再発動クールダウン残F
     _reactArmed:      true,                     // 現プレイヤー攻撃に未反応なら true（1 攻撃 1 判定）
     dodgeInvuln:      false,                    // enemy_dodge 前半の無敵フラグ
+    enraged:          false,                    // 興奮状態（HP 低下で 1 度だけ true・14-C）
+    enragedHp:        _persona.enragedHp,        // この HP 割合以下で enraged 化
     // === Phase 3 ステータス系（status_stun）===
     statusStunTimer:  0,    // status_stun 残F
     // === Phase 3-A/3-B 敵死亡（gore-scrap・2026-05-20 フラグ方式へリファクタ）===
@@ -1582,6 +1584,8 @@ export function updateEnemies(ctx) {
         //   各 down ステートは自分でタイマー満了して wait01 に戻るので
         //   ダミーは「ダウン演出 → 立ち直り」の自然なサイクルでループ復活する
         e.hp = e.maxHp;
+        e.enraged = false;       // HP 全快で興奮解除（#14-C・即復活ダミーが興奮を持ち越さない）
+        e.accumStagger = 0;
         spawnHitParticles(e.x, e.y + 100, e.z, 0xff8844, 24);
         triggerShake(8, 14);
       } else if (!e.dying) {
@@ -1918,12 +1922,20 @@ export function updateEnemies(ctx) {
         //   被弾時 RNG ではなく「攻撃を検知して先に防御へ入る」確率（先出し＝読ませる）。
         //   1 プレイヤー攻撃につき 1 回だけ判定（_reactArmed）。
         let _reacted = false;
+        // 興奮トリガー（#14-C）：HP が閾値以下で 1 度だけ enraged 化 → enraged_intro モーション
+        if (!e.enraged && e.hp > 0 && e.hp <= e.maxHp * e.enragedHp) {
+          e.enraged   = true;
+          e.state     = STATE.enraged_intro;
+          e.downTimer = ENEMY_ENRAGE_CONFIG.INTRO_FRAMES;
+          e.aiPhase   = 'enraged';
+          _reacted    = true;  // この frame の chase / 防御リアクションは走らせない
+        }
         if (e.reactCooldown > 0) e.reactCooldown--;
         const _pAtk = (p0.state === STATE.attacking && p0.attackId) ? ATTACKS[p0.attackId] : null;
         const _pInWindup = !!_pAtk && (_pAtk.duration - p0.stateTimer) < _pAtk.hitFrame;
         if (!_pInWindup) {
           e._reactArmed = true;  // プレイヤー非 windup で再武装
-        } else if (e._reactArmed && e.reactCooldown <= 0 &&
+        } else if (!_reacted && e._reactArmed && e.reactCooldown <= 0 &&
                    adx < ENEMY_REACT_CONFIG.DETECT_RANGE_X &&
                    adz < ENEMY_REACT_CONFIG.DETECT_RANGE_Z) {
           e._reactArmed = false;
@@ -1985,12 +1997,14 @@ export function updateEnemies(ctx) {
               e.aiPhase       = 'attack';
             } else {
               // 接近移動（X / Z 両軸・Z は 2.5D 圧縮考慮で 0.7 倍）
-              // トークン不所持でも接近は OK（位置取り）
+              // トークン不所持でも接近は OK（位置取り）。興奮中は接近速度上昇（#14-C）
+              const _appSpd = DUMMY_ATK_CONFIG.approachSpeed *
+                (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
               if (adx > DUMMY_ATK_CONFIG.attackRange) {
-                e.x += Math.sign(dx) * DUMMY_ATK_CONFIG.approachSpeed;
+                e.x += Math.sign(dx) * _appSpd;
               }
               if (adz > 80) {  // active ヒットの rangeZ 圏内まで詰める
-                e.z += Math.sign(dz) * DUMMY_ATK_CONFIG.approachSpeed * 0.7;
+                e.z += Math.sign(dz) * _appSpd * 0.7;
               }
               // attackRange 内だが token 不可 / player 被弾中 → その場で待機（ジリジリ感）
             }
@@ -2055,7 +2069,9 @@ export function updateEnemies(ctx) {
           if (e.atkTimer <= 0) {
             e.state         = STATE.wait01;
             e.atkPhase      = null;
-            e.atkCooldown   = DUMMY_ATK_CONFIG.cooldownFrames;
+            // 興奮中は攻撃クールダウン短縮（攻撃頻度↑・#14-C）
+            e.atkCooldown   = Math.round(DUMMY_ATK_CONFIG.cooldownFrames *
+              (e.enraged ? ENEMY_ENRAGE_CONFIG.COOLDOWN_MULT : 1));
             e.hitDelivered  = false;
             // Phase 3：recover 完了 → retreat フェーズへ
             e.aiPhase       = 'retreat';
@@ -2148,6 +2164,10 @@ export function updateEnemies(ctx) {
       if (--e.downTimer <= 0) e.state = STATE.wait01;
     } else if (e.state === STATE.enemy_stagger) {
       // 連続被弾よろめき → wait01
+      if (--e.downTimer <= 0) e.state = STATE.wait01;
+    } else if (e.state === STATE.enraged_intro) {
+      // 興奮発生モーション（#14-C）→ wait01。aiPhase は 'enraged' 維持（hitstun ラベル上書き）
+      e.aiPhase = 'enraged';
       if (--e.downTimer <= 0) e.state = STATE.wait01;
     } else if (e.state === STATE.down_front_start) {
       if (--e.downTimer <= 0) e.state = STATE.down_front_loop;
