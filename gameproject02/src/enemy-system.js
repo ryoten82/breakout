@@ -43,7 +43,7 @@ import {
   KB_LV06_VY, KB_LV06_VX_MULT,
   applyRollHipPivot,
 } from './states.js';
-import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE } from './config.js';
+import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY } from './config.js';
 import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, fxState } from './hit-engine.js';
 import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
@@ -176,6 +176,9 @@ export function spawnDummy(x, z, opts = {}) {
     _scene.add(mesh.userData.hpBar.fill);
   }
   const _maxHp = (typeof opts.maxHp === 'number' && opts.maxHp > 0) ? opts.maxHp : 100;
+  // 性格（#14）：opts 指定 → なければ brave 既定。行動傾向値をテーブルから引く
+  const _personality = ENEMY_PERSONALITY[opts.personality] ? opts.personality : 'brave';
+  const _persona = ENEMY_PERSONALITY[_personality];
   const e = {
     mesh,
     x: x, y: 0, z: z,
@@ -227,6 +230,13 @@ export function spawnDummy(x, z, opts = {}) {
     //   - hitstun は state が被弾系/grabbed/dying/status_stun 等のときに自動同期（読み取り専用ラベル）。
     aiPhase:          'idle',
     aiRetreatTimer:   0,    // retreat 残F
+    // === #14 雑魚行動：性格・役割・行動傾向 ===
+    personality:      _personality,            // 'brave' / 'cunning'
+    role:             opts.role ?? 'standalone',// 'standalone' / 'carrier' / 'escort'
+    guardTendency:    _persona.guardTendency,   // 前面被弾をガード成立させる確率（14-B）
+    dodgeTendency:    _persona.dodgeTendency,   // プレイヤー攻撃 wind 検知で回避する確率（14-B）
+    accumStagger:     0,                        // 連続被弾累積（閾値超で enemy_stagger・14-B）
+    staggerThreshold: _persona.staggerThreshold,// よろめき発火の累積閾値（性格差）
     // === Phase 3 ステータス系（status_stun）===
     statusStunTimer:  0,    // status_stun 残F
     // === Phase 3-A/3-B 敵死亡（gore-scrap・2026-05-20 フラグ方式へリファクタ）===
@@ -1527,9 +1537,10 @@ export function updateEnemies(ctx) {
     if (e.frozenByUlt) continue;
     // グラブ被害中：position・state は処理側（processGrabInput）で固定維持
     if (e.state === STATE.grabbed) { e.aiPhase = 'hitstun'; continue; }
-    // Phase 3 AI ステート明示化：state が wait01 / enemy_attacking 以外なら hitstun ラベル
+    // Phase 3 AI ステート明示化：state が AI 行動系（wait01 / 移動 / 攻撃）以外なら hitstun ラベル
     // 注：status_stun もここで hitstun ラベルになる（被弾意味の汎用 AI 非介入ラベル）
-    if (e.state !== STATE.wait01 && e.state !== STATE.enemy_attacking) {
+    if (e.state !== STATE.wait01 && e.state !== STATE.enemy_attacking &&
+        e.state !== STATE.walk_fwd && e.state !== STATE.walk_back && e.state !== STATE.dash) {
       e.aiPhase = 'hitstun';
     }
     // wait01 復帰時：必殺技ヒット履歴 + コンボルートをクリア（敵単位の各種ループ制限のリセット）
@@ -1651,7 +1662,7 @@ export function updateEnemies(ctx) {
       let myStrength = 0;
       const s = e.state;
       if (s === STATE.enemy_attacking) myStrength = 2.5;
-      else if (s === STATE.wait01)     myStrength = 1.5;
+      else if (s === STATE.wait01 || s === STATE.walk_fwd || s === STATE.walk_back) myStrength = 1.5;
       else if (s === STATE.knockback01 || s === STATE.knockback02 ||
                s === STATE.knockback_air01 || s === STATE.knockback03 ||
                s === STATE.down_front_start || s === STATE.down_front_loop ||
@@ -1884,7 +1895,8 @@ export function updateEnemies(ctx) {
       const p0 = _players[0];
       const playerInHitstun = isHitstunState(p0);
       if (e.atkCooldown > 0) e.atkCooldown--;
-      if (e.state === STATE.wait01) {
+      if (e.state === STATE.wait01 || e.state === STATE.walk_fwd || e.state === STATE.walk_back) {
+        const _x0 = e.x, _z0 = e.z;  // 移動 state 判定用：AI 移動前の座標を退避（#14-A）
         const dx = p0.x - e.x;
         const dz = p0.z - e.z;
         const adx = Math.abs(dx);
@@ -1939,6 +1951,17 @@ export function updateEnemies(ctx) {
               }
               // attackRange 内だが token 不可 / player 被弾中 → その場で待機（ジリジリ感）
             }
+          }
+        }
+        // 移動 state 反映（#14-A）：AI で動いていれば walk_fwd/back、停止なら wait01。
+        //   攻撃発動で enemy_attacking へ遷移済みのときは触らない。
+        if (e.state === STATE.wait01 || e.state === STATE.walk_fwd || e.state === STATE.walk_back) {
+          const _dxm = e.x - _x0;
+          if (_dxm === 0 && e.z === _z0) {
+            e.state = STATE.wait01;
+          } else {
+            const _toward = Math.sign(_dxm) === Math.sign(p0.x - _x0);
+            e.state = (_dxm !== 0 && !_toward) ? STATE.walk_back : STATE.walk_fwd;
           }
         }
       } else if (e.state === STATE.enemy_attacking) {

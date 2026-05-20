@@ -791,6 +791,8 @@ export function tryHitEnemies(p, attack, ctx) {
       e.state === STATE.down_rakka_loop ||
       e.state === STATE.down_bound_start ||
       e.state === STATE.enemy_attacking ||  // Phase 2.4：敵 AI 攻撃中もカウンター被弾を受け付ける
+      // 移動中（walk_fwd/back/dash）の敵も被弾を受け付ける（#14：被弾 state へ正しく遷移）
+      e.state === STATE.walk_fwd || e.state === STATE.walk_back || e.state === STATE.dash ||
       // 自発ジャンプ中の敵も被弾を受け付ける（空中ヒット → knockback_air01 等・プレイヤーと同期）
       e.state === STATE.jump_start || e.state === STATE.jump_loop || e.state === STATE.jump_end ||
       e.state === STATE.jump_d_start || e.state === STATE.jump_d_loop || e.state === STATE.jump_d_end ||

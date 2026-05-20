@@ -323,6 +323,19 @@ export const DUMMY_ATK_CONFIG = {
 };
 
 // ============================================================
+//  #section enemy-personality — 雑魚敵の性格別 行動傾向（#14・enem01.md §性格軸）
+//  - spawnDummy で e.personality に応じて guardTendency 等を引く
+//  - brave：攻撃的。ガード/回避は控えめ・打たれ強い（stagger しにくい＝閾値高め）
+//  - cunning：狡猾。ガード/回避を多用・やや stagger しやすい（閾値低め）
+//  - coward は通常雑魚には付かない（leader 死亡降格 / キャリア型のみ・将来実装）
+//  - 値はランタイム調整可：window.SB.ENEMY_PERSONALITY.cunning.dodgeTendency = 0.6 など
+// ============================================================
+export const ENEMY_PERSONALITY = {
+  brave:   { guardTendency: 0.12, dodgeTendency: 0.08, staggerThreshold: 6 },
+  cunning: { guardTendency: 0.40, dodgeTendency: 0.45, staggerThreshold: 4 },
+};
+
+// ============================================================
 //  #section status-stun — ステータス：スタン（Phase 3・将来 freeze/poison 等と並ぶ）
 //  - applyStatusStun(e, frames?) で付与（地上の敵のみ・空中は無視）
 //  - duration 経過で wait01 に自動復帰
