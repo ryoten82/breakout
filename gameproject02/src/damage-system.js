@@ -44,7 +44,7 @@ import {
   ENEMY_ROLL_KB_VX, ENEMY_ROLL_KB_DECAY,
   applyRollHipPivot,
 } from './states.js';
-import { SP_CONFIG, GUARD_CONFIG, PHYSICS } from './config.js';
+import { SP_CONFIG, GUARD_CONFIG, PHYSICS, UKEMI_CONFIG } from './config.js';
 import { getActiveWallX } from './camera.js';
 
 // ============================================================
@@ -128,6 +128,16 @@ export function isHitstunState(p) {
   return _HITSTUN_STATES.has(p.state);
 }
 
+// 受け身が成立しうる「空中の被弾 state」集合（着地予測フレームでジャンプ受け身に分岐）。
+// 地上フリンチ（knockback01/02）・着地後（land/down_bas/down_roll）・壁張り付きは対象外。
+const _UKEMI_AIRBORNE_STATES = new Set([
+  STATE.knockback_air01, STATE.fall_loop,
+  STATE.down_front_start, STATE.down_front_loop,
+  STATE.down_up_start, STATE.down_up_loop,
+  STATE.down_super_start, STATE.down_super_loop,
+  STATE.down_rakka_start, STATE.down_rakka_loop, STATE.down_bound_start,
+]);
+
 // 攻撃系フィールドの一括クリーンアップ（被弾で攻撃中断する時に呼ぶ）
 export function _cancelPlayerAction(p) {
   p.attackId           = null;
@@ -173,6 +183,7 @@ export function damagePlayer(p, attack, source) {
   if (!p || !p.mesh) return false;
   if (p.invincible) return false;
   if (p.invincibleFrames > 0) return false;
+  if (p.ukemiInvuln) return false;        // 受け身上昇中の無敵
   if (p.state === STATE.dying || p.state === STATE.dead) return false;
 
   // (2) 被弾中は完全無敵（プレイヤー区別化）：吹き飛び中・ダウン中は一切ヒットを受けず
@@ -280,6 +291,7 @@ export function damagePlayer(p, attack, source) {
   // 倒れ向き：全 lv 共通で攻撃者と反対側に頭を倒す。
   //   down_up の横倒しランプ・ダウン姿勢 down_bas_* の横倒し方向（敵と統一）に使う。
   p.fallDir = facingFromAttacker;
+  p.ukemiBuffer = 0;   // 新規被弾：受け身バッファをリセット（前被弾の押下を持ち越さない）
   if (lv === 7) {
     if (isPlayerDowned) {
       p.state = STATE.down_bas_loop;
@@ -381,6 +393,28 @@ export function tryHitPlayer(e, attack) {
   return damagePlayer(p, attack, { x: e.x, y: e.y, z: e.z, facing: efacing });
 }
 
+// 受け身：被弾着地の瞬間にジャンプ入力 → 吹き飛び方向へジャンプ受け身。
+// ジャンプ system（jump_loop）に乗せ、上昇中は ukemiInvuln で無敵・頂点で解除（updatePlayer 側）。
+function _triggerUkemi(p) {
+  p.state = STATE.jump_loop;
+  p.y = 0;
+  p.vy = UKEMI_CONFIG.JUMP_VY;            // 上昇初速（ブースター無しの固定アーク）
+  p.kbVx = 0; p.kbVy = 0;
+  p.airVx = (p.fallDir ?? 1) * UKEMI_CONFIG.HORIZ_VX;  // 吹き飛び方向へ大きく
+  p.airVz = 0;
+  p.airWasDash = true;                    // 慣性保持の空中挙動（大きく飛ぶ）
+  p.isGrounded = false;
+  p.thrustFramesLeft = 0;                 // ブースター無し
+  p.stateTimer = 0;
+  p.ukemiInvuln = true;                   // 上昇中は無敵（頂点で updatePlayer が解除）
+  p.ukemiFlashTimer = UKEMI_CONFIG.FLASH_FRAMES;
+  p.ukemiBuffer = 0;
+  p.invincibleFrames = 0;                 // 受け身＝能動回復：通常の復帰グレースは付かない
+  p.recoverGrace = false;
+  p.attackChainArr = null;
+  _spawnHitParticles(p.x, p.y + 60, p.z, 0xffffff, 16);  // 成立の白パーティクル
+}
+
 // 被弾中の毎フレーム物理ステップ：水平慣性（kbVx・指定減衰）+ 重力落下を進める。
 // updatePlayerHitstun の各被弾ブランチ共通のプリアンブル。
 function _applyKbStep(p, decay, gravMult = 1) {
@@ -396,6 +430,14 @@ function _applyKbStep(p, decay, gravMult = 1) {
 // ============================================================
 export function updatePlayerHitstun(p) {
   if (p.invincibleFrames > 0) p.invincibleFrames--;
+  if (p.ukemiBuffer > 0) p.ukemiBuffer--;
+  // 受け身：空中の被弾 state でこのフレーム着地予測（y + kbVy <= 0）かつジャンプ
+  //   バッファ有効 → 通常の着地遷移をせずジャンプ受け身へ。
+  if (p.ukemiBuffer > 0 && p.y > 0 && (p.y + p.kbVy) <= 0
+      && _UKEMI_AIRBORNE_STATES.has(p.state)) {
+    _triggerUkemi(p);
+    return;
+  }
   const s = p.state;
   if (s === STATE.knockback01 || s === STATE.knockback02) {
     p.x += p.kbVx;

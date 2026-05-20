@@ -37,7 +37,7 @@ import {
   PHYSICS, SP_CONFIG,
   GUARD_CONFIG, SPECIAL_CONFIG, HOMING_CONFIG,
   CHARGE_PARTICLE_CONFIG, CHARGE_RING_CONFIG,
-  DUMMY_ATK_CONFIG,
+  DUMMY_ATK_CONFIG, UKEMI_CONFIG,
 } from './config.js';
 import { ATTACKS, getHitWindowEnd } from './attacks.js';
 import {
@@ -637,6 +637,11 @@ function updatePartAnims(p) {
 //  Step E-4b で player-system.js に分離
 // ============================================================
 export function updatePlayer(p) {
+  // 受け身用：ジャンプキーの押下エッジを毎フレーム検出（被弾中の受け身入力に使う）
+  const _spaceDown = _inp('Space');
+  const _ukemiJumpEdge = _spaceDown && !p._ukemiJumpPrev;
+  p._ukemiJumpPrev = _spaceDown;
+
   // === 掴み発動 readiness フラグ ===
   // 仕様：「wait01 中に自分の意思で移動した」状態でのみ tryGrabActivate を許可。
   // wait01 以外（hitstun / attacking / grabbing 等）に入った瞬間に false へリセット。
@@ -648,6 +653,8 @@ export function updatePlayer(p) {
   if (isHitstunState(p)) {
     const canReverse = (p.state !== STATE.dying && p.state !== STATE.dead && p.state !== STATE.guard_crash);
     if (canReverse) _processMegaCrashUltInput(p);
+    // 受け身入力：被弾中にジャンプ押下 → バッファ。着地予測フレームで updatePlayerHitstun が受け身発動
+    if (_ukemiJumpEdge) p.ukemiBuffer = UKEMI_CONFIG.BUFFER_FRAMES;
     updatePlayerHitstun(p);
     updateCrisisEffect(p);
     // 被弾で kbVx により壁外まで吹き飛ぶのを防ぐ：通常 update と同じ壁クランプを適用。
@@ -684,6 +691,7 @@ export function updatePlayer(p) {
   processStrongAttackInput(p);
 
   if (p.specialFlashTimer > 0) p.specialFlashTimer--;
+  if (p.ukemiFlashTimer > 0) p.ukemiFlashTimer--;
   if (!p.guarding && !p.ultActive && p.state !== STATE.grabbing) processDashInput(p);
 
   tryCancelJump(p);
@@ -1001,12 +1009,16 @@ export function updatePlayer(p) {
       if (p.vy < PHYSICS.MAX_FALL_VY) p.vy = PHYSICS.MAX_FALL_VY;
     }
     p.y += p.vy;
+    // 受け身：上昇から頂点（vy<=0）に達したら無敵終了
+    if (p.ukemiInvuln && p.vy <= 0) p.ukemiInvuln = false;
     if (p.y <= 0) {
       const _wasDashJump = !!p.airWasDash;  // 後段で airWasDash が false 化される前に保持
       p.y = 0;
       p.vy = 0;
       p.isGrounded    = true;
       p.aerialWhiffed = false;
+      p.ukemiInvuln   = false;  // 着地で念のため受け身無敵を解除
+      p.ukemiBuffer   = 0;
       p.thrustFramesLeft = 0;
       p.diveCountdown = 0;
       p.homingFrames  = 0;
@@ -1135,10 +1147,14 @@ export function updatePlayer(p) {
   }
   p.mesh.rotation.x += (targetTiltX - p.mesh.rotation.x) * 0.35;
 
-  // === 必殺技：本体 emissive 制御 ===
+  // === 必殺技 / 受け身：本体 emissive 制御 ===
+  const ukemiFlashing = p.ukemiFlashTimer > 0;
   const flashing = p.specialFlashTimer > 0;
-  const pulsing  = p.chargeReady && !flashing;
-  if (flashing) {
+  const pulsing  = p.chargeReady && !flashing && !ukemiFlashing;
+  if (ukemiFlashing) {
+    const t = p.ukemiFlashTimer / UKEMI_CONFIG.FLASH_FRAMES;
+    _applyBodyEmissive(p.mesh, t, t, t);   // 受け身成立：白く発光
+  } else if (flashing) {
     const t = p.specialFlashTimer / SPECIAL_CONFIG.FLASH_FRAMES;
     _applyBodyEmissive(p.mesh, t, t, t);
   } else if (pulsing) {
@@ -1152,7 +1168,7 @@ export function updatePlayer(p) {
   } else if (p._bodyEmissiveWasOn) {
     _applyBodyEmissive(p.mesh, 0, 0, 0);
   }
-  p._bodyEmissiveWasOn = flashing || pulsing;
+  p._bodyEmissiveWasOn = flashing || pulsing || ukemiFlashing;
 
   // === 必殺技：当たり判定可視化 ===
   const curAtkVis = (p.state === STATE.attacking && p.attackId) ? ATTACKS[p.attackId] : null;
