@@ -326,6 +326,22 @@ export function applyHitInitialPitch(e) {
 export const STATE_PITCH_LERP = 0.18;
 
 // ============================================================
+//  転がり（down_roll_*）の腰ピボット補正 — 敵・プレイヤー共用
+// ============================================================
+// rotation.x の回転をメッシュ原点（足元）でなく腰高さ ROLL_HIP_PIVOT 周りに見せる。
+// ZYX 適用順なので hip local (0, h, 0) は Rx→Ry の順で変換される：
+//   after Rx(θ): (0, h·cosθ, h·sinθ) → after Ry(φ): (h·sinθ·sinφ, h·cosθ, h·sinθ·cosφ)
+// world hip を (x, y+h, z) に固定したいので mesh.position を逆オフセットする。
+export const ROLL_HIP_PIVOT = 70;  // 腰高さ（body 中心 80・脚台座 15-30 の間）
+export function applyRollHipPivot(mesh, x, y, z, rollAngle) {
+  const sinT = Math.sin(rollAngle), cosT = Math.cos(rollAngle);
+  const sinP = Math.sin(mesh.rotation.y), cosP = Math.cos(mesh.rotation.y);
+  mesh.position.x = x - ROLL_HIP_PIVOT * sinT * sinP;
+  mesh.position.y = y + ROLL_HIP_PIVOT * (1 - cosT);
+  mesh.position.z = z - ROLL_HIP_PIVOT * sinT * cosP;
+}
+
+// ============================================================
 //  #section state-constants — KB_LV* / しきい値定数
 // ============================================================
 // atk_lv_air 判定のしきい値：これ以下の y は接地扱い（バウンド瞬間や落下直前の微小値で

@@ -39,6 +39,7 @@ import {
   ENEMY_AIRBORNE_Y_THRESHOLD,
   KB_LV05_BOUNCE_VY,
   KB_LV06_VY, KB_LV06_VX_MULT,
+  applyRollHipPivot,
 } from './states.js';
 import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE } from './config.js';
 import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, fxState } from './hit-engine.js';
@@ -2189,24 +2190,9 @@ export function updateEnemies(ctx) {
       e.mesh.rotation.x = 0;
     }
 
-    // === 転がり中の腰ピボット補正（2026-05-18・rotation.y 対応版）===
-    //   rotation.x をメッシュ原点（足元）周りでなく、腰相当（y=ROLL_HIP_PIVOT）周りに見せる。
-    //   ZYX 適用順なので hip local (0, h, 0) は Rx → Ry の順で変換される：
-    //     after Rx(θ): (0, h*cos θ, h*sin θ)
-    //     after Ry(φ): (h*sin θ * sin φ, h*cos θ, h*sin θ * cos φ)
-    //   world hip = pos + 上記。これを (e.x, e.y + h, e.z) に固定したいので：
-    //     pos.x = e.x - h*sin θ * sin φ
-    //     pos.y = e.y + h*(1 - cos θ)
-    //     pos.z = e.z - h*sin θ * cos φ
+    // 転がり中は腰ピボット補正（敵・プレイヤー共用ヘルパ）。それ以外は素の座標。
     if (e.state === STATE.down_roll_start || e.state === STATE.down_roll_loop) {
-      const ROLL_HIP_PIVOT = 70;  // 腰高さ（body 中心 80・脚台座 15-30 の間）
-      const θ = e.rollDebugAngle;
-      const φ = e.mesh.rotation.y;
-      const sinT = Math.sin(θ), cosT = Math.cos(θ);
-      const sinP = Math.sin(φ), cosP = Math.cos(φ);
-      e.mesh.position.x = e.x - ROLL_HIP_PIVOT * sinT * sinP;
-      e.mesh.position.y = e.y + ROLL_HIP_PIVOT * (1 - cosT);
-      e.mesh.position.z = e.z - ROLL_HIP_PIVOT * sinT * cosP;
+      applyRollHipPivot(e.mesh, e.x, e.y, e.z, e.rollDebugAngle);
     } else {
       // 転がり以外の状態：オフセット解除（前フレームの補正値が残らないよう毎フレーム正規化）
       e.mesh.position.x = e.x;

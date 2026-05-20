@@ -42,6 +42,7 @@ import {
   KB_LV06_VY, KB_LV06_VX_MULT,
   ENEMY_WALL_BOUNCE_VY, ENEMY_WALL_BOUNCE_KB_VX, ENEMY_WALL_BOUNCE_KB_DECAY,
   ENEMY_ROLL_KB_VX, ENEMY_ROLL_KB_DECAY,
+  applyRollHipPivot,
 } from './states.js';
 import { SP_CONFIG, GUARD_CONFIG, PHYSICS } from './config.js';
 import { getActiveWallX } from './camera.js';
@@ -391,6 +392,16 @@ export function tryHitPlayer(e, attack) {
   return damagePlayer(p, attack, { x: e.x, y: e.y, z: e.z, facing: efacing });
 }
 
+// 被弾中の毎フレーム物理ステップ：水平慣性（kbVx・指定減衰）+ 重力落下を進める。
+// updatePlayerHitstun の各被弾ブランチ共通のプリアンブル。
+function _applyKbStep(p, decay, gravMult = 1) {
+  p.x += p.kbVx;
+  p.kbVx *= decay;
+  p.vy = p.kbVy;
+  p.y += p.vy;
+  p.kbVy -= PLAYER_KB_GRAV * gravMult;
+}
+
 // ============================================================
 //  被弾 state の自動進行（updatePlayer 末尾で呼ぶ）
 // ============================================================
@@ -407,11 +418,7 @@ export function updatePlayerHitstun(p) {
     }
   } else if (s === STATE.knockback_air01) {
     // 空中フリンチ：軽く流されつつ落下、タイマー終了で fall_loop
-    p.x += p.kbVx;
-    p.kbVx *= PLAYER_KB_VX_DECAY;
-    p.vy = p.kbVy;
-    p.y += p.vy;
-    p.kbVy -= PLAYER_KB_GRAV;
+    _applyKbStep(p, PLAYER_KB_VX_DECAY);
     p.stateTimer--;
     if (p.y <= 0) {
       p.y = 0; p.kbVy = 0; p.kbVx = 0; p.vy = 0;
@@ -423,11 +430,7 @@ export function updatePlayerHitstun(p) {
     }
   } else if (s === STATE.fall_loop) {
     // 自由落下：着地で land へ
-    p.x += p.kbVx;
-    p.kbVx *= PLAYER_KB_VX_DECAY;
-    p.vy = p.kbVy;
-    p.y += p.vy;
-    p.kbVy -= PLAYER_KB_GRAV;
+    _applyKbStep(p, PLAYER_KB_VX_DECAY);
     if (p.y <= 0) {
       p.y = 0; p.kbVy = 0; p.kbVx = 0; p.vy = 0;
       p.state = STATE.land;
@@ -441,11 +444,7 @@ export function updatePlayerHitstun(p) {
       p.state = STATE.wait01;
     }
   } else if (s === STATE.down_front_start) {
-    p.x += p.kbVx;
-    p.kbVx *= 0.98;
-    p.vy = p.kbVy;
-    p.y += p.vy;
-    p.kbVy -= PLAYER_KB_GRAV;
+    _applyKbStep(p, 0.98);
     p.stateTimer--;
     if (p.stateTimer <= 0 && p.y > 0) {
       p.state = STATE.down_front_loop;
@@ -457,11 +456,7 @@ export function updatePlayerHitstun(p) {
       _triggerShake(3, 6);
     }
   } else if (s === STATE.down_front_loop) {
-    p.x += p.kbVx;
-    p.kbVx *= 0.96;
-    p.vy = p.kbVy;
-    p.y += p.vy;
-    p.kbVy -= PLAYER_KB_GRAV;
+    _applyKbStep(p, 0.96);
     if (p.y <= 0) {
       p.y = 0; p.kbVy = 0; p.kbVx = 0; p.vy = 0;
       p.state = STATE.down_bas_start;
@@ -471,11 +466,7 @@ export function updatePlayerHitstun(p) {
     }
   } else if (s === STATE.down_up_start || s === STATE.down_up_loop) {
     // lv4 打ち上げ：横倒し落下（敵 down_up_* 共用試作）。launcherAirborne で滞空延長。
-    p.x += p.kbVx;
-    p.kbVx *= 0.98;
-    p.vy = p.kbVy;
-    p.y += p.vy;
-    p.kbVy -= PLAYER_KB_GRAV * (p.launcherAirborne ? 0.6 : 1);
+    _applyKbStep(p, 0.98, p.launcherAirborne ? 0.6 : 1);
     if (s === STATE.down_up_start) {
       p.stateTimer--;
       if (p.stateTimer <= 0) p.state = STATE.down_up_loop;
@@ -491,11 +482,7 @@ export function updatePlayerHitstun(p) {
   } else if (s === STATE.down_rakka_start || s === STATE.down_rakka_loop) {
     // lv5 叩きつけ：真下に高速落下（敵 down_rakka_* 共用）。あおむけ姿勢のまま落下し、
     //   着地で 1回バウンド（down_bound_start）へ。地上ヒット時は即着地 → バウンド。
-    p.x += p.kbVx;
-    p.kbVx *= 0.98;
-    p.vy = p.kbVy;
-    p.y += p.vy;
-    p.kbVy -= PLAYER_KB_GRAV;
+    _applyKbStep(p, 0.98);
     if (s === STATE.down_rakka_start) {
       p.stateTimer--;
       if (p.stateTimer <= 0) p.state = STATE.down_rakka_loop;
@@ -511,11 +498,7 @@ export function updatePlayerHitstun(p) {
   } else if (s === STATE.down_bound_start) {
     // バウンド上昇 → 落下。再着地で down_bas_loop へ（仕様 §4.1：bas_start イントロはスキップ。
     //   バウンド自体が「落ちて崩れる」演出を担うため）。敵 down_bound_start と同じ合流先。
-    p.x += p.kbVx;
-    p.kbVx *= 0.96;
-    p.vy = p.kbVy;
-    p.y += p.vy;
-    p.kbVy -= PLAYER_KB_GRAV;
+    _applyKbStep(p, 0.96);
     p.stateTimer--;
     if (p.y <= 0) {
       p.y = 0; p.kbVy = 0; p.kbVx = 0; p.vy = 0;
@@ -531,11 +514,7 @@ export function updatePlayerHitstun(p) {
   } else if (s === STATE.down_super_start || s === STATE.down_super_loop) {
     // lv6 超吹き飛ばし：高速で吹き飛ぶ（敵 down_super_* 共用）。
     //   壁ヒット → down_wall_start（張り付き）／ 地面ヒット → down_roll_start（転がり）。
-    p.x += p.kbVx;
-    p.kbVx *= 0.96;
-    p.vy = p.kbVy;
-    p.y += p.vy;
-    p.kbVy -= PLAYER_KB_GRAV;
+    _applyKbStep(p, 0.96);
     if (s === STATE.down_super_start) {
       p.stateTimer--;
       if (p.stateTimer <= 0) p.state = STATE.down_super_loop;
@@ -628,11 +607,7 @@ export function updatePlayerHitstun(p) {
     const blinkF = HP_CONFIG.DEATH_BLINK_FRAMES;
     const totalF = fadeF + blinkF;
     const elapsed = totalF - p.deathPhaseTimer;
-    p.x += p.kbVx;
-    p.kbVx *= 0.94;
-    p.vy = p.kbVy;
-    p.y += p.vy;
-    p.kbVy -= PLAYER_KB_GRAV;
+    _applyKbStep(p, 0.94);
     if (p.y <= 0) { p.y = 0; p.kbVy = 0; p.vy = 0; }
     if (elapsed < fadeF) {
       const mix = elapsed / fadeF;
@@ -726,18 +701,9 @@ export function updatePlayerHitstun(p) {
     } else {
       p.mesh.rotation.x = 0;  // down_super_* / down_wall_start 等は直立で飛ぶ
     }
-    // === 転がり中の腰ピボット補正（敵 down_roll_* と同式）===
-    //   rotation.x をメッシュ原点（足元）でなく腰高さ ROLL_HIP_PIVOT 周りに見せる。
-    //   ZYX 順なので hip local (0,h,0) は Rx → Ry の順で変換され、world hip を
-    //   (x, y+h, z) に固定するよう position をオフセットする。
+    // 転がり中は腰ピボット補正（敵・プレイヤー共用ヘルパ）。それ以外は素の座標。
     if (s === STATE.down_roll_start || s === STATE.down_roll_loop) {
-      const ROLL_HIP_PIVOT = 70;
-      const th = p.rollAngle ?? 0;
-      const ph = p.mesh.rotation.y;
-      const sinT = Math.sin(th), cosT = Math.cos(th);
-      p.mesh.position.x = p.x - ROLL_HIP_PIVOT * sinT * Math.sin(ph);
-      p.mesh.position.y = p.y + ROLL_HIP_PIVOT * (1 - cosT);
-      p.mesh.position.z = p.z - ROLL_HIP_PIVOT * sinT * Math.cos(ph);
+      applyRollHipPivot(p.mesh, p.x, p.y, p.z, p.rollAngle ?? 0);
     }
   }
   // 無敵中の透明点滅（dying/dead/respawning は別演出が visibility を制御するので除外）
