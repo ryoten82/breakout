@@ -394,11 +394,16 @@ export const ATTACKS = {
     label:        'c01_sp_01_air (METEO 波動コマンド・空中版・パイルバンカー連続ヒット)',
     // 2026-05-19：発生前硬直 +10F（敵に対するリスク付与・発生に重み）
     duration:     36, hitFrame: 20, hitDuration: 6, cancelWindow: 22,
-    // === 連続ヒット：3 段（フレーム 10 / 14 / 18）===
+    // === 連続ヒット：3 段（フレーム 20 / 24 / 28）===
     // パイルバンカーの「ドリル」感を多段で表現。最終ヒットで叩きつけ or 超吹き飛ばし
     isMultiHit:     true,
     multiHitCount:  3,
     hitInterval:    4,    // ドリル感のためインターバル短め
+    // 多段の空中保持：中間ヒットで空中の敵をプレイヤー側へ寄せ、落下で最終段を取りこぼさない
+    multiHitVacuum: true,
+    // 空中滞空：攻撃中はプレイヤーの重力を軽くして「落ちすぎ」を防ぐ。
+    //   通常 1.0 で落ちると空中の敵（浮力 0.65）より速く沈み、下方向射撃が敵を上に外す。
+    airGravFactor: 0.3,
     damagePerHit:   4,
     damageLastHit:  8,    // 最終 1 発：8 ダメ + atk_lv 5/6 dispatch
     damage:         16,   // 互換用（4×2 + 8 = 16 総合・旧 14 から微増）
@@ -420,9 +425,11 @@ export const ATTACKS = {
     hitColor:     0x44ccff,
     hitCount:     22,
     launcher:     false,
-    // 攻撃発生フレームで後方斜め上にホップ（パイルバンカー射出の反動表現）
-    // 空中コンボの締めとして「後方に下がって距離を取る」イメージ
+    // 後方斜め上にホップ（パイルバンカー射出の反動表現）。空中コンボの締めとして
+    //   「後方に下がって距離を取る」イメージ。aerialHopFrame で最終段(28F)の後に出す
+    //   → 連続ヒット中に自分が後退して取りこぼすのを防ぐ。
     aerialHop:    true,
+    aerialHopFrame: 30,     // 後方ホップの発火 F（最終ヒット 28F の直後）
     aerialHopVy:  14,       // 上昇成分（通常 AERIAL_HOP_V=9 より少し強め）
     aerialHopVx:  -10,      // 後方成分（負値 = facing と逆方向へ反動）
     partsAnim:    'strong_punch_r',

@@ -1148,6 +1148,17 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     const iKbVx = attack.intermediateKnockbackVx ?? Math.max(6, Math.floor((attack.knockback ?? 40) * 0.12));
     e.knockbackVx = facing * iKbVx;
     e.kbDecay     = attack.intermediateKbDecay ?? 0.92;  // 緩い減衰で「ライドアロング」
+    // 多段ヒットの空中保持（multiHitVacuum）：空中の敵を毎ヒット プレイヤー側へ寄せ、
+    //   落下・横ズレで最終段を取りこぼさない（ドリルで「つかんで」いるイメージ）。
+    if (attack.multiHitVacuum && e.y > ENEMY_AIRBORNE_Y_THRESHOLD) {
+      e.vy = 0;                       // 落下を止めて次ヒットまで滞空
+      e.peakHangTimer = 0;
+      e.launcherAirborne = false;
+      e.knockbackVx = 0;              // 中間ノックバックの押し出しを打ち消す
+      e.y += (p.y - e.y) * 0.5;       // 高さをプレイヤーへ寄せる
+      e.z += (p.z - e.z) * 0.4;
+      e.x += ((p.x + facing * 90) - e.x) * 0.4;  // 前方保持距離へ寄せる
+    }
     // 演出：中間ヒットでも hitstop / shake をやや重めに（攻撃の手応えを優先）
     const hitColor = attack.hitColor ?? 0xffee44;
     spawnHitParticles(e.x, e.y + 60, e.z, hitColor,

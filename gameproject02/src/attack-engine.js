@@ -133,6 +133,11 @@ export function startAttackById(p, id, chainIdx) {
     p.vy = Math.max(p.vy, ATTACKS[id].plyrLiftVy);
     if (p.isGrounded) p.isGrounded = false;  // 地上発動なら離地
   }
+  // 空中滞空攻撃（airGravFactor 指定）：発動時に落下速度をリセットし、その高さで滞空開始。
+  //   updatePlayer 側で攻撃中は重力が airGravFactor 倍に差し替わる（空中の敵に高度を合わせる）。
+  if (ATTACKS[id].airGravFactor !== undefined && !p.isGrounded) {
+    p.vy = 0;
+  }
   // 踏み込み攻撃：lungeVx 指定があれば facing 方向へ短時間前進
   // ステップ攻撃と違って tilt 等の特別演出はせず、純粋に前進運動量だけを与える
   // lungeDelay 指定時は発動瞬間には出さず、updateAttack が elapsed===lungeDelay で仕込む
@@ -255,8 +260,10 @@ export function updateAttack(p) {
   //   （tryHitEnemies on-hit と同じ _customHop ルール）
   {
     const _customHop = atk?.aerialHopVy !== undefined;
+    // 多段技は最終ヒット後にホップしたい → aerialHopFrame 指定でホップ発火 F を後ろにずらせる
+    const _hopFrame = atk?.aerialHopFrame ?? atk?.hitFrame;
     if (
-      elapsed === atk.hitFrame &&
+      elapsed === _hopFrame &&
       atk.isSpecial && atk.aerialHop && !p.isGrounded &&
       (!atk.launchVy || _customHop)
     ) {

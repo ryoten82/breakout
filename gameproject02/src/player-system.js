@@ -1030,7 +1030,12 @@ export function updatePlayer(p) {
       } else if (p._aerialGraceTimer > 0) {
         p._aerialGraceTimer--;
       }
-      const pGravFactor = (inAerialCombo || p._aerialGraceTimer > 0) ? PHYSICS.AERIAL_GRAV_FACTOR : 1.0;
+      let pGravFactor = (inAerialCombo || p._aerialGraceTimer > 0) ? PHYSICS.AERIAL_GRAV_FACTOR : 1.0;
+      // 空中滞空攻撃（airGravFactor 指定の必殺技）：攻撃中は重力を差し替えて滞空。
+      //   空中の敵（浮力 0.65）に高度を合わせ、下方向射撃が敵を取りこぼさないようにする。
+      if (p.state === STATE.attacking && curAtk?.airGravFactor !== undefined) {
+        pGravFactor = curAtk.airGravFactor;
+      }
       p.vy -= PHYSICS.GRAVITY * pGravFactor;
       // 終端速度クランプ：空中コンボで滞空フレームが長くなると vy が際限なく溜まり、
       // コンボ離脱後に異常な急降下になる事象を抑える（2026-05-19 追加）。
