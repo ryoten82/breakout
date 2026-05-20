@@ -50,6 +50,8 @@ let _aiPhaseProj = null;
 const _aiPhasePool = [];
 let _stunProj = null;
 const _stunPool = [];
+let _personaProj = null;
+const _personaPool = [];
 let _dmgProj = null;
 const _dmgNumbers = [];   // 飛び交うダメージ数値（{ x,y,z,vy,vx,life,maxLife,crit,el }）
 const _dmgNumPool = [];   // DOM 要素プール（_inUse で借用管理）
@@ -73,6 +75,7 @@ export function initHudSystem(deps) {
   _grabGaugeProj = new _THREE.Vector3();
   _aiPhaseProj = new _THREE.Vector3();
   _stunProj = new _THREE.Vector3();
+  _personaProj = new _THREE.Vector3();
   _dmgProj = new _THREE.Vector3();
 }
 
@@ -320,6 +323,57 @@ export function updateStatusStunHud() {
   }
   for (let i = _enemies.length; i < _stunPool.length; i++) {
     _stunPool[i].style.display = 'none';
+  }
+}
+
+// ============================================================
+//  デバッグ：敵の性格ラベル（#14・HP ゲージの上に常時表示）
+//   - brave＝橙 / cunning＝紫。興奮中は末尾に「!」
+//   - 性格システム（dodge/guard 頻度差）の確認用
+// ============================================================
+const _PERSONALITY_COLOR = {
+  brave:   '#ff8844',  // 攻撃的＝橙
+  cunning: '#bb77ff',  // 狡猾＝紫
+};
+function _getPersonaEl(idx) {
+  while (_personaPool.length <= idx) {
+    const el = document.createElement('div');
+    el.id = `enemy-personality-${_personaPool.length}`;
+    el.style.position = 'absolute';
+    el.style.transform = 'translate(-50%, -50%)';
+    el.style.pointerEvents = 'none';
+    el.style.zIndex = '82';
+    el.style.fontFamily = "'Courier New', monospace";
+    el.style.fontSize = '13px';
+    el.style.fontWeight = 'bold';
+    el.style.textShadow = '0 0 4px #000, 2px 2px 0 #000';
+    el.style.whiteSpace = 'nowrap';
+    el.style.display = 'none';
+    el.style.lineHeight = '1';
+    (_hudLayerEl ?? document.body).appendChild(el);
+    _personaPool.push(el);
+  }
+  return _personaPool[idx];
+}
+export function updateEnemyPersonalityHud() {
+  for (let i = 0; i < _enemies.length; i++) {
+    const e = _enemies[i];
+    const el = _getPersonaEl(i);
+    if (!e.isAlive || e.state === STATE.enemy_dying || e.dying) {
+      el.style.display = 'none';
+      continue;
+    }
+    el.textContent = (e.personality || '?').toUpperCase() + (e.enraged ? '!' : '');
+    el.style.color = _PERSONALITY_COLOR[e.personality] || '#ffffff';
+    // HP ゲージ（yOffset 220）の少し上に投影
+    _personaProj.set(e.x, e.y + 255, e.z);
+    _personaProj.project(_camera);
+    el.style.left = ((_personaProj.x * 0.5 + 0.5) * _gameWidth)  + 'px';
+    el.style.top  = ((-_personaProj.y * 0.5 + 0.5) * _gameHeight) + 'px';
+    el.style.display = 'block';
+  }
+  for (let i = _enemies.length; i < _personaPool.length; i++) {
+    _personaPool[i].style.display = 'none';
   }
 }
 
