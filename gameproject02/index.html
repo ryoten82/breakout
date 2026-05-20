@@ -169,17 +169,7 @@
       pointer-events: none;
     }
 
-    #phase {
-      position: absolute;
-      top: var(--sp-lg); right: var(--sp-lg);
-      padding: var(--sp-sm) var(--sp-lg);
-      background: rgba(40, 0, 40, 0.55);
-      border-right: var(--hud-accent-w) solid #ff00aa;
-      font-size: var(--fs-sm);
-      color: #ff88cc;
-      pointer-events: none;
-    }
-    /* デバッグ：最新更新日時 / リロード時刻（キャッシュ確認用） */
+    /* デバッグ：現在フェーズ / 最新更新日時 / リロード時刻（キャッシュ確認用） */
     #build-info {
       position: absolute;
       top: 56px;
@@ -204,7 +194,7 @@
 
     #fps {
       position: absolute;
-      top: 66px; right: var(--sp-lg);
+      top: var(--sp-lg); right: var(--sp-lg);   /* 右上隅（旧 PHASE バッジ跡地・build-info の上）*/
       padding: var(--sp-xs) var(--sp-lg);
       background: rgba(0, 0, 0, 0.45);
       border-right: var(--hud-accent-w) solid #446655;
@@ -637,8 +627,8 @@
   </div>
 
   <div id="debug">x: 0  z: 0  y: 0</div>
-  <div id="phase">PHASE 2.2: SP / STRONG / DASH</div>
   <div id="build-info">
+    <span class="lbl">PHASE</span><br>--<br>
     <span class="lbl">UPDATE</span><br>--<br>
     <span class="lbl">LOAD</span><br>--
   </div>
@@ -679,7 +669,7 @@
 
   <div id="dummy-hp" style="
     position: absolute;
-    bottom: var(--sp-xl); right: var(--sp-xl);
+    top: 30px; left: calc(50% + 80px);
     font-family: 'Courier New', monospace;
     font-size: var(--fs-md);
     color: #ff8888;
@@ -2112,7 +2102,9 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-20 debug: 開始画面にモード選択（通しプレイ/アクションテスト）+ アクションテスト部屋を新設';
+    const LAST_UPDATE = '2026-05-20 debug: phase バッジ撤去 + INV バッジに説明表記追加';
+    // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
+    const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2126,6 +2118,8 @@
           return s;
         };
         _buildInfoEl.replaceChildren(
+          mkLabel('PHASE'), document.createElement('br'),
+          document.createTextNode(CURRENT_PHASE), document.createElement('br'),
           mkLabel('UPDATE'), document.createElement('br'),
           document.createTextNode(LAST_UPDATE), document.createElement('br'),
           mkLabel('LOAD'), document.createElement('br'),
@@ -2224,7 +2218,7 @@
         'cursor:pointer', 'z-index:200',
         'pointer-events:auto',
       ].join(';');
-      el.textContent = 'INV: 0';
+      el.textContent = 'INV　デバッグ用監視中　： 0';
       el.title = 'クリックで履歴を console に出力';
       el.addEventListener('click', () => {
         console.log('[INV-HUD] dump latest 30:', _invDump(30));
@@ -2237,7 +2231,7 @@
         const s = _invSummarize();
         const fatal = s.byLevel.fatal || 0;
         const warn  = s.byLevel.warn  || 0;
-        el.textContent = `INV: ${s.total}${fatal ? ` 🔴${fatal}` : ''}${warn ? ` 🟡${warn}` : ''}`;
+        el.textContent = `INV　デバッグ用監視中　： ${s.total}${fatal ? ` 🔴${fatal}` : ''}${warn ? ` 🟡${warn}` : ''}`;
         // 致命があれば赤縁
         el.style.borderColor = fatal > 0 ? 'rgba(255,80,80,0.9)' : 'rgba(100,160,255,0.5)';
         el.style.color       = fatal > 0 ? '#ff8888' : '#aaccff';
