@@ -50,6 +50,9 @@ let _aiPhaseProj = null;
 const _aiPhasePool = [];
 let _stunProj = null;
 const _stunPool = [];
+let _dmgProj = null;
+const _dmgNumbers = [];   // 飛び交うダメージ数値（{ x,y,z,vy,vx,life,maxLife,crit,el }）
+const _dmgNumPool = [];   // DOM 要素プール（_inUse で借用管理）
 
 export function initHudSystem(deps) {
   _THREE = deps.THREE;
@@ -70,6 +73,7 @@ export function initHudSystem(deps) {
   _grabGaugeProj = new _THREE.Vector3();
   _aiPhaseProj = new _THREE.Vector3();
   _stunProj = new _THREE.Vector3();
+  _dmgProj = new _THREE.Vector3();
 }
 
 // ============================================================
@@ -316,5 +320,97 @@ export function updateStatusStunHud() {
   }
   for (let i = _enemies.length; i < _stunPool.length; i++) {
     _stunPool[i].style.display = 'none';
+  }
+}
+
+// ============================================================
+//  ダメージ数値ポップアップ（プレイヤー攻撃ヒット時の与ダメージ表示）
+//   - spawnDamageNumber(x,y,z,amount,opts) でヒット位置にポップを生成
+//   - updateDamageNumbers() を毎 update フレームで呼ぶ：上昇 + フェード + world→screen 投影
+//   - DOM 要素はプール再利用（_inUse フラグで借用管理）
+//   - opts.crit:true で強調表示（クリティカル攻撃・タスク #13 で使用）
+// ============================================================
+const _DMG_NUM_LIFE = 46;   // 表示寿命F（≒0.77 秒）
+
+function _getDmgNumEl() {
+  for (const el of _dmgNumPool) {
+    if (!el._inUse) { el._inUse = true; return el; }
+  }
+  const el = document.createElement('div');
+  el.className = 'dmg-number';
+  el.style.position = 'absolute';
+  el.style.pointerEvents = 'none';
+  el.style.zIndex = '84';
+  el.style.fontFamily = "'Courier New', monospace";
+  el.style.fontWeight = 'bold';
+  el.style.whiteSpace = 'nowrap';
+  el.style.lineHeight = '1';
+  el.style.display = 'none';
+  el._inUse = true;
+  (_hudLayerEl ?? document.body).appendChild(el);
+  _dmgNumPool.push(el);
+  return el;
+}
+
+// 1 個分の見た目反映（world→screen 投影 + 上昇フェード + スケールポップ）。
+//   spawn 直後と毎フレーム更新で共用 → プール再利用時の前番号位置のチラ見えを防ぐ。
+function _renderDmgNumber(d) {
+  if (!_camera || !_dmgProj) return;
+  _dmgProj.set(d.x, d.y, d.z);
+  _dmgProj.project(_camera);
+  const frameX = (_dmgProj.x * 0.5 + 0.5) * _gameWidth;
+  const frameY = (-_dmgProj.y * 0.5 + 0.5) * _gameHeight;
+  const t   = d.life / d.maxLife;          // 1→0
+  const age = 1 - t;                       // 0→1
+  const alpha = (t >= 0.5) ? 1 : (t / 0.5);  // 寿命後半 50% で透明へ
+  const scale = 0.4 + 0.6 * Math.min(1, age / 0.12);  // 0.4→1.0 の素早いポップ
+  d.el.style.left = frameX + 'px';
+  d.el.style.top  = frameY + 'px';
+  d.el.style.opacity = alpha;
+  d.el.style.transform = `translate(-50%, -50%) scale(${scale})`;
+}
+
+export function spawnDamageNumber(x, y, z, amount, opts = {}) {
+  const crit = !!opts.crit;
+  const el = _getDmgNumEl();
+  el.textContent = Math.round(amount);
+  // 通常：白／クリティカル：橙＋大きめ＋発光強め
+  if (crit) {
+    el.style.color = '#ff9922';
+    el.style.fontSize = '52px';
+    el.style.textShadow = '0 0 12px #ff5500, 0 0 6px #000, 3px 3px 0 #000';
+  } else {
+    el.style.color = '#ffffff';
+    el.style.fontSize = '38px';
+    el.style.textShadow = '0 0 6px #000, 2px 2px 0 #000';
+  }
+  el.style.display = 'block';
+  const d = {
+    // 多段ヒットの完全重なりを避けるため X に微小ばらつき
+    x: x + (Math.random() - 0.5) * 44,
+    y, z,
+    vy: 2.4,                          // 上昇初速（world 単位/F）
+    vx: (Math.random() - 0.5) * 0.7,  // 軽い横流れ
+    life: _DMG_NUM_LIFE, maxLife: _DMG_NUM_LIFE,
+    crit, el,
+  };
+  _dmgNumbers.push(d);
+  _renderDmgNumber(d);  // spawn フレームから正しい位置・透明度で表示
+}
+
+export function updateDamageNumbers() {
+  for (let i = _dmgNumbers.length - 1; i >= 0; i--) {
+    const d = _dmgNumbers[i];
+    d.life--;
+    d.y += d.vy;
+    d.vy *= 0.90;   // 上昇減速（ふわっと止まる）
+    d.x += d.vx;
+    if (d.life <= 0) {
+      d.el.style.display = 'none';
+      d.el._inUse = false;
+      _dmgNumbers.splice(i, 1);
+      continue;
+    }
+    _renderDmgNumber(d);
   }
 }

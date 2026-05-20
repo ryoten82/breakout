@@ -38,6 +38,7 @@ import {
 } from './config.js';
 import { resolveAttackAttr } from './attacks.js';
 import { handleEnemyDyingHit, enterEnemyDyingBurst } from './enemy-system.js';
+import { spawnDamageNumber } from './hud-system.js';
 
 let _THREE = null;
 let _scene = null;
@@ -570,6 +571,8 @@ export function tryHitEnemies(p, attack, ctx) {
     const _scaledDamage = Math.max(SAME_ATK_CONFIG.MIN_DAMAGE, Math.round(attack.damage * _sameAtkDmgScale));
     // ヒット
     e.hp = Math.max(0, e.hp - _scaledDamage);
+    // 与ダメージ数値ポップ（ヒット位置の頭上）
+    spawnDamageNumber(e.x, e.y + 110, e.z, _scaledDamage, { crit: !!attack.isCritical });
     // 最終ヒッター記録（ゴア・クリティカル抽選で参照・enterEnemyDying 内で profile lookup に使う）
     // lv は実効値（敵が空中なら atk_lv_air、地上なら atk_lv）。variants の atk_lv マッチで使う
     const _hitLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
@@ -1039,7 +1042,9 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
       if (_lv !== 5 && _lv !== 7) continue;
     }
     // ヒット適用（中間）
-    e.hp = Math.max(0, e.hp - (attack.damagePerHit ?? 5));
+    const _midDamage = attack.damagePerHit ?? 5;
+    e.hp = Math.max(0, e.hp - _midDamage);
+    spawnDamageNumber(e.x, e.y + 110, e.z, _midDamage, { crit: !!attack.isCritical });
     // 最終ヒッター記録（マルチヒットでも毎発上書き：最終ヒットの attackId が記録される）
     // 中間ヒットの lv は便宜上 attack.atk_lv（最終ヒットの想定値）を使う
     const _midLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)

@@ -821,6 +821,7 @@
     import {
       initHudSystem,
       updateSPGauge, updateHpHud, updateGrabGauge, updateEnemyAtkCountdown, updateEnemyAiPhaseHud, updateStatusStunHud,
+      spawnDamageNumber, updateDamageNumbers,
     } from './src/hud-system.js';
     // === enemy-system（敵 AI / 状態遷移 / 物理 / mesh 構築）は src/enemy-system.js に分離（Step E-3）===
     import {
@@ -2110,7 +2111,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-20 feat: 敵ジャンプ state（jump_*・プレイヤー共用）/ 空中の敵被弾をプレイヤーと同期（hit allowlist 拡張）';
+    const LAST_UPDATE = '2026-05-20 feat: 攻撃ヒット時のダメージ数値ポップ表示（ヒット位置に上昇＋フェード）';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {
@@ -2904,6 +2905,7 @@
       updateEnemyAtkCountdown();
       updateEnemyAiPhaseHud();
       updateStatusStunHud();
+      updateDamageNumbers();
       updateDebug();
       // === debug-invariants：意図しない挙動を自動検知（致命は常時 ON / 警告/情報は SB.DEBUG_INVARIANTS）===
       const _invFrame = getGameFrame();
@@ -3383,6 +3385,9 @@
         return jumpEnemy(e, opts);
       },
       jumpEnemy,
+      spawnDamageNumber,   // デバッグ：SB.spawnDamageNumber(x,y,z,amount,{crit}) で数値ポップ生成
+      // デバッグ：ゲーム更新を手動で N フレーム進める（rAF 停止＝タブ非可視時の検証用）
+      gameStep: (n = 1) => { for (let i = 0; i < n; i++) update(); },
       DUMMY_ATK_CONFIG, ENEMY_AI, tryHitPlayer,
       TEST_CONFIG, PAUSE_CONFIG, GAME_SPEED,
       // Phase 3：敵 aiPhase 頭上ラベル ON/OFF（数字キー 8）
