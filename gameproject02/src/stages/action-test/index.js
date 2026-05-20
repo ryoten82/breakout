@@ -123,8 +123,12 @@ export function initActionTest(deps) {
   _hide(backWallPillars);
   _hide(bgElements);
   _buildRoom(scene, THREE);
-  // ダミー敵 1 体（自分の攻撃・コンボの当て先）
-  if (spawnDummy) spawnDummy(0, 150, { maxHp: 100, instantRespawn: true });
+  // ダミー敵 2 体：性格の挙動差（dodge/guard 頻度）を見比べる用に brave / cunning を 1 体ずつ。
+  //   頭上ラベル＝橙 BRAVE / 紫 CUNNING。基本 brave 雑魚・基本 cunning 雑魚の調整起点。
+  if (spawnDummy) {
+    spawnDummy(-250, 150, { maxHp: 100, instantRespawn: true, personality: 'brave' });
+    spawnDummy( 250, 150, { maxHp: 100, instantRespawn: true, personality: 'cunning' });
+  }
   _built = true;
 }
 
