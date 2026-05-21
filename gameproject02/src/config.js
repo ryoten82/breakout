@@ -292,34 +292,78 @@ export const GUARD_CONFIG = {
 };
 
 // ============================================================
-//  #section enemy-ai-dummy — ダミー敵ミニマム攻撃（Phase 2.4・テスト用 AI）
+//  #section enemy-ai-dummy — 雑魚敵 AI の移動・間合いパラメータ（Phase 2.4〜3）
 //  - SB.ENEMY_AI.enabled で全敵 AI をトグル（数字キー 4 で切替）
-//  - 接近 → wind(180F = 3秒カウントダウン) → active(8F) → recover(30F) → cooldown(45F) → 接近...
-//  - wind 中もプレイヤー追跡 / approachRange 超過でキャンセル
-//  - active 中だけ赤 AABB のヒットボックスを可視化（enemyHitboxMesh）
+//  - 接近 → 攻撃（ENEMY_ATTACKS）→ recover → cooldown → retreat → 接近...
+//  - 攻撃モーション・ヒット値は ENEMY_ATTACKS 側（本テーブルは移動・間合いのみ）
 // ============================================================
 export const ENEMY_AI = { enabled: true };
 export const DUMMY_ATK_CONFIG = {
-  approachRange:    400,   // この距離以下で接近開始
-  attackRange:      130,   // この距離以下で攻撃発動
+  approachRange:    400,   // この距離以下で接近開始（aiPhase=chase）
+  attackRange:      130,   // この距離以下で基本振り（e01_atk_01）発動
+  dashTackleRange:  350,   // attackRange 〜本値の中距離帯で突進タックル（e01_atk_02）発動
+  atkSelectOverlap: 24,    // 近/中の境界に設ける重なり帯の幅（ここだけ性格 weight で抽選）
+  dashChaseThreshold: 250, // chase 中この距離より遠いと走行ポーズ（state=dash）に切替
   approachSpeed:    1.4,   // 接近移動速度（wu/F）
-  windupFrames:     180,   // カウントダウン 3,2,1（60F/秒 × 3秒）
-  activeFrames:     8,     // 当たり判定アクティブ
-  recoverFrames:    30,    // 振り終わり硬直
-  cooldownFrames:   45,    // 攻撃終了 → 次の攻撃までのインターバル
-  hitboxRangeX:     110,
-  hitboxRangeY:     90,
-  hitboxRangeZ:     80,
-  damage:           10,
-  atk_lv:           1,
-  knockback:        12,
-  hitstop:          5,
-  shake:            4,
-  hitColor:         0xff8844,
+  dashChaseSpeed:   2.6,   // 走行（dash state）中の接近速度（wu/F）
   // Phase 3 AI ステート明示化（aiPhase）: retreat フェーズ用
   retreatFrames:        40,   // 攻撃 recover 後の強制後退時間
   retreatSpeed:         1.0,  // 後退時の移動速度（wu/F・approachSpeed より控えめ）
   postHitRetreatFrames: 30,   // 被弾→wait01 復帰後の後退時間（被弾後の間合い取り）
+};
+
+// ============================================================
+//  #section enemy-attacks — 雑魚敵の攻撃テーブル（14-D・enem01.md §攻撃カタログ）
+//  - 攻撃ごとに wind/active/recover/cooldown とヒット値（tryHitPlayer 互換）を定義
+//  - e.curAtkId で現在の攻撃を参照。新規攻撃はここに 1 エントリ追加する
+//  - pitchWind/pitchActive：rotation.x で振りの予兆と踏み込みを表現（読みやすさの担保）
+//  - 値はランタイム調整可：window.SB.ENEMY_ATTACKS.e01_atk_01.damage = 12 など
+// ============================================================
+export const ENEMY_ATTACKS = {
+  // enem01（スクラッパー）基本振り：短リーチ・速い・読みやすい牽制
+  e01_atk_01: {
+    name:           '基本振り',
+    kind:           'swing',  // 攻撃の種類（swing=その場振り / dash=突進タックル）
+    windFrames:     18,    // 溜め（予兆モーション）
+    activeFrames:   8,     // 当たり判定アクティブ
+    recoverFrames:  25,    // 振り終わり硬直
+    cooldownFrames: 45,    // 次の攻撃までのインターバル（連打抑止）
+    lungeVx:        8,     // active 突入時の踏み込み量（wu）
+    hitboxRangeX:   110,
+    hitboxRangeY:   90,
+    hitboxRangeZ:   80,
+    damage:         10,
+    atk_lv:         1,
+    knockback:      12,
+    hitstop:        5,
+    shake:          4,
+    hitColor:       0xff8844,
+    pitchWind:     -0.20,  // 溜め：のけぞって予兆（プレイヤーに読ませる）
+    pitchActive:   +0.32,  // 振り：前傾の踏み込み
+  },
+  // enem01 突進タックル：中距離から dash で詰める。外すと recover が長く＝攻めどころ
+  //   active は固定フレームではなく「ヒット / 壁 / dashMaxDist」のいずれかで終了する
+  e01_atk_02: {
+    name:           '突進タックル',
+    kind:           'dash',
+    windFrames:     32,    // 溜め（突進の予兆・読みやすさ重視で長め）
+    activeFrames:   60,    // 突進の最大持続F（通常は dashMaxDist 到達で早期終了）
+    recoverFrames:  35,    // 突進終了後の硬直（外し時の攻めどころ）
+    cooldownFrames: 90,    // 次の攻撃までのインターバル（基本振りの 2 倍・連発しない）
+    dashSpeed:      9,     // 突進速度（wu/F・仕様 3.5 は遅すぎたため引き上げ・SB で調整可）
+    dashMaxDist:    420,   // 突進の最大移動距離（wu・これか壁で停止）
+    hitboxRangeX:   140,
+    hitboxRangeY:   90,
+    hitboxRangeZ:   100,
+    damage:         18,
+    atk_lv:         2,
+    knockback:      22,
+    hitstop:        7,
+    shake:          6,
+    hitColor:       0xff4422,
+    pitchWind:     -0.30,  // 溜め：深くのけぞる（基本振りより大きい予兆）
+    pitchActive:   +0.42,  // 突進：大きく前傾
+  },
 };
 
 // ============================================================
@@ -331,9 +375,16 @@ export const DUMMY_ATK_CONFIG = {
 //  - 値はランタイム調整可：window.SB.ENEMY_PERSONALITY.cunning.dodgeTendency = 0.6 など
 // ============================================================
 //  - enragedHp：HP がこの割合以下で興奮（enraged）。brave は早発（高 HP で発火）
+//  - 攻撃頻度（14-D-2・enem01.md §性格軸 レイヤー1-3）：
+//    - atk02Weight：近/中の重なり帯で突進タックルを選ぶ確率（残りが基本振り）
+//    - cooldownMult：攻撃クールダウン倍率（brave 0.7＝短い＝追ってくる）
+//    - retreatMult：攻撃後 retreat の長さ倍率（brave ≈0＝退却拒否で前のめり）
+//    - punishesHitstun：true なら「プレイヤー被弾中」でも攻撃可（brave の追撃確定）
 export const ENEMY_PERSONALITY = {
-  brave:   { guardTendency: 0.12, dodgeTendency: 0.08, staggerThreshold: 6, enragedHp: 0.50 },
-  cunning: { guardTendency: 0.40, dodgeTendency: 0.45, staggerThreshold: 4, enragedHp: 0.38 },
+  brave:   { guardTendency: 0.12, dodgeTendency: 0.08, staggerThreshold: 6, enragedHp: 0.50,
+             atk02Weight: 0.60, cooldownMult: 0.7, retreatMult: 0.15, punishesHitstun: true },
+  cunning: { guardTendency: 0.40, dodgeTendency: 0.45, staggerThreshold: 4, enragedHp: 0.38,
+             atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 1.0,  punishesHitstun: false },
 };
 
 // ============================================================

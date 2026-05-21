@@ -35,7 +35,7 @@ import {
 } from './states.js';
 import {
   COMBO_LEVELS, getComboLevel,
-  PHYSICS, SP_CONFIG, HOMING_CONFIG, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG,
+  PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG,
 } from './config.js';
 import { resolveAttackAttr } from './attacks.js';
 import { handleEnemyDyingHit, enterEnemyDyingBurst } from './enemy-system.js';
@@ -832,7 +832,7 @@ export function tryHitEnemies(p, attack, ctx) {
       if (e.state === STATE.enemy_attacking) {
         e.atkPhase     = null;
         e.atkTimer     = 0;
-        e.atkCooldown  = DUMMY_ATK_CONFIG.cooldownFrames;
+        e.atkCooldown  = (ENEMY_ATTACKS[e.curAtkId] ?? ENEMY_ATTACKS.e01_atk_01).cooldownFrames;
         e.hitDelivered = false;
         if (enemyAttackToken.get() === e) enemyAttackToken.set(null);  // トークン解放
       }

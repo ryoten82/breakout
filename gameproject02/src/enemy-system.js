@@ -45,12 +45,12 @@ import {
   KB_LV06_VY, KB_LV06_VX_MULT,
   applyRollHipPivot,
 } from './states.js';
-import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG } from './config.js';
+import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG } from './config.js';
 import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, fxState } from './hit-engine.js';
 import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
 import { isHitstunState, tryHitPlayer } from './damage-system.js';
-import { getActiveWallX } from './camera.js';
+import { getActiveWallX, getKnockbackWallX } from './camera.js';
 
 let _THREE = null;
 let _scene = null;
@@ -224,6 +224,9 @@ export function spawnDummy(x, z, opts = {}) {
     aiEnabled:        opts.aiEnabled ?? true,
     atkPhase:         null,
     atkTimer:         0,
+    curAtkId:         null,   // 発動中の攻撃 ID（ENEMY_ATTACKS のキー・14-D）
+    atkPitchTarget:   0,      // enemy_attacking 中の rotation.x 目標（atkPhase 別に設定）
+    atkDashDist:      0,      // 突進タックル（kind=dash）の累積突進距離（14-D-2）
     atkCooldown:      opts.atkCooldown ?? 90,  // 初期は少し溜め（同時カウントを避けるため敵ごとに変える）
     hitDelivered:     false,
     // === Phase 3 AI ステート明示化 ===
@@ -244,6 +247,11 @@ export function spawnDummy(x, z, opts = {}) {
     dodgeInvuln:      false,                    // enemy_dodge 前半の無敵フラグ
     enraged:          false,                    // 興奮状態（HP 低下で 1 度だけ true・14-C）
     enragedHp:        _persona.enragedHp,        // この HP 割合以下で enraged 化
+    // === #14-D-2 攻撃頻度（性格別・enem01.md §性格軸 レイヤー1-3）===
+    atk02Weight:      _persona.atk02Weight,      // 近/中の重なり帯で突進タックルを選ぶ確率
+    cooldownMult:     _persona.cooldownMult,     // 攻撃クールダウン倍率（brave 短い）
+    retreatMult:      _persona.retreatMult,      // 攻撃後 retreat の長さ倍率（brave ≈0）
+    punishesHitstun:  _persona.punishesHitstun,  // プレイヤー被弾中でも攻撃する（brave 追撃確定）
     // === Phase 3 ステータス系（status_stun）===
     statusStunTimer:  0,    // status_stun 残F
     // === Phase 3-A/3-B 敵死亡（gore-scrap・2026-05-20 フラグ方式へリファクタ）===
@@ -1505,6 +1513,22 @@ function _explodeSplitBackBlast(e) {
 }
 
 // ============================================================
+//  攻撃選択（14-D-2・enem01.md §距離別攻撃選択 + §性格軸 レイヤー1）
+//   - 近距離（attackRange 以内）= 基本振り e01_atk_01
+//   - 中距離（attackRange 〜 dashTackleRange）= 突進タックル e01_atk_02
+//   - 境界の重なり帯（atkSelectOverlap 幅）だけ性格 atk02Weight で抽選
+//   - 圏外（dashTackleRange 超）は null（攻撃せず接近継続）
+// ============================================================
+function _selectEnemyAtk(e, adx) {
+  const C = DUMMY_ATK_CONFIG;
+  const swingOnly = C.attackRange - C.atkSelectOverlap;  // ここ以下は基本振り確定
+  if (adx <= swingOnly)        return 'e01_atk_01';
+  if (adx >  C.attackRange)    return (adx <= C.dashTackleRange) ? 'e01_atk_02' : null;
+  // 重なり帯：性格 weight で抽選（atk02Weight の確率でタックル）
+  return (Math.random() < e.atk02Weight) ? 'e01_atk_02' : 'e01_atk_01';
+}
+
+// ============================================================
 //  毎フレーム更新：state machine の遷移はここに集約（down_* / knockback* / bound 等）
 //
 //  ctx = { enemies, enemyAttackToken: { get, set }, getFrame }
@@ -1566,7 +1590,8 @@ export function updateEnemies(ctx) {
       // Phase 3：被弾→wait01 復帰検出（aiPhase が hitstun のまま wait01 に来た瞬間）→ retreat 発火
       if (e.aiPhase === 'hitstun') {
         e.aiPhase = 'retreat';
-        e.aiRetreatTimer = DUMMY_ATK_CONFIG.postHitRetreatFrames;
+        // brave は retreatMult≈0 で被弾後もすぐ再交戦（前のめり・レイヤー3）
+        e.aiRetreatTimer = Math.round(DUMMY_ATK_CONFIG.postHitRetreatFrames * e.retreatMult);
         // 攻撃中に被弾していた場合のトークン解放（保険）
         if (ctx.enemyAttackToken.get() === e) ctx.enemyAttackToken.set(null);
         e.atkPhase = null;
@@ -1620,9 +1645,10 @@ export function updateEnemies(ctx) {
     // 超吹き飛ばし中（down_super_start/loop）に壁に到達 → 強制 down_wall_start
     //   ※ skipWallCollision フラグ（同コンボ 2 回目以降の super 飛行）は壁張り付きをスキップして
     //     ステージ端の x クランプも無視 → そのまま地面到達で down_roll_start に流す（2026-05-18）
-    //   壁の x は getActiveWallX：画面端追従 or levelWalls 優先（2026-05-18 改修）
-    const wallL = Math.max(PHYSICS.STAGE_LEFT,  getActiveWallX('left'));
-    const wallR = Math.min(PHYSICS.STAGE_RIGHT, getActiveWallX('right'));
+    //   壁の x は getKnockbackWallX：画面端ベースの封じ込め壁（2026-05-21 改修）。
+    //   敵が画面外へ長距離吹き飛ばないよう、進行ステージでも画面端側で止める。
+    const wallL = Math.max(PHYSICS.STAGE_LEFT,  getKnockbackWallX('left'));
+    const wallR = Math.min(PHYSICS.STAGE_RIGHT, getKnockbackWallX('right'));
     const hitLeft  = e.x < wallL;
     const hitRight = e.x > wallR;
     if ((hitLeft || hitRight) && !e.skipWallCollision) {
@@ -1673,7 +1699,13 @@ export function updateEnemies(ctx) {
       let myStrength = 0;
       const s = e.state;
       if (s === STATE.enemy_attacking) myStrength = 2.5;
+      // 走行（dash）は接近速度（dashChaseSpeed 2.6）より強い分離にしないと押し負けて重なる
+      else if (s === STATE.dash) myStrength = 3.0;
       else if (s === STATE.wait01 || s === STATE.walk_fwd || s === STATE.walk_back) myStrength = 1.5;
+      // 立ち姿勢の防御・リアクション系（短いが重なると見栄えが悪いので分離する）
+      else if (s === STATE.enemy_dodge || s === STATE.enemy_guard ||
+               s === STATE.enemy_block_hit || s === STATE.enemy_stagger ||
+               s === STATE.enraged_intro) myStrength = 1.5;
       else if (s === STATE.knockback01 || s === STATE.knockback02 ||
                s === STATE.knockback_air01 || s === STATE.knockback03 ||
                s === STATE.down_front_start || s === STATE.down_front_loop ||
@@ -1692,7 +1724,9 @@ export function updateEnemies(ctx) {
           // 攻撃中の敵がいたら最小距離を広め・それ以外は最小限（完全密着回避）
           const eitherAttacking = (e.state === STATE.enemy_attacking || other.state === STATE.enemy_attacking);
           const minDx = eitherAttacking ? 110 : 70;
-          const minDz = 50;
+          // Z 方向の最小距離。狭いと同 X で奥行きが被って「重なって」見えるため広めに取る
+          // （90 → 敵はプレイヤー前後 ±45 程度に散る・攻撃の rangeZ 80 内に収まり手は届く）
+          const minDz = 90;
           if (adx < minDx && adz < minDz) {
             // X 方向に押す。dx≈0 の場合はランダムで左右どちらかに
             const dxSign = (adx < 0.5) ? (Math.random() < 0.5 ? 1 : -1) : Math.sign(dx);
@@ -1906,8 +1940,10 @@ export function updateEnemies(ctx) {
       const p0 = _players[0];
       const playerInHitstun = isHitstunState(p0);
       if (e.atkCooldown > 0) e.atkCooldown--;
-      if (e.state === STATE.wait01 || e.state === STATE.walk_fwd || e.state === STATE.walk_back) {
+      if (e.state === STATE.wait01 || e.state === STATE.walk_fwd ||
+          e.state === STATE.walk_back || e.state === STATE.dash) {
         const _x0 = e.x, _z0 = e.z;  // 移動 state 判定用：AI 移動前の座標を退避（#14-A）
+        let _chaseDash = false;      // 遠間合いの走行（state=dash）フラグ（14-D-2）
         const dx = p0.x - e.x;
         const dz = p0.z - e.z;
         const adx = Math.abs(dx);
@@ -1983,49 +2019,66 @@ export function updateEnemies(ctx) {
             e.aiPhase = 'idle';
           } else {
             e.aiPhase = 'chase';
-            // 攻撃発動条件：距離 + cooldown + 接地 + 「トークン取得可」+ 「プレイヤー被弾中でない」
-            const inAttackRange = (adx <= DUMMY_ATK_CONFIG.attackRange && adz < 100 && e.atkCooldown <= 0 && e.y <= ENEMY_AIRBORNE_Y_THRESHOLD);
+            // 攻撃発動条件：距離（基本振り/タックルの圏内）+ cooldown + 接地 + トークン取得可。
+            //   性格 punishesHitstun（brave）はプレイヤー被弾中でも攻撃可＝追撃確定（レイヤー3）
+            const C = DUMMY_ATK_CONFIG;
             const curToken = ctx.enemyAttackToken.get();
             const tokenAvailable = (curToken === null || curToken === e);
-            if (inAttackRange && tokenAvailable && !playerInHitstun) {
-              // 攻撃発動：トークン取得 + 攻撃 state へ遷移
+            const canAttack = (adz < 100 && e.atkCooldown <= 0 &&
+              e.y <= ENEMY_AIRBORNE_Y_THRESHOLD && tokenAvailable &&
+              (!playerInHitstun || e.punishesHitstun));
+            const atkId = canAttack ? _selectEnemyAtk(e, adx) : null;
+            if (atkId) {
+              // 攻撃発動：トークン取得 + 攻撃 state へ遷移（14-D-2：距離で振り/タックル選択）
               ctx.enemyAttackToken.set(e);
-              e.state         = STATE.enemy_attacking;
-              e.atkPhase      = 'wind';
-              e.atkTimer      = DUMMY_ATK_CONFIG.windupFrames;
-              e.hitDelivered  = false;
-              e.aiPhase       = 'attack';
+              const _atk = ENEMY_ATTACKS[atkId];
+              e.state          = STATE.enemy_attacking;
+              e.atkPhase       = 'wind';
+              e.curAtkId       = atkId;
+              e.atkTimer       = _atk.windFrames;
+              e.atkPitchTarget = _atk.pitchWind;
+              e.atkDashDist    = 0;
+              e.hitDelivered   = false;
+              e.aiPhase        = 'attack';
             } else {
               // 接近移動（X / Z 両軸・Z は 2.5D 圧縮考慮で 0.7 倍）
               // トークン不所持でも接近は OK（位置取り）。興奮中は接近速度上昇（#14-C）
-              const _appSpd = DUMMY_ATK_CONFIG.approachSpeed *
-                (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
-              if (adx > DUMMY_ATK_CONFIG.attackRange) {
+              // 遠間合いは走行（dash state・速め）／近間合いは歩き（14-D-2）
+              _chaseDash = (adx > C.dashChaseThreshold);
+              const _baseSpd = _chaseDash ? C.dashChaseSpeed : C.approachSpeed;
+              const _appSpd = _baseSpd * (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
+              if (adx > C.attackRange) {
                 e.x += Math.sign(dx) * _appSpd;
               }
               if (adz > 80) {  // active ヒットの rangeZ 圏内まで詰める
                 e.z += Math.sign(dz) * _appSpd * 0.7;
               }
-              // attackRange 内だが token 不可 / player 被弾中 → その場で待機（ジリジリ感）
+              // 攻撃圏内だが token 不可 / cooldown 中 → その場で待機（ジリジリ感）
             }
           }
         }
-        // 移動 state 反映（#14-A）：AI で動いていれば walk_fwd/back、停止なら wait01。
-        //   攻撃発動で enemy_attacking へ遷移済みのときは触らない。
-        if (e.state === STATE.wait01 || e.state === STATE.walk_fwd || e.state === STATE.walk_back) {
+        // 移動 state 反映（#14-A / 14-D-2）：AI で動いていれば dash/walk_fwd/walk_back、
+        //   停止なら wait01。攻撃発動で enemy_attacking へ遷移済みのときは触らない。
+        if (e.state === STATE.wait01 || e.state === STATE.walk_fwd ||
+            e.state === STATE.walk_back || e.state === STATE.dash) {
           const _dxm = e.x - _x0;
           if (_dxm === 0 && e.z === _z0) {
             e.state = STATE.wait01;
           } else {
             const _toward = Math.sign(_dxm) === Math.sign(p0.x - _x0);
-            e.state = (_dxm !== 0 && !_toward) ? STATE.walk_back : STATE.walk_fwd;
+            if (_dxm !== 0 && !_toward) {
+              e.state = STATE.walk_back;
+            } else {
+              e.state = _chaseDash ? STATE.dash : STATE.walk_fwd;
+            }
           }
         }
       } else if (e.state === STATE.enemy_attacking) {
         e.aiPhase = 'attack';
+        const atk = ENEMY_ATTACKS[e.curAtkId] ?? ENEMY_ATTACKS.e01_atk_01;
         e.atkTimer--;
         if (e.atkPhase === 'wind') {
-          // カウントダウン中もプレイヤーに追従（向き合わせ + X/Z 両軸で詰める）
+          // 溜め中もプレイヤーに追従（向き合わせ + X/Z 両軸で詰める）
           const dx = p0.x - e.x;
           const dz = p0.z - e.z;
           const adx = Math.abs(dx);
@@ -2034,7 +2087,7 @@ export function updateEnemies(ctx) {
             e.facing = dx > 0 ? 1 : -1;
             e.mesh.rotation.y = e.facing * Math.PI / 2;
           }
-          // 距離が attackRange より外なら少しずつ追う（カウントダウン中の追跡速度は控えめ）
+          // 距離が attackRange より外なら少しずつ追う（溜め中の追跡速度は控えめ）
           if (adx > DUMMY_ATK_CONFIG.attackRange * 0.75) {
             e.x += Math.sign(dx) * DUMMY_ATK_CONFIG.approachSpeed * 0.6;
           }
@@ -2050,32 +2103,59 @@ export function updateEnemies(ctx) {
             e.aiPhase       = 'idle';  // wind キャンセル → 次F に距離再判定
             if (ctx.enemyAttackToken.get() === e) ctx.enemyAttackToken.set(null);  // トークン解放
           } else if (e.atkTimer <= 0) {
-            e.atkPhase = 'active';
-            e.atkTimer = DUMMY_ATK_CONFIG.activeFrames;
-            // カウントダウン終了 → アクティブ：踏み込み
-            e.x += e.facing * 8;
+            e.atkPhase       = 'active';
+            e.atkTimer       = atk.activeFrames;
+            e.atkDashDist    = 0;
+            // 溜め終了 → アクティブ：踏み込み + 振りは即スナップ（打撃感）
+            e.atkPitchTarget = atk.pitchActive;
+            e.pitchAngle     = atk.pitchActive;
+            e.x += e.facing * (atk.lungeVx ?? 0);  // 突進タックル（dash）は lungeVx 無し
           }
         } else if (e.atkPhase === 'active') {
-          if (!e.hitDelivered) {
-            if (tryHitPlayer(e, DUMMY_ATK_CONFIG)) {
-              e.hitDelivered = true;
+          if (atk.kind === 'dash') {
+            // 突進タックル：facing 方向へ dashSpeed で前進。
+            //   終了条件＝ヒット成立 / 壁で停止 / dashMaxDist 到達 / activeFrames フォールバック
+            const wallL = Math.max(PHYSICS.STAGE_LEFT,  getActiveWallX('left'));
+            const wallR = Math.min(PHYSICS.STAGE_RIGHT, getActiveWallX('right'));
+            const step  = atk.dashSpeed;
+            const nx    = Math.min(wallR, Math.max(wallL, e.x + e.facing * step));
+            const moved = Math.abs(nx - e.x);
+            e.x = nx;
+            e.atkDashDist += moved;
+            let dashEnd = false;
+            if (!e.hitDelivered && tryHitPlayer(e, atk)) { e.hitDelivered = true; dashEnd = true; }
+            if (moved < step * 0.5)               dashEnd = true;  // 壁で停止
+            if (e.atkDashDist >= atk.dashMaxDist) dashEnd = true;  // 最大距離到達
+            if (e.atkTimer <= 0)                  dashEnd = true;  // 持続F フォールバック
+            if (dashEnd) {
+              e.atkPhase       = 'recover';
+              e.atkTimer       = atk.recoverFrames;
+              e.atkPitchTarget = 0;
             }
-          }
-          if (e.atkTimer <= 0) {
-            e.atkPhase = 'recover';
-            e.atkTimer = DUMMY_ATK_CONFIG.recoverFrames;
+          } else {
+            // その場振り：active 中ずっとヒット判定（1 ヒットのみ）
+            if (!e.hitDelivered) {
+              if (tryHitPlayer(e, atk)) {
+                e.hitDelivered = true;
+              }
+            }
+            if (e.atkTimer <= 0) {
+              e.atkPhase       = 'recover';
+              e.atkTimer       = atk.recoverFrames;
+              e.atkPitchTarget = 0;   // recover：直立へ戻す
+            }
           }
         } else if (e.atkPhase === 'recover') {
           if (e.atkTimer <= 0) {
             e.state         = STATE.wait01;
             e.atkPhase      = null;
-            // 興奮中は攻撃クールダウン短縮（攻撃頻度↑・#14-C）
-            e.atkCooldown   = Math.round(DUMMY_ATK_CONFIG.cooldownFrames *
+            // 攻撃クールダウン：性格 cooldownMult（brave 短い）× 興奮短縮（#14-C）
+            e.atkCooldown   = Math.round(atk.cooldownFrames * e.cooldownMult *
               (e.enraged ? ENEMY_ENRAGE_CONFIG.COOLDOWN_MULT : 1));
             e.hitDelivered  = false;
-            // Phase 3：recover 完了 → retreat フェーズへ
+            // Phase 3：recover 完了 → retreat フェーズへ（brave は retreatMult≈0 で退却拒否）
             e.aiPhase       = 'retreat';
-            e.aiRetreatTimer = DUMMY_ATK_CONFIG.retreatFrames;
+            e.aiRetreatTimer = Math.round(DUMMY_ATK_CONFIG.retreatFrames * e.retreatMult);
             if (ctx.enemyAttackToken.get() === e) ctx.enemyAttackToken.set(null);  // トークン解放
           }
         }
@@ -2328,6 +2408,11 @@ export function updateEnemies(ctx) {
       // あおむけ姿勢（lv05 系）：X 軸で背中を下に向ける
       e.mesh.rotation.x = -Math.PI / 2;
       e.pitchAngle = 0;
+    } else if (e.state === STATE.enemy_attacking) {
+      // 攻撃モーション（14-D）：atkPhase 別に設定した atkPitchTarget へ前後傾を補間。
+      //   wind=溜めの予兆／active=前傾の踏み込み（active 突入で即スナップ済）／recover=直立へ。
+      e.pitchAngle += (e.atkPitchTarget - e.pitchAngle) * STATE_PITCH_LERP;
+      e.mesh.rotation.x = e.pitchAngle;
     } else if (STATE_PITCH_TARGET[e.state] !== undefined) {
       // pitch system 対象ステート（knockback01/02/_air01）：rx 駆動の前後傾
       const pitchTarget = STATE_PITCH_TARGET[e.state];

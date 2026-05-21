@@ -5,12 +5,11 @@
 //    - updateSPGauge / spawnSPStockRing  SP バー + ストック表示 + 充填エッジ演出
 //    - updateHpHud                      HP バー + 危機点滅
 //    - updateGrabGauge                  グラブ中の頭上ゲージ（world→screen 投影）
-//    - updateEnemyAtkCountdown          敵攻撃カウントダウン（3/2/1）
 //
 //  ES Module として index.html から import される：
 //    import {
 //      initHudSystem,
-//      updateSPGauge, updateHpHud, updateGrabGauge, updateEnemyAtkCountdown,
+//      updateSPGauge, updateHpHud, updateGrabGauge,
 //    } from './src/hud-system.js';
 //
 //  initHudSystem(deps) で依存を一括注入：
@@ -18,13 +17,13 @@
 //    - players, enemies
 //    - camera
 //    - DOM refs（spBarEl / spStockNumEl / hpBarEl / hpNumEl /
-//                grabGaugeEl / grabGaugeFillEl / hudLayerEl / enemyAtkCdTemplate）
+//                grabGaugeEl / grabGaugeFillEl / hudLayerEl）
 //    - gameWidth, gameHeight: 数値
 //
-//  SP_CONFIG / GRAB_CONFIG / STATE / ENEMY_AI は ESM 直接 import。
+//  SP_CONFIG / GRAB_CONFIG / STATE は ESM 直接 import。
 // ============================================================
 
-import { SP_CONFIG, GRAB_CONFIG, ENEMY_AI } from './config.js';
+import { SP_CONFIG, GRAB_CONFIG } from './config.js';
 import { STATE } from './states.js';
 
 let _THREE = null;
@@ -43,9 +42,7 @@ let _gameHeight = 1080;
 
 // 内部状態
 let _prevFullStocks = -1;
-let _enemyCdProj = null;
 let _grabGaugeProj = null;
-const _enemyCdPool = [];
 let _aiPhaseProj = null;
 const _aiPhasePool = [];
 let _stunProj = null;
@@ -71,7 +68,6 @@ export function initHudSystem(deps) {
   _gameWidth = deps.gameWidth;
   _gameHeight = deps.gameHeight;
   // 投影用 Vector3 は init 時に確保（毎フレーム new しない）
-  _enemyCdProj = new _THREE.Vector3();
   _grabGaugeProj = new _THREE.Vector3();
   _aiPhaseProj = new _THREE.Vector3();
   _stunProj = new _THREE.Vector3();
@@ -145,55 +141,6 @@ export function updateHpHud() {
   // 危機状態（p.inCrisis）と連動して点滅
   // → 機体本体の火花スポーンと同タイミングで切り替わる（HP_CONFIG.CRISIS_THRESHOLD 一元管理）
   _hpBarEl.classList.toggle('low', !!p.inCrisis);
-}
-
-// ============================================================
-//  デバッグ：敵攻撃カウントダウン（敵ごとに頭上 world→screen 投影）
-//   - カウントダウン中（wind フェーズ）だけ「3 / 2 / 1」を大きく表示
-//   - 敵ごとに DOM 要素を動的生成・プール管理
-// ============================================================
-function _getEnemyCdEl(idx) {
-  while (_enemyCdPool.length <= idx) {
-    const el = document.createElement('div');
-    el.id = `enemy-atk-cd-${_enemyCdPool.length}`;
-    el.style.position = 'absolute';
-    el.style.transform = 'translate(-50%, -50%)';
-    el.style.pointerEvents = 'none';
-    el.style.zIndex = '81';
-    el.style.fontFamily = "'Courier New', monospace";
-    el.style.fontSize = '56px';
-    el.style.fontWeight = 'bold';
-    el.style.textShadow = '0 0 10px #000, 3px 3px 0 #000';
-    el.style.whiteSpace = 'nowrap';
-    el.style.display = 'none';
-    el.style.lineHeight = '1';
-    // 既存 CSS の cd-1/2/3 クラスで色付け（既存スタイル流用）
-    (_hudLayerEl ?? document.body).appendChild(el);
-    _enemyCdPool.push(el);
-  }
-  return _enemyCdPool[idx];
-}
-export function updateEnemyAtkCountdown() {
-  for (let i = 0; i < _enemies.length; i++) {
-    const e = _enemies[i];
-    const el = _getEnemyCdEl(i);
-    if (!e.isAlive || e.state === STATE.enemy_dying || !ENEMY_AI.enabled || !e.aiEnabled ||
-        e.state !== STATE.enemy_attacking || e.atkPhase !== 'wind') {
-      el.style.display = 'none';
-      continue;
-    }
-    // 残F → 秒（切り上げ）：180..121=3 / 120..61=2 / 60..1=1
-    const sec = Math.ceil(e.atkTimer / 60);
-    el.textContent = sec;
-    el.className = 'cd-' + sec;
-    _enemyCdProj.set(e.x, e.y + 260, e.z);
-    _enemyCdProj.project(_camera);
-    const frameX = (_enemyCdProj.x * 0.5 + 0.5) * _gameWidth;
-    const frameY = (-_enemyCdProj.y * 0.5 + 0.5) * _gameHeight;
-    el.style.left = frameX + 'px';
-    el.style.top  = frameY + 'px';
-    el.style.display = 'block';
-  }
 }
 
 // ============================================================

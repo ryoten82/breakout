@@ -29,7 +29,21 @@ const MINES = [
   { x:  1500, lv: 6, label: '超吹っ飛ばし' },
 ];
 
+// ダミー敵の配置スロット（性格別）。死亡フローに入ったら同スロットへ即リスポーンする。
+const ENEMY_SLOTS = [
+  { personality: 'brave',   x: -250, z: 150 },
+  { personality: 'cunning', x:  250, z: 150 },
+];
+
 let _built = false;
+let _spawnDummy = null;
+let _enemies = null;   // 即リスポーン判定用の敵配列参照（initActionTest の deps 経由）
+
+// 1 スロット分のダミーを生成。instantRespawn:false ＝ 死亡演出（ゴア）を最後まで再生させる。
+function _spawnSlot(slot) {
+  if (!_spawnDummy) return;
+  _spawnDummy(slot.x, slot.z, { maxHp: 100, instantRespawn: false, personality: slot.personality });
+}
 
 // atk_lv 表記の Canvas テクスチャ Sprite（常にカメラを向く・depthTest 無効で最前面）
 function _makeLabel(THREE, lv, caption) {
@@ -112,8 +126,9 @@ function _hide(obj) {
 }
 
 export function initActionTest(deps) {
-  const { scene, THREE, spawnDummy, ground, backWallPillars, bgElements } = deps;
+  const { scene, THREE, spawnDummy, enemies, ground, backWallPillars, bgElements } = deps;
   if (!scene || !THREE) return;
+  _enemies = enemies;
   // 固定の広い壁でカメラ追従壁を上書き（lv6 が壁に当たらず地面転がりも観察可）
   levelWalls.length = 0;
   levelWalls.push({ side: 'left',  x: -ARENA_HALF_X });
@@ -125,15 +140,25 @@ export function initActionTest(deps) {
   _buildRoom(scene, THREE);
   // ダミー敵 2 体：性格の挙動差（dodge/guard 頻度）を見比べる用に brave / cunning を 1 体ずつ。
   //   頭上ラベル＝橙 BRAVE / 紫 CUNNING。基本 brave 雑魚・基本 cunning 雑魚の調整起点。
+  //   死亡したら tickActionTest が同スロットへ即リスポーンする。
   if (spawnDummy) {
-    spawnDummy(-250, 150, { maxHp: 100, instantRespawn: true, personality: 'brave' });
-    spawnDummy( 250, 150, { maxHp: 100, instantRespawn: true, personality: 'cunning' });
+    _spawnDummy = spawnDummy;
+    for (const slot of ENEMY_SLOTS) _spawnSlot(slot);
   }
   _built = true;
 }
 
 export function tickActionTest() {
   // 自由移動テスト部屋：ウェーブ進行なし。地雷リスポーンは updateBreakables 側で進む。
+  // 敵の即リスポーン：死亡フロー（dying）に入ったスロットを毎フレーム検出し、すぐ補充する。
+  //   → 死亡演出（ゴア）は別個体として最後まで再生されつつ、戦う相手は途切れない。
+  if (!_spawnDummy || !_enemies) return;
+  const enemies = _enemies;
+  for (const slot of ENEMY_SLOTS) {
+    const alive = enemies.some(e =>
+      e.personality === slot.personality && e.isAlive && !e.dying && !e.removed);
+    if (!alive) _spawnSlot(slot);
+  }
 }
 
 export function getActionTestDebugState() {

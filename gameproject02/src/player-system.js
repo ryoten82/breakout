@@ -651,6 +651,9 @@ export function updatePlayer(p) {
 
   // === 被弾中：入力一切受け付けず、hitstun の自動進行のみ走らせて return ===
   if (isHitstunState(p)) {
+    // 被弾でノックバック → 敵に密着した状態で wait01 復帰したとき、移動キー押しっぱなしで
+    // 近接グラブが暴発するのを防ぐ。被弾後は移動キーを一度離すまでグラブを再アームしない。
+    p._grabHitLock = true;
     const canReverse = (p.state !== STATE.dying && p.state !== STATE.dead && p.state !== STATE.guard_crash);
     if (canReverse) _processMegaCrashUltInput(p);
     // 受け身入力：被弾中の最初のジャンプ押下だけをバッファ投入に使う（1被弾1回）。
@@ -919,8 +922,14 @@ export function updatePlayer(p) {
 
   // 掴み readiness：wait01 中に意思入力で動いたフレームでフラグ立て
   // （tryGrabActivate は次フレームの早い段階で読む）
-  if (p.state === STATE.wait01 && p.isGrounded && (mvx !== 0 || mvz !== 0)) {
-    p._grabReady = true;
+  // 被弾ロック中（_grabHitLock）は、移動キーを一度離す（mvx/mvz=0）まで再アームしない。
+  // → 被弾でノックバックされた先の敵を、押しっぱなしの移動キーで掴んでしまう事故を防ぐ。
+  if (p.state === STATE.wait01 && p.isGrounded) {
+    if (mvx === 0 && mvz === 0) {
+      p._grabHitLock = false;       // 移動キーを離した → ロック解除（次の意思入力で再アーム可）
+    } else if (!p._grabHitLock) {
+      p._grabReady = true;
+    }
   }
 
   // 横方向クランプ：画面端壁（カメラ追従中心 ± 半幅）を採用。levelWalls に静的壁があれば優先。
