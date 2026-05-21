@@ -1,0 +1,174 @@
+// ============================================================
+//  SCRAP BLITZ — CR（通貨）ドロップ＆回収（テスト版・14-F）
+//
+//  敵撃破時に CR をばらまき、プレイヤーが近寄ると磁力で吸い寄せ → 接触で回収。
+//  まずは挙動確認用の最小実装。将来は HP/SP/チップ等のドロップへ拡張する
+//  （enem01.md §アイテム回収システム仕様：光柱・フローティングテキスト・10秒消滅 等）。
+//
+//  ES Module：index.html から initCrSystem / updateCrSystem を import。
+//  dropCR は enemy-system.js（敵死亡フロー突入時）から呼ばれる。
+// ============================================================
+
+let _THREE = null;
+let _scene = null;
+let _players = null;
+let _crHudEl = null;
+
+const _pickups = [];   // { mesh, x, y, z, vx, vy, vz, bounceCount, landed, value }
+let _crTotal = 0;
+
+// 値はランタイム調整可：window.SB.CR_CONFIG.MAGNET_RANGE = 220 など
+export const CR_CONFIG = {
+  DROP_COUNT_MIN:   3,      // 1 撃破あたりの粒数（下限）
+  DROP_COUNT_MAX:   5,      // 同（上限）
+  VALUE_MIN:        4,      // 1 粒の CR 価値（下限）
+  VALUE_MAX:        12,     // 同（上限）
+  SCATTER_VX:       5.0,    // 散らばり水平初速（±）
+  SCATTER_VY:       10,     // 散らばり上昇初速（バウンドが見えるよう少し高め）
+  GRAVITY:          0.5,    // 落下重力（wu/F²）
+  GROUND_FRICTION:  0.78,   // 着地後の水平減衰
+  BOUNCE_COEF:      0.42,   // バウンド係数（毎回 42% の縦速度を維持）
+  MAX_BOUNCES:      3,      // 最大バウンド回数
+  BOUNCE_MIN_VY:    1.5,    // これ以下の縦速でバウンドせず着地確定
+  MAGNET_RANGE:     170,    // この距離内でプレイヤーへ吸い寄せ開始
+  MAGNET_ACCEL:     0.9,    // 吸い寄せ加速度（初期値）
+  MAGNET_RAMP:      0.04,   // 磁力範囲内滞在フレームごとの加速増加率
+  MAGNET_DAMP:      0.92,   // 磁力範囲内での速度全体減衰（周回軌道防止）
+  MAGNET_MAX_SPEED: 13,     // 吸い寄せ中の最大速度
+  COLLECT_RANGE:    55,     // この距離まで近づくと回収
+  COIN_R:           14,     // コイン半径（wu）
+  COIN_H:           5,      // コイン厚み（wu）
+  COLOR:            0xffdd33, // CR 識別色（黄）
+};
+
+export function initCrSystem({ THREE, scene, players, hudLayerEl }) {
+  _THREE = THREE;
+  _scene = scene;
+  _players = players;
+  // CR カウンタ HUD（左下・最小表示）
+  const el = document.createElement('div');
+  el.id = 'cr-counter';
+  el.style.cssText =
+    'position:absolute;left:24px;bottom:88px;z-index:83;' +
+    'font-family:"Courier New",monospace;font-weight:bold;font-size:26px;' +
+    'color:#ffdd33;text-shadow:0 0 6px #000,2px 2px 0 #000;pointer-events:none;';
+  el.textContent = 'CR: 0';
+  (hudLayerEl ?? document.body).appendChild(el);
+  _crHudEl = el;
+}
+
+// 爆発地点 (x, spawnY, z) に CR コインをばらまく。_triggerFinalExplosion から呼ぶ。
+export function dropCR(x, z, spawnY = 80) {
+  if (!_THREE || !_scene) return;
+  const C = CR_CONFIG;
+  const n = C.DROP_COUNT_MIN +
+    Math.floor(Math.random() * (C.DROP_COUNT_MAX - C.DROP_COUNT_MIN + 1));
+  for (let i = 0; i < n; i++) {
+    // コイングループ：立てたシリンダーを Y 回転でスピン
+    const group = new _THREE.Group();
+    const inner = new _THREE.Mesh(
+      new _THREE.CylinderGeometry(C.COIN_R, C.COIN_R, C.COIN_H, 16),
+      new _THREE.MeshBasicMaterial({ color: C.COLOR, side: _THREE.DoubleSide }),
+    );
+    inner.rotation.x = Math.PI / 2;  // 立てる（面がカメラ方向を向く）
+    group.add(inner);
+    group.position.set(x, spawnY, z);
+    _scene.add(group);
+    _pickups.push({
+      mesh: group, x, y: spawnY, z,
+      vx: (Math.random() * 2 - 1) * C.SCATTER_VX,
+      vy: C.SCATTER_VY * (0.7 + Math.random() * 0.6),
+      vz: (Math.random() * 2 - 1) * C.SCATTER_VX * 0.7,
+      bounceCount: 0,
+      landed: false,
+      magnetFrames: 0,
+      value: C.VALUE_MIN + Math.floor(Math.random() * (C.VALUE_MAX - C.VALUE_MIN + 1)),
+    });
+  }
+}
+
+export function updateCrSystem() {
+  const p = (_players && _players[0]) || null;
+  const C = CR_CONFIG;
+  for (let i = _pickups.length - 1; i >= 0; i--) {
+    const c = _pickups[i];
+    if (!c.landed) {
+      // 散らばり＆バウンド：重力で落下 → 地面で最大 MAX_BOUNCES 回跳ね返る
+      c.vy -= C.GRAVITY;
+      c.x += c.vx; c.y += c.vy; c.z += c.vz;
+      if (c.y <= 0) {
+        c.y = 0;
+        if (c.bounceCount < C.MAX_BOUNCES && Math.abs(c.vy) > C.BOUNCE_MIN_VY) {
+          c.vy = -c.vy * C.BOUNCE_COEF;
+          c.vx *= C.GROUND_FRICTION;
+          c.vz *= C.GROUND_FRICTION;
+          c.bounceCount++;
+        } else {
+          c.vy = 0;
+          c.landed = true;
+        }
+      }
+    } else {
+      // 着地後：プレイヤーが磁力範囲内なら吸い寄せ、外なら摩擦で減速
+      let magnet = false;
+      if (p && p.hp > 0) {
+        const dx = p.x - c.x, dz = p.z - c.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist < C.MAGNET_RANGE && dist > 0.01) {
+          magnet = true;
+          c.magnetFrames++;
+          // 滞在時間とともに引力増加、速度全体を減衰して周回軌道を崩す
+          const accel = C.MAGNET_ACCEL * (1 + c.magnetFrames * C.MAGNET_RAMP);
+          c.vx += (dx / dist) * accel;
+          c.vz += (dz / dist) * accel;
+          c.vx *= C.MAGNET_DAMP;
+          c.vz *= C.MAGNET_DAMP;
+          const sp = Math.hypot(c.vx, c.vz);
+          if (sp > C.MAGNET_MAX_SPEED) {
+            c.vx = c.vx / sp * C.MAGNET_MAX_SPEED;
+            c.vz = c.vz / sp * C.MAGNET_MAX_SPEED;
+          }
+        } else {
+          c.magnetFrames = 0;  // 範囲外に出たらリセット
+        }
+      }
+      if (!magnet) { c.vx *= C.GROUND_FRICTION; c.vz *= C.GROUND_FRICTION; }
+      c.x += c.vx; c.z += c.vz;
+    }
+    // 回収判定（XZ 距離・Y 無視＝床のアイテム）
+    if (p && p.hp > 0) {
+      const dx = p.x - c.x, dz = p.z - c.z;
+      if (dx * dx + dz * dz < C.COLLECT_RANGE * C.COLLECT_RANGE) {
+        _crTotal += c.value;
+        if (_crHudEl) _crHudEl.textContent = 'CR: ' + _crTotal;
+        _disposeCoinGroup(c.mesh);
+        _pickups.splice(i, 1);
+        continue;
+      }
+    }
+    // 見た目：Y 回転スピン（空中は速め、着地後は遅め）+ グループ位置同期
+    c.mesh.rotation.y += c.landed ? 0.10 : 0.18;
+    c.mesh.position.set(c.x, c.y + C.COIN_R, c.z);
+  }
+}
+
+export function getCrTotal() { return _crTotal; }
+
+// Group（外枠）ごと scene から除去し、内部 Mesh の geometry/material を dispose
+function _disposeCoinGroup(group) {
+  if (group.parent) group.parent.remove(group);
+  for (const child of group.children) {
+    if (child.geometry) child.geometry.dispose();
+    if (child.material) child.material.dispose();
+  }
+}
+
+// ステージ再構築時などのクリア用（現状はページリロードで足りるため任意）
+export function resetCrSystem() {
+  for (const c of _pickups) {
+    _disposeCoinGroup(c.mesh);
+  }
+  _pickups.length = 0;
+  _crTotal = 0;
+  if (_crHudEl) _crHudEl.textContent = 'CR: 0';
+}

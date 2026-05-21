@@ -816,6 +816,8 @@
       initBreakables, registerBreakable, tryHitBreakables, updateBreakables, getBreakables,
       getFlyingPartsCount, hitBreakableExternal, findBreakableHitBy,
     } from './src/breakables.js';
+    // === cr-system（CR ドロップ＆回収・14-F テスト版）===
+    import { initCrSystem, updateCrSystem, getCrTotal, dropCR, CR_CONFIG } from './src/cr-system.js';
     // === debug-invariants（意図しない挙動の自動検知・致命検知は常時 ON）===
     import {
       setKnownStates as _invSetKnownStates,
@@ -868,7 +870,7 @@
       processGuardInput, dirMatchesForFacing,
       processSpecialInput,
       processStrongAttackInput,
-      updateComboHoming, updatePlayer,
+      updateComboHoming, updatePlayer, syncGuardShield,
       getGameFrame, chargeRingState,
     } from './src/player-system.js';
     // === ステート定数・被弾持続F・KB ベクトル定数は src/states.js に分離（Step B・ESM import）===
@@ -2092,7 +2094,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-21 14-D-2 + 調整: 突進タックル / 被弾グラブ暴発修正 / 敵即リスポーン / 敵重なり修正 / 吹き飛ばし封じ込め壁';
+    const LAST_UPDATE = '2026-05-22 fix: SP2 最終段空振り修正（dodge 中被弾で dodgeInvuln 残存バグ）';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {
@@ -2238,6 +2240,9 @@
       // 被弾中プレイヤーで proximity 点火を誘発しないための判定
       isHitstunState,
     });
+
+    // cr-system 初期化（CR ドロップ＆回収・14-F テスト版）
+    initCrSystem({ scene, THREE, players, hudLayerEl: document.getElementById('hud-layer') });
 
     // player-system 初期化（ガード/特殊技/チャージ等）
     //   inp / spawnChargeParticle / clearChargeParticles / chargeReadyRing は既に
@@ -2857,6 +2862,8 @@
       updateEnemies(hitCtx);
       // 壊れ物プロップ：フラッシュ進行・飛び散りパーツ物理
       updateBreakables();
+      // CR ドロップ：散らばり物理 + 磁力吸い寄せ + 回収（14-F テスト版）
+      updateCrSystem();
       // ダメージ範囲可視化（リング寿命・パルス拡張）
       updateAreas();
       // ステージ tick：init 済みのステージのみ走らせる（モード選択中は未 init）
@@ -3180,6 +3187,8 @@
       if (fxState.hitstopTimer > 0) {
         fxState.hitstopTimer--;
         for (const _p of players) {
+          // ガードシールド：updatePlayer がスキップされるため hitstop 中も同期を維持
+          syncGuardShield(_p);
           if (isHitstunState(_p)) continue;
           processMegaCrashUltInput(_p);
           processSpecialInput(_p);
@@ -3368,6 +3377,8 @@
       // デバッグ：ゲーム更新を手動で N フレーム進める（rAF 停止＝タブ非可視時の検証用）
       gameStep: (n = 1) => { for (let i = 0; i < n; i++) update(); },
       DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_AI, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, tryHitPlayer,
+      // CR ドロップ：SB.dropCR(x,z) で手動ばらまき / SB.getCrTotal() で所持確認 / SB.CR_CONFIG で調整
+      dropCR, getCrTotal, CR_CONFIG,
       TEST_CONFIG, PAUSE_CONFIG, GAME_SPEED,
       // Phase 3：敵 aiPhase 頭上ラベル ON/OFF（数字キー 8）
       DEBUG_AI: false,

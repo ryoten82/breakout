@@ -1042,6 +1042,16 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     if (_DBG) {
       for (const e of enemies) if (e.isAlive) console.log(`[MH FINAL pre] e.state=${e.state} y=${e.y.toFixed(0)} dx=${(e.x-p.x).toFixed(0)} sfCount=${e.superFlightCount}`);
     }
+    const _DBG_SP2 = window.SB?.DEBUG_SP2 && p.attackId === 'c01_sp_02';
+    if (_DBG_SP2) {
+      for (const e of enemies) {
+        if (!e.isAlive) { console.log('[SP2 LAST] skip: !isAlive'); continue; }
+        const dx = e.x - p.x, dz = e.z - p.z, dy = e.y - p.y;
+        const alreadyHit = p.multiHitNextHit && p.multiHitNextHit.has(e);
+        const spCount = (e.specialHitBy && typeof e.specialHitBy.get === 'function') ? (e.specialHitBy.get('c01_sp_02') ?? 0) : 0;
+        console.log(`[SP2 LAST] state=${e.state} dx=${dx.toFixed(0)} dz=${dz.toFixed(0)} dy=${dy.toFixed(0)} pY=${p.y.toFixed(0)} eY=${e.y.toFixed(0)} alreadyHit=${alreadyHit} spCount=${spCount} dyingInv=${e.dyingInvincible} dodgeInvuln=${e.dodgeInvuln}`);
+      }
+    }
     const savedDamage = attack.damage;
     const savedHitstop = attack.hitstop;
     attack.damage = attack.damageLastHit ?? (attack.damagePerHit * 2);
@@ -1049,6 +1059,7 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
       attack.hitstop = attack.hitstopLastHit;
     }
     const hit = tryHitEnemies(p, attack, ctx);
+    if (_DBG_SP2) console.log(`[SP2 LAST] tryHitEnemies returned hit=${hit}`);
     attack.damage = savedDamage;
     attack.hitstop = savedHitstop;
     if (_DBG) {
@@ -1140,6 +1151,7 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     if (!_preserveState) {
       e.state    = STATE.knockback01;
       e.downTimer = flinchFrames;
+      e.dodgeInvuln = false;  // dodge 中被弾：state が切り替わるので無敵フラグも解除（最終段が抜けるバグ対策）
       applyHitInitialPitch(e);
     }
     // 中間ノックバック：敵を facing 方向に少し押して「引き連れる」形にする

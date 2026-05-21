@@ -327,7 +327,8 @@ export function updateEnemyPersonalityHud() {
 // ============================================================
 //  ダメージ数値ポップアップ（プレイヤー攻撃ヒット時の与ダメージ表示）
 //   - spawnDamageNumber(x,y,z,amount,opts) でヒット位置にポップを生成
-//   - updateDamageNumbers() を毎 update フレームで呼ぶ：上昇 + フェード + world→screen 投影
+//   - updateDamageNumbers() を毎 update フレームで呼ぶ：画面空間で上昇 + フェード
+//     （spawn 時に一度だけ world→screen 投影し、以降はカメラ非追従で固定上昇）
 //   - DOM 要素はプール再利用（_inUse フラグで借用管理）
 //   - opts.crit:true で強調表示（クリティカル攻撃・タスク #13 で使用）
 // ============================================================
@@ -353,20 +354,15 @@ function _getDmgNumEl() {
   return el;
 }
 
-// 1 個分の見た目反映（world→screen 投影 + 上昇フェード + スケールポップ）。
-//   spawn 直後と毎フレーム更新で共用 → プール再利用時の前番号位置のチラ見えを防ぐ。
+// 1 個分の見た目反映（画面空間で上昇フェード + スケールポップ）。
+//   座標は画面空間 sx/sy。カメラのシェイク・パンに追従しないので攻撃中もブレない。
 function _renderDmgNumber(d) {
-  if (!_camera || !_dmgProj) return;
-  _dmgProj.set(d.x, d.y, d.z);
-  _dmgProj.project(_camera);
-  const frameX = (_dmgProj.x * 0.5 + 0.5) * _gameWidth;
-  const frameY = (-_dmgProj.y * 0.5 + 0.5) * _gameHeight;
   const t   = d.life / d.maxLife;          // 1→0
   const age = 1 - t;                       // 0→1
   const alpha = (t >= 0.5) ? 1 : (t / 0.5);  // 寿命後半 50% で透明へ
   const scale = 0.4 + 0.6 * Math.min(1, age / 0.12);  // 0.4→1.0 の素早いポップ
-  d.el.style.left = frameX + 'px';
-  d.el.style.top  = frameY + 'px';
+  d.el.style.left = d.sx + 'px';
+  d.el.style.top  = d.sy + 'px';
   d.el.style.opacity = alpha;
   d.el.style.transform = `translate(-50%, -50%) scale(${scale})`;
 }
@@ -386,12 +382,20 @@ export function spawnDamageNumber(x, y, z, amount, opts = {}) {
     el.style.textShadow = '0 0 6px #000, 2px 2px 0 #000';
   }
   el.style.display = 'block';
+  // ヒット位置を spawn 時に一度だけ画面座標へ投影 → 以降は画面空間で固定上昇。
+  //   カメラのシェイク／パンに追従しないので、攻撃中も数字がブレず読みやすい。
+  let sx = _gameWidth / 2, sy = _gameHeight / 2;
+  if (_camera && _dmgProj) {
+    _dmgProj.set(x, y, z);
+    _dmgProj.project(_camera);
+    sx = (_dmgProj.x * 0.5 + 0.5) * _gameWidth;
+    sy = (-_dmgProj.y * 0.5 + 0.5) * _gameHeight;
+  }
   const d = {
-    // 多段ヒットの完全重なりを避けるため X に微小ばらつき
-    x: x + (Math.random() - 0.5) * 44,
-    y, z,
-    vy: 2.4,                          // 上昇初速（world 単位/F）
-    vx: (Math.random() - 0.5) * 0.7,  // 軽い横流れ
+    // 多段ヒットの完全重なりを避けるため X に微小ばらつき（控えめ）
+    sx: sx + (Math.random() - 0.5) * 30,
+    sy,
+    rise: 3.4,                        // 画面上方向の上昇初速（px/F）
     life: _DMG_NUM_LIFE, maxLife: _DMG_NUM_LIFE,
     crit, el,
   };
@@ -403,9 +407,8 @@ export function updateDamageNumbers() {
   for (let i = _dmgNumbers.length - 1; i >= 0; i--) {
     const d = _dmgNumbers[i];
     d.life--;
-    d.y += d.vy;
-    d.vy *= 0.90;   // 上昇減速（ふわっと止まる）
-    d.x += d.vx;
+    d.sy -= d.rise;   // 画面上方向へ（y は下が +）
+    d.rise *= 0.90;   // 上昇減速（ふわっと止まる）
     if (d.life <= 0) {
       d.el.style.display = 'none';
       d.el._inUse = false;

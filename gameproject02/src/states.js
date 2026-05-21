@@ -321,6 +321,7 @@ export const STATE_PITCH_TARGET = {
   knockback01:     +0.175,   // ≈ +10°（おなか抑えうずくまり・継続）
   knockback02:     -0.524,   // ≈ -30°（のけぞり・継続）
   knockback_air01: 0,        // 立ち直り（INITIAL から 0 へ徐々に lerp）
+  guard_crash:     -0.524,   // ガードクラッシュ：knockback02 と同じ のけぞり（14-E）
   grabbing:        +0.175,   // ≈ +10°（敵を掴んで前傾・kb01 と同じ見た目）
   grabbed:         +0.175,   // ≈ +10°（掴まれて前傾・kb01 と同じ見た目）
   // 雑魚行動（#14-B）

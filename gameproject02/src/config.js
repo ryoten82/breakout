@@ -286,9 +286,16 @@ export const GUARD_CONFIG = {
   DAMAGE_MULT:           0.3,  // 受けるダメージ倍率
   HIT_KB_MULT:           0.4,  // 受けるノックバック倍率
   HIT_SP_COST:           8,    // 被弾1回あたり追加 SP 削り
-  CRASH_THRESHOLD:       0,    // この SP 以下になったらクラッシュ
+  CRASH_THRESHOLD:       0,    // この SP 以下になったらクラッシュ（SP 枯渇クラッシュ）
   CRASH_RECOVER_FRAMES:  60,   // ガードクラッシュ硬直
   FRONT_ONLY:            true, // 前方からの攻撃のみガード成立
+  // --- ガード強度システム（14-E）---
+  //  クリーンガードの反動 KB（atk_lv 別・vx。HIT_KB_DECAY 0.82 → 距離 ≒ vx × 5.6）：
+  //  lv1/lv7 弱反動 / lv2 中反動（半キャラ） / lv3 大反動（1キャラ）
+  RECOIL_KB_BY_LV:  { 1: 5, 2: 9, 3: 18, 7: 5 },
+  CRASH_KB_VX:      12,   // ガードクラッシュの大反動（knockback02・約1.5キャラ）
+  CRASH_SP_COST:    10,   // クラッシュ時の SP 消費（0.5 ストック ＝ STOCK_SIZE 20 × 0.5）
+  CRASH_SHIELD_FADE: 16,  // クラッシュ砕け散りアニメのフレーム数（元位置で拡大→消滅）
 };
 
 // ============================================================
@@ -299,13 +306,16 @@ export const GUARD_CONFIG = {
 // ============================================================
 export const ENEMY_AI = { enabled: true };
 export const DUMMY_ATK_CONFIG = {
-  approachRange:    400,   // この距離以下で接近開始（aiPhase=chase）
+  approachRange:    400,   // この距離以下で接近開始（aiPhase=chase）。遭遇判定／ダッシュ追跡境界も兼ねる
   attackRange:      130,   // この距離以下で基本振り（e01_atk_01）発動
   dashTackleRange:  350,   // attackRange 〜本値の中距離帯で突進タックル（e01_atk_02）発動
   atkSelectOverlap: 24,    // 近/中の境界に設ける重なり帯の幅（ここだけ性格 weight で抽選）
-  dashChaseThreshold: 250, // chase 中この距離より遠いと走行ポーズ（state=dash）に切替
   approachSpeed:    1.4,   // 接近移動速度（wu/F）
-  dashChaseSpeed:   2.6,   // 走行（dash state）中の接近速度（wu/F）
+  zChaseFactor:     0.6,   // Z 追従速度のプレイヤー比（SPEED×Z_SPEED_MULT に対する倍率）
+  // ダッシュ追跡（14-D-4）：遭遇後、自機が approachRange 外へ離れたら発動
+  dashChaseBeat:    28,    // ダッシュ開始前の「ワンテンポ」待機F
+  dashChaseSpeed:   5.5,   // ダッシュ追跡の移動速度（wu/F・通常接近 1.4 より速い）
+  dashChaseStop:    300,   // ダッシュはこの距離まで詰めたら終了 → 通常追跡へ戻る
   // Phase 3 AI ステート明示化（aiPhase）: retreat フェーズ用
   retreatFrames:        40,   // 攻撃 recover 後の強制後退時間
   retreatSpeed:         1.0,  // 後退時の移動速度（wu/F・approachSpeed より控えめ）
@@ -332,7 +342,7 @@ export const ENEMY_ATTACKS = {
     hitboxRangeX:   110,
     hitboxRangeY:   90,
     hitboxRangeZ:   80,
-    damage:         10,
+    damage:         5,     // 一旦半減（旧 10・敵攻撃力 暫定調整）
     atk_lv:         1,
     knockback:      12,
     hitstop:        5,
@@ -355,7 +365,7 @@ export const ENEMY_ATTACKS = {
     hitboxRangeX:   140,
     hitboxRangeY:   90,
     hitboxRangeZ:   100,
-    damage:         18,
+    damage:         9,     // 一旦半減（旧 18・敵攻撃力 暫定調整）
     atk_lv:         2,
     knockback:      22,
     hitstop:        7,
@@ -364,6 +374,17 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.30,  // 溜め：深くのけぞる（基本振りより大きい予兆）
     pitchActive:   +0.42,  // 突進：大きく前傾
   },
+};
+
+// ============================================================
+//  #section enemy-attack-relay — 敵同士の攻撃テンポ（14-D-5）
+//  - ある敵の攻撃が終わってから、次の敵が攻撃を始められるまでの待ち時間。
+//  - 「敵同士が見合う」間（ま）を作る。VARIANCE で毎回ばらつかせテンポを一定にしない。
+//  - 実際の待ち ＝ BASE ×（1 ± VARIANCE のランダム）。
+// ============================================================
+export const ENEMY_ATTACK_RELAY = {
+  BASE:     45,   // 攻撃終了 → 次の攻撃可能までの基準F
+  VARIANCE: 0.5,  // 振れ幅（±50%）。実待ち ＝ BASE × [0.5, 1.5]
 };
 
 // ============================================================
@@ -412,6 +433,10 @@ export const ENEMY_REACT_CONFIG = {
   DODGE_DECAY:       0.86,  // バックステップ減衰
   GUARD_DAMAGE_MULT: 0.25,  // ガード成立時のダメージ倍率
   GUARD_KB_VX:       6,     // enemy_block_hit の軽ノックバック水平速度
+  // cunning レイヤー3（14-D-3）：cunning の dodge をこの確率で「punish-dodge」にする。
+  // punish-dodge は回避完了直後に突進タックル（e01_atk_02）へ連携して隙を突く。
+  // dodgeTendency 0.45 × 0.7 ≒ windup 検知の 30%（enem01.md §性格軸 レイヤー3 と一致）。
+  DODGE_PUNISH_CHANCE: 0.7,
 };
 
 // ============================================================
@@ -553,6 +578,9 @@ export const GORE_CRITICAL_CONFIG = {
 // ============================================================
 export const PLAYER_PROFILE = {
   METEO: {
+    // ガード強度（14-E）：atk_lv がこの値以下ならクリーンガード、超過でガードクラッシュ。
+    //   lv7（追い打ち）は強度に関わらずクリーン（例外）。
+    guardStrength: 3,
     gore: {
       // ゴア・クリティカル登録：ID（c01_gc_NN）ごとに定義
       //   NN は被弾側の atk_lv に対応：03=後方吹き飛ばし / 04=打ち上げ / 05=叩きつけ / 06=超吹き飛ばし

@@ -124,6 +124,11 @@ export function processGuardInput(p) {
     if (canStart) {
       p.guarding       = true;
       p.guardFadeTimer = 0;
+      // ダッシュ中にガードに移行 → 強制的に歩きへ
+      if (p.dashActive) {
+        p.dashActive   = false;
+        p.dashCooldown = PHYSICS.DASH_COOLDOWN;
+      }
     }
     // SP 不足で L を新規押下した時：エネルギー不足の点滅フィードバック
     if (lEdge && baseEligible && p.sp < GUARD_CONFIG.MIN_SP_TO_START) {
@@ -149,18 +154,23 @@ export function processGuardInput(p) {
       if (p.sp <= 0) {
         p.sp = 0;
         p.guarding = false;
-      } else if (!lHeld) {
+      } else if (!lHeld && p.guardDrainPauseTimer <= 0) {
+        // ガード成功直後の硬直中（drainPause > 0）はボタン離しても解除しない
         p.guarding = false;
       }
       // 攻撃で割り込まれた場合（将来用：被弾やメガクラ等が p.guarding を強制 false にする）
       if (p.state === STATE.attacking) p.guarding = false;
-      // 解除した瞬間：フェードアウトタイマー始動
-      if (!p.guarding) p.guardFadeTimer = GUARD_CONFIG.FADE_OUT_FRAMES;
+      // 解除した瞬間：フェードアウトタイマー始動・歩行 state を idle に戻す
+      if (!p.guarding) {
+        p.guardFadeTimer = GUARD_CONFIG.FADE_OUT_FRAMES;
+        if (p.state === STATE.walk_fwd || p.state === STATE.walk_back) p.state = STATE.wait01;
+      }
     }
   } else if (p.guarding) {
     // ULT・グラブ等が発生 → ガード強制解除しフェードアウトへ
     p.guarding = false;
     p.guardFadeTimer = GUARD_CONFIG.FADE_OUT_FRAMES;
+    if (p.state === STATE.walk_fwd || p.state === STATE.walk_back) p.state = STATE.wait01;
   }
 
   // 不透明度の更新（常に走らせる：フェード中に他状態へ遷移しても opacity を 0 まで完走させる）
@@ -168,11 +178,50 @@ export function processGuardInput(p) {
     // 発動中は素早く 1 へ
     p.guardOpacity += (1 - p.guardOpacity) * GUARD_CONFIG.FADE_IN_LERP;
   } else if (p.guardFadeTimer > 0) {
-    // フェードアウト中：線形に 0 へ
+    // フェードアウト中：FADE_OUT_FRAMES 以上は opacity=1 を維持、以下で線形フェード
+    // これにより guard_crash 等でタイマーを延ばしてもノックバック中は shield が見え続ける
     p.guardFadeTimer--;
-    p.guardOpacity = p.guardFadeTimer / GUARD_CONFIG.FADE_OUT_FRAMES;
+    p.guardOpacity = Math.min(1.0, p.guardFadeTimer / GUARD_CONFIG.FADE_OUT_FRAMES);
   } else {
     p.guardOpacity = 0;
+  }
+}
+
+// ガードシールドメッシュの同期（hitstop 中・hitstun 中・通常フレームで共用）。
+// updatePlayer はヒットストップ中に呼ばれないため、index.html の hitstop ブロックでも
+// この関数を呼ぶことで「シールドが古い状態で固まる」問題を解消する。
+export function syncGuardShield(p) {
+  if (!_guardShield) return;
+  if ((p.guardCrashFadeTimer ?? 0) > 0) {
+    const t = 1 - p.guardCrashFadeTimer / GUARD_CONFIG.CRASH_SHIELD_FADE;
+    _guardShield.visible = true;
+    _guardShield.position.set(p.guardCrashX, p.guardCrashY, p.guardCrashZ);
+    _guardShield.rotation.y = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+    _guardShield.scale.setScalar(1 + t * 0.7);
+    _guardShield.material.color.setHex(0xffffff);
+    _guardShield.material.opacity = (1 - t) * GUARD_CONFIG.FLASH_OPACITY;
+    p.guardCrashFadeTimer--;
+    if (p.guardCrashFadeTimer <= 0) _guardShield.scale.setScalar(1);
+  } else if (p.guardOpacity > 0.01) {
+    _guardShield.scale.setScalar(1);
+    _guardShield.visible = true;
+    _guardShield.position.set(p.x, p.y + GUARD_CONFIG.SHIELD_Y_OFFSET, p.z);
+    _guardShield.rotation.y = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+    const flashT = (p.guardFlashTimer > 0) ? (p.guardFlashTimer / GUARD_CONFIG.FLASH_FRAMES) : 0;
+    const baseOp = p.guardOpacity * GUARD_CONFIG.SHIELD_MAX_OPACITY;
+    _guardShield.material.opacity = baseOp + (GUARD_CONFIG.FLASH_OPACITY - baseOp) * flashT;
+    _guardShield.material.color.setHex(flashT > 0 ? GUARD_CONFIG.FLASH_COLOR : GUARD_CONFIG.SHIELD_COLOR);
+  } else if (p.guardFailFlashTimer > 0) {
+    _guardShield.visible = true;
+    _guardShield.position.set(p.x, p.y + GUARD_CONFIG.SHIELD_Y_OFFSET, p.z);
+    _guardShield.rotation.y = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+    const t = 1 - (p.guardFailFlashTimer / GUARD_CONFIG.FAIL_FLASH_FRAMES);
+    _guardShield.material.opacity = GUARD_CONFIG.FAIL_FLASH_OPACITY * Math.abs(Math.sin(t * Math.PI * 2)) * (1 - t);
+    _guardShield.material.color.setHex(GUARD_CONFIG.FAIL_FLASH_COLOR);
+    p.guardFailFlashTimer--;
+    if (p.guardFailFlashTimer <= 0) _guardShield.material.color.setHex(GUARD_CONFIG.SHIELD_COLOR);
+  } else {
+    _guardShield.visible = false;
   }
 }
 
@@ -311,6 +360,7 @@ function canStartSpecial(p, opts) {
   // grab 中は OK（cancelGrabIntoAttack 経由で発動）
   if (p.state === STATE.grabbing) return true;
   if (p.state === STATE.wait01) return true;
+  if (p.state === STATE.walk_fwd || p.state === STATE.walk_back) return true;
   if (p.state === STATE.hit_confirm) return true;
   if (p.state === STATE.attacking) return true; // attacking もキャンセル発動可
   // ジャンプ系 state は wait01 と同じ受付（演出フック）
@@ -647,7 +697,7 @@ export function updatePlayer(p) {
   // wait01 以外（hitstun / attacking / grabbing 等）に入った瞬間に false へリセット。
   // 物理移動セクション後（mvx/mvz 確定後）に「実際に動いていた」なら true に立てる。
   // → 被弾のけぞり後・攻撃終了後にユーザーが新規に移動を入力するまで掴めない。
-  if (p.state !== STATE.wait01) p._grabReady = false;
+  if (p.state !== STATE.wait01 && p.state !== STATE.walk_fwd && p.state !== STATE.walk_back) p._grabReady = false;
 
   // === 被弾中：入力一切受け付けず、hitstun の自動進行のみ走らせて return ===
   if (isHitstunState(p)) {
@@ -694,6 +744,9 @@ export function updatePlayer(p) {
       _applyBodyEmissive(p.mesh, 0, 0, 0);
       p._bodyEmissiveWasOn = false;
     }
+    // ガードシールド：hitstun 中も syncGuardShield を呼ぶことで
+    // クラッシュアニメの進行・ドーム残留の両方を解消する。
+    syncGuardShield(p);
     return;
   }
   if (p.invincibleFrames > 0) p.invincibleFrames--;
@@ -909,6 +962,17 @@ export function updatePlayer(p) {
   }
   const len = Math.hypot(mvx, mvz);
 
+  // === ガード中の歩行 state 設定 ===
+  // 移動中は方向に応じて walk_fwd / walk_back、静止は wait01 へ
+  if (p.guarding && p.isGrounded &&
+      (p.state === STATE.wait01 || p.state === STATE.walk_fwd || p.state === STATE.walk_back)) {
+    if (len > 0) {
+      p.state = (mvx * p.facing < 0) ? STATE.walk_back : STATE.walk_fwd;
+    } else {
+      p.state = STATE.wait01;
+    }
+  }
+
   // === 攻撃反動：selfRecoilMomentum を毎フレーム適用（後方ノックバック・2026-05-18）===
   // attack-engine の hitFrame で仕込まれる。facing と逆方向にプレイヤーを押し戻す。
   // ステージ端 clamp は後段で実施されるので、ここでは純粋に位置加算のみ。
@@ -924,7 +988,7 @@ export function updatePlayer(p) {
   // （tryGrabActivate は次フレームの早い段階で読む）
   // 被弾ロック中（_grabHitLock）は、移動キーを一度離す（mvx/mvz=0）まで再アームしない。
   // → 被弾でノックバックされた先の敵を、押しっぱなしの移動キーで掴んでしまう事故を防ぐ。
-  if (p.state === STATE.wait01 && p.isGrounded) {
+  if ((p.state === STATE.wait01 || p.state === STATE.walk_fwd || p.state === STATE.walk_back) && p.isGrounded) {
     if (mvx === 0 && mvz === 0) {
       p._grabHitLock = false;       // 移動キーを離した → ロック解除（次の意思入力で再アーム可）
     } else if (!p._grabHitLock) {
@@ -1254,33 +1318,6 @@ export function updatePlayer(p) {
   }
 
   // === ガードシールド同期 ===
-  if (p.guardOpacity > 0.01) {
-    _guardShield.visible      = true;
-    _guardShield.position.set(p.x, p.y + GUARD_CONFIG.SHIELD_Y_OFFSET, p.z);
-    _guardShield.rotation.y   = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
-    const flashT = (p.guardFlashTimer > 0) ? (p.guardFlashTimer / GUARD_CONFIG.FLASH_FRAMES) : 0;
-    const baseOp = p.guardOpacity * GUARD_CONFIG.SHIELD_MAX_OPACITY;
-    _guardShield.material.opacity = baseOp + (GUARD_CONFIG.FLASH_OPACITY - baseOp) * flashT;
-    if (flashT > 0) {
-      _guardShield.material.color.setHex(GUARD_CONFIG.FLASH_COLOR);
-    } else {
-      _guardShield.material.color.setHex(GUARD_CONFIG.SHIELD_COLOR);
-    }
-  } else if (p.guardFailFlashTimer > 0) {
-    _guardShield.visible    = true;
-    _guardShield.position.set(p.x, p.y + GUARD_CONFIG.SHIELD_Y_OFFSET, p.z);
-    _guardShield.rotation.y = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
-    const t = 1 - (p.guardFailFlashTimer / GUARD_CONFIG.FAIL_FLASH_FRAMES);
-    const envelope = 1 - t;
-    const pulse = Math.abs(Math.sin(t * Math.PI * 2));
-    _guardShield.material.opacity = GUARD_CONFIG.FAIL_FLASH_OPACITY * pulse * envelope;
-    _guardShield.material.color.setHex(GUARD_CONFIG.FAIL_FLASH_COLOR);
-    p.guardFailFlashTimer--;
-    if (p.guardFailFlashTimer <= 0) {
-      _guardShield.material.color.setHex(GUARD_CONFIG.SHIELD_COLOR);
-    }
-  } else {
-    _guardShield.visible = false;
-  }
+  syncGuardShield(p);
 
 }

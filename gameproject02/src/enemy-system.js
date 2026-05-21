@@ -45,17 +45,30 @@ import {
   KB_LV06_VY, KB_LV06_VX_MULT,
   applyRollHipPivot,
 } from './states.js';
-import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG } from './config.js';
+import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG } from './config.js';
 import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, fxState } from './hit-engine.js';
 import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
 import { isHitstunState, tryHitPlayer } from './damage-system.js';
 import { getActiveWallX, getKnockbackWallX } from './camera.js';
+import { dropCR } from './cr-system.js';
 
 let _THREE = null;
 let _scene = null;
 let _players = null;
 let _enemies = null;
+
+// cunning の密集回避（14-D-3・enem01.md §性格軸 レイヤー3）。
+//   cunning は個別の laneZ（プレイヤー Z からのオフセット）を狙って散開する。
+const LANE_Z_MAX           = 55;  // laneZ の最大幅（±・rangeZ 80 内に収め攻撃は届く）
+const LANE_HOMING_DEADZONE = 25;  // cunning が laneZ に乗ったとみなす許容 Z
+const LANE_REROLL_FRAMES   = 90;  // laneZ 振り直し判定の間隔
+const LANE_CLUSTER_Z       = 35;  // 「同レーン」とみなす laneZ 差
+const LANE_CLUSTER_DIST    = 220; // 「近接」とみなす実距離
+
+// 敵同士の攻撃テンポ（14-D-5）：直近の攻撃終了から次の攻撃が始められるまでの全体待ち。
+// 0 になるまで誰も攻撃を開始できない。攻撃完了ごとにばらつき付きで再セットされる。
+let _attackRelay = 0;
 
 export function initEnemySystem(deps) {
   _THREE = deps.THREE;
@@ -245,6 +258,14 @@ export function spawnDummy(x, z, opts = {}) {
     reactCooldown:    0,                        // dodge/guard 再発動クールダウン残F
     _reactArmed:      true,                     // 現プレイヤー攻撃に未反応なら true（1 攻撃 1 判定）
     dodgeInvuln:      false,                    // enemy_dodge 前半の無敵フラグ
+    dodgePunish:      false,                    // cunning：回避完了後に突進タックルへ連携（14-D-3）
+    // ダッシュ追跡（14-D-4）：遭遇後に自機が離れたら、ワンテンポ置いてダッシュで詰める
+    encountered:      false,                    // 一度でも approachRange 内に入ったか
+    dashChasing:      false,                    // ダッシュ追跡中フラグ
+    dashChaseBeat:    -1,                       // ダッシュ開始前のワンテンポ残F（-1=未武装）
+    // cunning の密集回避（14-D-3）：個別 Z レーンオフセット + 振り直しタイマー
+    laneZ:            (_personality === 'cunning') ? (Math.random() * 2 - 1) * LANE_Z_MAX : 0,
+    laneReRollTimer:  Math.floor(Math.random() * LANE_REROLL_FRAMES),
     enraged:          false,                    // 興奮状態（HP 低下で 1 度だけ true・14-C）
     enragedHp:        _persona.enragedHp,        // この HP 割合以下で enraged 化
     // === #14-D-2 攻撃頻度（性格別・enem01.md §性格軸 レイヤー1-3）===
@@ -1132,6 +1153,7 @@ function _enterDyingFinal(e, ctx) {
 //   - 既に飛翔中の flyingParts（hit で抽選分離済）はそのまま継続（自然にバウンド・フェード）
 //   - 爆発感は spawnDeathExplosion に集約
 function _triggerFinalExplosion(e) {
+  dropCR(e.x, e.z, e.y + 80);  // 爆発タイミングで CR ドロップ
   // ゴア・クリティカル armed：キャラ拡張バリアントで方向・追加 FX を上書き
   if (e.goreCritical && e.goreCritical.armed) {
     // variant は goreCritical 自身に格納されている値を使う（旧コードは profile.criticalExplosionVariant
@@ -1528,6 +1550,37 @@ function _selectEnemyAtk(e, adx) {
   return (Math.random() < e.atk02Weight) ? 'e01_atk_02' : 'e01_atk_01';
 }
 
+// 攻撃開始：トークン取得 + enemy_attacking への遷移をまとめる
+// （通常の chase 発動と cunning の punish-dodge 連携で共用）
+function _beginEnemyAttack(e, atkId, ctx) {
+  ctx.enemyAttackToken.set(e);
+  const atk = ENEMY_ATTACKS[atkId];
+  e.state          = STATE.enemy_attacking;
+  e.atkPhase       = 'wind';
+  e.curAtkId       = atkId;
+  e.atkTimer       = atk.windFrames;
+  e.atkPitchTarget = atk.pitchWind;
+  e.atkDashDist    = 0;
+  e.hitDelivered   = false;
+  e.aiPhase        = 'attack';
+}
+
+// cunning の密集回避（14-D-3）：laneReRollTimer 満了ごとに、近接する同レーンの
+// cunning がいれば laneZ を振り直す → cunning 同士が同じ Z レーンに固まらず散開する。
+function _updateLaneZ(e) {
+  if (e.personality !== 'cunning') return;
+  if (--e.laneReRollTimer > 0) return;
+  e.laneReRollTimer = LANE_REROLL_FRAMES;
+  for (const o of _enemies) {
+    if (o === e || !o.isAlive || o.personality !== 'cunning') continue;
+    if (Math.abs(o.laneZ - e.laneZ) < LANE_CLUSTER_Z &&
+        Math.hypot(o.x - e.x, o.z - e.z) < LANE_CLUSTER_DIST) {
+      e.laneZ = (Math.random() * 2 - 1) * LANE_Z_MAX;
+      break;
+    }
+  }
+}
+
 // ============================================================
 //  毎フレーム更新：state machine の遷移はここに集約（down_* / knockback* / bound 等）
 //
@@ -1536,8 +1589,10 @@ function _selectEnemyAtk(e, adx) {
 //   - tryThrownChainHit へ ctx をそのまま渡す
 // ============================================================
 export function updateEnemies(ctx) {
+  if (_attackRelay > 0) _attackRelay--;  // 敵同士の攻撃テンポ待ち（14-D-5）
   for (const e of _enemies) {
     if (!e.isAlive) continue;
+    _updateLaneZ(e);  // cunning の Z レーン振り直し（14-D-3・密集回避）
     // Phase 3：dying タイマー進行（state machine は維持・色フェード/最終フェーズ遷移を回す）
     //   exploded フェーズに入ると mesh が無いので、その時点で本フレームの残処理は skip
     if (e.dying) {
@@ -1699,7 +1754,7 @@ export function updateEnemies(ctx) {
       let myStrength = 0;
       const s = e.state;
       if (s === STATE.enemy_attacking) myStrength = 2.5;
-      // 走行（dash）は接近速度（dashChaseSpeed 2.6）より強い分離にしないと押し負けて重なる
+      // 走行（dash）はダッシュ追跡で速く動くため分離も強め（Z 方向に散らして重なり回避）
       else if (s === STATE.dash) myStrength = 3.0;
       else if (s === STATE.wait01 || s === STATE.walk_fwd || s === STATE.walk_back) myStrength = 1.5;
       // 立ち姿勢の防御・リアクション系（短いが重なると見栄えが悪いので分離する）
@@ -1985,6 +2040,18 @@ export function updateEnemies(ctx) {
             e.kbDecay       = ENEMY_REACT_CONFIG.DODGE_DECAY;
             e.reactCooldown = ENEMY_REACT_CONFIG.REACT_COOLDOWN;
             e.aiPhase       = 'dodge';
+            // cunning レイヤー3：punish-dodge（回避→突進タックル連携）にするか。
+            //   トークンを確保できた時だけ punish 化＝回避中にトークンを予約し、
+            //   回避完了後のタックルを確実に出す（他敵が攻撃中なら通常回避に留める）。
+            const _tk = ctx.enemyAttackToken.get();
+            if (e.personality === 'cunning' &&
+                Math.random() < ENEMY_REACT_CONFIG.DODGE_PUNISH_CHANCE &&
+                _attackRelay <= 0 && (_tk === null || _tk === e)) {
+              e.dodgePunish = true;
+              ctx.enemyAttackToken.set(e);
+            } else {
+              e.dodgePunish = false;
+            }
             _reacted = true;
           } else if (_r < e.dodgeTendency + e.guardTendency) {
             // ガード：構えに入る（前面 lv≤3 のヒットは hit-engine で enemy_block_hit に降格）
@@ -2008,52 +2075,79 @@ export function updateEnemies(ctx) {
             }
             // Z 軸はそのまま（前後ジリジリ感を保つ）
           } else {
-            // タイマー満了 → 距離で再判定（次フレームで chase / idle へ）
-            e.aiPhase = (adx < DUMMY_ATK_CONFIG.approachRange && adz < DUMMY_ATK_CONFIG.approachRange)
-              ? 'chase' : 'idle';
+            // タイマー満了 → X 距離で再判定（Z は chase 中に別途追従するので含めない）
+            e.aiPhase = (adx < DUMMY_ATK_CONFIG.approachRange) ? 'chase' : 'idle';
           }
         } else {
-          // === idle / chase 判定 + 接近・攻撃発動 ===
-          const inRange = (adx < DUMMY_ATK_CONFIG.approachRange && adz < DUMMY_ATK_CONFIG.approachRange);
-          if (!inRange) {
-            e.aiPhase = 'idle';
-          } else {
-            e.aiPhase = 'chase';
-            // 攻撃発動条件：距離（基本振り/タックルの圏内）+ cooldown + 接地 + トークン取得可。
-            //   性格 punishesHitstun（brave）はプレイヤー被弾中でも攻撃可＝追撃確定（レイヤー3）
-            const C = DUMMY_ATK_CONFIG;
-            const curToken = ctx.enemyAttackToken.get();
-            const tokenAvailable = (curToken === null || curToken === e);
-            const canAttack = (adz < 100 && e.atkCooldown <= 0 &&
-              e.y <= ENEMY_AIRBORNE_Y_THRESHOLD && tokenAvailable &&
-              (!playerInHitstun || e.punishesHitstun));
-            const atkId = canAttack ? _selectEnemyAtk(e, adx) : null;
-            if (atkId) {
-              // 攻撃発動：トークン取得 + 攻撃 state へ遷移（14-D-2：距離で振り/タックル選択）
-              ctx.enemyAttackToken.set(e);
-              const _atk = ENEMY_ATTACKS[atkId];
-              e.state          = STATE.enemy_attacking;
-              e.atkPhase       = 'wind';
-              e.curAtkId       = atkId;
-              e.atkTimer       = _atk.windFrames;
-              e.atkPitchTarget = _atk.pitchWind;
-              e.atkDashDist    = 0;
-              e.hitDelivered   = false;
-              e.aiPhase        = 'attack';
+          // === ダッシュ追跡（14-D-4）+ idle / chase 判定 + 接近・攻撃発動 ===
+          const C = DUMMY_ATK_CONFIG;
+          // 遭遇フラグ：一度でも approachRange 内に入ったら立てる
+          if (!e.encountered && adx < C.approachRange) e.encountered = true;
+          // ダッシュ追跡の状態更新（遭遇済みのみ）：自機が approachRange 外へ離れたら
+          //   ワンテンポ置いてダッシュ開始。dashChaseStop まで詰めたら終了。
+          if (e.encountered) {
+            if (e.dashChasing) {
+              if (adx <= C.dashChaseStop) e.dashChasing = false;
+            } else if (adx > C.approachRange) {
+              if (e.dashChaseBeat < 0)      e.dashChaseBeat = C.dashChaseBeat;  // 武装
+              else if (e.dashChaseBeat > 0) e.dashChaseBeat--;                  // ワンテンポ消化
+              else { e.dashChasing = true; e.dashChaseBeat = -1; }              // ダッシュ開始
             } else {
-              // 接近移動（X / Z 両軸・Z は 2.5D 圧縮考慮で 0.7 倍）
-              // トークン不所持でも接近は OK（位置取り）。興奮中は接近速度上昇（#14-C）
-              // 遠間合いは走行（dash state・速め）／近間合いは歩き（14-D-2）
-              _chaseDash = (adx > C.dashChaseThreshold);
-              const _baseSpd = _chaseDash ? C.dashChaseSpeed : C.approachSpeed;
-              const _appSpd = _baseSpd * (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
-              if (adx > C.attackRange) {
-                e.x += Math.sign(dx) * _appSpd;
+              e.dashChaseBeat = -1;  // approachRange 内に戻った → 武装解除
+            }
+          }
+
+          if (e.dashChasing) {
+            // ダッシュ追跡中：自機方向へ高速移動（state=dash は移動量反映ブロックが付与）
+            e.aiPhase = 'chase';
+            _chaseDash = true;
+            const _ds = C.dashChaseSpeed * (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
+            e.x += Math.sign(dx) * _ds;
+            if (adz > 80) {
+              const _zSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * C.zChaseFactor;
+              e.z += Math.sign(dz) * Math.min(_zSpd, adz);
+            }
+          } else if (e.dashChaseBeat >= 0) {
+            // ワンテンポ待機中：その場で「溜め」（移動せず・move-state 反映で wait01）
+            e.aiPhase = 'chase';
+          } else {
+            // === 通常 idle / chase 判定 + 接近・攻撃発動 ===
+            // X 距離のみで判定（Z は chase 中に追従する。X 近・Z 遠でも idle にしない）
+            const inRange = (adx < C.approachRange);
+            if (!inRange) {
+              e.aiPhase = 'idle';
+            } else {
+              e.aiPhase = 'chase';
+              // 攻撃発動条件：距離（基本振り/タックルの圏内）+ cooldown + relay + 接地 + トークン。
+              //   性格 punishesHitstun（brave）はプレイヤー被弾中でも攻撃可＝追撃確定（レイヤー3）
+              const curToken = ctx.enemyAttackToken.get();
+              const tokenAvailable = (curToken === null || curToken === e);
+              const canAttack = (adz < 100 && e.atkCooldown <= 0 && _attackRelay <= 0 &&
+                e.y <= ENEMY_AIRBORNE_Y_THRESHOLD && tokenAvailable &&
+                (!playerInHitstun || e.punishesHitstun));
+              const atkId = canAttack ? _selectEnemyAtk(e, adx) : null;
+              if (atkId) {
+                // 攻撃発動（14-D-2：距離で振り/タックル選択）
+                _beginEnemyAttack(e, atkId, ctx);
+              } else {
+                // 接近移動（歩き速度・X / Z 両軸）。興奮中は接近速度上昇（#14-C）
+                const _appSpd = C.approachSpeed * (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
+                if (adx > C.attackRange) {
+                  e.x += Math.sign(dx) * _appSpd;
+                }
+                // Z 接近：cunning は laneZ ぶんずらした位置を狙って散開（14-D-3 密集回避）。
+                //   非 cunning は laneZ=0（プレイヤー Z 直行）。cunning は deadzone が狭い。
+                //   速度はプレイヤー Z 速度（SPEED × Z_SPEED_MULT）の zChaseFactor 倍。
+                //   行き過ぎないよう目標まででクランプ。
+                const _goalZ  = p0.z + e.laneZ;
+                const _laneDz = (e.personality === 'cunning') ? LANE_HOMING_DEADZONE : 80;
+                const _dzGoal = _goalZ - e.z;
+                if (Math.abs(_dzGoal) > _laneDz) {
+                  const _zSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * C.zChaseFactor;
+                  e.z += Math.sign(_dzGoal) * Math.min(_zSpd, Math.abs(_dzGoal));
+                }
+                // 攻撃圏内だが token 不可 / cooldown 中 → その場で待機（ジリジリ感）
               }
-              if (adz > 80) {  // active ヒットの rangeZ 圏内まで詰める
-                e.z += Math.sign(dz) * _appSpd * 0.7;
-              }
-              // 攻撃圏内だが token 不可 / cooldown 中 → その場で待機（ジリジリ感）
             }
           }
         }
@@ -2091,8 +2185,12 @@ export function updateEnemies(ctx) {
           if (adx > DUMMY_ATK_CONFIG.attackRange * 0.75) {
             e.x += Math.sign(dx) * DUMMY_ATK_CONFIG.approachSpeed * 0.6;
           }
-          if (adz > 80) {  // Z 軸も詰める（active 判定の rangeZ 圏内に）
-            e.z += Math.sign(dz) * DUMMY_ATK_CONFIG.approachSpeed * 0.6 * 0.7;
+          // Z 追従：active で当てるため、溜め中にプレイヤー Z へしっかり寄せる。
+          //   chase と同じ Z 速度・deadzone 狭め（30）＝ Z 前後にうろうろされても
+          //   rangeZ 内に収め、当たらなくなるのを防ぐ。大きく Z 移動されれば外れる。
+          if (adz > 30) {
+            const _wzSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * DUMMY_ATK_CONFIG.zChaseFactor;
+            e.z += Math.sign(dz) * Math.min(_wzSpd, adz);
           }
           // approachRange を完全に超えたらキャンセルして wait01 復帰（X / Z 共通）
           if (adx > DUMMY_ATK_CONFIG.approachRange || adz > DUMMY_ATK_CONFIG.approachRange) {
@@ -2157,6 +2255,9 @@ export function updateEnemies(ctx) {
             e.aiPhase       = 'retreat';
             e.aiRetreatTimer = Math.round(DUMMY_ATK_CONFIG.retreatFrames * e.retreatMult);
             if (ctx.enemyAttackToken.get() === e) ctx.enemyAttackToken.set(null);  // トークン解放
+            // 敵同士の攻撃テンポ（14-D-5）：次の攻撃まで「見合う」間をばらつき付きで確保
+            _attackRelay = Math.round(ENEMY_ATTACK_RELAY.BASE *
+              (1 + (Math.random() * 2 - 1) * ENEMY_ATTACK_RELAY.VARIANCE));
           }
         }
       }
@@ -2235,7 +2336,23 @@ export function updateEnemies(ctx) {
       // バックステップ回避（#14-B）：水平移動は共通 KB ブロックが担当。前半のみ無敵。
       e.downTimer--;
       if (e.downTimer <= ENEMY_DODGE_FRAMES - ENEMY_DODGE_INVULN) e.dodgeInvuln = false;
-      if (e.downTimer <= 0) { e.state = STATE.wait01; e.dodgeInvuln = false; }
+      if (e.downTimer <= 0) {
+        e.dodgeInvuln = false;
+        // cunning レイヤー3：punish-dodge は回避完了直後に突進タックルへ連携（隙突き）。
+        //   トークンが空いている時のみ発動。塞がっていれば通常どおり wait01 へ。
+        const _tk = ctx.enemyAttackToken.get();
+        if (e.dodgePunish && (_tk === null || _tk === e)) {
+          const _p = _players[0];
+          if (_p && _p.x !== e.x) {  // 突進前にプレイヤー方向へ向き直す
+            e.facing = _p.x > e.x ? 1 : -1;
+            e.mesh.rotation.y = e.facing * Math.PI / 2;
+          }
+          _beginEnemyAttack(e, 'e01_atk_02', ctx);
+        } else {
+          e.state = STATE.wait01;
+        }
+        e.dodgePunish = false;
+      }
     } else if (e.state === STATE.enemy_guard) {
       // ガード姿勢を保持 → タイマー満了で wait01（ガード成立処理は hit-engine 側）
       if (--e.downTimer <= 0) e.state = STATE.wait01;
