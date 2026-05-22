@@ -1,30 +1,34 @@
-// Stage 2 後半 — 地面穴ギミック
-// 仕様：stage-layout-room.md「Act 1 / Stage 2」地面穴ギミック小節（2026-05-23 昇格）
+// Stage 2 — 地面穴ギミック（複数穴・2026-05-23 拡張）
+// 仕様：stage-layout-room.md「Act 1 / Stage 2」地面穴ギミック小節
 //
 // 設計方針：
 //   - 攻撃ギミック寄り (a)：穴は「敵を叩き込む武器」。プレイヤー落下は事故枠
 //   - 穴の上空をジャンプで通過 → 着地で落下判定（_playerAirborneOverHole で追跡）
 //   - 接地歩行は見えない段差（_enforceHoleWall）でブロック
-//   - 固定穴のみ。穴底に青発光（Stage 3 D 段階の予兆）
+//   - 穴は HAZARD_CONFIG.holes 配列で複数定義。ウェーブ合間に分散しスポーン位置を回避
 //
 // 実装メモ：
 //   敵落下：e.isAlive=false で updateEnemies スキップ → mesh を直接落下演出。
-//     穴の入口で死亡爆発バースト（通常撃破の spawnDeathExplosion 相当）を再現。
-//     ※ コードベースに CR/スコア/ドロップの報酬システムは無い（2026-05-23 時点）。
+//     穴の入口で死亡爆発バースト（通常撃破の spawnDeathExplosion 相当）を再現し、
+//     CR コインを「落ちた穴の手前（プレイヤー側）」にドロップする（window.SB.dropCR 経由）。
 //   プレイヤー落下：落ちた位置で凍結（テレポートしない＝ダッシュトレイルのストリーク防止）。
-//     待機中は mesh.visible=false 強制。60F 後に穴手前へ移して wait01 で出現。
+//     待機中は mesh.visible=false 強制。60F 後に落ちた穴の手前へ移して wait01 で出現。
 
 import { STATE } from '../../states.js';
+import { registerCrBarrier } from '../../cr-system.js';
 
 const HAZARD_CONFIG = {
-  holeXMin: 2900,
-  holeXMax: 3300,
-  holeZMin: -220,
-  holeZMax: 220,
+  // 穴は 3 個。x はウェーブ合間に分散し、敵スポーン x を一切含まない（湧き即落下を防止）。
+  holes: [
+    { xMin: 1640, xMax: 1980, zMin: -220, zMax: 220 },  // W1–W2 合間
+    { xMin: 3120, xMax: 3460, zMin: -220, zMax: 220 },  // W2–W3 合間
+    { xMin: 4980, xMax: 5320, zMin: -220, zMax: 220 },  // W3–W4 合間
+  ],
   enemyGroundY: 14,
   enemyFallVy: -6,
   enemyFallGrav: 0.55,
   enemyDespawnY: -700,
+  crDropMargin: 140,        // CR コインのドロップ位置（穴 xMin より手前へのオフセット）
   playerFallDamage: 12,
   playerInvincibleF: 120,
   playerRespawnMargin: 160,
@@ -37,7 +41,7 @@ let _THREE = null;
 let _enemies = null;
 let _players = null;
 
-let _holeGroup = null;
+let _holeGroups = [];
 let _falling = [];
 let _built = false;
 
@@ -60,20 +64,23 @@ export function initFloorHazard(deps) {
   _playerFallTimer = 0;
   _playerAirborneOverHole = false;
   if (_scene && _THREE && !_built) {
-    _buildHoleVisual();
+    for (const h of HAZARD_CONFIG.holes) {
+      _buildOneHole(h);
+      // CR コインが穴グラフィックの上に乗らないようバリア登録
+      registerCrBarrier({ xMin: h.xMin, xMax: h.xMax, zMin: h.zMin, zMax: h.zMax });
+    }
     _built = true;
   }
   if (typeof window !== 'undefined' && window.SB) {
-    window.SB.STAGE2_HOLE = HAZARD_CONFIG;
+    window.SB.STAGE2_HOLES = HAZARD_CONFIG.holes;
   }
 }
 
-function _buildHoleVisual() {
-  const cfg = HAZARD_CONFIG;
-  const cx = (cfg.holeXMin + cfg.holeXMax) / 2;
-  const cz = (cfg.holeZMin + cfg.holeZMax) / 2;
-  const w = cfg.holeXMax - cfg.holeXMin;
-  const d = cfg.holeZMax - cfg.holeZMin;
+function _buildOneHole(h) {
+  const cx = (h.xMin + h.xMax) / 2;
+  const cz = (h.zMin + h.zMax) / 2;
+  const w = h.xMax - h.xMin;
+  const d = h.zMax - h.zMin;
   const g = new _THREE.Group();
 
   const rim = new _THREE.Mesh(
@@ -101,7 +108,15 @@ function _buildHoleVisual() {
   g.add(glow);
 
   _scene.add(g);
-  _holeGroup = g;
+  _holeGroups.push(g);
+}
+
+// (x, z) を含む穴を返す（穴の内側＝開口部の判定・端は除く）。なければ null。
+function _holeAt(x, z) {
+  for (const h of HAZARD_CONFIG.holes) {
+    if (x > h.xMin && x < h.xMax && z > h.zMin && z < h.zMax) return h;
+  }
+  return null;
 }
 
 // 死亡爆発バースト（hit-engine の spawnDeathExplosion を window.SB 経由で再現）
@@ -126,15 +141,17 @@ function _spawnDeathBurst(x, y, z) {
 //  敵
 // ============================================================
 
-function _isEnemyDroppable(e) {
-  if (!e || !e.isAlive || e.dying || e._inHole) return false;
-  if (e.y > HAZARD_CONFIG.enemyGroundY) return false;
-  const cfg = HAZARD_CONFIG;
-  return (e.x >= cfg.holeXMin && e.x <= cfg.holeXMax &&
-          e.z >= cfg.holeZMin && e.z <= cfg.holeZMax);
+// 敵が落下対象ならその穴を返す（接地・生存・落下中でない条件込み）。なければ null。
+function _enemyHole(e) {
+  if (!e || !e.isAlive || e.dying || e._inHole) return null;
+  if (e.y > HAZARD_CONFIG.enemyGroundY) return null;
+  for (const h of HAZARD_CONFIG.holes) {
+    if (e.x >= h.xMin && e.x <= h.xMax && e.z >= h.zMin && e.z <= h.zMax) return h;
+  }
+  return null;
 }
 
-function _dropEnemy(e) {
+function _dropEnemy(e, hole) {
   e._inHole = true;
   e.isAlive = false;     // updateEnemies スキップ → y クランプ無効化
   e.aiEnabled = false;
@@ -145,9 +162,18 @@ function _dropEnemy(e) {
     if (hb.bg) hb.bg.visible = false;
     if (hb.fill) hb.fill.visible = false;
   }
-  // 報酬演出：穴の入口で死亡爆発バースト（通常撃破と同じ見せ場）
+  // 報酬：穴の入口で死亡爆発バースト + CR コインを穴手前へドロップ
   _spawnDeathBurst(e.x, e.y + 80, e.z);
+  _dropHoleReward(e.z, hole);
   _falling.push({ e, vy: HAZARD_CONFIG.enemyFallVy });
+}
+
+// 穴に落とした敵の報酬：CR コインを「落ちた穴の手前（プレイヤー側）」にドロップする。
+// 敵自身は穴へ落下して拾えないため、穴 xMin より手前の床に出して回収可能にする。
+function _dropHoleReward(z, hole) {
+  const SB = (typeof window !== 'undefined') ? window.SB : null;
+  if (!SB || !SB.dropCR) return;
+  SB.dropCR(hole.xMin - HAZARD_CONFIG.crDropMargin, z, 90);
 }
 
 function _updateFallingEnemies() {
@@ -179,27 +205,24 @@ function _enforceHoleWall(p) {
   const cfg = HAZARD_CONFIG;
   const grounded = p.isGrounded || (p.y <= cfg.playerGroundY);
   if (!grounded) return;
-  const inX = p.x > cfg.holeXMin && p.x < cfg.holeXMax;
-  const inZ = p.z > cfg.holeZMin && p.z < cfg.holeZMax;
-  if (!inX || !inZ) return;
+  const h = _holeAt(p.x, p.z);
+  if (!h) return;
 
-  const dXLeft  = p.x - cfg.holeXMin;
-  const dXRight = cfg.holeXMax - p.x;
-  const dZNear  = p.z - cfg.holeZMin;
-  const dZFar   = cfg.holeZMax - p.z;
-  const minX = Math.min(dXLeft, dXRight);
-  const minZ = Math.min(dZNear, dZFar);
+  const dXLeft  = p.x - h.xMin;
+  const dXRight = h.xMax - p.x;
+  const dZNear  = p.z - h.zMin;
+  const dZFar   = h.zMax - p.z;
 
-  if (minX <= minZ) {
-    p.x = dXLeft <= dXRight ? cfg.holeXMin : cfg.holeXMax;
+  if (Math.min(dXLeft, dXRight) <= Math.min(dZNear, dZFar)) {
+    p.x = dXLeft <= dXRight ? h.xMin : h.xMax;
     if (p.mesh) p.mesh.position.x = p.x;
   } else {
-    p.z = dZNear <= dZFar ? cfg.holeZMin : cfg.holeZMax;
+    p.z = dZNear <= dZFar ? h.zMin : h.zMax;
     if (p.mesh) p.mesh.position.z = p.z;
   }
 }
 
-function _dropPlayer(p) {
+function _dropPlayer(p, hole) {
   const cfg = HAZARD_CONFIG;
   p.hp = Math.max(1, p.hp - cfg.playerFallDamage);
   // テレポートしない：落ちた位置で凍結（ダッシュトレイルのストリーク防止）
@@ -218,7 +241,7 @@ function _dropPlayer(p) {
   _playerFrozenZ = p.z;
   _playerFallPending = true;
   _playerFallTimer = cfg.playerRespawnDelay;
-  _playerRespawnX = cfg.holeXMin - cfg.playerRespawnMargin;
+  _playerRespawnX = hole.xMin - cfg.playerRespawnMargin;
   _playerRespawnZ = p.z;
 }
 
@@ -260,15 +283,16 @@ function _tickPlayerRespawn() {
 }
 
 export function tickFloorHazard() {
-  if (typeof window !== 'undefined' && window.SB && !window.SB.STAGE2_HOLE) {
-    window.SB.STAGE2_HOLE = HAZARD_CONFIG;
+  if (typeof window !== 'undefined' && window.SB && !window.SB.STAGE2_HOLES) {
+    window.SB.STAGE2_HOLES = HAZARD_CONFIG.holes;
   }
   if (!_built) return;
 
   // 敵
   if (_enemies) {
     for (const e of _enemies) {
-      if (_isEnemyDroppable(e)) _dropEnemy(e);
+      const hole = _enemyHole(e);
+      if (hole) _dropEnemy(e, hole);
     }
   }
   _updateFallingEnemies();
@@ -280,16 +304,15 @@ export function tickFloorHazard() {
   if (p && !_playerFallPending) {
     const cfg = HAZARD_CONFIG;
     const grounded = p.isGrounded || (p.y <= cfg.playerGroundY);
-    const inHoleXZ = (p.x > cfg.holeXMin && p.x < cfg.holeXMax &&
-                      p.z > cfg.holeZMin && p.z < cfg.holeZMax);
+    const hole = _holeAt(p.x, p.z);
 
-    if (inHoleXZ && !grounded) _playerAirborneOverHole = true;
-    if (!inHoleXZ && grounded) _playerAirborneOverHole = false;
+    if (hole && !grounded) _playerAirborneOverHole = true;
+    if (!hole && grounded) _playerAirborneOverHole = false;
 
     // ジャンプで穴に入って着地 → 落下（無敵中でも発火。再落下ループは
     // _playerAirborneOverHole が穴外リスポーンで false になるため起きない）
-    if (_playerAirborneOverHole && grounded && inHoleXZ) {
-      _dropPlayer(p);
+    if (_playerAirborneOverHole && grounded && hole) {
+      _dropPlayer(p, hole);
       _playerAirborneOverHole = false;
     } else {
       _enforceHoleWall(p);

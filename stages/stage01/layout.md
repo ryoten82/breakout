@@ -24,9 +24,11 @@
 
 | # | 名前 | X 範囲 | 役割 | 進行ロック |
 |---|---|---|---|---|
-| S1 | 搬入口 | 0 〜 1200 | 操作練習帯。短いがウェーブ 1 個 | あり（W1） |
-| S2 | 主工場フロア | 1200 〜 3000 | 中盤。ウェーブ 2 個 + 装飾密度ピーク | あり（W2 / W3） |
-| S3 | ボス前広場 | 3000 〜 4000 | 最終ウェーブ。STAGE CLEAR トリガー | あり（W4） |
+| S1 | 搬入口 | 0 〜 1700 | 操作練習帯。短いがウェーブ 1 個 | あり（W1） |
+| S2 | 主工場フロア | 1700 〜 5100 | 中盤。ウェーブ 2 個 + 装飾密度ピーク | あり（W2 / W3） |
+| S3 | ボス前広場 | 5100 〜 6500 | 最終ウェーブ。STAGE CLEAR トリガー | あり（W4） |
+
+> ※ 2026-05-23：ウェーブ間隔を 1 画面（≒1200wu）確保するため全体を拡張（総長 4000→6500wu）。
 
 セクション境界は装飾の切れ目（柱組の警告色帯）で視覚的に伝える。プレイヤー側に「ここからは戻れない」とは伝えない（戻れる）。
 
@@ -42,9 +44,9 @@
 | W# | セクション | trig x | spawnPattern | 敵編成（tier × 性格）| 学習目標 |
 |---|---|---|---|---|---|
 | W1 | S1 | 800 | **simultaneous** | brave tier01 × 2 | 基本振りに慣れる |
-| W2 | S2 | 1600 | **staggered**（30F おき）| brave tier01 × 3 + brave tier03 × 1 | 突進タックル初登場 |
-| W3 | S2 | 2500 | **encircle**（前 2 + 後 1）| brave tier01 × 2 + **cunning tier01 × 1 後方湧き** + tier05 | cunning 初導入・読み合い学習 |
-| W4 | S3 | 3400 | **ambush**（待ち構え演出）| brave tier01 × 2 + cunning tier01 × 1 + tier06 | 卒業試験。**全滅で STAGE CLEAR** |
+| W2 | S2 | 2300 | **staggered**（30F おき）| brave tier01 × 3 + brave tier03 × 1 | 突進タックル初登場 |
+| W3 | S2 | 4000 | **encircle**（前 2 + 後 1）| brave tier01 × 2 + **cunning tier01 × 1 後方湧き** + tier05 | cunning 初導入・読み合い学習 |
+| W4 | S3 | 5700 | **ambush**（待ち構え演出）| brave tier01 × 2 + cunning tier01 × 1 + tier06 | 卒業試験。**全滅で STAGE CLEAR** |
 
 ※ tier03/tier05/tier06 は既存 tier01 のパラメータ差替えで代用してよい（敵 AI 拡張は Phase 3 本流の zealous-hertz 側マター）。
 
@@ -64,13 +66,13 @@
 {
   id: 'W3',
   section: 'S2',
-  triggerX: 2500,
+  triggerX: 4000,
   spawnPattern: 'encircle',
   spawns: [
-    { type: 'tier01', personality: 'brave',   x: 2800, z:   0, delay:  0 },
-    { type: 'tier01', personality: 'brave',   x: 2900, z: -60, delay:  0 },
+    { type: 'tier01', personality: 'brave',   x: 4300, z:   0, delay:  0 },
+    { type: 'tier01', personality: 'brave',   x: 4400, z: -60, delay:  0 },
     { type: 'tier01', personality: 'cunning', xRel: -200, z: 60, delay: 30, entryFx: 'shadow' },
-    { type: 'tier05', personality: 'brave',   x: 3000, z:   0, delay: 45 },
+    { type: 'tier05', personality: 'brave',   x: 4500, z:   0, delay: 45 },
   ],
 }
 ```

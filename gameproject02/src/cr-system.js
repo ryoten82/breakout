@@ -17,6 +17,7 @@ let _spawnEffect = null;   // コイン取得時のパーティクルコール�
 
 const _pickups = [];   // { mesh, x, y, z, vx, vy, vz, bounceCount, landed, value }
 const _rings   = [];   // コイン取得時の拡張リング { mesh, timer, maxTimer }
+const _barriers = [];  // コインが侵入できない XZ 矩形 { xMin, xMax, zMin, zMax }
 let _crTotal = 0;
 
 // 値はランタイム調整可：window.SB.CR_CONFIG.MAGNET_RANGE = 220 など
@@ -90,6 +91,12 @@ export function dropCR(x, z, spawnY = 80) {
   }
 }
 
+// コインが入れない XZ 矩形を登録する。穴ギミック等のステージ側から呼ぶ。
+// cr-system は用途を知らない汎用バリア（コインを矩形の最寄り辺へ押し戻すだけ）。
+export function registerCrBarrier(rect) {
+  _barriers.push(rect);
+}
+
 export function updateCrSystem() {
   const p = (_players && _players[0]) || null;
   const C = CR_CONFIG;
@@ -138,6 +145,8 @@ export function updateCrSystem() {
       if (!magnet) { c.vx *= C.GROUND_FRICTION; c.vz *= C.GROUND_FRICTION; }
       c.x += c.vx; c.z += c.vz;
     }
+    // ステージギミック（穴等）のバリアからコインを押し戻す
+    _applyCrBarriers(c);
     // 回収判定（XZ 距離・Y 無視＝床のアイテム）
     if (p && p.hp > 0) {
       const dx = p.x - c.x, dz = p.z - c.z;
@@ -171,6 +180,27 @@ export function updateCrSystem() {
 }
 
 export function getCrTotal() { return _crTotal; }
+
+// コイン c を登録済みバリア矩形の外へ押し戻す（最寄りの辺へ・速度は軽く反射）。
+// コインを半径 COIN_R の円として扱い、コイン graphic 全体が矩形外に出るよう
+// 矩形を半径分だけ広げて判定する（縁へのめり込み防止）。
+function _applyCrBarriers(c) {
+  const r = CR_CONFIG.COIN_R;
+  for (const b of _barriers) {
+    const xMin = b.xMin - r, xMax = b.xMax + r;
+    const zMin = b.zMin - r, zMax = b.zMax + r;
+    if (c.x <= xMin || c.x >= xMax || c.z <= zMin || c.z >= zMax) continue;
+    const dL = c.x - xMin, dR = xMax - c.x;
+    const dN = c.z - zMin, dF = zMax - c.z;
+    if (Math.min(dL, dR) <= Math.min(dN, dF)) {
+      if (dL <= dR) { c.x = xMin; if (c.vx > 0) c.vx *= -0.3; }
+      else          { c.x = xMax; if (c.vx < 0) c.vx *= -0.3; }
+    } else {
+      if (dN <= dF) { c.z = zMin; if (c.vz > 0) c.vz *= -0.3; }
+      else          { c.z = zMax; if (c.vz < 0) c.vz *= -0.3; }
+    }
+  }
+}
 
 // コイン取得時演出：黄リング拡張 + sparkle パーティクル
 function _spawnCoinPickupFX(x, y, z) {

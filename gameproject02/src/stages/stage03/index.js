@@ -15,26 +15,31 @@ import { STAGE03_WAVES, ENEMY_TEMPLATES, STAGE03_META } from './waves.js';
 import { addCentralPlant } from './central-plant.js';
 import { addSfBackdrop } from './sf-backdrop.js';
 import { createWaveRunner } from '../wave-runner.js';
-import { createMine } from '../../props/factory/mine.js';
-import { registerBreakable } from '../../breakables.js';
+import { placeBreakables } from '../../props/place-props.js';
 import { initElevator, tickElevator, isElevatorActive, getElevatorDebugState } from './elevator.js';
 
-// 終盤（BOSS triggerX=5400 手前）に地雷を散布。
-// プレイヤー接近 400wu で点火 → 2 秒カウントダウン → 爆発で lv4 打ち上げ。
-function _placeMinesForTest(scene, THREE) {
-  const placements = [
-    { x: 5500, z:  -50 },
-    { x: 5650, z:   40 },
-    { x: 5800, z:  -10 },
-  ];
-  for (const p of placements) {
-    const mesh = createMine({ THREE });
-    mesh.position.set(p.x, 0, p.z);
-    mesh.userData.proximityTrigger = true;
-    scene.add(mesh);
-    registerBreakable(mesh);
-  }
-}
+// 壊れ物配置：序盤コンテナ → 後半ボンベ＋地雷。OC コンテナはボス前（D 区画）に固定 1 個。
+// 地雷はボンベと効果が似るため x 位置を重ねない（地雷 x と canister x は別系列）。
+const _STAGE3_PROPS = [
+  // W2–W3 合間（序盤：コンテナ）
+  { type: 'crate',        x: 2050, z: -20 },
+  { type: 'crate',        x: 2200, z:  25 },
+  { type: 'crate',        x: 2350, z:   0 },
+  { type: 'canister',     x: 2600, z: -15 },
+  // W3–W4 合間（ボンベ＋地雷の導入）
+  { type: 'canister',     x: 3700, z: -20 },
+  { type: 'canister',     x: 3850, z:  20 },
+  { type: 'crate',        x: 4000, z:   0 },
+  { type: 'mine',         x: 4200, z: -30 },
+  { type: 'mine',         x: 4350, z:  30 },
+  // W4–BOSS（D 区画）：地雷散布＋ボス前 OC コンテナ
+  { type: 'mine',         x: 5100, z: -20 },
+  { type: 'mine',         x: 5250, z:  25 },
+  { type: 'oc-container', x: 5550, z:   0 },
+  { type: 'canister',     x: 5750, z: -20 },
+  { type: 'mine',         x: 5900, z:  30 },
+  { type: 'canister',     x: 6000, z:  15 },
+];
 
 const _runner = createWaveRunner({
   waves: STAGE03_WAVES,
@@ -50,7 +55,7 @@ const _runner = createWaveRunner({
         ground: deps.ground,
       });
       addCentralPlant(deps.scene, deps.THREE);
-      _placeMinesForTest(deps.scene, deps.THREE);
+      placeBreakables(deps.scene, deps.THREE, _STAGE3_PROPS);
     }
   },
   spawnOptsForWave: (wave) => ({ _isBossWave: wave.isBoss === true }),

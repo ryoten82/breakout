@@ -42,6 +42,9 @@ export function createWaveRunner(opts) {
   let _activeWaveEnemies = [];
   let _started = false;
   let _onWaveClear = null;  // 非最終 wave クリア時コールバック（deps.onWaveClear から注入）
+  // 最終ウェーブ撃破後、meta.clearWalkX 指定時はそこへ歩くまでクリアを保留する
+  let _pendingClear = false;
+  let _pendingClearNextId = null;
 
   function _spawnWave(wave) {
     _activeWaveEnemies = [];
@@ -74,6 +77,8 @@ export function createWaveRunner(opts) {
     _nextWaveIndex = 0;
     _activeWave = null;
     _activeWaveEnemies = [];
+    _pendingClear = false;
+    _pendingClearNextId = null;
     _started = true;
     updateWaveHud(0, meta.totalWaves, false);
   }
@@ -83,6 +88,15 @@ export function createWaveRunner(opts) {
     if (!_players || _players.length === 0) return;
     const p = _players[0];
     if (!p) return;
+
+    // 0) 最終ウェーブ撃破後の保留クリア：clearWalkX へ歩き切ったら遷移
+    if (_pendingClear) {
+      if (p.x >= meta.clearWalkX) {
+        _pendingClear = false;
+        if (!isStageCleared()) triggerStageClear({ nextStageId: _pendingClearNextId });
+      }
+      return;
+    }
 
     // 1) 未発火ウェーブの triggerX 到達チェック
     if (!_activeWave && _nextWaveIndex < waves.length) {
@@ -109,9 +123,15 @@ export function createWaveRunner(opts) {
         releaseLock();
         if (wasLastWave) {
           const nextId = resolveNextStageId ? resolveNextStageId() : (meta.nextStageId ?? null);
-          if (!isStageCleared()) triggerStageClear({ nextStageId: nextId });
           updateWaveHud(meta.totalWaves, meta.totalWaves, false);
           hideArrowHud();
+          if (meta.clearWalkX != null) {
+            // 最終ウェーブ後の「歩いて OC を取る余白」：到達までクリアを保留
+            _pendingClear = true;
+            _pendingClearNextId = nextId;
+          } else if (!isStageCleared()) {
+            triggerStageClear({ nextStageId: nextId });
+          }
         } else {
           updateWaveHud(_nextWaveIndex, meta.totalWaves, false);
           showArrowHud();
