@@ -434,6 +434,7 @@ export const ENEMY_ATTACKS = {
     hitColor:        0xff3300,
     pitchWind:      -0.30,
     pitchActive:     0,     // 空中飛翔中は傾けない
+    repulseAxis:    'aerial',  // リパルスカウンター軸（対空 = sp_02 昇竜で迎撃）
   },
 
   // -------------------------------------------------------
@@ -441,43 +442,43 @@ export const ENEMY_ATTACKS = {
   // -------------------------------------------------------
   // 盾叩き：盾を大きく構えてから前方を突き押す。リーチ広め・ガード崩し感あり
   mb01_atk_01: {
-    name:           '盾叩き',
+    name:           'シールドバッシュ',
     kind:           'swing',
     attackCategory: 'melee',
-    windFrames:     30,    // じっくり構える（予兆大）
-    activeFrames:   12,
-    recoverFrames:  35,
-    cooldownFrames: 80,
-    lungeVx:        12,    // 体ごと押し込む
-    hitboxRangeX:   140,
-    hitboxRangeY:   110,
-    hitboxRangeZ:   90,
+    windFrames:     18,
+    activeFrames:   8,
+    recoverFrames:  22,
+    cooldownFrames: 60,
+    lungeVx:        10,
+    hitboxRangeX:   80,
+    hitboxRangeY:   90,
+    hitboxRangeZ:   70,
     damage:         8,
-    atk_lv:         3,
-    knockback:      26,
-    hitstop:        6,
-    shake:          5,
+    atk_lv:         2,
+    knockback:      10,
+    hitstop:        5,
+    shake:          4,
     hitColor:       0xaaaacc,
     pitchWind:     -0.25,
     pitchActive:   +0.38,
   },
-  // マチェット斬り：右腕の長刃で横薙ぎ。リーチが長く外から当ててくる
+  // 怒り狂い連打：盾破壊後。近〜中距離の 2 段連打。
   mb01_atk_02: {
-    name:           'マチェット斬り',
+    name:           '怒り狂い連打',
     kind:           'swing',
     attackCategory: 'melee',
-    windFrames:     22,
-    activeFrames:   16,
-    recoverFrames:  28,
-    cooldownFrames: 65,
+    windFrames:     8,
+    activeFrames:   12,
+    recoverFrames:  25,
+    cooldownFrames: 75,
     lungeVx:        10,
-    hitboxRangeX:   160,   // マチェットのリーチ長め
-    hitboxRangeY:   110,
-    hitboxRangeZ:   85,
-    damage:         11,
-    atk_lv:         3,
-    knockback:      20,
-    hitstop:        6,
+    hitboxRangeX:   100,
+    hitboxRangeY:   90,
+    hitboxRangeZ:   80,
+    damage:         6,
+    atk_lv:         2,
+    knockback:      8,
+    hitstop:        5,
     shake:          5,
     hitColor:       0xccaa44,
     pitchWind:     -0.22,
@@ -585,6 +586,10 @@ export const ENEMY_ENRAGE_CONFIG = {
   INTRO_FRAMES:  40,    // enraged_intro モーションの長さ
   COOLDOWN_MULT: 0.5,   // 興奮中の攻撃クールダウン倍率（攻撃頻度↑）
   APPROACH_MULT: 1.25,  // 興奮中の接近速度倍率
+  // HP% 興奮トリガーのグローバル ON/OFF
+  // false にすると enem01/enem02 の低 HP 興奮が無効化。
+  // midboss01 の盾破壊 enraged 化は別経路（triggerShieldBreak）なのでこのフラグの影響を受けない。
+  ENABLE_HP_ENRAGE: false,
 };
 
 // ============================================================
@@ -603,6 +608,21 @@ export const MIDBOSS_SHIELD_CONFIG = {
   BREAK_HITSTOP:   14,    // 盾破壊の強ヒットストップ F
   BREAK_SHAKE:     12,    // 盾破壊のシェイク強度
   BANNER_FRAMES:   60,    // "SHIELD BREAK!" バナー表示 F（約 1 秒）
+};
+
+// ============================================================
+//  #section repulse-counter — リパルスカウンター設定
+//  - 敵の特定大技に「相反する軸」の SP を合わせると確定クリ＋即死＋gc 発動
+//  - 軸：aerial（対空）/ ground（対地）/ frontal（対正面）
+//  - 現在は e02_atk_02（jump_dive）+ c01_sp_02（昇竜）= aerial 軸のみ実装
+// ============================================================
+export const REPULSE_CONFIG = {
+  // 「危」UI の表示期間（aim フェーズ中は常時表示なので寿命は不要）
+  BANNER_FRAMES:   50,    // 成功時バナー表示 F
+  FLASH_COLOR:     0xcc88ff,  // 成功時ヒットパーティクル色
+  FLASH_COUNT:     24,
+  // 軸ラベルとアイコン文字（HUD 表示用）
+  AXIS_ICON:       { aerial: '↑', ground: '↓', frontal: '→' },
 };
 
 // ============================================================

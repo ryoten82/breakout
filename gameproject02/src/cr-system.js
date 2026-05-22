@@ -13,8 +13,10 @@ let _THREE = null;
 let _scene = null;
 let _players = null;
 let _crHudEl = null;
+let _spawnEffect = null;   // コイン取得時のパーティクルコールバック（hit-engine.spawnHitParticles）
 
 const _pickups = [];   // { mesh, x, y, z, vx, vy, vz, bounceCount, landed, value }
+const _rings   = [];   // コイン取得時の拡張リング { mesh, timer, maxTimer }
 let _crTotal = 0;
 
 // 値はランタイム調整可：window.SB.CR_CONFIG.MAGNET_RANGE = 220 など
@@ -30,21 +32,22 @@ export const CR_CONFIG = {
   BOUNCE_COEF:      0.42,   // バウンド係数（毎回 42% の縦速度を維持）
   MAX_BOUNCES:      3,      // 最大バウンド回数
   BOUNCE_MIN_VY:    1.5,    // これ以下の縦速でバウンドせず着地確定
-  MAGNET_RANGE:     170,    // この距離内でプレイヤーへ吸い寄せ開始
-  MAGNET_ACCEL:     0.9,    // 吸い寄せ加速度（初期値）
+  MAGNET_RANGE:     260,    // この距離内でプレイヤーへ吸い寄せ開始
+  MAGNET_ACCEL:     1.8,    // 吸い寄せ加速度（初期値）
   MAGNET_RAMP:      0.04,   // 磁力範囲内滞在フレームごとの加速増加率
   MAGNET_DAMP:      0.92,   // 磁力範囲内での速度全体減衰（周回軌道防止）
-  MAGNET_MAX_SPEED: 13,     // 吸い寄せ中の最大速度
+  MAGNET_MAX_SPEED: 22,     // 吸い寄せ中の最大速度
   COLLECT_RANGE:    55,     // この距離まで近づくと回収
   COIN_R:           14,     // コイン半径（wu）
   COIN_H:           5,      // コイン厚み（wu）
   COLOR:            0xffdd33, // CR 識別色（黄）
 };
 
-export function initCrSystem({ THREE, scene, players, hudLayerEl }) {
+export function initCrSystem({ THREE, scene, players, hudLayerEl, spawnEffect }) {
   _THREE = THREE;
   _scene = scene;
   _players = players;
+  _spawnEffect = spawnEffect ?? null;
   // CR カウンタ HUD（左下・最小表示）
   const el = document.createElement('div');
   el.id = 'cr-counter';
@@ -141,6 +144,7 @@ export function updateCrSystem() {
       if (dx * dx + dz * dz < C.COLLECT_RANGE * C.COLLECT_RANGE) {
         _crTotal += c.value;
         if (_crHudEl) _crHudEl.textContent = 'CR: ' + _crTotal;
+        _spawnCoinPickupFX(c.x, c.y, c.z);
         _disposeCoinGroup(c.mesh);
         _pickups.splice(i, 1);
         continue;
@@ -150,9 +154,44 @@ export function updateCrSystem() {
     c.mesh.rotation.y += c.landed ? 0.10 : 0.18;
     c.mesh.position.set(c.x, c.y + C.COIN_R, c.z);
   }
+  // 取得リングアニメーション：拡大 + フェードアウト
+  for (let i = _rings.length - 1; i >= 0; i--) {
+    const r = _rings[i];
+    r.timer++;
+    const t = r.timer / r.maxTimer;
+    r.mesh.scale.setScalar(0.3 + t * 0.7);
+    r.mesh.material.opacity = 0.85 * (1 - t);
+    if (r.timer >= r.maxTimer) {
+      if (_scene) _scene.remove(r.mesh);
+      r.mesh.geometry.dispose();
+      r.mesh.material.dispose();
+      _rings.splice(i, 1);
+    }
+  }
 }
 
 export function getCrTotal() { return _crTotal; }
+
+// コイン取得時演出：黄リング拡張 + sparkle パーティクル
+function _spawnCoinPickupFX(x, y, z) {
+  if (_THREE && _scene) {
+    const C = CR_CONFIG;
+    // コインと同じ縦向き（XY 平面・カメラ正面向き）で生成
+    const ring = new _THREE.Mesh(
+      new _THREE.RingGeometry(C.COIN_R, C.COIN_R * 3.0, 24),
+      new _THREE.MeshBasicMaterial({
+        color: C.COLOR, transparent: true, opacity: 0.9,
+        depthWrite: false, side: _THREE.DoubleSide,
+      }),
+    );
+    // rotation なし = XY 平面（コインと同じ向き）
+    ring.position.set(x, y + C.COIN_R, z);
+    ring.scale.setScalar(0.2);
+    _scene.add(ring);
+    _rings.push({ mesh: ring, timer: 0, maxTimer: 16 });
+  }
+  if (_spawnEffect) _spawnEffect(x, y + 20, z);
+}
 
 // Group（外枠）ごと scene から除去し、内部 Mesh の geometry/material を dispose
 function _disposeCoinGroup(group) {

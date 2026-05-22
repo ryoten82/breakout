@@ -35,11 +35,11 @@ import {
 } from './states.js';
 import {
   COMBO_LEVELS, getComboLevel,
-  PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG, MIDBOSS_SHIELD_CONFIG,
+  PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG, MIDBOSS_SHIELD_CONFIG, REPULSE_CONFIG,
 } from './config.js';
 import { resolveAttackAttr } from './attacks.js';
 import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak } from './enemy-system.js';
-import { spawnDamageNumber } from './hud-system.js';
+import { spawnDamageNumber, spawnBanner } from './hud-system.js';
 
 let _THREE = null;
 let _scene = null;
@@ -590,10 +590,16 @@ export function tryHitEnemies(p, attack, ctx) {
     //   それ以外は基礎確率。ガード成立時はクリ無効。敵 state は直後に上書きされるため先に判定。
     const _isCounterHit = (e.state === STATE.enemy_attacking &&
                            (e.atkPhase === 'wind' || e.atkPhase === 'active'));
-    const _isCrit = !_guarded && (_isCounterHit || (Math.random() < CRIT_CONFIG.BASE_CHANCE));
+    // リパルスカウンター判定：aim フェーズ中（repulseWindow=true）の敵に、軸が一致する SP を当てた場合。
+    //   確定クリ＋即死（雑魚）＋専用バナー＋パーティクル。SP コスト消費なし（腕前ゲート不要）。
+    const _repulseMatch = e.repulseWindow && attack.repulseAxis &&
+      ENEMY_ATTACKS[e.curAtkId]?.repulseAxis === attack.repulseAxis;
+    if (_repulseMatch) e.repulseWindow = false;   // ウィンドウ消費（1 回限り）
+    const _isCrit = !_guarded && (_repulseMatch || _isCounterHit || (Math.random() < CRIT_CONFIG.BASE_CHANCE));
     let _finalDamage = _isCrit
       ? Math.round(_scaledDamage * CRIT_CONFIG.DAMAGE_MULT)
       : _scaledDamage;
+    if (_repulseMatch) _finalDamage = Math.max(_finalDamage, e.hp);   // 雑魚は即死保証
     if (_guarded) _finalDamage = Math.max(1, Math.round(_finalDamage * ENEMY_REACT_CONFIG.GUARD_DAMAGE_MULT));
     // midboss01 盾ダメージ振り分け：盾 HP を削り、前面接地ヒットは本体ダメージを 0 にする。
     //   盾削りはクリ補正前の素ダメージ基準（クリ補正は本体専用）。
@@ -610,6 +616,12 @@ export function tryHitEnemies(p, attack, ctx) {
     // 与ダメージ数値ポップ（本体ダメージ＝橙/白、盾ダメージ＝水色を別行で）
     if (_finalDamage > 0) spawnDamageNumber(e.x, e.y + 110, e.z, _finalDamage, { crit: _isCrit });
     if (_shieldDmg > 0)   spawnDamageNumber(e.x, e.y + 150, e.z, _shieldDmg, { shield: true });
+    // リパルスカウンター成立演出（バナー＋紫パーティクルバースト）
+    if (_repulseMatch) {
+      const _RC = REPULSE_CONFIG;
+      spawnBanner('REPULSE!', { frames: _RC.BANNER_FRAMES, color: '#cc88ff', fontSize: 62 });
+      spawnHitParticles(e.x, e.y + 100, e.z, _RC.FLASH_COLOR, _RC.FLASH_COUNT, { type: 'omni' });
+    }
     // 最終ヒッター記録（ゴア・クリティカル抽選で参照・enterEnemyDying 内で profile lookup に使う）
     // wasGrounded：被弾"前"の接地状態を記録（gc 抽選の requireGrounded 判定で使用）。
     //   この時点ではまだ攻撃の vy/knockback が dispatch されてないので、ここで取れば「打ち上げ前」の値が取れる。

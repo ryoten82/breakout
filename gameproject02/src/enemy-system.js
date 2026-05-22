@@ -412,6 +412,7 @@ export function spawnDummy(x, z, opts = {}) {
     atkSlotIdx:            0,   // slash_rush 複数ヒットスロットインデックス
     superArmor:            0,   // SA 値（berserker midboss01 は triggerShieldBreak でセット）
     saHp:                  0,   // 現SA残HP（_beginEnemyAttack ごとにリセット）
+    repulseWindow:         false, // リパルスカウンター受付中（aim フェーズで true・hit-engine 参照）
     slashHitFlash:         0,   // slash_rush ヒット瞬間の hitbox フラッシュ残F
     _tick:                 0,   // 点滅・パルス計算用フレームカウンタ
     // === ミニマム AI（Phase 2.4）===
@@ -2346,7 +2347,7 @@ export function updateEnemies(ctx) {
         let _reacted = false;
         // 興奮トリガー（#14-C）：HP が閾値以下で 1 度だけ enraged 化 → enraged_intro モーション。
         //   berserker（midboss01）は HP% では興奮せず、盾破壊（triggerShieldBreak）でのみ enraged 化する。
-        if (e.personality !== 'berserker' &&
+        if (ENEMY_ENRAGE_CONFIG.ENABLE_HP_ENRAGE && e.personality !== 'berserker' &&
             !e.enraged && e.hp > 0 && e.hp <= e.maxHp * e.enragedHp) {
           e.enraged   = true;
           e.state     = STATE.enraged_intro;
@@ -2644,9 +2645,10 @@ export function updateEnemies(ctx) {
             if (_jdp === 'launch') {
               // 上昇中：頂点付近（vy≤2）で照準フェーズへ移行
               if (e.vy <= 2) {
-                e._jdPhase    = 'aim';
-                e._jdHoldY    = e.y;
-                e._jdAimTimer = atk.aimFrames ?? 80;
+                e._jdPhase       = 'aim';
+                e.repulseWindow  = true;   // リパルスカウンター受付開始
+                e._jdHoldY       = e.y;
+                e._jdAimTimer    = atk.aimFrames ?? 80;
                 const _p = _players && _players[0];
                 e._jdTargetX  = _p ? _p.x : e.x;
                 e._jdTargetZ  = _p ? _p.z : e.z;
@@ -2659,6 +2661,7 @@ export function updateEnemies(ctx) {
                 e.atkTimer       = atk.recoverFrames;
                 e.atkPitchTarget = 0;
                 e._jdPhase       = null;
+                e.repulseWindow  = false;  // リパルスカウンター受付終了（被弾キャンセル）
                 e._chargeT       = 0;
                 _clearAllTokens(ctx, e);
               } else {
@@ -2683,7 +2686,8 @@ export function updateEnemies(ctx) {
               }
               if (e._jdAimTimer <= 0) {
                 // 急降下開始（この瞬間 _jdTargetX/Z が確定・追尾解除）
-                e._jdPhase = 'dive';
+                e._jdPhase      = 'dive';
+                e.repulseWindow = false;  // リパルスカウンター受付終了（降下開始）
                 _removeJdMarkers(e);
               }
               } // end else (no hitFlash)

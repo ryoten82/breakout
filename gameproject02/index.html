@@ -449,6 +449,30 @@
       letter-spacing: 4px;
       text-shadow: 2px 2px 0 #000;
     }
+    /* リパルスカウンター受付インジケータ（aim フェーズ中に「危 ↑」を点滅表示） */
+    #repulse-hud {
+      display: none;
+      position: absolute;
+      top: 50%;
+      right: 140px;
+      transform: translateY(-50%);
+      font-size: 52px;
+      font-weight: 900;
+      color: #ff2222;
+      text-shadow: 0 0 20px #ff4444, 3px 3px 0 #000;
+      letter-spacing: 4px;
+      pointer-events: none;
+      z-index: 120;
+    }
+    /* OC ジェム取得の画面フラッシュ（oc-overlay より手前で光らせる） */
+    #oc-flash {
+      position: absolute;
+      inset: 0;
+      background: #e6d2ff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 215;
+    }
     /* OVERCLOCK カード選択オーバーレイ */
     #oc-overlay {
       position: absolute;
@@ -490,10 +514,29 @@
       transition: border-color 0.12s, transform 0.1s, box-shadow 0.12s;
       text-align: center;
     }
-    .oc-card:hover {
+    .oc-card:hover,
+    .oc-card--focused {
       border-color: #ff8800;
       transform: translateY(-4px) scale(1.03);
       box-shadow: 0 8px 24px rgba(255,136,0,0.4);
+    }
+    .oc-card--focused {
+      outline: 2px solid #ffaa44;
+    }
+    /* 選択確定：強フラッシュ → 実機復帰前の一発演出 */
+    @keyframes oc-card-select-flash {
+      0%   { box-shadow: 0 8px 24px rgba(255,136,0,0.4);   border-color:#ff8800; transform: translateY(-4px) scale(1.03); }
+      18%  { box-shadow: 0 0 80px 30px rgba(255,240,170,1); border-color:#ffffff; transform: scale(1.14); }
+      100% { box-shadow: 0 0 40px 12px rgba(255,200,90,0.6); border-color:#ffcc44; transform: scale(1.06); }
+    }
+    .oc-card--selected {
+      animation: oc-card-select-flash 0.42s ease-out forwards;
+      background: rgba(58, 48, 22, 0.98);
+      outline: none;
+    }
+    .oc-card--dimmed {
+      opacity: 0.12;
+      transition: opacity 0.18s ease-out;
     }
     .oc-card-label {
       font-family: 'Courier New', monospace;
@@ -600,6 +643,10 @@
     <div class="oc-subtitle">技術を解放せよ</div>
     <div id="oc-cards"></div>
   </div>
+  <!-- OC ジェム取得の画面フラッシュ -->
+  <div id="oc-flash"></div>
+  <!-- リパルスカウンター受付インジケータ -->
+  <div id="repulse-hud"></div>
   <!-- 開始画面：モード選択 → markPlayStart 発火 → フェードアウト -->
   <div id="start-screen-overlay">
     <div class="start-title">SCRAP BLITZ</div>
@@ -666,7 +713,7 @@
   <div id="sp-hud">
     <div class="title">必殺技コマンド</div>
     <div id="hk-sp1">K（中立 / ← / →）: SP1（波動・プラズマカノン）</div>
-    <div id="hk-sp2">↑ + K: SP2（対空キャノン）</div>
+    <div id="hk-sp2">↑ + K: SP2（対空キャノン・「危↑」中に使うとリパルスカウンター）</div>
     <div id="hk-sp3">↓ + K: SP3（急降下踏みつけ）</div>
     <div id="hk-sp4">J 長押し: SP4（チャージパンチ・2 段階）</div>
   </div>
@@ -819,7 +866,7 @@
     import {
       PHYSICS, SP_CONFIG, ULT_CONFIG, GRAB_CONFIG, MEGA_CONFIG, UKEMI_CONFIG,
       SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, HOMING_CONFIG, GUARD_CONFIG,
-      ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE,
+      ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, REPULSE_CONFIG,
       CAM_CONFIG, PIXEL_SHADER, OUTLINE_CONFIG,
       CHARGE_RING_CONFIG, CHARGE_PARTICLE_CONFIG,
       COMBO_LEVELS, getComboLevel, SLOWMO, KEY_CONFIG, OVERCLOCK_CARDS,
@@ -869,6 +916,7 @@
       updateEnemyPersonalityHud,
       spawnDamageNumber, updateDamageNumbers,
       spawnBanner, updateBanners,
+      updateRepulseHud,
     } from './src/hud-system.js';
     // === enemy-system（敵 AI / 状態遷移 / 物理 / mesh 構築）は src/enemy-system.js に分離（Step E-3）===
     import {
@@ -882,6 +930,8 @@
       initBreakables, registerBreakable, tryHitBreakables, updateBreakables, getBreakables,
       getFlyingPartsCount, hitBreakableExternal, findBreakableHitBy,
     } from './src/breakables.js';
+    // === oc-gem（OC コンテナ破壊で出現する紫ジェム → OC 選択トリガー）===
+    import { initOcGem, spawnOcGem, updateOcGem } from './src/oc-gem.js';
     // === cr-system（CR ドロップ＆回収・14-F テスト版）===
     import { initCrSystem, updateCrSystem, getCrTotal, dropCR, CR_CONFIG } from './src/cr-system.js';
     // === debug-invariants（意図しない挙動の自動検知・致命検知は常時 ON）===
@@ -2160,7 +2210,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-22 fix: マチェットラッシュ 3ヒット着弾 + 疲れ硬直2秒 + SA active限定';
+    const LAST_UPDATE = '2026-05-23 fix: OC 選択を A/D 対応 + 選択カード強フラッシュ演出';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {
@@ -2223,23 +2273,46 @@
     }
 
     // ============================================================
-    //  OVERCLOCK（wave 2 クリア後カード選択・試験実装）
+    //  OVERCLOCK（OC コンテナ破壊 → ジェム取得 → カード選択・試験実装）
     // ============================================================
-    let _ocPending = false;   // カード選択中（true の間メインループを停止）
-    let _ocUsed    = false;   // 1 ラン 1 回限りトリガー済みフラグ
-    const _ocMods  = {};      // 適用済み変更の undo 用ベース値保存
+    let _ocPending        = false; // カード選択中（true の間メインループを停止）
+    let _ocOpenTimer      = 0;     // ジェム取得フラッシュ後、OC 選択画面を開くまでの残 F
+    const _ocMods         = {};    // 適用済み変更の undo 用ベース値保存
+    let   _ocCards        = [];   // 現在表示中の OC カード配列（キー入力選択用）
+    let   _ocFocusIdx     = 0;    // フォーカス中カードの index（0 or 1）
+    const _ocPadPrev      = { left: false, right: false, select: false };  // rising-edge
+    let   _ocInputDelay   = 0;    // 開いた直後の誤入力防止タイマー（60F = 1 秒）
+    let   _ocSelecting    = false; // 選択フラッシュ演出中（再入力ロック）
+
+    // OC ジェム取得：画面フラッシュ → 少し見せてから OC 選択画面へ
+    function _onOcGemAcquired() {
+      _triggerOcFlash();
+      _ocOpenTimer = 14;
+    }
+
+    // 画面全体の取得フラッシュ（#oc-flash を一瞬光らせて CSS フェードアウト）
+    function _triggerOcFlash() {
+      const f = document.getElementById('oc-flash');
+      if (!f) return;
+      f.style.transition = 'none';
+      f.style.opacity = '0.92';
+      requestAnimationFrame(() => {
+        f.style.transition = 'opacity 0.5s ease-out';
+        f.style.opacity = '0';
+      });
+    }
 
     function showOCSelection() {
       // OVERCLOCK_CARDS から 2 枚をランダム抽出
       const shuffled = [...OVERCLOCK_CARDS].sort(() => Math.random() - 0.5);
-      const chosen   = shuffled.slice(0, 2);
+      _ocCards = shuffled.slice(0, 2);
 
       const overlay  = document.getElementById('oc-overlay');
       const cardsEl  = document.getElementById('oc-cards');
       if (!overlay || !cardsEl) return;
 
       cardsEl.innerHTML = '';
-      for (const card of chosen) {
+      for (const card of _ocCards) {
         const div = document.createElement('div');
         div.className = 'oc-card';
         div.innerHTML =
@@ -2249,20 +2322,55 @@
         cardsEl.appendChild(div);
       }
 
+      _ocFocusIdx = 0;
+      _updateOcFocus();
       overlay.style.display = 'flex';
       PAUSE_CONFIG.paused = true;
       _invSetPaused(true);
+      _ocInputDelay = 60;  // 開いた直後 1 秒間は決定・方向入力を無効（直前の連打誤爆防止）
+      _ocPadPrev.left = false; _ocPadPrev.right = false; _ocPadPrev.select = false;
+      _ocSelecting = false;
       _ocPending = true;
+      document.addEventListener('keydown', _ocKeyHandler);
+    }
+
+    function _updateOcFocus() {
+      const cards = document.querySelectorAll('.oc-card');
+      cards.forEach((el, i) => el.classList.toggle('oc-card--focused', i === _ocFocusIdx));
+    }
+
+    function _ocKeyHandler(e) {
+      if (!_ocPending || e.repeat || _ocInputDelay > 0) return;
+      // ArrowLeft/Right は inp() ゲームループ側で rising-edge 管理（ここで処理すると二重トグルになる）
+      if (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyJ' || e.code === 'KeyK') {
+        _selectOC(_ocCards[_ocFocusIdx].id);
+        e.preventDefault();
+      }
     }
 
     function _selectOC(cardId) {
-      _applyOCEffect(cardId);
-      const overlay = document.getElementById('oc-overlay');
-      if (overlay) overlay.style.display = 'none';
-      PAUSE_CONFIG.paused = false;
-      _invSetPaused(false);
-      _ocPending = false;
-      console.log('[OC] 発動:', cardId);
+      if (_ocSelecting) return;   // フラッシュ演出中の二重選択を弾く
+      _ocSelecting = true;
+      document.removeEventListener('keydown', _ocKeyHandler);
+      // 選択カードを強フラッシュ、非選択カードはディム
+      const idx = _ocCards.findIndex(c => c.id === cardId);
+      const cardEls = document.querySelectorAll('.oc-card');
+      cardEls.forEach((el, i) => {
+        el.classList.remove('oc-card--focused');
+        if (i === idx) el.classList.add('oc-card--selected');
+        else           el.classList.add('oc-card--dimmed');
+      });
+      // フラッシュを見せてから効果適用 → オーバーレイを閉じて実機へ復帰
+      setTimeout(() => {
+        _applyOCEffect(cardId);
+        const overlay = document.getElementById('oc-overlay');
+        if (overlay) overlay.style.display = 'none';
+        PAUSE_CONFIG.paused = false;
+        _invSetPaused(false);
+        _ocPending   = false;
+        _ocSelecting = false;
+        console.log('[OC] 発動:', cardId);
+      }, 480);
     }
 
     function _applyOCEffect(cardId) {
@@ -2380,10 +2488,18 @@
       damageArea: { addStaticArea, updateAreaPosition, removeArea, spawnExpandPulse },
       // 被弾中プレイヤーで proximity 点火を誘発しないための判定
       isHitstunState,
+      // OC コンテナ破壊 → 破壊位置に OC ジェムを出現させる
+      onOcContainerBreak: (x, y, z) => spawnOcGem(x, z),
     });
 
+    // OC ジェム初期化（コンテナ破壊 → ジェム出現 → 滞在 → 取得フラッシュ → OC 選択）
+    initOcGem({ scene, THREE, onAcquire: _onOcGemAcquired });
+
     // cr-system 初期化（CR ドロップ＆回収・14-F テスト版）
-    initCrSystem({ scene, THREE, players, hudLayerEl: document.getElementById('hud-layer') });
+    initCrSystem({
+      scene, THREE, players, hudLayerEl: document.getElementById('hud-layer'),
+      spawnEffect: (x, y, z) => spawnHitParticles(x, y, z, 0xffdd33, 10, { type: 'omni' }),
+    });
 
     // player-system 初期化（ガード/特殊技/チャージ等）
     //   inp / spawnChargeParticle / clearChargeParticles / chargeReadyRing は既に
@@ -2440,11 +2556,7 @@
       } else if (id === 'stage02') {
         initStage02({ spawnDummy, players, enemies, scene, THREE });
       } else {
-        initStage01({ spawnDummy, players, enemies, scene, THREE,
-          onWaveClear: (waveIndex) => {
-            if (waveIndex === 1 && !_ocUsed) { _ocUsed = true; showOCSelection(); }
-          },
-        });
+        initStage01({ spawnDummy, players, enemies, scene, THREE });
         if (window.STAGE01_EXTERIOR !== false) {
           initStage01Exterior({ scene, THREE, backWallPillars, bgElements, ground });
         }
@@ -3007,6 +3119,10 @@
       updateEnemies(hitCtx);
       // 壊れ物プロップ：フラッシュ進行・飛び散りパーツ物理
       updateBreakables();
+      // OC ジェム：湧き上がり → 滞在 → 取得演出
+      updateOcGem();
+      // OC ジェム取得フラッシュ後、ディレイ経過で OC 選択画面を開く
+      if (_ocOpenTimer > 0 && --_ocOpenTimer === 0) showOCSelection();
       // CR ドロップ：散らばり物理 + 磁力吸い寄せ + 回収（14-F テスト版）
       updateCrSystem();
       // ダメージ範囲可視化（リング寿命・パルス拡張）
@@ -3038,6 +3154,7 @@
       updateEnemyPersonalityHud();
       updateDamageNumbers();
       updateBanners();
+      updateRepulseHud();
       updateDebug();
       // === debug-invariants：意図しない挙動を自動検知（致命は常時 ON / 警告/情報は SB.DEBUG_INVARIANTS）===
       const _invFrame = getGameFrame();
@@ -3318,6 +3435,23 @@
       }
 
       pollGamepad();
+      // OC 選択中のゲームパッド入力（ポーズ中でも走らせる）
+      if (_ocPending && !_ocSelecting) {
+        if (_ocInputDelay > 0) _ocInputDelay--;
+        // 左右移動キー（A/D・矢印）とゲームパッド D-pad を統合判定
+        const _left   = inp('ArrowLeft')  || inp('KeyA');
+        const _right  = inp('ArrowRight') || inp('KeyD');
+        const _sel    = inp('Space') || inp('KeyJ') || inp('KeyK');
+        if (_ocInputDelay <= 0) {
+          if (_left  && !_ocPadPrev.left)   { _ocFocusIdx = _ocFocusIdx === 0 ? 1 : 0; _updateOcFocus(); }
+          if (_right && !_ocPadPrev.right)  { _ocFocusIdx = _ocFocusIdx === 0 ? 1 : 0; _updateOcFocus(); }
+          if (_sel   && !_ocPadPrev.select) { _selectOC(_ocCards[_ocFocusIdx].id); }
+        }
+        // delay 中も prev を更新しておく（delay 終了直後に押しっぱなしで即発火しないよう）
+        _ocPadPrev.left   = _left;
+        _ocPadPrev.right  = _right;
+        _ocPadPrev.select = _sel;
+      }
       updateHudHighlight();
       updateHitboxDebug();
       // 一時停止：update を完全スキップ・render のみ継続（時間停止）
@@ -3332,6 +3466,10 @@
       // ← hitstop 中に派生 K 入力できないと、ユーザーの「間が空く」体感が出る
       if (fxState.hitstopTimer > 0) {
         fxState.hitstopTimer--;
+        // updatePlayer がスキップされるため、hitstop 中は敵攻撃 hitbox を強制非表示にする。
+        // （updatePlayer の hitbox 可視化は updateEnemies より前に走るため、
+        //   hitstop 開始フレームの hitbox 状態が freeze されて残り続けるのを防ぐ）
+        for (let _i = 0; _i < enemies.length; _i++) _getEnemyHitboxMesh(_i).visible = false;
         for (const _p of players) {
           // ガードシールド：updatePlayer がスキップされるため hitstop 中も同期を維持
           syncGuardShield(_p);
@@ -3521,6 +3659,7 @@
       jumpEnemy,
       spawnDamageNumber,   // デバッグ：SB.spawnDamageNumber(x,y,z,amount,{crit}) で数値ポップ生成
       spawnBanner,         // デバッグ：SB.spawnBanner('TEST') でバナー表示テスト
+      REPULSE_CONFIG,      // デバッグ：SB.REPULSE_CONFIG でパラメータ確認・調整
       // デバッグ：ゲーム更新を手動で N フレーム進める（rAF 停止＝タブ非可視時の検証用）
       gameStep: (n = 1) => { for (let i = 0; i < n; i++) update(); },
       DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_AI, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, tryHitPlayer,
@@ -3578,11 +3717,12 @@
       // Phase 3-C：lv06 即きりもみ→爆散（黒フェードを飛ばす直行ルート・コンソール強制発火用）
       //   SB.enterEnemyDyingBurst(SB.enemies[0])   // テストで強制発火（通常は lv06 攻撃ヒット時に自動）
       enterEnemyDyingBurst: (e, facing) => enterEnemyDyingBurst(e, hitCtx, facing),
-      // OVERCLOCK（wave 2 クリア後試験実装）
-      //   SB.oc.show()          → 強制発動（デバッグ用）
+      // OVERCLOCK（OC コンテナ破壊 → ジェム出現 → 滞在 → 取得フラッシュ → 選択画面）
+      //   SB.oc.show()          → カード選択を強制発動（デバッグ用）
+      //   SB.oc.gem(x, z)       → 任意座標に OC ジェムを出現（フロー確認用）
       //   SB.OVERCLOCK_CARDS    → カードテーブル確認
       OVERCLOCK_CARDS,
-      oc: { show: showOCSelection, apply: _applyOCEffect },
+      oc: { show: showOCSelection, apply: _applyOCEffect, gem: (x, z) => spawnOcGem(x ?? 0, z ?? 0) },
     };
     console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / pad / mega crash / ult) loaded.');
     console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG / SB.KEY_CONFIG');

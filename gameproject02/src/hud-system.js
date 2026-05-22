@@ -23,7 +23,7 @@
 //  SP_CONFIG / GRAB_CONFIG / STATE は ESM 直接 import。
 // ============================================================
 
-import { SP_CONFIG, GRAB_CONFIG } from './config.js';
+import { SP_CONFIG, GRAB_CONFIG, REPULSE_CONFIG, ENEMY_ATTACKS } from './config.js';
 import { STATE } from './states.js';
 
 let _THREE = null;
@@ -52,6 +52,8 @@ const _personaPool = [];
 let _dmgProj = null;
 const _dmgNumbers = [];   // 飛び交うダメージ数値（{ x,y,z,vy,vx,life,maxLife,crit,el }）
 const _dmgNumPool = [];   // DOM 要素プール（_inUse で借用管理）
+let _repulseHudEl = null; // 「危↑」リパルスカウンター受付インジケータ
+let _repulsePulse  = 0;   // 点滅アニメ用カウンタ
 
 export function initHudSystem(deps) {
   _THREE = deps.THREE;
@@ -73,6 +75,7 @@ export function initHudSystem(deps) {
   _stunProj = new _THREE.Vector3();
   _personaProj = new _THREE.Vector3();
   _dmgProj = new _THREE.Vector3();
+  _repulseHudEl = deps.repulseHudEl ?? document.getElementById('repulse-hud');
 }
 
 // ============================================================
@@ -490,5 +493,32 @@ export function updateBanners() {
       continue;
     }
     _renderBanner(b);
+  }
+}
+
+// ============================================================
+//  リパルスカウンター受付インジケータ（「危 ↑」）
+//  repulseWindow=true の敵が存在する間だけ表示。点滅で緊急度を伝える。
+// ============================================================
+export function updateRepulseHud() {
+  if (!_repulseHudEl || !_enemies) return;
+  // 受付中の敵を探して軸アイコンを取得
+  let _axisIcon = null;
+  for (const e of _enemies) {
+    if (e.repulseWindow && e.curAtkId) {
+      const _axis = ENEMY_ATTACKS[e.curAtkId]?.repulseAxis;
+      if (_axis) { _axisIcon = REPULSE_CONFIG.AXIS_ICON?.[_axis] ?? '!'; break; }
+    }
+  }
+  if (_axisIcon) {
+    _repulsePulse++;
+    // 12F 周期で点滅（点灯 8F / 暗転 4F）
+    const _lit = (_repulsePulse % 12) < 8;
+    _repulseHudEl.style.display  = 'block';
+    _repulseHudEl.style.opacity  = _lit ? '1' : '0.25';
+    _repulseHudEl.textContent    = `危 ${_axisIcon}`;
+  } else {
+    _repulsePulse = 0;
+    _repulseHudEl.style.display  = 'none';
   }
 }
