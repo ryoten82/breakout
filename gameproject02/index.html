@@ -449,6 +449,65 @@
       letter-spacing: 4px;
       text-shadow: 2px 2px 0 #000;
     }
+    /* OVERCLOCK カード選択オーバーレイ */
+    #oc-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.82);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      z-index: 210;
+    }
+    .oc-header {
+      font-family: 'Courier New', monospace;
+      font-size: 64px;
+      font-weight: bold;
+      color: #ff8800;
+      letter-spacing: 12px;
+      text-shadow: 0 0 24px #ff6600, 3px 3px 0 #000;
+      margin-bottom: 8px;
+    }
+    .oc-subtitle {
+      font-family: 'Courier New', monospace;
+      font-size: 18px;
+      color: #aaa;
+      letter-spacing: 4px;
+      margin-bottom: 40px;
+    }
+    #oc-cards {
+      display: flex;
+      gap: 32px;
+    }
+    .oc-card {
+      background: rgba(16, 20, 28, 0.97);
+      border: 2px solid #444;
+      border-radius: 6px;
+      padding: 28px 32px;
+      width: 200px;
+      cursor: pointer;
+      transition: border-color 0.12s, transform 0.1s, box-shadow 0.12s;
+      text-align: center;
+    }
+    .oc-card:hover {
+      border-color: #ff8800;
+      transform: translateY(-4px) scale(1.03);
+      box-shadow: 0 8px 24px rgba(255,136,0,0.4);
+    }
+    .oc-card-label {
+      font-family: 'Courier New', monospace;
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 3px;
+      margin-bottom: 10px;
+    }
+    .oc-card-desc {
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      color: #bbb;
+      letter-spacing: 1px;
+    }
 
     /* 開始画面オーバーレイ（初回キー入力で消える・markPlayStart トリガー） */
     #start-screen-overlay {
@@ -534,6 +593,12 @@
   <div id="pause-overlay">
     <div class="pause-text">PAUSED</div>
     <div class="pause-hint">ESC で再開</div>
+  </div>
+  <!-- OVERCLOCK カード選択オーバーレイ -->
+  <div id="oc-overlay">
+    <div class="oc-header">OVERCLOCK</div>
+    <div class="oc-subtitle">技術を解放せよ</div>
+    <div id="oc-cards"></div>
   </div>
   <!-- 開始画面：モード選択 → markPlayStart 発火 → フェードアウト -->
   <div id="start-screen-overlay">
@@ -757,7 +822,7 @@
       ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE,
       CAM_CONFIG, PIXEL_SHADER, OUTLINE_CONFIG,
       CHARGE_RING_CONFIG, CHARGE_PARTICLE_CONFIG,
-      COMBO_LEVELS, getComboLevel, SLOWMO, KEY_CONFIG,
+      COMBO_LEVELS, getComboLevel, SLOWMO, KEY_CONFIG, OVERCLOCK_CARDS,
     } from './src/config.js';
     // === damage-system は src/damage-system.js に分離（Step D-1・ESM import）===
     import {
@@ -2094,7 +2159,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-22 fix: SP2 最終段空振り修正（dodge 中被弾で dodgeInvuln 残存バグ）';
+    const LAST_UPDATE = '2026-05-22 refactor: 攻撃カテゴリトークン（melee/aerial 独立枠）';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {
@@ -2143,6 +2208,7 @@
 
     // 一時停止トグルの共通エントリ（ESC / PAD START 両方から呼ぶ）
     function togglePause(source = 'KB') {
+      if (_ocPending) return;  // OC カード選択中は ESC で閉じない
       if (!PAUSE_CONFIG.allowFullPause) {
         // マルチプレイ時はここで別 UI（時間止めずにメニュー表示）を将来実装
         return;
@@ -2155,11 +2221,85 @@
       console.log(`[PAUSE] ${PAUSE_CONFIG.paused ? 'PAUSED' : 'RESUMED'} (${source})`);
     }
 
-    // 敵 AI ローテーション：攻撃許可トークン（1 体だけ enemy_attacking 遷移可能）
+    // ============================================================
+    //  OVERCLOCK（wave 2 クリア後カード選択・試験実装）
+    // ============================================================
+    let _ocPending = false;   // カード選択中（true の間メインループを停止）
+    let _ocUsed    = false;   // 1 ラン 1 回限りトリガー済みフラグ
+    const _ocMods  = {};      // 適用済み変更の undo 用ベース値保存
+
+    function showOCSelection() {
+      // OVERCLOCK_CARDS から 2 枚をランダム抽出
+      const shuffled = [...OVERCLOCK_CARDS].sort(() => Math.random() - 0.5);
+      const chosen   = shuffled.slice(0, 2);
+
+      const overlay  = document.getElementById('oc-overlay');
+      const cardsEl  = document.getElementById('oc-cards');
+      if (!overlay || !cardsEl) return;
+
+      cardsEl.innerHTML = '';
+      for (const card of chosen) {
+        const div = document.createElement('div');
+        div.className = 'oc-card';
+        div.innerHTML =
+          `<div class="oc-card-label" style="color:${card.color}">${card.label}</div>` +
+          `<div class="oc-card-desc">${card.desc}</div>`;
+        div.addEventListener('click', () => _selectOC(card.id));
+        cardsEl.appendChild(div);
+      }
+
+      overlay.style.display = 'flex';
+      PAUSE_CONFIG.paused = true;
+      _invSetPaused(true);
+      _ocPending = true;
+    }
+
+    function _selectOC(cardId) {
+      _applyOCEffect(cardId);
+      const overlay = document.getElementById('oc-overlay');
+      if (overlay) overlay.style.display = 'none';
+      PAUSE_CONFIG.paused = false;
+      _invSetPaused(false);
+      _ocPending = false;
+      console.log('[OC] 発動:', cardId);
+    }
+
+    function _applyOCEffect(cardId) {
+      switch (cardId) {
+        case 'POWER_UP':
+          if (!_ocMods.powerUp) {
+            _ocMods.powerUp = {};
+            for (const id of Object.keys(ATTACKS)) {
+              _ocMods.powerUp[id] = ATTACKS[id].damage;
+              ATTACKS[id].damage  = +(ATTACKS[id].damage * 1.3).toFixed(1);
+            }
+          }
+          break;
+        case 'SP_RUSH':
+          if (!_ocMods.spRush) {
+            _ocMods.spRush = SP_CONFIG.GAIN_ON_HIT;
+            SP_CONFIG.GAIN_ON_HIT = SP_CONFIG.GAIN_ON_HIT * 2;
+          }
+          break;
+        case 'REGEN_UP':
+          if (!_ocMods.regenUp) {
+            _ocMods.regenUp = SP_CONFIG.REGEN_RATE;
+            SP_CONFIG.REGEN_RATE = SP_CONFIG.REGEN_RATE * 3;
+          }
+          break;
+        case 'SP_FULL':
+          for (const p of players) { p.sp = SP_CONFIG.MAX; }
+          break;
+      }
+    }
+
+    // 攻撃カテゴリトークン（カテゴリ別に独立した1枠・同時攻撃制御）
     // - null = 誰も持っていない（次に取れる敵が攻撃発動）
     // - 敵 e への参照 = 現在 e が攻撃中・他敵は待機
     // - 解放タイミング：recover 終了 / wind キャンセル / 被弾 / 敵 OFF / ULT 終了
-    let enemyAttackToken = null;
+    let _tok_melee      = null;
+    let _tok_aerial     = null;
+    // let _tok_projectile = null;  // 将来の長距離敵用（未使用時はコメントアウト）
 
     // enemy-system 初期化（spawnDummy / updateEnemies が使う依存を注入）
     initEnemySystem({ THREE, scene, players, enemies });
@@ -2299,7 +2439,11 @@
       } else if (id === 'stage02') {
         initStage02({ spawnDummy, players, enemies, scene, THREE });
       } else {
-        initStage01({ spawnDummy, players, enemies, scene, THREE });
+        initStage01({ spawnDummy, players, enemies, scene, THREE,
+          onWaveClear: (waveIndex) => {
+            if (waveIndex === 1 && !_ocUsed) { _ocUsed = true; showOCSelection(); }
+          },
+        });
         if (window.STAGE01_EXTERIOR !== false) {
           initStage01Exterior({ scene, THREE, backWallPillars, bgElements, ground });
         }
@@ -2371,12 +2515,12 @@
     // hit-engine 初期化（依存注入：THREE / scene / DOM / players）
     initHitEngine({ THREE, scene, comboEl, comboNumEl, players });
 
-    // hit-engine 関数群に渡す共有 ctx（enemyAttackToken は index.html のグローバル let、gameFrameCounter は player-system.js 内）
+    // hit-engine 関数群に渡す共有 ctx（attackTokens は index.html のグローバル let 群、gameFrameCounter は player-system.js 内）
     const hitCtx = {
       enemies,
-      enemyAttackToken: {
-        get: () => enemyAttackToken,
-        set: (v) => { enemyAttackToken = v; },
+      attackTokens: {
+        melee:  { get: () => _tok_melee,  set: v => { _tok_melee  = v; } },
+        aerial: { get: () => _tok_aerial, set: v => { _tok_aerial = v; } },
       },
       getFrame: () => getGameFrame(),
       // 壊れ物プロップへの並行ヒット判定（依存注入で循環 import 回避）
@@ -2424,7 +2568,7 @@
         for (const e of enemies) {
           e.frozenByUlt = false;
         }
-        enemyAttackToken = null;  // ULT 終了で攻撃トークンも全解放（次の敵が即攻撃可）
+        _tok_melee = null; _tok_aerial = null;  // ULT 終了で攻撃トークンも全解放（次の敵が即攻撃可）
       },
     });
 
@@ -2537,7 +2681,7 @@
       // 敵 1 体モード（テスト用：enemies[1] 以降を非アクティブ化）
       if (e.code === 'Digit5') {
         TEST_CONFIG.singleEnemyMode = !TEST_CONFIG.singleEnemyMode;
-        enemyAttackToken = null;  // モード切替時にトークン解放（停止した敵が持ち続けないように）
+        _tok_melee = null; _tok_aerial = null;  // モード切替時にトークン解放（停止した敵が持ち続けないように）
         const _hkSingleEl = document.getElementById('hk-single-enemy');
         if (_hkSingleEl) {
           _hkSingleEl.textContent = `5: 敵 1 体モード [${TEST_CONFIG.singleEnemyMode ? 'ON' : 'OFF'}]`;
@@ -2648,7 +2792,7 @@
         spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: _imm, maxHp: _maxHp });
         spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: _imm, maxHp: _maxHp });
         // 攻撃トークン解放（旧敵が保持していた場合の保険）
-        enemyAttackToken = null;
+        _tok_melee = null; _tok_aerial = null;
         console.log('[RESPAWN]', `3 体（instantRespawn=${_imm}, maxHp=${_maxHp}）`);
       }
       // 敵 aiPhase 頭上ラベル ON/OFF（Phase 3 デバッグ）
@@ -2898,7 +3042,7 @@
       for (const _p of players)  _invCheckPlayer(_p, _invFrame);
       for (const _e of enemies)  _invCheckEnemy(_e, _invFrame);
       for (const _b of getBreakables()) _invCheckBreakable(_b, _invFrame);
-      _invCheckAttackToken(enemyAttackToken, _invFrame);
+      for (const _tok of Object.values(hitCtx.attackTokens)) _invCheckAttackToken(_tok.get(), _invFrame);
       _invClearFrameWarnings(_invFrame);
     }
 
@@ -3426,11 +3570,16 @@
       //   SB.GORE_CONFIG.PART_BREAK_PROB = 0.4             // ヒット時の抽選確率（既定 1.0）
       //   SB.handleEnemyDyingHit(SB.enemies[0], x, y, z, 1) // ヒット模擬（パーティクル＋抽選）
       detachOnePart: (e, facing) => detachOnePart(e, facing),
-      enterEnemyExplode: (e, facing) => enterEnemyExplode(e, facing),
+      enterEnemyExplode: (e, facing) => enterEnemyExplode(e, hitCtx, facing),
       handleEnemyDyingHit,
       // Phase 3-C：lv06 即きりもみ→爆散（黒フェードを飛ばす直行ルート・コンソール強制発火用）
       //   SB.enterEnemyDyingBurst(SB.enemies[0])   // テストで強制発火（通常は lv06 攻撃ヒット時に自動）
       enterEnemyDyingBurst: (e, facing) => enterEnemyDyingBurst(e, hitCtx, facing),
+      // OVERCLOCK（wave 2 クリア後試験実装）
+      //   SB.oc.show()          → 強制発動（デバッグ用）
+      //   SB.OVERCLOCK_CARDS    → カードテーブル確認
+      OVERCLOCK_CARDS,
+      oc: { show: showOCSelection, apply: _applyOCEffect },
     };
     console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / pad / mega crash / ult) loaded.');
     console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG / SB.KEY_CONFIG');

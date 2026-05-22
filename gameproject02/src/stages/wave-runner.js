@@ -41,13 +41,14 @@ export function createWaveRunner(opts) {
   let _activeWave = null;
   let _activeWaveEnemies = [];
   let _started = false;
+  let _onWaveClear = null;  // 非最終 wave クリア時コールバック（deps.onWaveClear から注入）
 
   function _spawnWave(wave) {
     _activeWaveEnemies = [];
     for (const s of wave.spawns) {
       const tpl = enemyTpl[s.type] || {};
       const base = {
-        maxHp: tpl.maxHp,
+        ...tpl,                       // tier テンプレートの全プロパティを展開（enemyType 等を含む）
         instantRespawn: false,
         _stageEnemyType: s.type,
       };
@@ -62,6 +63,7 @@ export function createWaveRunner(opts) {
     _spawnDummy = deps.spawnDummy;
     _players = deps.players;
     _enemies = deps.enemies;
+    _onWaveClear = deps.onWaveClear ?? null;
     initWaveHud();
     if (decorate) decorate(deps);
     // ステージ範囲の静的壁を登録（重複防止）
@@ -100,6 +102,7 @@ export function createWaveRunner(opts) {
       const allDead = _activeWaveEnemies.every(_isEnemyDead);
       if (allDead) {
         const wasLastWave = (_nextWaveIndex === waves.length - 1);
+        const completedWaveIndex = _nextWaveIndex;
         _activeWave = null;
         _activeWaveEnemies = [];
         _nextWaveIndex++;
@@ -112,6 +115,7 @@ export function createWaveRunner(opts) {
         } else {
           updateWaveHud(_nextWaveIndex, meta.totalWaves, false);
           showArrowHud();
+          if (_onWaveClear) _onWaveClear(completedWaveIndex);
         }
       }
     }

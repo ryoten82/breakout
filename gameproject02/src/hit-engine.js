@@ -491,13 +491,13 @@ export function updateSuperFlightTrails(...entitySets) {
 //  敵被弾判定（Step D-2c-1）
 //
 //  index.html から ctx を受け取って動作：
-//    ctx = { enemies, enemyAttackToken: { get, set } }
+//    ctx = { enemies, attackTokens: { melee, aerial, ... } }
 //
-//  enemyAttackToken は index.html 側のグローバル let を保持するため
+//  attackTokens は index.html 側のグローバル let 群を保持するため
 //  関数引数経由で getter/setter を渡す。
 // ============================================================
 export function tryHitEnemies(p, attack, ctx) {
-  const { enemies, enemyAttackToken, breakablesHitFn } = ctx;
+  const { enemies, attackTokens, breakablesHitFn } = ctx;
   // 並行して壊れ物プロップにも同じ攻撃 range を当てる（依存注入：循環 import 回避）
   if (breakablesHitFn) breakablesHitFn(p, attack);
   const facing = p.facing;
@@ -575,10 +575,11 @@ export function tryHitEnemies(p, attack, ctx) {
     const _hitLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
       ? attack.atk_lv_air
       : (attack.atk_lv ?? 1);
-    // ガード成立判定（#14-B）：enemy_guard 中・前面・atk_lv ≤ 3 のヒットはガードで軽減。
-    //   lv4 以上 / 背面はガード崩れ → 通常 dispatch（下流の lv 振り分け）に流す。
+    // ガード成立判定（#14-B）：enemy_guard 中・前面・atk_lv ≤ guardStrength のヒットはガードで軽減。
+    //   guardStrength 超 / 背面はガード崩れ → 通常 dispatch（下流の lv 振り分け）に流す。
+    //   e.guardStrength が未設定の場合は 3（enem01/enem02 相当）
     const _hitFromFront = (Math.sign(p.x - e.x) === e.facing) || (p.x === e.x);
-    const _guarded = (e.state === STATE.enemy_guard) && _hitFromFront && _hitLv <= 3;
+    const _guarded = (e.state === STATE.enemy_guard) && _hitFromFront && _hitLv <= (e.guardStrength ?? 3);
     // クリティカル判定：カウンターヒット（敵の攻撃発生中 wind/active）は確定。
     //   それ以外は基礎確率。ガード成立時はクリ無効。敵 state は直後に上書きされるため先に判定。
     const _isCounterHit = (e.state === STATE.enemy_attacking &&
@@ -834,7 +835,11 @@ export function tryHitEnemies(p, attack, ctx) {
         e.atkTimer     = 0;
         e.atkCooldown  = (ENEMY_ATTACKS[e.curAtkId] ?? ENEMY_ATTACKS.e01_atk_01).cooldownFrames;
         e.hitDelivered = false;
-        if (enemyAttackToken.get() === e) enemyAttackToken.set(null);  // トークン解放
+        if (attackTokens) {
+          const _cat = e.curAtkCategory ?? 'melee';
+          const _tok = attackTokens[_cat];
+          if (_tok && _tok.get() === e) _tok.set(null);  // トークン解放
+        }
       }
       // === atk_lv 駆動の被弾ステート振り分け ===
       // 再発火許可ステート：
@@ -1198,7 +1203,7 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
 //  - 衝突したら受け手を atk_lv 3（down_front_start）にし、投げ手はその場で停止
 //  - ヒットストップ強め（FF 風）・1 回当てたら投擲弾フラグ消費
 //
-//  Step D-2c-3 で分離。enemyAttackToken は ctx 経由。
+//  Step D-2c-3 で分離。attackTokens は ctx 経由。
 // ============================================================
 const THROW_CHAIN_CONFIG = {
   hitRangeX:    80,   // 衝突判定距離（X 軸）
@@ -1214,7 +1219,7 @@ const THROW_CHAIN_CONFIG = {
 };
 
 export function tryThrownChainHit(thrower, ctx) {
-  const { enemies, enemyAttackToken } = ctx;
+  const { enemies, attackTokens } = ctx;
   if (!thrower.thrownProjectile) return;
   if (!thrower.isAlive) return;
   // 着地したら投擲弾フラグ解除
@@ -1265,7 +1270,9 @@ export function tryThrownChainHit(thrower, ctx) {
     other.atkTimer    = 0;
     other.atkCooldown = 30;
     other.hitDelivered = false;
-    if (enemyAttackToken.get() === other) enemyAttackToken.set(null);
+    const _cat2 = other.curAtkCategory ?? 'melee';
+    const _tok2 = attackTokens && attackTokens[_cat2];
+    if (_tok2 && _tok2.get() === other) _tok2.set(null);
     applyHitInitialPitch(other);
 
     // 投げ手：投擲弾フラグ消費 + 軽くストップ（連鎖防止・1 ヒットで消費）

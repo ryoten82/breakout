@@ -29,10 +29,12 @@ const MINES = [
   { x:  1500, lv: 6, label: '超吹っ飛ばし' },
 ];
 
-// ダミー敵の配置スロット（性格別）。死亡フローに入ったら同スロットへ即リスポーンする。
+// ダミー敵の配置スロット（性格・敵種別）。死亡フローに入ったら同スロットへ即リスポーンする。
 const ENEMY_SLOTS = [
-  { personality: 'brave',   x: -250, z: 150 },
-  { personality: 'cunning', x:  250, z: 150 },
+  { personality: 'brave',    enemyType: 'enem01', x: -500, z: 150 },
+  { personality: 'cunning',  enemyType: 'enem01', x: -150, z: 150 },
+  { personality: 'cunning',  enemyType: 'enem02', x:  200, z: 150 },  // enem02 ジャンパー
+  { personality: 'guardian', enemyType: 'midboss01', x:  550, z: 150 },  // midboss01 シールドガーダー
 ];
 
 let _built = false;
@@ -42,7 +44,18 @@ let _enemies = null;   // 即リスポーン判定用の敵配列参照（initAc
 // 1 スロット分のダミーを生成。instantRespawn:false ＝ 死亡演出（ゴア）を最後まで再生させる。
 function _spawnSlot(slot) {
   if (!_spawnDummy) return;
-  _spawnDummy(slot.x, slot.z, { maxHp: 100, instantRespawn: false, personality: slot.personality });
+  const hp = slot.enemyType === 'enem02' ? 35
+           : slot.enemyType === 'midboss01' ? 250
+           : 100;
+  const cd = slot.enemyType === 'enem02' ? 60
+           : slot.enemyType === 'midboss01' ? 75
+           : 90;
+  _spawnDummy(slot.x, slot.z, {
+    maxHp: hp, instantRespawn: false,
+    personality: slot.personality,
+    enemyType: slot.enemyType ?? 'enem01',
+    atkCooldown: cd,
+  });
 }
 
 // atk_lv 表記の Canvas テクスチャ Sprite（常にカメラを向く・depthTest 無効で最前面）
@@ -156,7 +169,9 @@ export function tickActionTest() {
   const enemies = _enemies;
   for (const slot of ENEMY_SLOTS) {
     const alive = enemies.some(e =>
-      e.personality === slot.personality && e.isAlive && !e.dying && !e.removed);
+      e.personality === slot.personality &&
+      (e.enemyType ?? 'enem01') === (slot.enemyType ?? 'enem01') &&
+      e.isAlive && !e.dying && !e.removed);
     if (!alive) _spawnSlot(slot);
   }
 }

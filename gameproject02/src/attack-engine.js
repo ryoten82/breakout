@@ -23,7 +23,7 @@
 //    - inp: (code) => bool   入力ポーリング関数
 //    - dirMatchesForFacing: (dir, pat, facing) => bool   コマンドマッチ判定
 //    - onUltEnd: (p) => void  ULT 終了演出のクリーンアップ（dome / camera / token 等）
-//    - hitCtx: { enemies, enemyAttackToken, getFrame }  hit-engine 渡し用
+//    - hitCtx: { enemies, attackTokens, getFrame }  hit-engine 渡し用
 // ============================================================
 
 import { ATTACKS, Z_CHAIN, A_CHAIN } from './attacks.js';
@@ -217,7 +217,7 @@ export function pickStepAttackId(p) {
 //  攻撃フレーム駆動：ヒット判定発生・終了処理
 //
 //  ULT 終了時の演出クリーンアップは _onUltEnd(p) コールバックに委譲
-//  （ultDome / camera / enemyAttackToken など index.html ローカル参照のため）
+//  （ultDome / camera / attackTokens など index.html ローカル参照のため）
 // ============================================================
 export function updateAttack(p) {
   if (p.state !== STATE.attacking) return;
@@ -348,7 +348,7 @@ export function updateAttack(p) {
       p.dashCooldown = PHYSICS.DASH_COOLDOWN;
     }
     // ULT 終了：演出完全リセット・無敵解除・全敵を強制解凍
-    // ultDome / camera / enemyAttackToken のクリーンアップは index.html 側コールバックに委譲
+    // ultDome / camera / attackTokens のクリーンアップは index.html 側コールバックに委譲
     if (atk.isUlt) {
       p.ultActive  = false;
       p.invincible = false;
@@ -958,7 +958,11 @@ export function tryGrabActivate(p) {
       e.atkPhase     = null;
       e.atkTimer     = 0;
       e.hitDelivered = false;
-      if (_hitCtx && _hitCtx.enemyAttackToken.get() === e) _hitCtx.enemyAttackToken.set(null);
+      if (_hitCtx && _hitCtx.attackTokens) {
+        const _gCat = e.curAtkCategory ?? 'melee';
+        const _gTok = _hitCtx.attackTokens[_gCat];
+        if (_gTok && _gTok.get() === e) _gTok.set(null);
+      }
     }
     e.state         = STATE.grabbed;
     e.grabbedBy     = p;

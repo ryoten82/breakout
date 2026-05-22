@@ -316,6 +316,7 @@ export const DUMMY_ATK_CONFIG = {
   dashChaseBeat:    28,    // ダッシュ開始前の「ワンテンポ」待機F
   dashChaseSpeed:   5.5,   // ダッシュ追跡の移動速度（wu/F・通常接近 1.4 より速い）
   dashChaseStop:    300,   // ダッシュはこの距離まで詰めたら終了 → 通常追跡へ戻る
+  minTackleRange:   200,   // 突進タックルを出す最小距離（これ未満は基本振りのみ・至近距離での誤タックル防止）
   // Phase 3 AI ステート明示化（aiPhase）: retreat フェーズ用
   retreatFrames:        40,   // 攻撃 recover 後の強制後退時間
   retreatSpeed:         1.0,  // 後退時の移動速度（wu/F・approachSpeed より控えめ）
@@ -334,6 +335,7 @@ export const ENEMY_ATTACKS = {
   e01_atk_01: {
     name:           '基本振り',
     kind:           'swing',  // 攻撃の種類（swing=その場振り / dash=突進タックル）
+    attackCategory: 'melee',
     windFrames:     18,    // 溜め（予兆モーション）
     activeFrames:   8,     // 当たり判定アクティブ
     recoverFrames:  25,    // 振り終わり硬直
@@ -356,6 +358,7 @@ export const ENEMY_ATTACKS = {
   e01_atk_02: {
     name:           '突進タックル',
     kind:           'dash',
+    attackCategory: 'melee',
     windFrames:     32,    // 溜め（突進の予兆・読みやすさ重視で長め）
     activeFrames:   60,    // 突進の最大持続F（通常は dashMaxDist 到達で早期終了）
     recoverFrames:  35,    // 突進終了後の硬直（外し時の攻めどころ）
@@ -366,13 +369,119 @@ export const ENEMY_ATTACKS = {
     hitboxRangeY:   90,
     hitboxRangeZ:   100,
     damage:         9,     // 一旦半減（旧 18・敵攻撃力 暫定調整）
-    atk_lv:         2,
+    atk_lv:         3,
     knockback:      22,
     hitstop:        7,
     shake:          6,
     hitColor:       0xff4422,
     pitchWind:     -0.30,  // 溜め：深くのけぞる（基本振りより大きい予兆）
     pitchActive:   +0.42,  // 突進：大きく前傾
+  },
+
+  // -------------------------------------------------------
+  // enem02（ジャンパー）攻撃
+  // -------------------------------------------------------
+  // 小ジャンプ攻撃：短いホップで前進→空中でぶつかる。外すと recover が短め
+  e02_atk_01: {
+    name:           '小ジャンプ攻撃',
+    kind:           'hop_strike',
+    attackCategory: 'melee',
+    windFrames:     12,   // 短い溜め（素早い）
+    activeFrames:   45,   // ホップ中の最大持続（着地で打ち切り）
+    recoverFrames:  18,
+    cooldownFrames: 50,
+    hopVy:          10,   // 上昇初速（軽いホップ）
+    dashSpeed:      9,    // 水平移動速度（wu/F）
+    dashMaxDist:    200,  // 水平距離上限（wu）
+    hitboxRangeX:   100,
+    hitboxRangeY:   90,   // 空中ヒット用にやや高め
+    hitboxRangeZ:   80,
+    damage:         7,
+    atk_lv:         2,
+    knockback:      16,
+    hitstop:        5,
+    shake:          4,
+    hitColor:       0x44ccff,
+    pitchWind:     -0.20,
+    pitchActive:   +0.35,
+  },
+  // ジャンプ急降下（3段階予兆付き）
+  //   Phase 1：wind で~2s しゃがみ溜め（第1予兆）
+  //   Phase 2：高速上昇→頂点で照準フェーズ（第2予兆：AOE + 収束リング）
+  //   Phase 3：リング収束完了で超高速急降下（atklv 5/5/-）
+  //   リパルスカウンター対象：自機 atklv4（SP1/↑J）で迎撃すると成立
+  e02_atk_02: {
+    name:            'ジャンプ急降下',
+    kind:            'jump_dive',
+    attackCategory:  'aerial',
+    windFrames:      120,   // ~2s しゃがみ溜め（第1予兆）
+    activeFrames:    360,   // 上昇＋照準＋降下の最大持続F（フォールバック）
+    recoverFrames:   40,
+    cooldownFrames:  110,
+    jumpVy:          35,    // 上昇初速（頂点≈747wu ≈ キャラ7体分・要調整）
+    aimFrames:       80,    // 照準フェーズ：二次リングが収束するまでの F
+    aoeRadius:       120,   // 一次 AOE サークル半径（wu・要調整）
+    ringStartRadius: 360,   // 二次リング開始半径（wu）
+    diveSpeed:       80,    // 急降下速度（wu/F・物理を無視した直接移動）
+    hitboxRangeX:    110,
+    hitboxRangeY:    150,   // 縦長（叩きつけ）
+    hitboxRangeZ:    110,
+    damage:          14,
+    atk_lv:          5,     // atklv 5/5/-（溜め・ヒット共に5・recover は無し）
+    knockback:       28,
+    hitstop:         10,    // 中程度のヒットストップ
+    shake:           8,
+    hitColor:        0xff3300,
+    pitchWind:      -0.30,
+    pitchActive:     0,     // 空中飛翔中は傾けない
+  },
+
+  // -------------------------------------------------------
+  // midboss01（シールドガーダー）攻撃 — 中ボス相当・守勢型
+  // -------------------------------------------------------
+  // 盾叩き：盾を大きく構えてから前方を突き押す。リーチ広め・ガード崩し感あり
+  mb01_atk_01: {
+    name:           '盾叩き',
+    kind:           'swing',
+    attackCategory: 'melee',
+    windFrames:     30,    // じっくり構える（予兆大）
+    activeFrames:   12,
+    recoverFrames:  35,
+    cooldownFrames: 80,
+    lungeVx:        12,    // 体ごと押し込む
+    hitboxRangeX:   140,
+    hitboxRangeY:   110,
+    hitboxRangeZ:   90,
+    damage:         8,
+    atk_lv:         3,
+    knockback:      26,
+    hitstop:        6,
+    shake:          5,
+    hitColor:       0xaaaacc,
+    pitchWind:     -0.25,
+    pitchActive:   +0.38,
+  },
+  // マチェット斬り：右腕の長刃で横薙ぎ。リーチが長く外から当ててくる
+  mb01_atk_02: {
+    name:           'マチェット斬り',
+    kind:           'swing',
+    attackCategory: 'melee',
+    windFrames:     22,
+    activeFrames:   16,
+    recoverFrames:  28,
+    cooldownFrames: 65,
+    lungeVx:        10,
+    hitboxRangeX:   160,   // マチェットのリーチ長め
+    hitboxRangeY:   110,
+    hitboxRangeZ:   85,
+    damage:         11,
+    atk_lv:         3,
+    knockback:      20,
+    hitstop:        6,
+    shake:          5,
+    hitColor:       0xccaa44,
+    pitchWind:     -0.22,
+    pitchActive:   +0.42,
   },
 };
 
@@ -402,10 +511,13 @@ export const ENEMY_ATTACK_RELAY = {
 //    - retreatMult：攻撃後 retreat の長さ倍率（brave ≈0＝退却拒否で前のめり）
 //    - punishesHitstun：true なら「プレイヤー被弾中」でも攻撃可（brave の追撃確定）
 export const ENEMY_PERSONALITY = {
-  brave:   { guardTendency: 0.12, dodgeTendency: 0.08, staggerThreshold: 6, enragedHp: 0.50,
-             atk02Weight: 0.60, cooldownMult: 0.7, retreatMult: 0.15, punishesHitstun: true },
-  cunning: { guardTendency: 0.40, dodgeTendency: 0.45, staggerThreshold: 4, enragedHp: 0.38,
-             atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 1.0,  punishesHitstun: false },
+  brave:    { guardTendency: 0.12, dodgeTendency: 0.08, staggerThreshold: 6, enragedHp: 0.50,
+              atk02Weight: 0.60, cooldownMult: 0.7, retreatMult: 0.15, punishesHitstun: true },
+  cunning:  { guardTendency: 0.40, dodgeTendency: 0.45, staggerThreshold: 4, enragedHp: 0.38,
+              atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 1.0,  punishesHitstun: false },
+  // guardian：盾特化。頻繁にガード姿勢を取り、隙を見て攻撃。dodge はほぼしない
+  guardian: { guardTendency: 0.65, dodgeTendency: 0.05, staggerThreshold: 5, enragedHp: 0.30,
+              atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 0.5,  punishesHitstun: false },
 };
 
 // ============================================================
@@ -745,3 +857,16 @@ export const KEY_CONFIG = {
   megaCrash:    { kb: 'KeyU'                      }, // U / R1（J+K同時も発動）
   ult:          { kb: 'KeyI'                      }, // I / R2（J+K+L同時も発動）
 };
+
+// ============================================================
+//  #section overclock-cards — OVERCLOCK カード定義（試験実装）
+//  - wave 2 クリア後に 4 枚から 2 枚をランダムで提示 → 1 枚選択で効果発動
+//  - 効果は ATTACKS / SP_CONFIG などのランタイム値を直接書き換え
+//  - id で applyOCEffect が分岐。color は選択 UI のアクセントカラー
+// ============================================================
+export const OVERCLOCK_CARDS = [
+  { id: 'POWER_UP',  label: 'POWER UP',  desc: '攻撃力 ×1.3',     color: '#ff5533' },
+  { id: 'SP_RUSH',   label: 'SP RUSH',   desc: 'SP 獲得 ×2',      color: '#22aaff' },
+  { id: 'REGEN_UP',  label: 'REGEN UP',  desc: 'SP 回復 ×3',      color: '#44dd88' },
+  { id: 'SP_FULL',   label: 'SP FULL',   desc: 'SP ゲージ即時満タン', color: '#ffcc22' },
+];
