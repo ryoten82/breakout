@@ -8,14 +8,33 @@
 
 Act 1 = factory の 2 番目のステージ。**工場内部の生産フロア**。屋外開放感（Stage 1 外周ヤード）から「中に入った」体感を出す。Stage 3 の工場深部（CRUSHER 戦）への通路役。
 
-## テスト用確定版の実装内容（2026-05-19）
+## 実装内容（2026-05-23 独立ランナー化）
 
-`gameproject02/src/stages/stage02/index.js` は **stage01 のシステム一式を流用するラッパー**：
+`gameproject02/src/stages/stage02/index.js` は **独自ランナー**：
 
-- ウェーブシステム：stage01 と同じ（4 waves：tier01×2 / tier01×3+tier03×1 / tier01×2+tier05×1 / tier01×2+tier06×1）
+- ウェーブ：敵編成は stage01 と共用（`STAGE01_WAVES` を再 export）。META は stage02 専用
+  （`stage02/waves.js`：worldXMax 6900 / `clearWalkX` 6650 / nextStageId stage03）
+- ウェーブ間隔は 1 画面（≒1200wu）確保（2026-05-23 拡張）。trig x = 800 / 2300 / 4000 / 5700
+- 地面穴ギミック（`floor-hazard.js`）：Stage 2 固有。**穴 3 個**をウェーブ合間に配置（後述）
+- 壊れ物：序盤コンテナ多め → 後半ボンベ多め。穴に重ならないよう x をずらして配置
+- OC コンテナ：**最終ウェーブ撃破後**、`clearWalkX` 手前の余白（x=6500）に固定 1 個
 - 装飾：既存の内部柱組（`buildBackWallPillars`）＋床↘パース＋bgElements
 - 動作：exterior は適用しない（`SELECTED_STAGE === 'stage02'` 時は initStage01Exterior をスキップ）
-- 仕様参照：[`../stage01/layout.md`](../stage01/layout.md)（テストプレイ最小構成・Stage 2 装飾相当）
+- 仕様参照：[`../stage01/layout.md`](../stage01/layout.md)（ウェーブ編成・装飾の共通仕様）
+
+## 地面穴ギミック（2026-05-23 複数化）
+
+`floor-hazard.js` が管理。穴 3 個を `HAZARD_CONFIG.holes` 配列で定義し、ウェーブ合間に分散：
+
+| 穴 | X 範囲 | 配置 |
+|---|---|---|
+| 穴1 | 1640〜1980 | W1–W2 合間 |
+| 穴2 | 3120〜3460 | W2–W3 合間 |
+| 穴3 | 4980〜5320 | W3–W4 合間 |
+
+- いずれの穴 x 範囲にも敵スポーン x を含めない（「湧いた瞬間に落ちる」事故の回避）
+- 敵を穴に落とすと CR コインを「落ちた穴の手前（プレイヤー側）」へドロップ
+- 接地歩行は見えない段差でブロック、ジャンプで入って着地すると落下判定
 
 ## 起動例
 
@@ -28,16 +47,15 @@ http://127.0.0.1:5502/index.html?stage=stage02
 location.search = '?stage=stage02';
 ```
 
-## 「テスト用」という限定の意味
+## 残りの移管タスク
 
-- 装飾の実体は **まだ stage01 側にある**（`buildBackWallPillars` 等）
-- 本実装フェーズ（zealous-hertz と被らないタイミング）で以下を実施する想定：
+- ✅ stage02/index.js を独自ランナー化（2026-05-23 完了）
+- ✅ stage02 専用 META を `stage02/waves.js` に分離（2026-05-23 完了）
+- 装飾の実体は **まだ stage01 / index.html 側にある**（`buildBackWallPillars` 等）
+- 本実装フェーズで以下を実施する想定：
   1. `index.html` の `buildBackWallPillars()` 等を `gameproject02/src/props/factory/back-wall.js` 等に切り出し
-  2. `gameproject02/src/stages/stage02/index.js` を stage01 ラッパーから独立実装に置き換え
-  3. `stages/stage02/layout.md` を作成（現 stage01/layout.md の内容を移植・更新）
-  4. waves / progress-lock / wave-hud / clear / section-markers を stage02 専用化 or 共通化
-
-それまではテスト用としてそのまま使う。プレイ機能は完全に動く。
+  2. `stages/stage02/layout.md` を作成（現 stage01/layout.md の内容を移植・更新）
+  3. 敵編成を stage02 専用へ（現状は STAGE01_WAVES 共用。下記「編成仕様」が独立化時の出発点）
 
 ### なぜ移管が別タスクか
 
@@ -57,9 +75,9 @@ stage01 wrap から独立実装へ移管する際の編成方針。テーマ：*
 | W# | trig x | spawnPattern | 敵編成（tier × 性格）| 学習目標 |
 |---|---|---|---|---|
 | W1 | 800 | **simultaneous** | brave tier01 × 2 | ステージ感覚リセット |
-| W2 | 1600 | **staggered**（30F おき）| brave × 1 + **cunning × 2** + tier03 | cunning 多め・**にらみ合い**練習 |
-| W3 | 2500 | **encircle**（前 2 + 後 1）| brave × 1 + cunning × 2 + **キャリア coward × 1** | **アイテム狙い vs 戦闘優先**の判断初体験 |
-| W4 | 3400 | **midboss 単体 wave**（推奨）| **midboss01 シールドガーダー × 1**（中盤の山場・障害として登場）| **盾を割って倒す**動機付け・berserker 体験 |
+| W2 | 2300 | **staggered**（30F おき）| brave × 1 + **cunning × 2** + tier03 | cunning 多め・**にらみ合い**練習 |
+| W3 | 4000 | **encircle**（前 2 + 後 1）| brave × 1 + cunning × 2 + **キャリア coward × 1** | **アイテム狙い vs 戦闘優先**の判断初体験 |
+| W4 | 5700 | **midboss 単体 wave**（推奨）| **midboss01 シールドガーダー × 1**（中盤の山場・障害として登場）| **盾を割って倒す**動機付け・berserker 体験 |
 
 ### キャリア coward（enem06 仕様・stage02 W3 初登場）
 - 攻撃ロジック完全 OFF（性格 coward の挙動ルール準拠）

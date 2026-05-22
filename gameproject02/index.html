@@ -1362,7 +1362,7 @@
     // ============================================================
     //  GROUND PLANE
     // ============================================================
-    const groundGeom = new THREE.PlaneGeometry(12000, 2400);
+    const groundGeom = new THREE.PlaneGeometry(16000, 2400);
     const groundMat = new THREE.MeshToonMaterial({
       map:   makeGridTexture(),
       color: 0xb8aa90,  // 廃工場床：くすんだ温色（旧 0xaaaadd 青味から変更・2026-05-20）
@@ -1385,7 +1385,7 @@
       const group = new THREE.Group();
       const pillarMat = new THREE.MeshToonMaterial({ color: 0x1a1a35 });
 
-      for (let i = -5000; i <= 5000; i += 800) {
+      for (let i = -8000; i <= 8000; i += 800) {
         const h = 600 + Math.random() * 800;
         const w = 200 + Math.random() * 200;
         const pillar = new THREE.Mesh(
@@ -1426,7 +1426,7 @@
       const braceMat  = new THREE.MeshToonMaterial({ color: 0x554433 });   // 錆色クロスブレース
       const panelMat  = new THREE.MeshToonMaterial({ color: 0x333844 });   // 背面パネル（廃工場感）
       const Z_BACK = -380;
-      const X_MIN = -3600, X_MAX = 3600, X_STEP = 600;
+      const X_MIN = -3600, X_MAX = 7800, X_STEP = 600;
       const PILLAR_H = 500;
 
       // === 背面パネル（壁面の "面" を作る・柱より少し奥に配置）===
@@ -2210,7 +2210,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-23 fix: OC 選択を A/D 対応 + 選択カード強フラッシュ演出';
+    const LAST_UPDATE = '2026-05-23 ステージ拡張: ウェーブ間隔1画面化 + プロップ/穴3個/地雷 再配置';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {
