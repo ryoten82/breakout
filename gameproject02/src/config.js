@@ -483,6 +483,56 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.22,
     pitchActive:   +0.42,
   },
+  // ガードカウンター：盾で受け続けた直後に放つ素早い盾バッシュ。wind が極端に短い。
+  mb01_atk_gc: {
+    name:           'ガードカウンター',
+    kind:           'swing',
+    attackCategory: 'melee',
+    windFrames:     8,     // 極短（即反撃感）
+    activeFrames:   8,
+    recoverFrames:  28,
+    cooldownFrames: 55,
+    lungeVx:        18,    // 前に強く踏み込む
+    hitboxRangeX:   130,
+    hitboxRangeY:   110,
+    hitboxRangeZ:   90,
+    damage:         10,
+    atk_lv:         2,
+    knockback:      22,
+    hitstop:        7,
+    shake:          6,
+    hitColor:       0xaaccff,
+    pitchWind:     -0.12,
+    pitchActive:   +0.50,
+  },
+  // マチェットラッシュ：enraged 時のみ。突進しながら 3 連続斬撃（atk_lv 2/2/3）。
+  //   突進自体は無攻撃。hitSlots の各 frame で当たり判定を出す（slash_rush kind）。
+  mb01_atk_03: {
+    name:           'マチェットラッシュ',
+    kind:           'slash_rush',
+    attackCategory: 'melee',
+    windFrames:     14,
+    activeFrames:   36,
+    recoverFrames:  120,  // 疲れ硬直 約2秒（この間 SA 無効・攻撃の隙）
+    cooldownFrames: 90,
+    dashSpeed:      5.0,
+    dashMaxDist:    550,
+    hitboxRangeX:   150,
+    hitboxRangeY:   110,
+    hitboxRangeZ:   90,
+    multiHit:       true,  // hitstun 中プレイヤーにも 2・3 発目が着弾
+    // 3 スロット当たり判定（elapsed フレームで順次発火）
+    hitSlots: [
+      { frame:  8, damage:  7, atk_lv: 2, knockback: 12 },
+      { frame: 20, damage:  7, atk_lv: 2, knockback: 12 },
+      { frame: 32, damage: 11, atk_lv: 3, knockback: 20 },
+    ],
+    hitstop:        5,
+    shake:          4,
+    hitColor:       0xddaa22,
+    pitchWind:     -0.20,
+    pitchActive:   +0.35,
+  },
 };
 
 // ============================================================
@@ -518,6 +568,12 @@ export const ENEMY_PERSONALITY = {
   // guardian：盾特化。頻繁にガード姿勢を取り、隙を見て攻撃。dodge はほぼしない
   guardian: { guardTendency: 0.65, dodgeTendency: 0.05, staggerThreshold: 5, enragedHp: 0.30,
               atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 0.5,  punishesHitstun: false },
+  // berserker：中ボス専用。読み合い・回避・退却をしない前のめりの攻め。
+  //   guard/dodgeTendency 0＝防御抽選が常に不成立。retreatMult 0＝攻撃後に退かない。
+  //   enragedHp 0＝HP% 興奮は発火せず、enraged 化は盾破壊でのみ起こる（midboss01）。
+  //   staggerThreshold 80＝雑魚スケール（4〜6）に対し桁違いに打たれ強い。
+  berserker:{ guardTendency: 0.0,  dodgeTendency: 0.0,  staggerThreshold: 80, enragedHp: 0.0,
+              atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 0.0,  punishesHitstun: true },
 };
 
 // ============================================================
@@ -529,6 +585,24 @@ export const ENEMY_ENRAGE_CONFIG = {
   INTRO_FRAMES:  40,    // enraged_intro モーションの長さ
   COOLDOWN_MULT: 0.5,   // 興奮中の攻撃クールダウン倍率（攻撃頻度↑）
   APPROACH_MULT: 1.25,  // 興奮中の接近速度倍率
+};
+
+// ============================================================
+//  #section midboss-shield — midboss01 シールドガーダーの盾システム
+//  - 盾は本体 HP と独立した「盾 HP」を持つ。前面攻撃は本体完全防御だが盾 HP は削れる。
+//    背面/上からの攻撃は本体に通り、盾 HP もより大きく削れる。
+//  - 盾 HP 0 で盾破壊 → SHIELD BREAK 演出 → enraged_intro → berserker 化。
+//  - 叩き台値。window.SB.MIDBOSS_SHIELD_CONFIG で実機調整して決める。
+// ============================================================
+export const MIDBOSS_SHIELD_CONFIG = {
+  SHIELD_MAX_HP:          102,   // 盾 HP（60 × 1.7 倍・前面のみで割るには数コンボ要する程度）
+  GUARD_COUNTER_THRESHOLD:  3,   // 連続ブロック数でガードカウンター発動
+  BERSERKER_SA:             2,   // berserker 化時に付与するスーパーアーマー値（hits）
+  CHIP_FRONT_MULT: 1.0,   // 前面ヒット時の盾削り倍率（攻撃素ダメージ基準）
+  CHIP_BACK_MULT:  2.5,   // 背面/上ヒット時の盾削り倍率（前面より大きい）
+  BREAK_HITSTOP:   14,    // 盾破壊の強ヒットストップ F
+  BREAK_SHAKE:     12,    // 盾破壊のシェイク強度
+  BANNER_FRAMES:   60,    // "SHIELD BREAK!" バナー表示 F（約 1 秒）
 };
 
 // ============================================================

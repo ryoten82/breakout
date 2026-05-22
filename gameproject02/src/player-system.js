@@ -37,7 +37,7 @@ import {
   PHYSICS, SP_CONFIG,
   GUARD_CONFIG, SPECIAL_CONFIG, HOMING_CONFIG,
   CHARGE_PARTICLE_CONFIG, CHARGE_RING_CONFIG,
-  DUMMY_ATK_CONFIG, UKEMI_CONFIG,
+  DUMMY_ATK_CONFIG, ENEMY_ATTACKS, UKEMI_CONFIG,
 } from './config.js';
 import { ATTACKS, getHitWindowEnd } from './attacks.js';
 import {
@@ -1306,15 +1306,22 @@ export function updatePlayer(p) {
   for (let i = 0; i < _enemies.length; i++) {
     const e = _enemies[i];
     const mesh = _getEnemyHitboxMesh(i);
-    if (!e.isAlive || e.state !== STATE.enemy_attacking || e.atkPhase !== 'active') {
+    const atkDef = (e.curAtkId && ENEMY_ATTACKS[e.curAtkId]) ? ENEMY_ATTACKS[e.curAtkId] : null;
+    // slash_rush はヒット瞬間のみフラッシュ表示（通常攻撃はアクティブ全体）
+    const isSlashRush = atkDef?.kind === 'slash_rush';
+    const showActive  = e.isAlive && e.state === STATE.enemy_attacking && e.atkPhase === 'active';
+    const showHit     = isSlashRush ? ((e.slashHitFlash ?? 0) > 0) : showActive;
+    if (!showHit) {
       mesh.visible = false;
       continue;
     }
-    const cfg = DUMMY_ATK_CONFIG;
-    const rx = cfg.hitboxRangeX, ry = cfg.hitboxRangeY, rz = cfg.hitboxRangeZ;
+    const rx = atkDef?.hitboxRangeX ?? DUMMY_ATK_CONFIG.hitboxRangeX;
+    const ry = atkDef?.hitboxRangeY ?? DUMMY_ATK_CONFIG.hitboxRangeY;
+    const rz = atkDef?.hitboxRangeZ ?? DUMMY_ATK_CONFIG.hitboxRangeZ;
     mesh.visible = true;
     mesh.position.set(e.x + e.facing * (rx * 0.5), e.y + ry * 0.5, e.z);
     mesh.scale.set(rx, ry * 2, rz * 2);
+    mesh.material.color.setHex(isSlashRush ? 0xff8800 : 0xff4444);
   }
 
   // === ガードシールド同期 ===

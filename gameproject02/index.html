@@ -819,7 +819,7 @@
     import {
       PHYSICS, SP_CONFIG, ULT_CONFIG, GRAB_CONFIG, MEGA_CONFIG, UKEMI_CONFIG,
       SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, HOMING_CONFIG, GUARD_CONFIG,
-      ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE,
+      ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE,
       CAM_CONFIG, PIXEL_SHADER, OUTLINE_CONFIG,
       CHARGE_RING_CONFIG, CHARGE_PARTICLE_CONFIG,
       COMBO_LEVELS, getComboLevel, SLOWMO, KEY_CONFIG, OVERCLOCK_CARDS,
@@ -868,6 +868,7 @@
       updateSPGauge, updateHpHud, updateGrabGauge, updateEnemyAiPhaseHud, updateStatusStunHud,
       updateEnemyPersonalityHud,
       spawnDamageNumber, updateDamageNumbers,
+      spawnBanner, updateBanners,
     } from './src/hud-system.js';
     // === enemy-system（敵 AI / 状態遷移 / 物理 / mesh 構築）は src/enemy-system.js に分離（Step E-3）===
     import {
@@ -2159,7 +2160,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-22 refactor: 攻撃カテゴリトークン（melee/aerial 独立枠）';
+    const LAST_UPDATE = '2026-05-22 fix: マチェットラッシュ 3ヒット着弾 + 疲れ硬直2秒 + SA active限定';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {
@@ -3036,6 +3037,7 @@
       updateStatusStunHud();
       updateEnemyPersonalityHud();
       updateDamageNumbers();
+      updateBanners();
       updateDebug();
       // === debug-invariants：意図しない挙動を自動検知（致命は常時 ON / 警告/情報は SB.DEBUG_INVARIANTS）===
       const _invFrame = getGameFrame();
@@ -3518,9 +3520,10 @@
       },
       jumpEnemy,
       spawnDamageNumber,   // デバッグ：SB.spawnDamageNumber(x,y,z,amount,{crit}) で数値ポップ生成
+      spawnBanner,         // デバッグ：SB.spawnBanner('TEST') でバナー表示テスト
       // デバッグ：ゲーム更新を手動で N フレーム進める（rAF 停止＝タブ非可視時の検証用）
       gameStep: (n = 1) => { for (let i = 0; i < n; i++) update(); },
-      DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_AI, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, tryHitPlayer,
+      DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_AI, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, tryHitPlayer,
       // CR ドロップ：SB.dropCR(x,z) で手動ばらまき / SB.getCrTotal() で所持確認 / SB.CR_CONFIG で調整
       dropCR, getCrTotal, CR_CONFIG,
       TEST_CONFIG, PAUSE_CONFIG, GAME_SPEED,

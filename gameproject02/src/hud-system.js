@@ -371,8 +371,12 @@ export function spawnDamageNumber(x, y, z, amount, opts = {}) {
   const crit = !!opts.crit;
   const el = _getDmgNumEl();
   el.textContent = Math.round(amount);
-  // 通常：白／クリティカル：橙＋大きめ＋発光強め
-  if (crit) {
+  // 通常：白／クリティカル：橙＋大きめ／盾ダメージ：水色（本体ダメージと区別）
+  if (opts.shield) {
+    el.style.color = '#88ccff';
+    el.style.fontSize = '32px';
+    el.style.textShadow = '0 0 8px #2266aa, 2px 2px 0 #000';
+  } else if (crit) {
     el.style.color = '#ff9922';
     el.style.fontSize = '52px';
     el.style.textShadow = '0 0 12px #ff5500, 0 0 6px #000, 3px 3px 0 #000';
@@ -416,5 +420,75 @@ export function updateDamageNumbers() {
       continue;
     }
     _renderDmgNumber(d);
+  }
+}
+
+// ============================================================
+//  バナー表示（"SHIELD BREAK!" 等・大きな一時テキストを画面上部中央に）
+//   - spawnBanner(text, opts) で表示。opts: { frames, color, fontSize }
+//   - updateBanners() を毎 update フレームで呼ぶ：フェードイン → 保持 → フェードアウト
+//   - DOM 要素はプール再利用（_inUse フラグで借用管理）
+// ============================================================
+const _banners = [];
+const _bannerPool = [];
+
+function _getBannerEl() {
+  for (const el of _bannerPool) {
+    if (!el._inUse) { el._inUse = true; return el; }
+  }
+  const el = document.createElement('div');
+  el.className = 'hud-banner';
+  el.style.position = 'absolute';
+  el.style.pointerEvents = 'none';
+  el.style.zIndex = '86';
+  el.style.left = '50%';
+  el.style.top = '18%';
+  el.style.fontFamily = "'Courier New', monospace";
+  el.style.fontWeight = 'bold';
+  el.style.whiteSpace = 'nowrap';
+  el.style.lineHeight = '1';
+  el.style.display = 'none';
+  el._inUse = true;
+  (_hudLayerEl ?? document.body).appendChild(el);
+  _bannerPool.push(el);
+  return el;
+}
+
+// 1 個分の見た目反映（フェードイン → 保持 → フェードアウト + スケールポップ）
+function _renderBanner(b) {
+  const t   = b.life / b.maxLife;   // 1→0
+  const age = 1 - t;                // 0→1
+  let alpha = 1;
+  if (age < 0.12)      alpha = age / 0.12;   // 先頭 12% でフェードイン
+  else if (t   < 0.35) alpha = t   / 0.35;   // 末尾 35% でフェードアウト
+  const pop = 0.7 + 0.3 * Math.min(1, age / 0.10);  // 素早いスケールポップ
+  b.el.style.opacity = alpha;
+  b.el.style.transform = `translate(-50%, -50%) scale(${pop})`;
+}
+
+export function spawnBanner(text, opts = {}) {
+  const frames = opts.frames ?? 60;
+  const el = _getBannerEl();
+  el.textContent = text;
+  el.style.color = opts.color ?? '#ffcc22';
+  el.style.fontSize = (opts.fontSize ?? 56) + 'px';
+  el.style.textShadow = '0 0 16px #ff6600, 3px 3px 0 #000';
+  el.style.display = 'block';
+  const b = { el, life: frames, maxLife: frames };
+  _banners.push(b);
+  _renderBanner(b);
+}
+
+export function updateBanners() {
+  for (let i = _banners.length - 1; i >= 0; i--) {
+    const b = _banners[i];
+    b.life--;
+    if (b.life <= 0) {
+      b.el.style.display = 'none';
+      b.el._inUse = false;
+      _banners.splice(i, 1);
+      continue;
+    }
+    _renderBanner(b);
   }
 }

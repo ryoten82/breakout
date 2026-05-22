@@ -31,10 +31,10 @@ const MINES = [
 
 // ダミー敵の配置スロット（性格・敵種別）。死亡フローに入ったら同スロットへ即リスポーンする。
 const ENEMY_SLOTS = [
-  { personality: 'brave',    enemyType: 'enem01', x: -500, z: 150 },
-  { personality: 'cunning',  enemyType: 'enem01', x: -150, z: 150 },
-  { personality: 'cunning',  enemyType: 'enem02', x:  200, z: 150 },  // enem02 ジャンパー
-  { personality: 'guardian', enemyType: 'midboss01', x:  550, z: 150 },  // midboss01 シールドガーダー
+  // { personality: 'brave',    enemyType: 'enem01', x: -500, z: 150 },
+  // { personality: 'cunning',  enemyType: 'enem01', x: -150, z: 150 },
+  // { personality: 'cunning',  enemyType: 'enem02', x:  200, z: 150 },  // enem02 ジャンパー
+  { personality: 'berserker', enemyType: 'midboss01', x:  0, z: 150 },  // midboss01 シールドガーダー
 ];
 
 let _built = false;

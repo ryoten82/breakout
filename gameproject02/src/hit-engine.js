@@ -35,10 +35,10 @@ import {
 } from './states.js';
 import {
   COMBO_LEVELS, getComboLevel,
-  PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG,
+  PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG, MIDBOSS_SHIELD_CONFIG,
 } from './config.js';
 import { resolveAttackAttr } from './attacks.js';
-import { handleEnemyDyingHit, enterEnemyDyingBurst } from './enemy-system.js';
+import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak } from './enemy-system.js';
 import { spawnDamageNumber } from './hud-system.js';
 
 let _THREE = null;
@@ -580,6 +580,12 @@ export function tryHitEnemies(p, attack, ctx) {
     //   e.guardStrength が未設定の場合は 3（enem01/enem02 相当）
     const _hitFromFront = (Math.sign(p.x - e.x) === e.facing) || (p.x === e.x);
     const _guarded = (e.state === STATE.enemy_guard) && _hitFromFront && _hitLv <= (e.guardStrength ?? 3);
+    // midboss01 盾判定（盾未破壊のときのみ）：
+    //   前面接地ヒット → 本体完全防御だが盾 HP は削れる。
+    //   背面 or プレイヤー空中（上から）ヒット → 本体に通常ダメージ + 盾 HP を大きく削る。
+    const _shieldActive     = (e.enemyType === 'midboss01') && !e.shieldBroken;
+    const _hitFromAbove     = !p.isGrounded;   // プレイヤーが浮いている＝上から
+    const _shieldFrontBlock = _shieldActive && _hitFromFront && !_hitFromAbove;
     // クリティカル判定：カウンターヒット（敵の攻撃発生中 wind/active）は確定。
     //   それ以外は基礎確率。ガード成立時はクリ無効。敵 state は直後に上書きされるため先に判定。
     const _isCounterHit = (e.state === STATE.enemy_attacking &&
@@ -589,10 +595,21 @@ export function tryHitEnemies(p, attack, ctx) {
       ? Math.round(_scaledDamage * CRIT_CONFIG.DAMAGE_MULT)
       : _scaledDamage;
     if (_guarded) _finalDamage = Math.max(1, Math.round(_finalDamage * ENEMY_REACT_CONFIG.GUARD_DAMAGE_MULT));
+    // midboss01 盾ダメージ振り分け：盾 HP を削り、前面接地ヒットは本体ダメージを 0 にする。
+    //   盾削りはクリ補正前の素ダメージ基準（クリ補正は本体専用）。
+    let _shieldDmg = 0;
+    if (_shieldActive) {
+      const _SC = MIDBOSS_SHIELD_CONFIG;
+      const _chipMult = _shieldFrontBlock ? _SC.CHIP_FRONT_MULT : _SC.CHIP_BACK_MULT;
+      _shieldDmg = Math.max(1, Math.round(_scaledDamage * _chipMult));
+      e.shieldHp = Math.max(0, e.shieldHp - _shieldDmg);
+      if (_shieldFrontBlock) _finalDamage = 0;   // 前面接地：本体完全防御
+    }
     // ヒット
     e.hp = Math.max(0, e.hp - _finalDamage);
-    // 与ダメージ数値ポップ（ヒット位置の頭上・クリティカルは橙強調）
-    spawnDamageNumber(e.x, e.y + 110, e.z, _finalDamage, { crit: _isCrit });
+    // 与ダメージ数値ポップ（本体ダメージ＝橙/白、盾ダメージ＝水色を別行で）
+    if (_finalDamage > 0) spawnDamageNumber(e.x, e.y + 110, e.z, _finalDamage, { crit: _isCrit });
+    if (_shieldDmg > 0)   spawnDamageNumber(e.x, e.y + 150, e.z, _shieldDmg, { shield: true });
     // 最終ヒッター記録（ゴア・クリティカル抽選で参照・enterEnemyDying 内で profile lookup に使う）
     // wasGrounded：被弾"前"の接地状態を記録（gc 抽選の requireGrounded 判定で使用）。
     //   この時点ではまだ攻撃の vy/knockback が dispatch されてないので、ここで取れば「打ち上げ前」の値が取れる。
@@ -624,6 +641,48 @@ export function tryHitEnemies(p, attack, ctx) {
       triggerHitstop(3);
       anyHit = true;
       continue;
+    }
+    // midboss01 盾破壊：盾 HP がこのヒットで 0 到達 → SHIELD BREAK → enraged_intro。
+    //   ダメージ（本体/盾）は上で適用済み。通常 dispatch をスキップ（state は確定済み）。
+    if (_shieldActive && e.shieldHp === 0 && !e.shieldBroken) {
+      triggerShieldBreak(e, ctx);
+      bumpCombo(e);   // 「割った」達成感のためコンボ加点
+      spawnHitParticles(e.x, e.y + 100, e.z, 0xffdd44, 28, { type: 'omni' });
+      anyHit = true;
+      continue;
+    }
+    // midboss01 前面ブロック（盾はまだ割れていない）：のけぞらせず軽後退のみ。
+    //   コンボ加点なし（防御は中立）・通常 dispatch スキップ＝本体被弾モーションに入らない。
+    if (_shieldFrontBlock) {
+      e.hitFlashTimer    = 4;
+      e.frozenByUlt      = false;
+      e.shieldBlockTimer = Math.max((e.shieldBlockTimer ?? 0), 10);  // ガードドーム表示
+      e.knockbackVx      = Math.sign(e.x - p.x || p.facing) * (ENEMY_REACT_CONFIG.GUARD_KB_VX * 0.5);
+      e.kbDecay          = 0.8;
+      // ガードカウンターカウント（累積が閾値に達したら即反撃フラグ）
+      e.shieldBlockCount  = (e.shieldBlockCount ?? 0) + 1;
+      e._blockDecayTimer  = 0;   // ブロックが続いている間は減衰しない
+      if (e.shieldBlockCount >= (MIDBOSS_SHIELD_CONFIG.GUARD_COUNTER_THRESHOLD ?? 3)) {
+        e.guardCounterArmed = true;
+      }
+      spawnHitParticles(e.x + e.facing * 60, e.y + 100, e.z, 0xaaccff, 10);  // 盾ヒット火花
+      triggerHitstop(3);
+      triggerShake(2, 6);
+      anyHit = true;
+      continue;
+    }
+    // スーパーアーマー：berserker のアクティブフェーズ中のみ（wind/recover は無効）
+    if (e.superArmor > 0 && e.atkPhase === 'active' && (e.saHp ?? 0) > 0) {
+      e.saHp--;
+      if (e.saHp > 0) {   // 装甲残り有り → 通常リアクションをスキップ
+        e.hitFlashTimer = 6;
+        spawnHitParticles(e.x, e.y + 100, e.z, 0xff8800, 14, { type: 'omni' });  // 橙：SA 吸収
+        anyHit = true;
+        continue;
+      }
+      // SA 破壊（最後の 1 枚剥がれ）→ 通常被弾反応へ落下
+      spawnHitParticles(e.x, e.y + 120, e.z, 0xff4400, 22, { type: 'omni' });
+      triggerHitstop(4);
     }
     e.hitFlashTimer = 7;
     e.frozenByUlt   = false;  // ULT 凍結解除（ヒットを受けた敵だけ時間が進み始める）

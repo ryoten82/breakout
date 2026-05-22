@@ -45,8 +45,9 @@ import {
   KB_LV06_VY, KB_LV06_VX_MULT,
   applyRollHipPivot,
 } from './states.js';
-import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG } from './config.js';
+import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG } from './config.js';
 import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, fxState } from './hit-engine.js';
+import { spawnBanner } from './hud-system.js';
 import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
 import { isHitstunState, tryHitPlayer } from './damage-system.js';
@@ -295,6 +296,22 @@ export function buildMidboss01Mesh() {
 
   group.userData.parts = { body, head, stand };
   group.userData.baseColors = { body: 0x888888, head: 0x888888 };
+  // 盾 mesh の参照を保持（盾破壊時に visible=false にする。parts には入れない＝
+  //   死亡時のパーツ分離抽選を汚染しないため）。
+  group.userData.shield = shield;
+
+  // ガードドーム（ガード時＝青 / SHIELD BREAK 時＝白拡大）
+  //   プレイヤーの guardShield と同系の半球エフェクト。
+  //   scene への add は spawnDummy() 側で実施（ここでは scene 参照なし）。
+  const guardDome = new _THREE.Mesh(
+    new _THREE.SphereGeometry(75, 24, 16, 0, Math.PI, 0, Math.PI),
+    new _THREE.MeshBasicMaterial({
+      color: 0x66ccff, transparent: true, opacity: 0,
+      side: _THREE.DoubleSide, depthWrite: false,
+    }),
+  );
+  guardDome.visible = false;
+  group.userData.guardDome = guardDome;
 
   // HP バー（中ボス：幅広め）
   const HP_BAR_W = 100;
@@ -333,9 +350,12 @@ export function spawnDummy(x, z, opts = {}) {
     _scene.add(mesh.userData.hpBar.bg);
     _scene.add(mesh.userData.hpBar.fill);
   }
+  // ガードドームも scene 直下に追加（enemy mesh の rotation を継承しないため）
+  if (mesh.userData.guardDome) _scene.add(mesh.userData.guardDome);
   const _maxHp = (typeof opts.maxHp === 'number' && opts.maxHp > 0) ? opts.maxHp : 100;
-  // 性格（#14）：opts 指定 → なければ brave 既定。行動傾向値をテーブルから引く
-  const _personality = ENEMY_PERSONALITY[opts.personality] ? opts.personality : 'brave';
+  // 性格（#14）：opts 指定 → なければ既定（midboss01 は berserker / その他 brave）
+  const _personality = ENEMY_PERSONALITY[opts.personality] ? opts.personality
+                     : (_enemyType === 'midboss01' ? 'berserker' : 'brave');
   const _persona = ENEMY_PERSONALITY[_personality];
   const e = {
     mesh,
@@ -379,6 +399,21 @@ export function spawnDummy(x, z, opts = {}) {
     enemyType:        _enemyType,           // 'enem01' / 'enem02' / 'midboss01' etc.
     // ガード強度：atk_lv がこの値以下の前面攻撃をガード成立で受ける（per-enemy）
     guardStrength:    opts.guardStrength ?? (_enemyType === 'midboss01' ? 4 : 3),
+    // 盾システム（midboss01 専用）：本体 HP と独立した盾 HP。0 で盾破壊。
+    //   midboss01 以外は shieldBroken=true（最初から盾なし扱い）で hit-engine 側分岐を 1 条件に。
+    shieldMaxHp:      (_enemyType === 'midboss01') ? MIDBOSS_SHIELD_CONFIG.SHIELD_MAX_HP : 0,
+    shieldHp:         (_enemyType === 'midboss01') ? MIDBOSS_SHIELD_CONFIG.SHIELD_MAX_HP : 0,
+    shieldBroken:     (_enemyType !== 'midboss01'),
+    shieldBlockTimer:      0,   // ガードドーム表示残F（hit-engine でセット）
+    shieldBreakDomeTimer:  0,   // SHIELD BREAK 拡大フェードドーム残F
+    shieldBlockCount:      0,   // 連続前面ブロック数（閾値でガードカウンター発動）
+    guardCounterArmed:     false, // ガードカウンター即反撃フラグ
+    _blockDecayTimer:      0,   // ブロックカウント自然減衰タイマー
+    atkSlotIdx:            0,   // slash_rush 複数ヒットスロットインデックス
+    superArmor:            0,   // SA 値（berserker midboss01 は triggerShieldBreak でセット）
+    saHp:                  0,   // 現SA残HP（_beginEnemyAttack ごとにリセット）
+    slashHitFlash:         0,   // slash_rush ヒット瞬間の hitbox フラッシュ残F
+    _tick:                 0,   // 点滅・パルス計算用フレームカウンタ
     // === ミニマム AI（Phase 2.4）===
     aiEnabled:        opts.aiEnabled ?? true,
     atkPhase:         null,
@@ -473,6 +508,46 @@ export function applyStatusStun(e, frames, ctx) {
   }
   e.state           = STATE.status_stun;
   e.statusStunTimer = (typeof frames === 'number' && frames > 0) ? frames : STATUS_STUN_CONFIG.defaultDuration;
+  return true;
+}
+
+// ============================================================
+//  midboss01 盾破壊：盾 HP が 0 になった瞬間に hit-engine から呼ぶ。
+//   - 盾 mesh を非表示・グレー粒子バースト・強ヒットストップ + シェイク
+//   - "SHIELD BREAK!" バナー（hud-system）
+//   - enraged_intro へ遷移し berserker（enraged）化
+//   - 進行中の攻撃があれば中断しトークン解放（ctx 経由）
+//   返り値：破壊した true / 既に破壊済みなら false
+// ============================================================
+export function triggerShieldBreak(e, ctx) {
+  if (!e || e.shieldBroken) return false;
+  const SC = MIDBOSS_SHIELD_CONFIG;
+  e.shieldBroken = true;
+  e.shieldHp = 0;
+  e.shieldBreakDomeTimer = 18;  // SHIELD BREAK 拡大フェードドーム（プレイヤーのガードクラッシュと同系）
+  // 盾 mesh を非表示（detach 機構は黒 material 化 + 非 dying で更新されないため使わない）
+  if (e.mesh && e.mesh.userData && e.mesh.userData.shield) {
+    e.mesh.userData.shield.visible = false;
+  }
+  // 盾飛散の代替＝グレー粒子バースト（盾のあった敵の正面側）
+  spawnHitParticles(e.x + e.facing * 50, e.y + 110, e.z, 0xaaaaaa, 24, { type: 'omni' });
+  triggerHitstop(SC.BREAK_HITSTOP);
+  triggerShake(SC.BREAK_SHAKE, SC.BREAK_SHAKE * 2 + 6);
+  spawnBanner('SHIELD BREAK!', { frames: SC.BANNER_FRAMES });
+  // 進行中の攻撃を中断（トークン解放）
+  if (e.state === STATE.enemy_attacking) {
+    e.atkPhase     = null;
+    e.atkTimer     = 0;
+    e.hitDelivered = false;
+    _clearAllTokens(ctx, e);
+  }
+  // enraged_intro へ直行 + berserker（enraged）化
+  e.enraged      = true;
+  e.superArmor   = MIDBOSS_SHIELD_CONFIG.BERSERKER_SA;   // 攻撃中のヒット吸収（SA）を付与
+  e.saHp         = 0;   // 次の _beginEnemyAttack で superArmor 値から再セット
+  e.state     = STATE.enraged_intro;
+  e.downTimer = ENEMY_ENRAGE_CONFIG.INTRO_FRAMES;
+  e.aiPhase   = 'enraged';
   return true;
 }
 
@@ -1697,8 +1772,12 @@ function _selectEnemyAtk(e, adx) {
   }
   if (e.enemyType === 'midboss01') {
     if (adx > DUMMY_ATK_CONFIG.approachRange) return null;
-    // 50% 盾叩き / 50% マチェット斬り
-    return (Math.random() < 0.5) ? 'mb01_atk_01' : 'mb01_atk_02';
+    if (!e.shieldBroken) {
+      // 盾あり: 盾叩きのみ（シールドガード態勢）
+      return 'mb01_atk_01';
+    }
+    // enraged（盾破壊後）: マチェット斬り or マチェットラッシュ（50:50）
+    return (Math.random() < 0.5) ? 'mb01_atk_02' : 'mb01_atk_03';
   }
   // enem01
   const C = DUMMY_ATK_CONFIG;
@@ -1809,6 +1888,8 @@ function _beginEnemyAttack(e, atkId, ctx) {
   e.atkTimer       = atk.windFrames;
   e.atkPitchTarget = atk.pitchWind;
   e.atkDashDist    = 0;
+  e.atkSlotIdx     = 0;   // slash_rush 複数ヒットインデックスをリセット
+  e.saHp           = (e.superArmor > 0) ? e.superArmor : 0;   // SA を攻撃ごとにリセット
   e.hitDelivered   = false;
   e.aiPhase        = 'attack';
   e._jdPhase       = null;   // jump_dive サブフェーズをリセット（残存マーカー消去）
@@ -2263,8 +2344,10 @@ export function updateEnemies(ctx) {
         //   被弾時 RNG ではなく「攻撃を検知して先に防御へ入る」確率（先出し＝読ませる）。
         //   1 プレイヤー攻撃につき 1 回だけ判定（_reactArmed）。
         let _reacted = false;
-        // 興奮トリガー（#14-C）：HP が閾値以下で 1 度だけ enraged 化 → enraged_intro モーション
-        if (!e.enraged && e.hp > 0 && e.hp <= e.maxHp * e.enragedHp) {
+        // 興奮トリガー（#14-C）：HP が閾値以下で 1 度だけ enraged 化 → enraged_intro モーション。
+        //   berserker（midboss01）は HP% では興奮せず、盾破壊（triggerShieldBreak）でのみ enraged 化する。
+        if (e.personality !== 'berserker' &&
+            !e.enraged && e.hp > 0 && e.hp <= e.maxHp * e.enragedHp) {
           e.enraged   = true;
           e.state     = STATE.enraged_intro;
           e.downTimer = ENEMY_ENRAGE_CONFIG.INTRO_FRAMES;
@@ -2373,9 +2456,19 @@ export function updateEnemies(ctx) {
               // 攻撃発動条件：距離（基本振り/タックルの圏内）+ cooldown + relay + 接地。
               //   性格 punishesHitstun（brave）はプレイヤー被弾中でも攻撃可＝追撃確定（レイヤー3）
               //   トークンチェックは攻撃種別が確定してからカテゴリ別に行う（変更3d）
-              const basicCanAttack = (adz < 100 && e.atkCooldown <= 0 && _attackRelay <= 0 &&
+              // ガードカウンター（midboss01 専用）: 盾ブロック累積が閾値に達したら即反撃
+              //   cooldown / relay を無視して発動（プレイヤーへのペナルティ）
+              const _isGuardCounter = (e.guardCounterArmed ?? false) && e.enemyType === 'midboss01';
+              if (_isGuardCounter) {
+                e.guardCounterArmed = false;
+                e.shieldBlockCount  = 0;
+                e._blockDecayTimer  = 0;
+              }
+              const basicCanAttack = _isGuardCounter || (adz < 100 && e.atkCooldown <= 0 && _attackRelay <= 0 &&
                 e.y <= ENEMY_AIRBORNE_Y_THRESHOLD && (!playerInHitstun || e.punishesHitstun));
-              const atkId = basicCanAttack ? _selectEnemyAtk(e, adx) : null;
+              const atkId = basicCanAttack
+                ? (_isGuardCounter ? 'mb01_atk_gc' : _selectEnemyAtk(e, adx))
+                : null;
               if (atkId) {
                 const _atkDef = ENEMY_ATTACKS[atkId];
                 const _cat = _atkDef.attackCategory ?? 'melee';
@@ -2624,6 +2717,36 @@ export function updateEnemies(ctx) {
               e.atkTimer       = atk.recoverFrames + 60;  // +60F しゃがみ硬直
               e.atkPitchTarget = 0;
               if (e.mesh) e.mesh.scale.y = 0.60;
+            }
+          } else if (atk.kind === 'slash_rush') {
+            // マチェットラッシュ：突進しながら hitSlots 定義の複数フレームで当たり判定。
+            //   突進自体は無攻撃。各スロットは atkSlotIdx で管理（hitDelivered 非使用）。
+            const wallL = Math.max(PHYSICS.STAGE_LEFT,  getActiveWallX('left'));
+            const wallR = Math.min(PHYSICS.STAGE_RIGHT, getActiveWallX('right'));
+            const _step  = atk.dashSpeed ?? 5;
+            const _nx    = Math.min(wallR, Math.max(wallL, e.x + e.facing * _step));
+            const _moved = Math.abs(_nx - e.x);
+            e.x = _nx;
+            e.atkDashDist += _moved;
+            // 経過フレーム数に応じて hitSlots を順番に発火
+            const _elapsed = atk.activeFrames - e.atkTimer;
+            const _slots   = atk.hitSlots ?? [];
+            while ((e.atkSlotIdx ?? 0) < _slots.length &&
+                   _elapsed >= _slots[e.atkSlotIdx ?? 0].frame) {
+              const _slot    = _slots[e.atkSlotIdx];
+              const _slotAtk = Object.assign({}, atk, _slot);
+              tryHitPlayer(e, _slotAtk);
+              e.slashHitFlash = 6;   // hitbox フラッシュ表示（6F）
+              e.atkSlotIdx = (e.atkSlotIdx ?? 0) + 1;
+            }
+            const _rushEnd = e.atkTimer <= 0
+                          || e.atkDashDist >= (atk.dashMaxDist ?? 500)
+                          || _moved < _step * 0.5;
+            if (_rushEnd) {
+              e.atkPhase       = 'recover';
+              e.atkTimer       = atk.recoverFrames;
+              e.atkPitchTarget = 0;
+              e.atkSlotIdx     = 0;
             }
           } else {
             // その場振り：active 中ずっとヒット判定（1 ヒットのみ）
@@ -2977,6 +3100,13 @@ export function updateEnemies(ctx) {
       const t = e.hitFlashTimer / 7;  // 1→0（白 → 元色）
       if (_bodyAtt) _body.material.color.setRGB(_bR + t*(1-_bR), _bG + t*(1-_bG), _bB + t*(1-_bB));
       if (_headAtt) _head.material.color.setRGB(_hR + t*(1-_hR), _hG + t*(1-_hG), _hB + t*(1-_hB));
+    } else if (e.enraged && !e.dying) {
+      // berserker enraged: キャラ全体を赤く発光（50% 強度・脈動）
+      const _pulse = 0.45 + Math.sin(e._tick * 0.12) * 0.13;  // 0.32～0.58 で脈動
+      if (_bodyAtt) _body.material.color.setRGB(
+        _bR * (1 - _pulse) + _pulse, _bG * (1 - _pulse), _bB * (1 - _pulse));
+      if (_headAtt) _head.material.color.setRGB(
+        _hR * (1 - _pulse) + _pulse, _hG * (1 - _pulse), _hB * (1 - _pulse));
     } else {
       if (_bodyAtt) _body.material.color.setHex(_bc.body);
       if (_headAtt) _head.material.color.setHex(_bc.head);
@@ -3035,6 +3165,56 @@ export function updateEnemies(ctx) {
         hpBar.fill.scale.x = Math.max(0, Math.min(1, e.hp / e.maxHp));
       }
     }
+    // フレームカウンタ（赤点滅・赤発光パルスの周期計算用）
+    e._tick = ((e._tick ?? 0) + 1) | 0;
+    if ((e.slashHitFlash ?? 0) > 0) e.slashHitFlash--;
+    // 盾ブロックカウント自然減衰（90F 間ブロックがなければリセット）
+    if (e.enemyType === 'midboss01' && !e.shieldBroken && (e.shieldBlockCount ?? 0) > 0) {
+      e._blockDecayTimer = (e._blockDecayTimer ?? 0) + 1;
+      if (e._blockDecayTimer >= 90) { e.shieldBlockCount = 0; e._blockDecayTimer = 0; }
+    }
+
+    // midboss01 盾 HP 低下時の赤点滅（50% 以下から開始・HP ゼロに近いほど高速）
+    const _shMesh = !e.shieldBroken && e.mesh && e.mesh.userData.shield;
+    if (_shMesh) {
+      if (e.shieldHp < (e.shieldMaxHp ?? 60) * 0.5) {
+        const _ratio = e.shieldHp / (e.shieldMaxHp ?? 60);
+        const _period = Math.max(4, Math.round(4 + _ratio * 28));  // HP0=4F, 50%=18F
+        const _blink  = (e._tick % _period) < Math.round(_period * 0.45);
+        _shMesh.material.color.setHex(_blink ? 0xff3333 : 0xaaaaaa);
+      } else {
+        _shMesh.material.color.setHex(0xaaaaaa);  // 通常色（明グレー）
+      }
+      // ガード時に盾を前に出す（local +Z = 向き方向に押し出す）
+      _shMesh.position.z = ((e.shieldBlockTimer ?? 0) > 0) ? 20 : 0;
+    }
+
+    // midboss01 ガードドーム（通常ガード＝青 / SHIELD BREAK 拡大フェード＝白）
+    const _dome = e.mesh && e.mesh.userData.guardDome;
+    if (_dome) {
+      if ((e.shieldBreakDomeTimer ?? 0) > 0) {
+        // SHIELD BREAK: プレイヤーのガードクラッシュと同系の白拡大フェード
+        e.shieldBreakDomeTimer--;
+        const _t = e.shieldBreakDomeTimer / 18;
+        _dome.visible = true;
+        _dome.position.set(e.x, e.y + 100, e.z);
+        _dome.rotation.y = (e.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+        _dome.scale.setScalar(1 + (1 - _t) * 0.9);
+        _dome.material.color.setHex(0xffffff);
+        _dome.material.opacity = _t * 0.85;
+      } else if ((e.shieldBlockTimer ?? 0) > 0) {
+        // 通常ガード: 青ドーム（プレイヤーのガードシールドと同色）
+        e.shieldBlockTimer--;
+        _dome.visible = true;
+        _dome.position.set(e.x, e.y + 100, e.z);
+        _dome.rotation.y = (e.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+        _dome.scale.setScalar(1);
+        _dome.material.color.setHex(0x66ccff);
+        _dome.material.opacity = 0.30;
+      } else {
+        _dome.visible = false;
+      }
+    }
   }
   // Phase 3-A：cleanup pass — フェード完了で removed=true の敵を scene + 配列から除去
   //   Phase 3-B（2026-05-20）：mortal モードなら同じ位置に即リスポーン
@@ -3050,6 +3230,8 @@ export function updateEnemies(ctx) {
         if (_hpBar.bg && _hpBar.bg.parent) _hpBar.bg.parent.remove(_hpBar.bg);
         if (_hpBar.fill && _hpBar.fill.parent) _hpBar.fill.parent.remove(_hpBar.fill);
       }
+      const _gdome = dead.mesh && dead.mesh.userData && dead.mesh.userData.guardDome;
+      if (_gdome && _gdome.parent) _gdome.parent.remove(_gdome);
       // mortal モード時：元の spawn 位置に同条件で復活させる（HP は _spawnOpts.maxHp に従う）
       if (window.SB && window.SB.MORTAL_MODE && dead._spawnX !== undefined) {
         _respawnQueue.push({ x: dead._spawnX, z: dead._spawnZ, opts: dead._spawnOpts });

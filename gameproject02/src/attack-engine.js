@@ -931,6 +931,8 @@ export function tryGrabActivate(p) {
     // 死亡フロー中（パーツ分離・爆発待ち）は掴ませない。armed gc 含む（2026-05-19 修正）
     if (e.dying)                          continue;
     if (e.dyingInvincible)                continue;
+    // キャラ×敵種の掴み制限（将来は p.charId で分岐：BASTION なら midboss01 も掴める等）
+    if (e.enemyType === 'midboss01') continue;
     // === 敵の被掴み可状態 ===
     // - wait01：立ち/歩き（意思はあるがまだ攻撃モーションに入っていない）
     // - enemy_attacking かつ atkPhase === 'wind'：カウントダウン中（攻撃意思を見せている段階）

@@ -188,7 +188,7 @@ export function damagePlayer(p, attack, source) {
 
   // (2) 被弾中は完全無敵（プレイヤー区別化）：吹き飛び中・ダウン中は一切ヒットを受けず
   //   コンボでハメられない。guard_crash はガード崩れの隙なので無敵にしない（反撃を受ける）。
-  if (isHitstunState(p) && p.state !== STATE.guard_crash) return false;
+  if (isHitstunState(p) && p.state !== STATE.guard_crash && !attack.multiHit) return false;
   const incomingLv = attack.atk_lv ?? 1;
 
   // (3) ガード判定（前方からのみ）
