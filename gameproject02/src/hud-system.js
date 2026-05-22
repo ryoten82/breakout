@@ -5,12 +5,11 @@
 //    - updateSPGauge / spawnSPStockRing  SP バー + ストック表示 + 充填エッジ演出
 //    - updateHpHud                      HP バー + 危機点滅
 //    - updateGrabGauge                  グラブ中の頭上ゲージ（world→screen 投影）
-//    - updateEnemyAtkCountdown          敵攻撃カウントダウン（3/2/1）
 //
 //  ES Module として index.html から import される：
 //    import {
 //      initHudSystem,
-//      updateSPGauge, updateHpHud, updateGrabGauge, updateEnemyAtkCountdown,
+//      updateSPGauge, updateHpHud, updateGrabGauge,
 //    } from './src/hud-system.js';
 //
 //  initHudSystem(deps) で依存を一括注入：
@@ -18,13 +17,13 @@
 //    - players, enemies
 //    - camera
 //    - DOM refs（spBarEl / spStockNumEl / hpBarEl / hpNumEl /
-//                grabGaugeEl / grabGaugeFillEl / hudLayerEl / enemyAtkCdTemplate）
+//                grabGaugeEl / grabGaugeFillEl / hudLayerEl）
 //    - gameWidth, gameHeight: 数値
 //
-//  SP_CONFIG / GRAB_CONFIG / STATE / ENEMY_AI は ESM 直接 import。
+//  SP_CONFIG / GRAB_CONFIG / STATE は ESM 直接 import。
 // ============================================================
 
-import { SP_CONFIG, GRAB_CONFIG, ENEMY_AI } from './config.js';
+import { SP_CONFIG, GRAB_CONFIG, REPULSE_CONFIG, ENEMY_ATTACKS } from './config.js';
 import { STATE } from './states.js';
 
 let _THREE = null;
@@ -43,13 +42,18 @@ let _gameHeight = 1080;
 
 // 内部状態
 let _prevFullStocks = -1;
-let _enemyCdProj = null;
 let _grabGaugeProj = null;
-const _enemyCdPool = [];
 let _aiPhaseProj = null;
 const _aiPhasePool = [];
 let _stunProj = null;
 const _stunPool = [];
+let _personaProj = null;
+const _personaPool = [];
+let _dmgProj = null;
+const _dmgNumbers = [];   // 飛び交うダメージ数値（{ x,y,z,vy,vx,life,maxLife,crit,el }）
+const _dmgNumPool = [];   // DOM 要素プール（_inUse で借用管理）
+let _repulseHudEl = null; // 「危↑」リパルスカウンター受付インジケータ
+let _repulsePulse  = 0;   // 点滅アニメ用カウンタ
 
 export function initHudSystem(deps) {
   _THREE = deps.THREE;
@@ -66,10 +70,12 @@ export function initHudSystem(deps) {
   _gameWidth = deps.gameWidth;
   _gameHeight = deps.gameHeight;
   // 投影用 Vector3 は init 時に確保（毎フレーム new しない）
-  _enemyCdProj = new _THREE.Vector3();
   _grabGaugeProj = new _THREE.Vector3();
   _aiPhaseProj = new _THREE.Vector3();
   _stunProj = new _THREE.Vector3();
+  _personaProj = new _THREE.Vector3();
+  _dmgProj = new _THREE.Vector3();
+  _repulseHudEl = deps.repulseHudEl ?? document.getElementById('repulse-hud');
 }
 
 // ============================================================
@@ -138,55 +144,6 @@ export function updateHpHud() {
   // 危機状態（p.inCrisis）と連動して点滅
   // → 機体本体の火花スポーンと同タイミングで切り替わる（HP_CONFIG.CRISIS_THRESHOLD 一元管理）
   _hpBarEl.classList.toggle('low', !!p.inCrisis);
-}
-
-// ============================================================
-//  デバッグ：敵攻撃カウントダウン（敵ごとに頭上 world→screen 投影）
-//   - カウントダウン中（wind フェーズ）だけ「3 / 2 / 1」を大きく表示
-//   - 敵ごとに DOM 要素を動的生成・プール管理
-// ============================================================
-function _getEnemyCdEl(idx) {
-  while (_enemyCdPool.length <= idx) {
-    const el = document.createElement('div');
-    el.id = `enemy-atk-cd-${_enemyCdPool.length}`;
-    el.style.position = 'absolute';
-    el.style.transform = 'translate(-50%, -50%)';
-    el.style.pointerEvents = 'none';
-    el.style.zIndex = '81';
-    el.style.fontFamily = "'Courier New', monospace";
-    el.style.fontSize = '56px';
-    el.style.fontWeight = 'bold';
-    el.style.textShadow = '0 0 10px #000, 3px 3px 0 #000';
-    el.style.whiteSpace = 'nowrap';
-    el.style.display = 'none';
-    el.style.lineHeight = '1';
-    // 既存 CSS の cd-1/2/3 クラスで色付け（既存スタイル流用）
-    (_hudLayerEl ?? document.body).appendChild(el);
-    _enemyCdPool.push(el);
-  }
-  return _enemyCdPool[idx];
-}
-export function updateEnemyAtkCountdown() {
-  for (let i = 0; i < _enemies.length; i++) {
-    const e = _enemies[i];
-    const el = _getEnemyCdEl(i);
-    if (!e.isAlive || e.state === STATE.enemy_dying || !ENEMY_AI.enabled || !e.aiEnabled ||
-        e.state !== STATE.enemy_attacking || e.atkPhase !== 'wind') {
-      el.style.display = 'none';
-      continue;
-    }
-    // 残F → 秒（切り上げ）：180..121=3 / 120..61=2 / 60..1=1
-    const sec = Math.ceil(e.atkTimer / 60);
-    el.textContent = sec;
-    el.className = 'cd-' + sec;
-    _enemyCdProj.set(e.x, e.y + 260, e.z);
-    _enemyCdProj.project(_camera);
-    const frameX = (_enemyCdProj.x * 0.5 + 0.5) * _gameWidth;
-    const frameY = (-_enemyCdProj.y * 0.5 + 0.5) * _gameHeight;
-    el.style.left = frameX + 'px';
-    el.style.top  = frameY + 'px';
-    el.style.display = 'block';
-  }
 }
 
 // ============================================================
@@ -316,5 +273,252 @@ export function updateStatusStunHud() {
   }
   for (let i = _enemies.length; i < _stunPool.length; i++) {
     _stunPool[i].style.display = 'none';
+  }
+}
+
+// ============================================================
+//  デバッグ：敵の性格ラベル（#14・HP ゲージの上に常時表示）
+//   - brave＝橙 / cunning＝紫。興奮中は末尾に「!」
+//   - 性格システム（dodge/guard 頻度差）の確認用
+// ============================================================
+const _PERSONALITY_COLOR = {
+  brave:   '#ff8844',  // 攻撃的＝橙
+  cunning: '#bb77ff',  // 狡猾＝紫
+};
+function _getPersonaEl(idx) {
+  while (_personaPool.length <= idx) {
+    const el = document.createElement('div');
+    el.id = `enemy-personality-${_personaPool.length}`;
+    el.style.position = 'absolute';
+    el.style.transform = 'translate(-50%, -50%)';
+    el.style.pointerEvents = 'none';
+    el.style.zIndex = '82';
+    el.style.fontFamily = "'Courier New', monospace";
+    el.style.fontSize = '13px';
+    el.style.fontWeight = 'bold';
+    el.style.textShadow = '0 0 4px #000, 2px 2px 0 #000';
+    el.style.whiteSpace = 'nowrap';
+    el.style.display = 'none';
+    el.style.lineHeight = '1';
+    (_hudLayerEl ?? document.body).appendChild(el);
+    _personaPool.push(el);
+  }
+  return _personaPool[idx];
+}
+export function updateEnemyPersonalityHud() {
+  for (let i = 0; i < _enemies.length; i++) {
+    const e = _enemies[i];
+    const el = _getPersonaEl(i);
+    if (!e.isAlive || e.state === STATE.enemy_dying || e.dying) {
+      el.style.display = 'none';
+      continue;
+    }
+    el.textContent = (e.personality || '?').toUpperCase() + (e.enraged ? '!' : '');
+    el.style.color = _PERSONALITY_COLOR[e.personality] || '#ffffff';
+    // HP ゲージ（yOffset 220）の少し上に投影
+    _personaProj.set(e.x, e.y + 255, e.z);
+    _personaProj.project(_camera);
+    el.style.left = ((_personaProj.x * 0.5 + 0.5) * _gameWidth)  + 'px';
+    el.style.top  = ((-_personaProj.y * 0.5 + 0.5) * _gameHeight) + 'px';
+    el.style.display = 'block';
+  }
+  for (let i = _enemies.length; i < _personaPool.length; i++) {
+    _personaPool[i].style.display = 'none';
+  }
+}
+
+// ============================================================
+//  ダメージ数値ポップアップ（プレイヤー攻撃ヒット時の与ダメージ表示）
+//   - spawnDamageNumber(x,y,z,amount,opts) でヒット位置にポップを生成
+//   - updateDamageNumbers() を毎 update フレームで呼ぶ：画面空間で上昇 + フェード
+//     （spawn 時に一度だけ world→screen 投影し、以降はカメラ非追従で固定上昇）
+//   - DOM 要素はプール再利用（_inUse フラグで借用管理）
+//   - opts.crit:true で強調表示（クリティカル攻撃・タスク #13 で使用）
+// ============================================================
+const _DMG_NUM_LIFE = 46;   // 表示寿命F（≒0.77 秒）
+
+function _getDmgNumEl() {
+  for (const el of _dmgNumPool) {
+    if (!el._inUse) { el._inUse = true; return el; }
+  }
+  const el = document.createElement('div');
+  el.className = 'dmg-number';
+  el.style.position = 'absolute';
+  el.style.pointerEvents = 'none';
+  el.style.zIndex = '84';
+  el.style.fontFamily = "'Courier New', monospace";
+  el.style.fontWeight = 'bold';
+  el.style.whiteSpace = 'nowrap';
+  el.style.lineHeight = '1';
+  el.style.display = 'none';
+  el._inUse = true;
+  (_hudLayerEl ?? document.body).appendChild(el);
+  _dmgNumPool.push(el);
+  return el;
+}
+
+// 1 個分の見た目反映（画面空間で上昇フェード + スケールポップ）。
+//   座標は画面空間 sx/sy。カメラのシェイク・パンに追従しないので攻撃中もブレない。
+function _renderDmgNumber(d) {
+  const t   = d.life / d.maxLife;          // 1→0
+  const age = 1 - t;                       // 0→1
+  const alpha = (t >= 0.5) ? 1 : (t / 0.5);  // 寿命後半 50% で透明へ
+  const scale = 0.4 + 0.6 * Math.min(1, age / 0.12);  // 0.4→1.0 の素早いポップ
+  d.el.style.left = d.sx + 'px';
+  d.el.style.top  = d.sy + 'px';
+  d.el.style.opacity = alpha;
+  d.el.style.transform = `translate(-50%, -50%) scale(${scale})`;
+}
+
+export function spawnDamageNumber(x, y, z, amount, opts = {}) {
+  const crit = !!opts.crit;
+  const el = _getDmgNumEl();
+  el.textContent = Math.round(amount);
+  // 通常：白／クリティカル：橙＋大きめ／盾ダメージ：水色（本体ダメージと区別）
+  if (opts.shield) {
+    el.style.color = '#88ccff';
+    el.style.fontSize = '32px';
+    el.style.textShadow = '0 0 8px #2266aa, 2px 2px 0 #000';
+  } else if (crit) {
+    el.style.color = '#ff9922';
+    el.style.fontSize = '52px';
+    el.style.textShadow = '0 0 12px #ff5500, 0 0 6px #000, 3px 3px 0 #000';
+  } else {
+    el.style.color = '#ffffff';
+    el.style.fontSize = '38px';
+    el.style.textShadow = '0 0 6px #000, 2px 2px 0 #000';
+  }
+  el.style.display = 'block';
+  // ヒット位置を spawn 時に一度だけ画面座標へ投影 → 以降は画面空間で固定上昇。
+  //   カメラのシェイク／パンに追従しないので、攻撃中も数字がブレず読みやすい。
+  let sx = _gameWidth / 2, sy = _gameHeight / 2;
+  if (_camera && _dmgProj) {
+    _dmgProj.set(x, y, z);
+    _dmgProj.project(_camera);
+    sx = (_dmgProj.x * 0.5 + 0.5) * _gameWidth;
+    sy = (-_dmgProj.y * 0.5 + 0.5) * _gameHeight;
+  }
+  const d = {
+    // 多段ヒットの完全重なりを避けるため X に微小ばらつき（控えめ）
+    sx: sx + (Math.random() - 0.5) * 30,
+    sy,
+    rise: 3.4,                        // 画面上方向の上昇初速（px/F）
+    life: _DMG_NUM_LIFE, maxLife: _DMG_NUM_LIFE,
+    crit, el,
+  };
+  _dmgNumbers.push(d);
+  _renderDmgNumber(d);  // spawn フレームから正しい位置・透明度で表示
+}
+
+export function updateDamageNumbers() {
+  for (let i = _dmgNumbers.length - 1; i >= 0; i--) {
+    const d = _dmgNumbers[i];
+    d.life--;
+    d.sy -= d.rise;   // 画面上方向へ（y は下が +）
+    d.rise *= 0.90;   // 上昇減速（ふわっと止まる）
+    if (d.life <= 0) {
+      d.el.style.display = 'none';
+      d.el._inUse = false;
+      _dmgNumbers.splice(i, 1);
+      continue;
+    }
+    _renderDmgNumber(d);
+  }
+}
+
+// ============================================================
+//  バナー表示（"SHIELD BREAK!" 等・大きな一時テキストを画面上部中央に）
+//   - spawnBanner(text, opts) で表示。opts: { frames, color, fontSize }
+//   - updateBanners() を毎 update フレームで呼ぶ：フェードイン → 保持 → フェードアウト
+//   - DOM 要素はプール再利用（_inUse フラグで借用管理）
+// ============================================================
+const _banners = [];
+const _bannerPool = [];
+
+function _getBannerEl() {
+  for (const el of _bannerPool) {
+    if (!el._inUse) { el._inUse = true; return el; }
+  }
+  const el = document.createElement('div');
+  el.className = 'hud-banner';
+  el.style.position = 'absolute';
+  el.style.pointerEvents = 'none';
+  el.style.zIndex = '86';
+  el.style.left = '50%';
+  el.style.top = '18%';
+  el.style.fontFamily = "'Courier New', monospace";
+  el.style.fontWeight = 'bold';
+  el.style.whiteSpace = 'nowrap';
+  el.style.lineHeight = '1';
+  el.style.display = 'none';
+  el._inUse = true;
+  (_hudLayerEl ?? document.body).appendChild(el);
+  _bannerPool.push(el);
+  return el;
+}
+
+// 1 個分の見た目反映（フェードイン → 保持 → フェードアウト + スケールポップ）
+function _renderBanner(b) {
+  const t   = b.life / b.maxLife;   // 1→0
+  const age = 1 - t;                // 0→1
+  let alpha = 1;
+  if (age < 0.12)      alpha = age / 0.12;   // 先頭 12% でフェードイン
+  else if (t   < 0.35) alpha = t   / 0.35;   // 末尾 35% でフェードアウト
+  const pop = 0.7 + 0.3 * Math.min(1, age / 0.10);  // 素早いスケールポップ
+  b.el.style.opacity = alpha;
+  b.el.style.transform = `translate(-50%, -50%) scale(${pop})`;
+}
+
+export function spawnBanner(text, opts = {}) {
+  const frames = opts.frames ?? 60;
+  const el = _getBannerEl();
+  el.textContent = text;
+  el.style.color = opts.color ?? '#ffcc22';
+  el.style.fontSize = (opts.fontSize ?? 56) + 'px';
+  el.style.textShadow = '0 0 16px #ff6600, 3px 3px 0 #000';
+  el.style.display = 'block';
+  const b = { el, life: frames, maxLife: frames };
+  _banners.push(b);
+  _renderBanner(b);
+}
+
+export function updateBanners() {
+  for (let i = _banners.length - 1; i >= 0; i--) {
+    const b = _banners[i];
+    b.life--;
+    if (b.life <= 0) {
+      b.el.style.display = 'none';
+      b.el._inUse = false;
+      _banners.splice(i, 1);
+      continue;
+    }
+    _renderBanner(b);
+  }
+}
+
+// ============================================================
+//  リパルスカウンター受付インジケータ（「危 ↑」）
+//  repulseWindow=true の敵が存在する間だけ表示。点滅で緊急度を伝える。
+// ============================================================
+export function updateRepulseHud() {
+  if (!_repulseHudEl || !_enemies) return;
+  // 受付中の敵を探して軸アイコンを取得
+  let _axisIcon = null;
+  for (const e of _enemies) {
+    if (e.repulseWindow && e.curAtkId) {
+      const _axis = ENEMY_ATTACKS[e.curAtkId]?.repulseAxis;
+      if (_axis) { _axisIcon = REPULSE_CONFIG.AXIS_ICON?.[_axis] ?? '!'; break; }
+    }
+  }
+  if (_axisIcon) {
+    _repulsePulse++;
+    // 12F 周期で点滅（点灯 8F / 暗転 4F）
+    const _lit = (_repulsePulse % 12) < 8;
+    _repulseHudEl.style.display  = 'block';
+    _repulseHudEl.style.opacity  = _lit ? '1' : '0.25';
+    _repulseHudEl.textContent    = `危 ${_axisIcon}`;
+  } else {
+    _repulsePulse = 0;
+    _repulseHudEl.style.display  = 'none';
   }
 }

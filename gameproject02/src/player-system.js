@@ -28,12 +28,16 @@
 //    - chargeReadyRing: THREE.Mesh     チャージ完成リング mesh
 // ============================================================
 
-import { STATE, STATE_PITCH_TARGET, ENEMY_AIRBORNE_Y_THRESHOLD } from './states.js';
+import {
+  STATE, PLAYER_JUMP_STATES, STATE_PITCH_TARGET, ENEMY_AIRBORNE_Y_THRESHOLD,
+  PLAYER_JUMP_START_FRAMES, PLAYER_JUMP_D_START_FRAMES,
+  PLAYER_JUMP_END_FRAMES, PLAYER_JUMP_D_END_FRAMES,
+} from './states.js';
 import {
   PHYSICS, SP_CONFIG,
   GUARD_CONFIG, SPECIAL_CONFIG, HOMING_CONFIG,
   CHARGE_PARTICLE_CONFIG, CHARGE_RING_CONFIG,
-  DUMMY_ATK_CONFIG,
+  DUMMY_ATK_CONFIG, ENEMY_ATTACKS, UKEMI_CONFIG,
 } from './config.js';
 import { ATTACKS, getHitWindowEnd } from './attacks.js';
 import {
@@ -120,6 +124,11 @@ export function processGuardInput(p) {
     if (canStart) {
       p.guarding       = true;
       p.guardFadeTimer = 0;
+      // ダッシュ中にガードに移行 → 強制的に歩きへ
+      if (p.dashActive) {
+        p.dashActive   = false;
+        p.dashCooldown = PHYSICS.DASH_COOLDOWN;
+      }
     }
     // SP 不足で L を新規押下した時：エネルギー不足の点滅フィードバック
     if (lEdge && baseEligible && p.sp < GUARD_CONFIG.MIN_SP_TO_START) {
@@ -145,18 +154,23 @@ export function processGuardInput(p) {
       if (p.sp <= 0) {
         p.sp = 0;
         p.guarding = false;
-      } else if (!lHeld) {
+      } else if (!lHeld && p.guardDrainPauseTimer <= 0) {
+        // ガード成功直後の硬直中（drainPause > 0）はボタン離しても解除しない
         p.guarding = false;
       }
       // 攻撃で割り込まれた場合（将来用：被弾やメガクラ等が p.guarding を強制 false にする）
       if (p.state === STATE.attacking) p.guarding = false;
-      // 解除した瞬間：フェードアウトタイマー始動
-      if (!p.guarding) p.guardFadeTimer = GUARD_CONFIG.FADE_OUT_FRAMES;
+      // 解除した瞬間：フェードアウトタイマー始動・歩行 state を idle に戻す
+      if (!p.guarding) {
+        p.guardFadeTimer = GUARD_CONFIG.FADE_OUT_FRAMES;
+        if (p.state === STATE.walk_fwd || p.state === STATE.walk_back) p.state = STATE.wait01;
+      }
     }
   } else if (p.guarding) {
     // ULT・グラブ等が発生 → ガード強制解除しフェードアウトへ
     p.guarding = false;
     p.guardFadeTimer = GUARD_CONFIG.FADE_OUT_FRAMES;
+    if (p.state === STATE.walk_fwd || p.state === STATE.walk_back) p.state = STATE.wait01;
   }
 
   // 不透明度の更新（常に走らせる：フェード中に他状態へ遷移しても opacity を 0 まで完走させる）
@@ -164,11 +178,50 @@ export function processGuardInput(p) {
     // 発動中は素早く 1 へ
     p.guardOpacity += (1 - p.guardOpacity) * GUARD_CONFIG.FADE_IN_LERP;
   } else if (p.guardFadeTimer > 0) {
-    // フェードアウト中：線形に 0 へ
+    // フェードアウト中：FADE_OUT_FRAMES 以上は opacity=1 を維持、以下で線形フェード
+    // これにより guard_crash 等でタイマーを延ばしてもノックバック中は shield が見え続ける
     p.guardFadeTimer--;
-    p.guardOpacity = p.guardFadeTimer / GUARD_CONFIG.FADE_OUT_FRAMES;
+    p.guardOpacity = Math.min(1.0, p.guardFadeTimer / GUARD_CONFIG.FADE_OUT_FRAMES);
   } else {
     p.guardOpacity = 0;
+  }
+}
+
+// ガードシールドメッシュの同期（hitstop 中・hitstun 中・通常フレームで共用）。
+// updatePlayer はヒットストップ中に呼ばれないため、index.html の hitstop ブロックでも
+// この関数を呼ぶことで「シールドが古い状態で固まる」問題を解消する。
+export function syncGuardShield(p) {
+  if (!_guardShield) return;
+  if ((p.guardCrashFadeTimer ?? 0) > 0) {
+    const t = 1 - p.guardCrashFadeTimer / GUARD_CONFIG.CRASH_SHIELD_FADE;
+    _guardShield.visible = true;
+    _guardShield.position.set(p.guardCrashX, p.guardCrashY, p.guardCrashZ);
+    _guardShield.rotation.y = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+    _guardShield.scale.setScalar(1 + t * 0.7);
+    _guardShield.material.color.setHex(0xffffff);
+    _guardShield.material.opacity = (1 - t) * GUARD_CONFIG.FLASH_OPACITY;
+    p.guardCrashFadeTimer--;
+    if (p.guardCrashFadeTimer <= 0) _guardShield.scale.setScalar(1);
+  } else if (p.guardOpacity > 0.01) {
+    _guardShield.scale.setScalar(1);
+    _guardShield.visible = true;
+    _guardShield.position.set(p.x, p.y + GUARD_CONFIG.SHIELD_Y_OFFSET, p.z);
+    _guardShield.rotation.y = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+    const flashT = (p.guardFlashTimer > 0) ? (p.guardFlashTimer / GUARD_CONFIG.FLASH_FRAMES) : 0;
+    const baseOp = p.guardOpacity * GUARD_CONFIG.SHIELD_MAX_OPACITY;
+    _guardShield.material.opacity = baseOp + (GUARD_CONFIG.FLASH_OPACITY - baseOp) * flashT;
+    _guardShield.material.color.setHex(flashT > 0 ? GUARD_CONFIG.FLASH_COLOR : GUARD_CONFIG.SHIELD_COLOR);
+  } else if (p.guardFailFlashTimer > 0) {
+    _guardShield.visible = true;
+    _guardShield.position.set(p.x, p.y + GUARD_CONFIG.SHIELD_Y_OFFSET, p.z);
+    _guardShield.rotation.y = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+    const t = 1 - (p.guardFailFlashTimer / GUARD_CONFIG.FAIL_FLASH_FRAMES);
+    _guardShield.material.opacity = GUARD_CONFIG.FAIL_FLASH_OPACITY * Math.abs(Math.sin(t * Math.PI * 2)) * (1 - t);
+    _guardShield.material.color.setHex(GUARD_CONFIG.FAIL_FLASH_COLOR);
+    p.guardFailFlashTimer--;
+    if (p.guardFailFlashTimer <= 0) _guardShield.material.color.setHex(GUARD_CONFIG.SHIELD_COLOR);
+  } else {
+    _guardShield.visible = false;
   }
 }
 
@@ -237,7 +290,8 @@ export function updateChargeJ(p) {
   // 通常コンボの最中に裏で sp_03 を溜めるパターンを許可（プレイヤー側の主体的キャンセル繋ぎ）。
   // 空中でも蓄積可：難度高めだが「裏で溜めて空中 sp_03_air に繋ぐ」ルートをプレイヤー裁量で開放。
   const canCharge =
-    (p.state === STATE.wait01 || p.state === STATE.attacking || p.state === STATE.hit_confirm)
+    (p.state === STATE.wait01 || p.state === STATE.attacking || p.state === STATE.hit_confirm ||
+     PLAYER_JUMP_STATES.has(p.state))
     && !p.guarding && !p.ultActive
     && p.state !== STATE.grabbing;
   const wasReady = p.chargeReady;
@@ -306,8 +360,11 @@ function canStartSpecial(p, opts) {
   // grab 中は OK（cancelGrabIntoAttack 経由で発動）
   if (p.state === STATE.grabbing) return true;
   if (p.state === STATE.wait01) return true;
+  if (p.state === STATE.walk_fwd || p.state === STATE.walk_back) return true;
   if (p.state === STATE.hit_confirm) return true;
   if (p.state === STATE.attacking) return true; // attacking もキャンセル発動可
+  // ジャンプ系 state は wait01 と同じ受付（演出フック）
+  if (PLAYER_JUMP_STATES.has(p.state)) return true;
   return false;
 }
 // 必殺技 ID の正規化：地上/空中の派生は同じ base として 1 コンボ 1 回ルールを共有する
@@ -376,7 +433,7 @@ function startSpecial(p, id) {
   // 方向入力履歴クリア：同じコマンドが連打で再成立しないように
   // （1 コマンド = 1 発動。次に出すには方向を再入力する必要がある）
   p.dirHistory.length = 0;
-  console.log('[SPECIAL]', id, '発動');
+  if (window.SB?.DEBUG_SPECIAL) console.log('[SPECIAL]', id, '発動');
   return true;
 }
 
@@ -477,9 +534,10 @@ export function updateComboHoming(p) {
   if (_curAtkForHoming?.requireLockForHoming && !p._homingPreLocked) return;
   const t = p.comboTarget;
   // === ロック解除条件 ===
-  // 1) 対象が死亡・グラブ被害中・きりもみ離脱中
+  // 1) 対象が死亡・グラブ被害中・きりもみ離脱中・ゴアクリ armed 中（追撃させない）
   if (!t.isAlive || t.state === STATE.grabbed
-      || t.state === STATE.down_burst_start || t.state === STATE.down_burst_loop) {
+      || t.state === STATE.down_burst_start || t.state === STATE.down_burst_loop
+      || (t.goreCritical && t.goreCritical.armed)) {
     p.comboTarget = null;
     p.oppositeInputFrames = 0;
     return;
@@ -629,19 +687,66 @@ function updatePartAnims(p) {
 //  Step E-4b で player-system.js に分離
 // ============================================================
 export function updatePlayer(p) {
+  // 受け身用：ジャンプキーの押下エッジを毎フレーム検出（被弾中の受け身入力に使う）
+  const _spaceDown = _inp('Space');
+  const _ukemiJumpEdge = _spaceDown && !p._ukemiJumpPrev;
+  p._ukemiJumpPrev = _spaceDown;
+
   // === 掴み発動 readiness フラグ ===
   // 仕様：「wait01 中に自分の意思で移動した」状態でのみ tryGrabActivate を許可。
   // wait01 以外（hitstun / attacking / grabbing 等）に入った瞬間に false へリセット。
   // 物理移動セクション後（mvx/mvz 確定後）に「実際に動いていた」なら true に立てる。
   // → 被弾のけぞり後・攻撃終了後にユーザーが新規に移動を入力するまで掴めない。
-  if (p.state !== STATE.wait01) p._grabReady = false;
+  if (p.state !== STATE.wait01 && p.state !== STATE.walk_fwd && p.state !== STATE.walk_back) p._grabReady = false;
 
   // === 被弾中：入力一切受け付けず、hitstun の自動進行のみ走らせて return ===
   if (isHitstunState(p)) {
+    // 被弾でノックバック → 敵に密着した状態で wait01 復帰したとき、移動キー押しっぱなしで
+    // 近接グラブが暴発するのを防ぐ。被弾後は移動キーを一度離すまでグラブを再アームしない。
+    p._grabHitLock = true;
     const canReverse = (p.state !== STATE.dying && p.state !== STATE.dead && p.state !== STATE.guard_crash);
     if (canReverse) _processMegaCrashUltInput(p);
+    // 受け身入力：被弾中の最初のジャンプ押下だけをバッファ投入に使う（1被弾1回）。
+    //   連打でバッファを再充填し続けると受け身が確定してしまうため、ukemiAttempted で締める。
+    //   早すぎる1回目はバッファが切れて不成立 → 連打は自滅。＝タイミングを読む技。
+    if (_ukemiJumpEdge && !p.ukemiAttempted) {
+      p.ukemiBuffer = UKEMI_CONFIG.BUFFER_FRAMES;
+      p.ukemiAttempted = true;
+    }
     updatePlayerHitstun(p);
     updateCrisisEffect(p);
+    // 被弾で kbVx により壁外まで吹き飛ぶのを防ぐ：通常 update と同じ壁クランプを適用。
+    // ここを忘れると着地時に通常 update のクランプが走って「壁向こう→ワープで戻る」現象になる。
+    const wallL = getActiveWallX('left');
+    const wallR = getActiveWallX('right');
+    p.x = Math.max(Math.max(PHYSICS.STAGE_LEFT, wallL), Math.min(Math.min(PHYSICS.STAGE_RIGHT, wallR), p.x));
+    // lv6 転がり中は updatePlayerHitstun が腰ピボット補正込みで mesh.x を設定済 → 上書きしない。
+    if (p.mesh && p.state !== STATE.down_roll_start && p.state !== STATE.down_roll_loop) {
+      p.mesh.position.x = p.x;
+    }
+    // 被弾中はブースター演出を消す。updatePlayer 本体（thruster 可視制御）を return で
+    //   スキップするため、ジャンプ中に被弾するとバーニアが点いたまま固まる不具合の対策。
+    // thrustFramesLeft も 0 に：残ったままだと復帰直後 1F だけ thrustingNow が再点灯する。
+    p.thrustFramesLeft = 0;
+    const _hsParts = p.mesh && p.mesh.userData.parts;
+    if (_hsParts) {
+      _hsParts.thrusterL.visible = false;
+      _hsParts.thrusterR.visible = false;
+      _hsParts.yawL.visible = false;
+      _hsParts.yawR.visible = false;
+    }
+    // 必殺技中などに被弾した場合、攻撃ポーズ・攻撃エフェクトが固まって残るのを防ぐ。
+    //   updatePlayer 本体（パーツ姿勢・必殺技ヒットボックス・本体発光）を return でスキップするため、
+    //   ここで明示的に rest 姿勢へ戻し、攻撃エフェクトを消す（attackId は被弾で既に null）。
+    updatePartAnims(p);
+    if (_specialHitboxMesh) _specialHitboxMesh.visible = false;
+    if (p._bodyEmissiveWasOn) {
+      _applyBodyEmissive(p.mesh, 0, 0, 0);
+      p._bodyEmissiveWasOn = false;
+    }
+    // ガードシールド：hitstun 中も syncGuardShield を呼ぶことで
+    // クラッシュアニメの進行・ドーム残留の両方を解消する。
+    syncGuardShield(p);
     return;
   }
   if (p.invincibleFrames > 0) p.invincibleFrames--;
@@ -662,11 +767,15 @@ export function updatePlayer(p) {
 
   // === 攻撃入力処理（毎フレーム）===
   _processMegaCrashUltInput(p);
-  processSpecialInput(p);
-  processAttackInput(p);
-  processStrongAttackInput(p);
+  // 受け身ジャンプ上昇中（ukemiInvuln）は攻撃を封印：受け身でテンポを上げすぎない（2026-05-20）
+  if (!p.ukemiInvuln) {
+    processSpecialInput(p);
+    processAttackInput(p);
+    processStrongAttackInput(p);
+  }
 
   if (p.specialFlashTimer > 0) p.specialFlashTimer--;
+  if (p.ukemiFlashTimer > 0) p.ukemiFlashTimer--;
   if (!p.guarding && !p.ultActive && p.state !== STATE.grabbing) processDashInput(p);
 
   tryCancelJump(p);
@@ -853,6 +962,17 @@ export function updatePlayer(p) {
   }
   const len = Math.hypot(mvx, mvz);
 
+  // === ガード中の歩行 state 設定 ===
+  // 移動中は方向に応じて walk_fwd / walk_back、静止は wait01 へ
+  if (p.guarding && p.isGrounded &&
+      (p.state === STATE.wait01 || p.state === STATE.walk_fwd || p.state === STATE.walk_back)) {
+    if (len > 0) {
+      p.state = (mvx * p.facing < 0) ? STATE.walk_back : STATE.walk_fwd;
+    } else {
+      p.state = STATE.wait01;
+    }
+  }
+
   // === 攻撃反動：selfRecoilMomentum を毎フレーム適用（後方ノックバック・2026-05-18）===
   // attack-engine の hitFrame で仕込まれる。facing と逆方向にプレイヤーを押し戻す。
   // ステージ端 clamp は後段で実施されるので、ここでは純粋に位置加算のみ。
@@ -866,8 +986,14 @@ export function updatePlayer(p) {
 
   // 掴み readiness：wait01 中に意思入力で動いたフレームでフラグ立て
   // （tryGrabActivate は次フレームの早い段階で読む）
-  if (p.state === STATE.wait01 && p.isGrounded && (mvx !== 0 || mvz !== 0)) {
-    p._grabReady = true;
+  // 被弾ロック中（_grabHitLock）は、移動キーを一度離す（mvx/mvz=0）まで再アームしない。
+  // → 被弾でノックバックされた先の敵を、押しっぱなしの移動キーで掴んでしまう事故を防ぐ。
+  if ((p.state === STATE.wait01 || p.state === STATE.walk_fwd || p.state === STATE.walk_back) && p.isGrounded) {
+    if (mvx === 0 && mvz === 0) {
+      p._grabHitLock = false;       // 移動キーを離した → ロック解除（次の意思入力で再アーム可）
+    } else if (!p._grabHitLock) {
+      p._grabReady = true;
+    }
   }
 
   // 横方向クランプ：画面端壁（カメラ追従中心 ± 半幅）を採用。levelWalls に静的壁があれば優先。
@@ -932,6 +1058,22 @@ export function updatePlayer(p) {
     p.isGrounded = false;
     p.thrustFramesLeft = PHYSICS.THRUST_FRAMES;
     p.jumpConsumed = true;
+    // 離陸 state（ダッシュジャンプは jump_d_*）。攻撃中・grabbing はジャンプ条件で除外済み。
+    if (p.airWasDash) {
+      p.state      = STATE.jump_d_start;
+      p.stateTimer = PLAYER_JUMP_D_START_FRAMES;
+    } else {
+      p.state      = STATE.jump_start;
+      p.stateTimer = PLAYER_JUMP_START_FRAMES;
+    }
+  }
+  // 離陸 → ループ遷移
+  if (p.state === STATE.jump_start) {
+    p.stateTimer--;
+    if (p.stateTimer <= 0) p.state = STATE.jump_loop;
+  } else if (p.state === STATE.jump_d_start) {
+    p.stateTimer--;
+    if (p.stateTimer <= 0) p.state = STATE.jump_d_loop;
   }
 
   // 小ジャンプ廃止（2026-05-18）：SPACE 短押しでも常に THRUST_FRAMES 分のブースト発火。
@@ -961,26 +1103,42 @@ export function updatePlayer(p) {
       } else if (p._aerialGraceTimer > 0) {
         p._aerialGraceTimer--;
       }
-      const pGravFactor = (inAerialCombo || p._aerialGraceTimer > 0) ? PHYSICS.AERIAL_GRAV_FACTOR : 1.0;
+      let pGravFactor = (inAerialCombo || p._aerialGraceTimer > 0) ? PHYSICS.AERIAL_GRAV_FACTOR : 1.0;
+      // 空中滞空攻撃（airGravFactor 指定の必殺技）：攻撃中は重力を差し替えて滞空。
+      //   空中の敵（浮力 0.65）に高度を合わせ、下方向射撃が敵を取りこぼさないようにする。
+      if (p.state === STATE.attacking && curAtk?.airGravFactor !== undefined) {
+        pGravFactor = curAtk.airGravFactor;
+      }
       p.vy -= PHYSICS.GRAVITY * pGravFactor;
       // 終端速度クランプ：空中コンボで滞空フレームが長くなると vy が際限なく溜まり、
       // コンボ離脱後に異常な急降下になる事象を抑える（2026-05-19 追加）。
       if (p.vy < PHYSICS.MAX_FALL_VY) p.vy = PHYSICS.MAX_FALL_VY;
     }
     p.y += p.vy;
+    // 受け身：上昇から頂点（vy<=0）に達したら無敵終了
+    if (p.ukemiInvuln && p.vy <= 0) p.ukemiInvuln = false;
     if (p.y <= 0) {
+      const _wasDashJump = !!p.airWasDash;  // 後段で airWasDash が false 化される前に保持
       p.y = 0;
       p.vy = 0;
       p.isGrounded    = true;
       p.aerialWhiffed = false;
+      p.ukemiInvuln   = false;  // 着地で念のため受け身無敵を解除
+      p.ukemiBuffer   = 0;
       p.thrustFramesLeft = 0;
       p.diveCountdown = 0;
       p.homingFrames  = 0;
       p.homingTarget  = null;
       p._aerialGraceTimer = 0;  // 着地で AERIAL_GRACE をクリア（次ジャンプに軽重力が漏れるのを防ぐ・2026-05-20）
-      // attackChainArr は wait01 時のみクリア（攻撃継続中の状態を壊さない）
-      // → wait01 でないと cancelOnLand ブロックで処理される or 攻撃継続なのでクリア不要
-      if (p.state === STATE.wait01) p.attackChainArr = null;
+      // attackChainArr は wait01 または新ジャンプ airborne state（loop/start）でのみクリア。
+      // 2026-05-20：旧コードは state==wait01 限定だったが、jump_loop / jump_d_loop / jump_start /
+      //   jump_d_start state を導入したためクリア漏れ発生 → 次ジャンプで inAerialCombo 誤判定。
+      //   hit_confirm 着地で chainArr が残る挙動（ground J → hit_confirm 経由の高高度ジャンプ等）は旧仕様維持。
+      if (p.state === STATE.wait01 ||
+          p.state === STATE.jump_start    || p.state === STATE.jump_loop ||
+          p.state === STATE.jump_d_start  || p.state === STATE.jump_d_loop) {
+        p.attackChainArr = null;
+      }
       // 着地で wait01 に即降格：
       //   - diveVy 系（c01_sp_03_air 急降下踏みつけ（旧 c01_atk_l_01_air_down））
       //   - cancelOnLand:true（空中 J 系 / 空中 K：着地後すぐ立ち J/K に行きたい技）
@@ -1013,7 +1171,27 @@ export function updatePlayer(p) {
       p.aerialHopCount = 0;      // 着地で連続ホップ減衰カウンタもリセット
       p.airVx = 0;
       p.airVz = 0;
+      // 通常ジャンプ着地 → jump_end / jump_d_end へ（攻撃中・ダッシュ中は介入しない）。
+      // 2026-05-20：state 化。攻撃/ジャンプ入力で即 cancel される演出フック。
+      // 上の cancelOnLand ブロックで state==wait01 に降ろされた場合や、ただ落ちて wait01 のままの場合に該当。
+      const inJumpAirState = (p.state === STATE.jump_loop || p.state === STATE.jump_d_loop ||
+                              p.state === STATE.jump_start || p.state === STATE.jump_d_start);
+      if ((p.state === STATE.wait01 || inJumpAirState) && !p.dashActive) {
+        if (_wasDashJump) {
+          p.state      = STATE.jump_d_end;
+          p.stateTimer = PLAYER_JUMP_D_END_FRAMES;
+        } else {
+          p.state      = STATE.jump_end;
+          p.stateTimer = PLAYER_JUMP_END_FRAMES;
+        }
+      }
     }
+  }
+  // jump_end / jump_d_end の自然終了：タイマー満了で wait01。
+  // 攻撃/ジャンプ入力は他処理で state を上書きするので cancel される。
+  if (p.state === STATE.jump_end || p.state === STATE.jump_d_end) {
+    p.stateTimer--;
+    if (p.stateTimer <= 0) p.state = STATE.wait01;
   }
 
   if (p.bigBurstTimer > 0) p.bigBurstTimer--;
@@ -1075,10 +1253,14 @@ export function updatePlayer(p) {
   }
   p.mesh.rotation.x += (targetTiltX - p.mesh.rotation.x) * 0.35;
 
-  // === 必殺技：本体 emissive 制御 ===
+  // === 必殺技 / 受け身：本体 emissive 制御 ===
+  const ukemiFlashing = p.ukemiFlashTimer > 0;
   const flashing = p.specialFlashTimer > 0;
-  const pulsing  = p.chargeReady && !flashing;
-  if (flashing) {
+  const pulsing  = p.chargeReady && !flashing && !ukemiFlashing;
+  if (ukemiFlashing) {
+    const t = p.ukemiFlashTimer / UKEMI_CONFIG.FLASH_FRAMES;
+    _applyBodyEmissive(p.mesh, t, t, t);   // 受け身成立：白く発光
+  } else if (flashing) {
     const t = p.specialFlashTimer / SPECIAL_CONFIG.FLASH_FRAMES;
     _applyBodyEmissive(p.mesh, t, t, t);
   } else if (pulsing) {
@@ -1092,7 +1274,7 @@ export function updatePlayer(p) {
   } else if (p._bodyEmissiveWasOn) {
     _applyBodyEmissive(p.mesh, 0, 0, 0);
   }
-  p._bodyEmissiveWasOn = flashing || pulsing;
+  p._bodyEmissiveWasOn = flashing || pulsing || ukemiFlashing;
 
   // === 必殺技：当たり判定可視化 ===
   const curAtkVis = (p.state === STATE.attacking && p.attackId) ? ATTACKS[p.attackId] : null;
@@ -1124,45 +1306,25 @@ export function updatePlayer(p) {
   for (let i = 0; i < _enemies.length; i++) {
     const e = _enemies[i];
     const mesh = _getEnemyHitboxMesh(i);
-    if (!e.isAlive || e.state !== STATE.enemy_attacking || e.atkPhase !== 'active') {
+    const atkDef = (e.curAtkId && ENEMY_ATTACKS[e.curAtkId]) ? ENEMY_ATTACKS[e.curAtkId] : null;
+    // slash_rush はヒット瞬間のみフラッシュ表示（通常攻撃はアクティブ全体）
+    const isSlashRush = atkDef?.kind === 'slash_rush';
+    const showActive  = e.isAlive && e.state === STATE.enemy_attacking && e.atkPhase === 'active';
+    const showHit     = isSlashRush ? ((e.slashHitFlash ?? 0) > 0) : showActive;
+    if (!showHit) {
       mesh.visible = false;
       continue;
     }
-    const cfg = DUMMY_ATK_CONFIG;
-    const rx = cfg.hitboxRangeX, ry = cfg.hitboxRangeY, rz = cfg.hitboxRangeZ;
+    const rx = atkDef?.hitboxRangeX ?? DUMMY_ATK_CONFIG.hitboxRangeX;
+    const ry = atkDef?.hitboxRangeY ?? DUMMY_ATK_CONFIG.hitboxRangeY;
+    const rz = atkDef?.hitboxRangeZ ?? DUMMY_ATK_CONFIG.hitboxRangeZ;
     mesh.visible = true;
     mesh.position.set(e.x + e.facing * (rx * 0.5), e.y + ry * 0.5, e.z);
     mesh.scale.set(rx, ry * 2, rz * 2);
+    mesh.material.color.setHex(isSlashRush ? 0xff8800 : 0xff4444);
   }
 
   // === ガードシールド同期 ===
-  if (p.guardOpacity > 0.01) {
-    _guardShield.visible      = true;
-    _guardShield.position.set(p.x, p.y + GUARD_CONFIG.SHIELD_Y_OFFSET, p.z);
-    _guardShield.rotation.y   = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
-    const flashT = (p.guardFlashTimer > 0) ? (p.guardFlashTimer / GUARD_CONFIG.FLASH_FRAMES) : 0;
-    const baseOp = p.guardOpacity * GUARD_CONFIG.SHIELD_MAX_OPACITY;
-    _guardShield.material.opacity = baseOp + (GUARD_CONFIG.FLASH_OPACITY - baseOp) * flashT;
-    if (flashT > 0) {
-      _guardShield.material.color.setHex(GUARD_CONFIG.FLASH_COLOR);
-    } else {
-      _guardShield.material.color.setHex(GUARD_CONFIG.SHIELD_COLOR);
-    }
-  } else if (p.guardFailFlashTimer > 0) {
-    _guardShield.visible    = true;
-    _guardShield.position.set(p.x, p.y + GUARD_CONFIG.SHIELD_Y_OFFSET, p.z);
-    _guardShield.rotation.y = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
-    const t = 1 - (p.guardFailFlashTimer / GUARD_CONFIG.FAIL_FLASH_FRAMES);
-    const envelope = 1 - t;
-    const pulse = Math.abs(Math.sin(t * Math.PI * 2));
-    _guardShield.material.opacity = GUARD_CONFIG.FAIL_FLASH_OPACITY * pulse * envelope;
-    _guardShield.material.color.setHex(GUARD_CONFIG.FAIL_FLASH_COLOR);
-    p.guardFailFlashTimer--;
-    if (p.guardFailFlashTimer <= 0) {
-      _guardShield.material.color.setHex(GUARD_CONFIG.SHIELD_COLOR);
-    }
-  } else {
-    _guardShield.visible = false;
-  }
+  syncGuardShield(p);
 
 }

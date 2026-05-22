@@ -11,6 +11,7 @@
 
 export const ENEMY_TEMPLATES = {
   tier01: { maxHp: 40 },
+  tier02: { maxHp: 35, enemyType: 'enem02', personality: 'cunning', atkCooldown: 60 },  // enem02 ジャンパー
   tier03: { maxHp: 80 },
   tier05: { maxHp: 120 },
   // tier06：中ボス級。死亡は特殊化せず通常ゴアスクラップ範囲内。
@@ -35,7 +36,7 @@ export const STAGE01_WAVES = [
     spawns: [
       { type: 'tier01', x: 1900 },
       { type: 'tier01', x: 2000 },
-      { type: 'tier01', x: 2100 },
+      { type: 'tier02', x: 2100, z: -80 },  // enem02 ジャンパー初登場
       { type: 'tier03', x: 2200 },
     ],
   },
@@ -45,7 +46,7 @@ export const STAGE01_WAVES = [
     triggerX: 2500,
     spawns: [
       { type: 'tier01', x: 2800 },
-      { type: 'tier01', x: 2900 },
+      { type: 'tier02', x: 2900, z: 80 },   // ジャンパー 2 体目
       { type: 'tier05', x: 3000 },
     ],
   },
@@ -66,4 +67,6 @@ export const STAGE01_META = {
   worldXMin: 0,
   worldXMax: 4000,
   sectionBoundaries: [1200, 3000],
+  // クリア後の遷移先（null なら GAME CLEAR）
+  nextStageId: 'stage02',
 };

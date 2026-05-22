@@ -34,6 +34,13 @@ const ELEVATOR_CONFIG = {
   wallScrollSpeed: 7,     // 壁面プロップの上スクロール速度
   wallLoopHeight: 360,    // 壁プロップ 1 セグメントの縦間隔
   landingFrames: 100,     // 着床演出の長さ
+  // 金網フロア：Section A（x=0-800）の床。右端 800 で通常床へ切り替わり
+  // 「エレベーターが終わった」ことを伝える。戦闘終了後も残す静的な床。
+  floorXMin: -60,         // 左壁の裏まで覆って隙間を出さない
+  floorXMax: 800,         // Section A/B 境界。ここで通常床へ
+  floorZMin: -380,        // 奥（エレベーター奥壁付近）
+  floorZMax: 720,         // 手前（カメラ側）
+  floorGridCell: 64,      // 金網マス目の 1 辺
 };
 
 let _scene = null;
@@ -52,6 +59,9 @@ let _wallGroup = null;
 let _wallProps = [];        // 上スクロールするプロップ mesh 群
 let _hudEl = null;
 let _built = false;
+
+let _floorGroup = null;     // 金網フロア（戦闘終了後も残す静的な床）
+let _floorBuilt = false;
 
 function _rand(lo, hi) { return lo + Math.random() * (hi - lo); }
 
@@ -74,6 +84,10 @@ export function initElevator(deps) {
   if (_scene && _THREE && !_built) {
     _buildElevatorWalls();
     _built = true;
+  }
+  if (_scene && _THREE && !_floorBuilt) {
+    _buildElevatorFloor();
+    _floorBuilt = true;
   }
   _showHud();
 
@@ -112,7 +126,7 @@ function _buildElevatorWalls() {
         new _THREE.BoxGeometry(16, cfg.wallLoopHeight * 0.55, 16),
         new _THREE.MeshToonMaterial({ color: 0x49545f })
       );
-      pipe.position.set(px, seg * cfg.wallLoopHeight - cfg.wallLoopHeight, wallZ);
+      pipe.position.set(px, seg * cfg.wallLoopHeight + 80, wallZ);
       g.add(pipe);
       props.push({ mesh: pipe });
     }
@@ -121,7 +135,7 @@ function _buildElevatorWalls() {
       new _THREE.BoxGeometry(24, 24, 24),
       new _THREE.MeshBasicMaterial({ color: 0xffcc33 })
     );
-    lamp.position.set(px, i * 110 - cfg.wallLoopHeight, wallZ + 10);
+    lamp.position.set(px, i * 110 + 80, wallZ + 10);
     g.add(lamp);
     props.push({ mesh: lamp });
   }
@@ -144,6 +158,57 @@ function _removeWalls() {
   _wallGroup = null;
   _wallProps = [];
   _built = false;
+}
+
+// 金網フロア：Section A の床を industrial steel grating で覆う。
+// 右端（floorXMax=800）で途切れ、その先は index.html の通常床が見える。
+// → 金網から通常床へ踏み出すことで「エレベーターを出た」を伝える。
+// 戦闘終了後も残す静的な床なので _removeWalls では消さない。
+function _buildElevatorFloor() {
+  const cfg = ELEVATOR_CONFIG;
+  const g = new _THREE.Group();
+  const x0 = cfg.floorXMin, x1 = cfg.floorXMax;
+  const z0 = cfg.floorZMin, z1 = cfg.floorZMax;
+  const w = x1 - x0, d = z1 - z0;
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+
+  // 暗い基盤：金網の下の空隙（エレベーターシャフトの闇）
+  const base = new _THREE.Mesh(
+    new _THREE.PlaneGeometry(w, d),
+    new _THREE.MeshBasicMaterial({ color: 0x12161c })
+  );
+  base.rotation.x = -Math.PI / 2;
+  base.position.set(cx, 1, cz);
+  g.add(base);
+
+  // 金網グリッド：縦横の線分で steel grating のマス目を描く
+  const cell = cfg.floorGridCell;
+  const gy = 2.5;
+  const verts = [];
+  for (let x = x0; x <= x1 + 0.1; x += cell) {
+    verts.push(x, gy, z0,  x, gy, z1);
+  }
+  for (let z = z0; z <= z1 + 0.1; z += cell) {
+    verts.push(x0, gy, z,  x1, gy, z);
+  }
+  const geom = new _THREE.BufferGeometry();
+  geom.setAttribute('position', new _THREE.BufferAttribute(new Float32Array(verts), 3));
+  const grid = new _THREE.LineSegments(
+    geom,
+    new _THREE.LineBasicMaterial({ color: 0x8b97a4 })
+  );
+  g.add(grid);
+
+  // 右端のしきい（エレベーター車の戸口の沓摺）：金網の終端をくっきり示す金属バー
+  const sill = new _THREE.Mesh(
+    new _THREE.BoxGeometry(16, 12, d),
+    new _THREE.MeshToonMaterial({ color: 0x6b7884 })
+  );
+  sill.position.set(x1, 6, cz);
+  g.add(sill);
+
+  _scene.add(g);
+  _floorGroup = g;
 }
 
 // 敵を 1 体、上空から落下スポーンする

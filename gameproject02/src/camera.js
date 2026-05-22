@@ -28,7 +28,7 @@ import { fxState } from './hit-engine.js';
 // X / Z はキャラ約 2 人分相当の追従中心相対デッドゾーン
 // Y は「絶対位置（地面 y=0）基準」で運用：プレイヤーが y > Y_UP の時のみ camFollowY 追従、
 // それ以外は camFollowY = 0 に戻す。ジャンプ降下後カメラが地面に自動で戻る
-const DEAD_ZONE_X = 380;        // 画像の赤枠サイズに合わせて再拡張
+const DEAD_ZONE_X = 180;        // 2026-05-19 380→180：左右 2 キャラ分（≒200wu）詰めて先が見えるように
 const DEAD_ZONE_Y_UP = 200;     // 物理 Y 軸（既存ロジック互換のため残置・現在は screenY 基準）
 const DEAD_ZONE_Y_DOWN = 500;   // 地下ステージ対応・下方向の許容
 const DEAD_ZONE_Z = 420;
@@ -70,6 +70,11 @@ export function getCamRightLimit() { return camRightLimit; }
 // ============================================================
 export const levelWalls = [];
 
+// 画面端までの半幅（ズーム追従）。_camera 未初期化時は既定値 622。
+function _screenHalfWidth() {
+  return _camera ? (_camera.right / (_camera.zoom || 1)) : 622;
+}
+
 export function getActiveWallX(side) {
   // levelWalls 優先：side が一致する壁の中で、プレイヤー側に最も近い x を採用
   let levelMatch = null;
@@ -82,8 +87,29 @@ export function getActiveWallX(side) {
   }
   if (levelMatch !== null) return levelMatch;
   // フォールバック：画面端
-  const halfW = _camera ? (_camera.right / (_camera.zoom || 1)) : 622;
+  const halfW = _screenHalfWidth();
   return side === 'left' ? (camTargetX - halfW) : (camTargetX + halfW);
+}
+
+// 吹き飛ばし封じ込め壁（2026-05-21）
+//   敵ノックバックが「画面外へ長距離」飛ばないための壁。
+//   getActiveWallX が「levelWalls 優先・無ければ画面端」なのに対し、本関数は
+//   「画面端の少し外側」と「levelWalls」の "最も制限的（プレイヤー側に近い）" 方を返す。
+//   → 進行ステージでは levelWalls 左壁がワールド最左に固定されているため、
+//      knockback は常に画面端側で止まる。突き当り（worldXMax）や進行ロックの
+//      右壁が画面内に来たら、そちらが優先されて正しく機能する。
+const KNOCKBACK_WALL_MARGIN = 100;  // 画面端からこのぶん外側で吹き飛びを止める
+export function getKnockbackWallX(side) {
+  const halfW = _screenHalfWidth();
+  let x = (side === 'left')
+    ? camTargetX - halfW - KNOCKBACK_WALL_MARGIN
+    : camTargetX + halfW + KNOCKBACK_WALL_MARGIN;
+  for (const w of levelWalls) {
+    if (w.side !== side) continue;
+    if (side === 'left'  && w.x > x) x = w.x;  // より右（制限的）な左壁を採用
+    if (side === 'right' && w.x < x) x = w.x;  // より左（制限的）な右壁を採用
+  }
+  return x;
 }
 let clockAngle = 0;   // 世界時計の角度
 let _lastGameSpeedShown = null;  // GAME_SPEED 表示の差分検知
@@ -268,6 +294,13 @@ export function updateCamera() {
   } else {
     targetCamY = 0;            // デッドゾーン内：camera は地上ベース
   }
+  // 外部リフト（armed gc_04 等）：fxState.camYLift があれば target を底上げ。
+  //   targetCamY が 0 でもこれによってカメラが上に持ち上がる → 「ベタ付き」感を解消
+  //   このフレームの末尾で 0 に戻す → 設定側（enemy-system）が毎フレーム再設定しないと自動で下がる
+  if (fxState.camYLift > 0) {
+    targetCamY = Math.max(targetCamY, fxState.camYLift);
+  }
+  fxState.camYLift = 0;
   // 線形定速で target へ追従（上下とも一定速 10wu/F）
   // 重力加速を camera に持ち込まない（target が p.y に追従する性質上、step を遅くすることで
   // 「camera 側の加速感」を構造的に出さない設計）。プレイヤーは画面内で多少動く

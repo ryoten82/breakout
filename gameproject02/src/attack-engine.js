@@ -23,12 +23,12 @@
 //    - inp: (code) => bool   入力ポーリング関数
 //    - dirMatchesForFacing: (dir, pat, facing) => bool   コマンドマッチ判定
 //    - onUltEnd: (p) => void  ULT 終了演出のクリーンアップ（dome / camera / token 等）
-//    - hitCtx: { enemies, enemyAttackToken, getFrame }  hit-engine 渡し用
+//    - hitCtx: { enemies, attackTokens, getFrame }  hit-engine 渡し用
 // ============================================================
 
 import { ATTACKS, Z_CHAIN, A_CHAIN } from './attacks.js';
 import {
-  STATE, STATE_PITCH_INITIAL, applyHitInitialPitch,
+  STATE, PLAYER_JUMP_STATES, STATE_PITCH_INITIAL, applyHitInitialPitch,
   KB_LV05_BOUNCE_VY,
   ENEMY_DOWN_BOUND_FRAMES, ENEMY_AIRBORNE_Y_THRESHOLD,
   ENEMY_KB_AIR_FRAMES, ENEMY_KB02_FRAMES,
@@ -133,9 +133,21 @@ export function startAttackById(p, id, chainIdx) {
     p.vy = Math.max(p.vy, ATTACKS[id].plyrLiftVy);
     if (p.isGrounded) p.isGrounded = false;  // 地上発動なら離地
   }
+  // 空中滞空攻撃（airGravFactor 指定）：発動時に vy を airStartVy へリセット。
+  //   updatePlayer 側で攻撃中は重力が airGravFactor 倍に差し替わる（負なら浮力）。
+  //   airStartVy 下方初速 + 負の airGravFactor で「少し沈んで軽く浮く」弧になる。
+  if (ATTACKS[id].airGravFactor !== undefined && !p.isGrounded) {
+    p.vy = ATTACKS[id].airStartVy ?? 0;
+  }
   // 踏み込み攻撃：lungeVx 指定があれば facing 方向へ短時間前進
   // ステップ攻撃と違って tilt 等の特別演出はせず、純粋に前進運動量だけを与える
-  p.lungeMomentum = ATTACKS[id].lungeVx ?? 0;
+  // lungeDelay 指定時は発動瞬間には出さず、updateAttack が elapsed===lungeDelay で仕込む
+  //   （踏み込みと攻撃発生をほぼ同時にする・金剛灼火イメージ）
+  p.lungeMomentum = (ATTACKS[id].lungeDelay > 0) ? 0 : (ATTACKS[id].lungeVx ?? 0);
+  // 発生前の小さな引き：windupBackVx 指定で facing 逆へ少し下がってから踏み込む
+  if (ATTACKS[id].windupBackVx !== undefined) {
+    p.selfRecoilMomentum = ATTACKS[id].windupBackVx;
+  }
   // ステップ攻撃：ダッシュ運動量を引き継いで前進開始
   // 非ダッシュ起動（例：静止状態で →K のタックル）時は半減 momentum で「軽い踏み込み」感
   if (ATTACKS[id].isStepAttack) {
@@ -205,7 +217,7 @@ export function pickStepAttackId(p) {
 //  攻撃フレーム駆動：ヒット判定発生・終了処理
 //
 //  ULT 終了時の演出クリーンアップは _onUltEnd(p) コールバックに委譲
-//  （ultDome / camera / enemyAttackToken など index.html ローカル参照のため）
+//  （ultDome / camera / attackTokens など index.html ローカル参照のため）
 // ============================================================
 export function updateAttack(p) {
   if (p.state !== STATE.attacking) return;
@@ -236,6 +248,11 @@ export function updateAttack(p) {
     p.selfRecoilMomentum = atk.selfRecoilVx;
   }
 
+  // === 踏み込み遅延（lungeDelay）：攻撃発生付近で lungeMomentum を仕込む（金剛灼火イメージ）===
+  if (atk.lungeDelay && elapsed === atk.lungeDelay && atk.lungeVx !== undefined) {
+    p.lungeMomentum = atk.lungeVx;
+  }
+
   // === 空中必殺技のホップ：攻撃発生フレームで一度だけ適用 ===
   // 「パイルバンカー射出の反動」のような表現を狙うため、発動瞬間ではなく
   // hitFrame に到達したタイミングで vy / airVx を仕込む。
@@ -244,8 +261,10 @@ export function updateAttack(p) {
   //   （tryHitEnemies on-hit と同じ _customHop ルール）
   {
     const _customHop = atk?.aerialHopVy !== undefined;
+    // 多段技は最終ヒット後にホップしたい → aerialHopFrame 指定でホップ発火 F を後ろにずらせる
+    const _hopFrame = atk?.aerialHopFrame ?? atk?.hitFrame;
     if (
-      elapsed === atk.hitFrame &&
+      elapsed === _hopFrame &&
       atk.isSpecial && atk.aerialHop && !p.isGrounded &&
       (!atk.launchVy || _customHop)
     ) {
@@ -290,6 +309,9 @@ export function updateAttack(p) {
     ) {
       if (tryHitEnemies(p, atk, _hitCtx)) {
         p.hitDelivered = true;
+        // 起き上がり後の被弾回復グレース中に敵へ攻撃を当てたら無敵を即解除（再交戦＝救済終了）。
+        // リバイブ無敵（recoverGrace=false）は対象外。
+        if (p.recoverGrace) { p.invincibleFrames = 0; p.recoverGrace = false; }
         // ステップ攻撃のヒット時は前進運動量を即停止（ぶつかって止まる重量感）
         // ただし keepMomentumOnHit:true の技は慣性を維持して敵に潜り込む（ダッシュJ等）
         if (atk.isStepAttack && !atk.keepMomentumOnHit) p.stepMomentum = 0;
@@ -326,7 +348,7 @@ export function updateAttack(p) {
       p.dashCooldown = PHYSICS.DASH_COOLDOWN;
     }
     // ULT 終了：演出完全リセット・無敵解除・全敵を強制解凍
-    // ultDome / camera / enemyAttackToken のクリーンアップは index.html 側コールバックに委譲
+    // ultDome / camera / attackTokens のクリーンアップは index.html 側コールバックに委譲
     if (atk.isUlt) {
       p.ultActive  = false;
       p.invincible = false;
@@ -532,6 +554,12 @@ export function processAttackInput(p) {
   if (p.state === STATE.grabbing) return; // グラブ中は processGrabInput 側で扱う
   if (!justPressed) return;
 
+  // ジャンプ系 state（離陸/空中/着地）は wait01 と同じ「即攻撃可能」扱い。
+  // 演出フックとしての state なので、攻撃入力は通常通り受け付ける。
+  if (PLAYER_JUMP_STATES.has(p.state)) {
+    p.state = STATE.wait01;
+    p.stateTimer = 0;
+  }
   if (p.state === STATE.wait01) {
     // 地上ダッシュ中の派生：ステップJ（スライディング）
     if (p.dashActive && p.isGrounded) {
@@ -691,6 +719,8 @@ export function triggerMegaCrash(p) {
     if (!e.isAlive) continue;
     // ULT 由来の burst-down 中は完全無敵：メガクラも受け付けない（起き上がりまで）
     if (e.ultBurstInvincible) continue;
+    // ゴア・クリティカル armed 中は完全無敵：メガクラ AoE でも割り込めない（2026-05-18 仕様）
+    if (e.goreCritical && e.goreCritical.armed) continue;
     // 飛行系再突入の lateralCombatInvincible は**メガクラでリセット**（根幹思想：mega = コンボリセット）
     //   2026-05-18：mega が当たれば down_super/wall の 2 回目無敵状態を解除し、再度コンボ可能に。
     //   フラグだけクリアして dispatch には進ませない（敵のトラジェクトリは温存）。
@@ -708,7 +738,7 @@ export function triggerMegaCrash(p) {
     // ダメージ適用
     e.hp = Math.max(0, e.hp - attack.damage);
     // 最終ヒッター記録（ゴアクリ抽選で参照・メガクラ killing hit でも attribute される）
-    e.lastHitter = { attackId: 'c01_sp_mega01', profileKey: 'METEO', facing: p.facing, lv: attack.atk_lv ?? 1 };
+    e.lastHitter = { attackId: 'c01_sp_mega01', profileKey: 'METEO', facing: p.facing, lv: attack.atk_lv ?? 1, wasGrounded: e.y <= ENEMY_AIRBORNE_Y_THRESHOLD };
     e.hitFlashTimer = 7;
     e.frozenByUlt   = false;  // ULT 凍結解除（メガクラを ULT 中に発動した場合の安全側）
     // 外向きノックバック方向（プレイヤー中心からの dx 符号）
@@ -766,7 +796,7 @@ export function triggerMegaCrash(p) {
   p.attackBuffered = false;
   p.kBuffered      = false;
 
-  console.log('[MEGA CRASH] SP残:', p.sp.toFixed(1));
+  if (window.SB?.DEBUG_MEGA) console.log('[MEGA CRASH] SP残:', p.sp.toFixed(1));
 }
 
 // メガクラ無敵解除：暗転フェードが終わったタイミング（演出終了 ≒ megaDarkenFade==0）で false
@@ -839,7 +869,7 @@ export function triggerUlt(p) {
   _fxRefs.ultCamZoomFrames.set(ULT_CONFIG.CAM_ZOOM_FRAMES);
   _fxRefs.ultCamZoomTotal.set(ULT_CONFIG.CAM_ZOOM_FRAMES);
 
-  console.log('[ULT] c01_sp_ult01 起動・SP残:', p.sp.toFixed(1));
+  if (window.SB?.DEBUG_ULT) console.log('[ULT] c01_sp_ult01 起動・SP残:', p.sp.toFixed(1));
 }
 
 // バッファ消化
@@ -898,6 +928,11 @@ export function tryGrabActivate(p) {
   if (!p._grabReady) return;
   for (const e of _enemies) {
     if (!e.isAlive)                       continue;
+    // 死亡フロー中（パーツ分離・爆発待ち）は掴ませない。armed gc 含む（2026-05-19 修正）
+    if (e.dying)                          continue;
+    if (e.dyingInvincible)                continue;
+    // キャラ×敵種の掴み制限（将来は p.charId で分岐：BASTION なら midboss01 も掴める等）
+    if (e.enemyType === 'midboss01') continue;
     // === 敵の被掴み可状態 ===
     // - wait01：立ち/歩き（意思はあるがまだ攻撃モーションに入っていない）
     // - enemy_attacking かつ atkPhase === 'wind'：カウントダウン中（攻撃意思を見せている段階）
@@ -925,7 +960,11 @@ export function tryGrabActivate(p) {
       e.atkPhase     = null;
       e.atkTimer     = 0;
       e.hitDelivered = false;
-      if (_hitCtx && _hitCtx.enemyAttackToken.get() === e) _hitCtx.enemyAttackToken.set(null);
+      if (_hitCtx && _hitCtx.attackTokens) {
+        const _gCat = e.curAtkCategory ?? 'melee';
+        const _gTok = _hitCtx.attackTokens[_gCat];
+        if (_gTok && _gTok.get() === e) _gTok.set(null);
+      }
     }
     e.state         = STATE.grabbed;
     e.grabbedBy     = p;
@@ -1029,7 +1068,7 @@ export function processGrabInput(p) {
 
 export function executeGrabPunch(p, e) {
   e.hp = Math.max(0, e.hp - GRAB_CONFIG.PUNCH_DAMAGE);
-  e.lastHitter = { attackId: 'c01_grab_punch', profileKey: 'METEO', facing: p.facing, lv: 0 };
+  e.lastHitter = { attackId: 'c01_grab_punch', profileKey: 'METEO', facing: p.facing, lv: 0, wasGrounded: true };
   e.hitFlashTimer = 7;
   spawnHitParticles(e.x, e.y + 80, e.z, 0xffee44, 8,
     { type: 'normal', dirX: p.facing, dirZ: 0 });
@@ -1044,7 +1083,7 @@ export function executeGrabPunch(p, e) {
 
 export function executeGrabThrow(p, e, dir) {
   e.hp = Math.max(0, e.hp - GRAB_CONFIG.THROW_DAMAGE);
-  e.lastHitter = { attackId: 'c01_grab_throw', profileKey: 'METEO', facing: p.facing, lv: 3 };
+  e.lastHitter = { attackId: 'c01_grab_throw', profileKey: 'METEO', facing: p.facing, lv: 3, wasGrounded: false };
   e.hitFlashTimer = 7;
   e.fallDir       = dir;
   // 投げ初速：通常 lv03 より上に持ち上げてから飛ばす（打ち上げ気味）
