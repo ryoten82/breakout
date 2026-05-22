@@ -19,6 +19,7 @@ import { triggerStageClear, isStageCleared } from '../stage01/clear.js';
 import { addCentralPlant } from './central-plant.js';
 import { addSfBackdrop } from './sf-backdrop.js';
 import { levelWalls } from '../../camera.js';
+import { initElevator, tickElevator, isElevatorActive, getElevatorDebugState } from './elevator.js';
 
 let _spawnDummy = null;
 let _players = null;
@@ -54,6 +55,8 @@ export function initStage03(deps) {
   _nextWaveIndex = 0;
   _activeWave = null;
   _activeWaveEnemies = [];
+  // Section A：下りエレベーター降下戦を起動（ステージ開始時点で乗車済み）
+  initElevator(deps);
   _started = true;
   updateWaveHud(0, STAGE03_META.totalWaves, false);
 }
@@ -82,6 +85,12 @@ export function tickStage03() {
   if (!_players || _players.length === 0) return;
   const p = _players[0];
   if (!p) return;
+
+  // Section A：下りエレベーター降下戦中は通常ウェーブ進行を抑制
+  if (isElevatorActive()) {
+    tickElevator();
+    return;
+  }
 
   // 1) 未発火ウェーブの triggerX 到達チェック
   if (!_activeWave && _nextWaveIndex < STAGE03_WAVES.length) {
@@ -119,6 +128,7 @@ export function tickStage03() {
 // デバッグ用：window.SB.stage03() で内部状態を覗ける
 export function getStage03DebugState() {
   return {
+    elevator: getElevatorDebugState(),
     nextWaveIndex: _nextWaveIndex,
     activeWaveId: _activeWave ? _activeWave.id : null,
     activeEnemyStates: _activeWaveEnemies.map(e => ({

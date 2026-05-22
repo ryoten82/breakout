@@ -1,12 +1,15 @@
 // Stage 3 (中央プラント / SF色のヤバい何か) — ウェーブデータ
 // 仕様：stages/stage03/deep-design.md
 //
-// 構成：A〜E の 5 セクション、4 mob waves + 1 BOSS
-//   A. 普通の廃工場（接続）  x=0-800     W1
+// 構成：A〜E の 5 セクション、エレベーター降下戦 + 3 mob waves + 1 BOSS
+//   A. 下りエレベーター降下戦  x=0-800   （elevator.js・撃破ノルマ式の閉所戦）
 //   B. SF 転換               x=800-2000  W2
 //   C. 量産ライン            x=2000-3400 W3 + W4
 //   D. ヤバさのピーク        x=3400-4800 （敵なし・演出時間）
 //   E. ボス戦                x=4800-6000 BOSS
+//
+// ※ Section A（旧 W1）は下りエレベーター降下戦に置換（elevator.js・deep-design §7）。
+//    STAGE03_WAVES は B 段階以降のみを管理する。
 //
 // 命名規約：tier01..tier06 は敵の強度ティア（プレイヤー攻撃 lv01..lv06 とは別軸）
 
@@ -18,13 +21,6 @@ export const ENEMY_TEMPLATES = {
 };
 
 export const STAGE03_WAVES = [
-  {
-    id: 'W1', section: 'A', triggerX: 500,
-    spawns: [
-      { type: 'tier01', x: 700 },
-      { type: 'tier01', x: 750 },
-    ],
-  },
   {
     id: 'W2', section: 'B', triggerX: 1300,
     spawns: [
