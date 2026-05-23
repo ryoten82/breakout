@@ -5,29 +5,29 @@
 
 import { STAGE01_WAVES, ENEMY_TEMPLATES, STAGE01_META } from './waves.js';
 import { addSectionMarkers } from './section-markers.js';
-import { createCrate } from '../../props/factory/crate.js';
-import { createCanister } from '../../props/factory/gas-canister.js';
-import { registerBreakable } from '../../breakables.js';
+import { placeBreakables } from '../../props/place-props.js';
 import { createWaveRunner } from '../wave-runner.js';
 
-// 壊れ物の仮配置（破壊判定込み・見た目比較用）
-// 配置：W1 終了〜W2 trigger（x=1100〜1600）と W3 終了〜W4 trigger（x=3000〜3400）の合間
-function _placeBreakablesForTest(scene, THREE) {
-  const placements = [
-    { type: 'crate',    x: 1300, z:  -20 },
-    { type: 'crate',    x: 1380, z:   20 },
-    { type: 'canister', x: 1450, z:    0 },
-    { type: 'canister', x: 3150, z:  -20 },
-    { type: 'canister', x: 3220, z:   20 },
-    { type: 'crate',    x: 3300, z:    0 },
-  ];
-  for (const p of placements) {
-    const mesh = (p.type === 'crate') ? createCrate({ THREE }) : createCanister({ THREE });
-    mesh.position.set(p.x, 0, p.z);
-    scene.add(mesh);
-    registerBreakable(mesh);
-  }
-}
+// 壊れ物配置：序盤コンテナ多め → 後半ボンベ多め。OC コンテナは W2 クリア後の合間に固定 1 個。
+// すべてウェーブの合間（W1-W2 / W2-W3 / W3-W4）に分散させる。
+const _STAGE1_PROPS = [
+  // W1–W2 合間
+  { type: 'crate',        x: 1450, z: -20 },
+  { type: 'crate',        x: 1550, z:  25 },
+  { type: 'crate',        x: 1700, z:   0 },
+  { type: 'canister',     x: 1950, z: -15 },
+  // W2–W3 合間（OC コンテナ：破壊で OC ジェム出現 → OC 選択へ）
+  { type: 'oc-container', x: 3100, z:   0 },
+  { type: 'crate',        x: 3450, z:  20 },
+  { type: 'canister',     x: 3650, z: -20 },
+  { type: 'canister',     x: 3800, z:  15 },
+  // W3–W4 合間（後半：ボンベ多めの嫌がらせ帯）
+  { type: 'canister',     x: 4850, z: -20 },
+  { type: 'canister',     x: 5000, z:  20 },
+  { type: 'crate',        x: 5150, z:   0 },
+  { type: 'canister',     x: 5350, z: -15 },
+  { type: 'canister',     x: 5500, z:  20 },
+];
 
 // 被弾 state テスト用のデバッグ地雷は「アクションテスト部屋」（src/stages/action-test/）
 // へ集約した（2026-05-20）。通しプレイの stage01 はクリーンな状態を維持する。
@@ -49,7 +49,7 @@ const _runner = createWaveRunner({
   decorate: (deps) => {
     if (deps.scene && deps.THREE) {
       addSectionMarkers(deps.scene, deps.THREE);
-      _placeBreakablesForTest(deps.scene, deps.THREE);
+      placeBreakables(deps.scene, deps.THREE, _STAGE1_PROPS);
     }
   },
   resolveNextStageId: _resolveNextStageId,

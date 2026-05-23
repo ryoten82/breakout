@@ -11,6 +11,7 @@
 
 export const ENEMY_TEMPLATES = {
   tier01: { maxHp: 40 },
+  tier02: { maxHp: 35, enemyType: 'enem02', personality: 'cunning', atkCooldown: 60 },  // enem02 ジャンパー
   tier03: { maxHp: 80 },
   tier05: { maxHp: 120 },
   // tier06：中ボス級。死亡は特殊化せず通常ゴアスクラップ範囲内。
@@ -18,6 +19,8 @@ export const ENEMY_TEMPLATES = {
   tier06: { maxHp: 60 },
 };
 
+// ウェーブ間隔は「最終スポーン → 次 triggerX ≒ 1200wu（約 1 画面）」で設計。
+// 戦闘の緩急を出すため各ウェーブの合間に歩く空間を確保する（2026-05-23 拡張）。
 export const STAGE01_WAVES = [
   {
     id: 'W1',
@@ -31,32 +34,32 @@ export const STAGE01_WAVES = [
   {
     id: 'W2',
     section: 'S2',
-    triggerX: 1600,
+    triggerX: 2300,
     spawns: [
-      { type: 'tier01', x: 1900 },
-      { type: 'tier01', x: 2000 },
-      { type: 'tier01', x: 2100 },
-      { type: 'tier03', x: 2200 },
+      { type: 'tier01', x: 2500 },
+      { type: 'tier01', x: 2600 },
+      { type: 'tier02', x: 2700, z: -80 },  // enem02 ジャンパー初登場
+      { type: 'tier03', x: 2800 },
     ],
   },
   {
     id: 'W3',
     section: 'S2',
-    triggerX: 2500,
+    triggerX: 4000,
     spawns: [
-      { type: 'tier01', x: 2800 },
-      { type: 'tier01', x: 2900 },
-      { type: 'tier05', x: 3000 },
+      { type: 'tier01', x: 4300 },
+      { type: 'tier02', x: 4400, z: 80 },   // ジャンパー 2 体目
+      { type: 'tier05', x: 4500 },
     ],
   },
   {
     id: 'W4',
     section: 'S3',
-    triggerX: 3400,
+    triggerX: 5700,
     spawns: [
-      { type: 'tier01', x: 3700 },
-      { type: 'tier01', x: 3800 },
-      { type: 'tier06', x: 3900 },
+      { type: 'tier01', x: 6000 },
+      { type: 'tier01', x: 6100 },
+      { type: 'tier06', x: 6200 },
     ],
   },
 ];
@@ -64,8 +67,8 @@ export const STAGE01_WAVES = [
 export const STAGE01_META = {
   totalWaves: STAGE01_WAVES.length,
   worldXMin: 0,
-  worldXMax: 4000,
-  sectionBoundaries: [1200, 3000],
+  worldXMax: 6500,
+  sectionBoundaries: [1700, 5100],
   // クリア後の遷移先（null なら GAME CLEAR）
   nextStageId: 'stage02',
 };

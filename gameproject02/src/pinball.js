@@ -128,13 +128,17 @@ function _applyTargetHit(target, mover, ctx) {
   target.atkTimer    = 0;
   target.atkCooldown = 30;
   target.hitDelivered = false;
-  if (ctx?.enemyAttackToken?.get?.() === target) ctx.enemyAttackToken.set(null);
+  if (ctx?.attackTokens) {
+    const _pCat = target.curAtkCategory ?? 'melee';
+    const _pTok = ctx.attackTokens[_pCat];
+    if (_pTok && _pTok.get() === target) _pTok.set(null);
+  }
   applyHitInitialPitch(target);
 }
 
 // 毎フレーム呼ぶ：mover→ターゲット（敵 / 壊れ物）の衝突判定
 // 呼び出し場所：enemy-system update ループ内
-// ctx: { enemies, enemyAttackToken, breakablesApi, spawnHitParticles, triggerHitstop, triggerShake }
+// ctx: { enemies, attackTokens, breakablesApi, spawnHitParticles, triggerHitstop, triggerShake }
 //   breakablesApi: { findBreakableHitBy, hitBreakableExternal } | null
 export function tryPinballHit(mover, ctx) {
   if (!_isPinballMover(mover)) return false;

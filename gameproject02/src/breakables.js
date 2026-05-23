@@ -29,6 +29,12 @@ const PROXIMITY_TRIGGER_RANGE = 400;  // 地雷モード：プレイヤー接近
 const PROXIMITY_TRIGGER_RANGE_SQ = PROXIMITY_TRIGGER_RANGE * PROXIMITY_TRIGGER_RANGE;  // 毎フレーム判定用（sqrt 回避）
 // 攻撃ヒット時の壊れ物用ヒットストップ（attack.hitstop が無い場合のフォールバック）
 const HIT_DEFAULT_HITSTOP = 6;
+// 複数 hp 壊れ物（OC コンテナ等）：1 ヒット登録ごとの無敵 F。
+//   tryHitBreakables は攻撃の hit 窓中ほぼ毎フレーム呼ばれるため、
+//   これが無いと 1 振りで hp を一気に削り切ってしまう。連撃の間隔より短く取る。
+const MULTIHIT_HIT_COOLDOWN = 16;
+const MULTIHIT_FLASH_FRAMES = 5;   // 非致命ヒット時の白フラッシュ F
+const MULTIHIT_BOUNCE_VY    = 7;   // 非致命ヒット時の軽い跳ね初速
 
 const breakables = [];
 const flyingParts = [];
@@ -46,8 +52,9 @@ let _enemies = null;
 let _players = null;
 let _damageArea = null;  // { addStaticArea, updateAreaPosition, removeArea, spawnExpandPulse }
 let _isHitstunState = null;  // 被弾中判定（proximity 点火を被弾中プレイヤーで誘発させないため）
+let _onOcContainerBreak = null;  // OC コンテナ破壊時コールバック（x, y, z）
 
-export function initBreakables({ scene, THREE, triggerHitstop, damagePlayer, killEnemy, enemies, players, damageArea, isHitstunState }) {
+export function initBreakables({ scene, THREE, triggerHitstop, damagePlayer, killEnemy, enemies, players, damageArea, isHitstunState, onOcContainerBreak }) {
   _scene = scene;
   _THREE = THREE;
   _vec3Tmp = new THREE.Vector3();
@@ -58,12 +65,16 @@ export function initBreakables({ scene, THREE, triggerHitstop, damagePlayer, kil
   _players        = players || null;
   _damageArea     = damageArea || null;
   _isHitstunState = isHitstunState || null;
+  _onOcContainerBreak = onOcContainerBreak || null;
 }
 
 // 配置済の mesh（group）を破壊可能オブジェクトとして登録する
 export function registerBreakable(mesh) {
   mesh.userData = mesh.userData || {};
-  mesh.userData.hp = 1;
+  // hp は factory 側で事前指定があれば尊重（OC コンテナ等の複数ヒット）。未指定は 1。
+  mesh.userData.hp = mesh.userData.hp || 1;
+  mesh.userData.hitCooldown   = 0;   // 複数 hp 用：ヒット登録後の無敵 F
+  mesh.userData.hitFlashTimer = 0;   // 非致命ヒットの白フラッシュ残 F
   mesh.userData.alive = true;
   mesh.userData.dying = false;
   mesh.userData.aabb = _computeAABB(mesh);
@@ -92,9 +103,9 @@ export function hitBreakableExternal(mesh, opts = {}) {
   if (!mesh || !mesh.userData) return false;
   if (!mesh.userData.alive || mesh.userData.dying) return false;
   if (!breakables.includes(mesh)) return false;
-  _startBreakSequence(mesh);
-  if (opts.hitstop && _triggerHitstop) _triggerHitstop(opts.hitstop);
-  return true;
+  const hit = _applyBreakableHit(mesh);
+  if (hit && opts.hitstop && _triggerHitstop) _triggerHitstop(opts.hitstop);
+  return hit;
 }
 
 // AABB 矩形での 1 個衝突判定（mover の位置・半径から見て一番近い壊れ物を返す）
@@ -151,14 +162,72 @@ export function tryHitBreakables(p, attack) {
       if (dy >  yReachUp) continue;
       if (dy < -yReachDn) continue;
     }
-    _startBreakSequence(b);
-    any = true;
+    if (_applyBreakableHit(b)) any = true;
   }
   // ヒットストップ：1 つでも当たれば攻撃側 hitstop（or 既定 6F）を発火
   if (any && _triggerHitstop) {
     _triggerHitstop(attack.hitstop ?? HIT_DEFAULT_HITSTOP);
   }
   return any;
+}
+
+// 壊れ物への 1 ヒット適用。hp>1 は非致命（減算・軽い跳ね・白フラッシュ・無敵 F）、
+// hp が尽きたら破壊シーケンスへ。戻り値＝ヒットが登録されたか。
+function _applyBreakableHit(mesh) {
+  if (!mesh.userData.alive || mesh.userData.dying) return false;
+  if (mesh.userData.hitCooldown > 0) return false;   // 同一攻撃の連続フレームを弾く
+  if (mesh.userData.hp > 1) {
+    mesh.userData.hp--;
+    mesh.userData.hitCooldown   = MULTIHIT_HIT_COOLDOWN;
+    mesh.userData.hitFlashTimer = MULTIHIT_FLASH_FRAMES;
+    mesh.userData.vy            = MULTIHIT_BOUNCE_VY;
+    return true;
+  }
+  _startBreakSequence(mesh);
+  return true;
+}
+
+// 爆発予告：jump_dive と同じ二重 AOE リング（地面平行）を生成する。
+// 一次 AOE（固定サイズ赤リング）: 爆発半径を常時表示。
+// 二次リング（収束オレンジ）: fuse 残量に応じてスケール 2.0→1.0・不透明度↑。
+function _spawnExplosionRings(mesh) {
+  if (!_scene || !_THREE) return;
+  const cx = mesh.position.x;
+  const cz = mesh.position.z;
+  const r  = EXPLOSION_RANGE;
+
+  // 一次 AOE：固定サイズ赤リング
+  const aoeMat = new _THREE.MeshBasicMaterial({
+    color: 0xff2200, transparent: true, opacity: 0.55, side: _THREE.DoubleSide, depthWrite: false,
+  });
+  const aoeMesh = new _THREE.Mesh(new _THREE.RingGeometry(r * 0.82, r, 48), aoeMat);
+  aoeMesh.rotation.x = -Math.PI / 2;
+  aoeMesh.position.set(cx, 1, cz);
+  _scene.add(aoeMesh);
+  mesh.userData._explosionAoeRing = aoeMesh;
+
+  // 二次リング：内側（小）から外側（AOE端）へ拡大するオレンジ
+  const warnMat = new _THREE.MeshBasicMaterial({
+    color: 0xff6600, transparent: true, opacity: 0.20, side: _THREE.DoubleSide, depthWrite: false,
+  });
+  const warnMesh = new _THREE.Mesh(new _THREE.RingGeometry(r * 0.80, r, 48), warnMat);
+  warnMesh.rotation.x = -Math.PI / 2;
+  warnMesh.scale.setScalar(0.05);  // 内側（小）から拡大開始
+  warnMesh.position.set(cx, 1, cz);
+  _scene.add(warnMesh);
+  mesh.userData._explosionWarnRing = warnMesh;
+}
+
+function _removeExplosionRings(mesh) {
+  for (const key of ['_explosionAoeRing', '_explosionWarnRing']) {
+    const m = mesh.userData[key];
+    if (m) {
+      _scene.remove(m);
+      m.geometry?.dispose();
+      m.material?.dispose();
+      mesh.userData[key] = null;
+    }
+  }
 }
 
 function _startBreakSequence(mesh) {
@@ -168,22 +237,8 @@ function _startBreakSequence(mesh) {
     mesh.userData.fuseTimer = FUSE_FRAMES;
     // 点火の瞬間にちょこっと跳ねる（↑J 食らったくらいの軽い vy）
     mesh.userData.vy = CANISTER_IGNITE_VY;
-    // ダメージ範囲リング表示（点滅は fuseTimer 残量で周期短縮）
-    if (_damageArea?.addStaticArea) {
-      mesh.userData.damageAreaId = _damageArea.addStaticArea({
-        x: mesh.position.x,
-        y: 0,
-        z: mesh.position.z,
-        radius: EXPLOSION_RANGE,
-        color: 0xff3030,
-        opacity: 0.32,
-        blink: true,
-        blinkPeriodFn: () => {
-          const t = mesh.userData.fuseTimer / FUSE_FRAMES;
-          return Math.max(FUSE_BLINK_MIN, Math.round(FUSE_BLINK_MIN + t * (FUSE_BLINK_MAX - FUSE_BLINK_MIN)));
-        },
-      });
-    }
+    // 二重 AOE リング（jump_dive と同じスタイル）
+    _spawnExplosionRings(mesh);
   } else {
     // crate：即爆散
     _detonate(mesh);
@@ -214,6 +269,25 @@ function _setRedTint(mesh, k) {
   });
 }
 
+// 白フラッシュ：k=0 で元色 / k=1 で純白に lerp（複数 hp 壊れ物の非致命ヒット用）
+function _setWhiteTint(mesh, k) {
+  const origMap = mesh.userData.origColors;
+  if (!origMap) return;
+  mesh.traverse(c => {
+    if (!c.material || !c.material.color) return;
+    const orig = origMap.get(c.material);
+    if (orig == null) return;
+    const oR = ((orig >> 16) & 0xff) / 255;
+    const oG = ((orig >>  8) & 0xff) / 255;
+    const oB = ( orig        & 0xff) / 255;
+    c.material.color.setRGB(
+      oR + (1.0 - oR) * k,
+      oG + (1.0 - oG) * k,
+      oB + (1.0 - oB) * k,
+    );
+  });
+}
+
 // fuse 進行：残り時間に応じて点滅周期を短縮、0 で爆発
 function _updateFuse(mesh) {
   const ud = mesh.userData;
@@ -230,6 +304,11 @@ function _updateFuse(mesh) {
   // 周期内で前半=赤 / 後半=元色
   const phase = Math.floor(ud.fuseTimer / period) % 2;
   _setRedTint(mesh, phase === 0 ? 0.85 : 0.0);
+  // 拡大リング：内側(0.05)→端(1.0)、不透明度 0.20→0.75
+  if (ud._explosionWarnRing) {
+    ud._explosionWarnRing.scale.setScalar(0.05 + (1 - t) * 0.95);
+    ud._explosionWarnRing.material.opacity = 0.20 + (1 - t) * 0.55;
+  }
 }
 
 // 爆発：AoE で敵・プレイヤーにダメージ + ヒットストップ + 爆散
@@ -286,21 +365,16 @@ function _explode(mesh) {
   }
   // ヒットストップ（爆発の重み）
   if (_triggerHitstop) _triggerHitstop(EXPLOSION_HITSTOP);
-  // ダメージエリア表示クリーンアップ + 爆発の拡張パルス
-  if (_damageArea) {
-    if (mesh.userData.damageAreaId != null) {
-      _damageArea.removeArea(mesh.userData.damageAreaId);
-      mesh.userData.damageAreaId = null;
-    }
-    if (_damageArea.spawnExpandPulse) {
-      _damageArea.spawnExpandPulse({
-        x: cx, y: 0, z: cz,
-        radius: EXPLOSION_RANGE,
-        color: 0xffaa33,
-        opacity: 0.85,
-        life: 16,
-      });
-    }
+  // 二重 AOE リング除去 + 拡張パルス
+  _removeExplosionRings(mesh);
+  if (_damageArea?.spawnExpandPulse) {
+    _damageArea.spawnExpandPulse({
+      x: cx, y: 0, z: cz,
+      radius: EXPLOSION_RANGE,
+      color: 0xffaa33,
+      opacity: 0.85,
+      life: 16,
+    });
   }
   // パーツ爆散（爆発の散らかし）
   _detonate(mesh);
@@ -351,12 +425,23 @@ function _detonate(mesh) {
   if (rs && typeof rs.factory === 'function') {
     _respawnQueue.push({ factory: rs.factory, timer: rs.delayFrames ?? 180 });
   }
+  // OC コンテナ：破壊位置に OC ジェムを出現させる
+  if (mesh.userData.kind === 'breakable-oc-container' && _onOcContainerBreak) {
+    _onOcContainerBreak(groupX, groupY, groupZ);
+  }
 }
 
 // 毎フレーム呼ばれる：fuse 進行 + mesh 物理（点火ジャンプ） + 飛び散りパーツ物理
 export function updateBreakables() {
   // canister の点火カウントダウン + 点火直後の小ジャンプ物理
   for (const b of breakables) {
+    // 複数 hp 壊れ物：ヒット無敵 F の消化 + 非致命ヒットの白フラッシュ進行
+    if (b.userData.hitCooldown > 0) b.userData.hitCooldown--;
+    if (b.userData.hitFlashTimer > 0) {
+      b.userData.hitFlashTimer--;
+      const fk = b.userData.hitFlashTimer / MULTIHIT_FLASH_FRAMES;  // 1→0
+      _setWhiteTint(b, b.userData.hitFlashTimer > 0 ? fk * 0.85 : 0);
+    }
     // 地雷モード：未点火 canister のうち proximityTrigger フラグ持ちは
     //   プレイヤーが範囲外 → 範囲内に「入った瞬間」に自動点火（エッジ判定）。
     //   - 被弾中（吹き飛び・ダウン中）のプレイヤーでは点火しない（co-trigger 防止）。

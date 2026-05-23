@@ -20,7 +20,7 @@
 //    - enemies: 敵配列（モジュール内で push する）
 //
 //  updateEnemies(ctx) は呼び出し毎に hitCtx を受け取る：
-//    - ctx.enemyAttackToken.get/set: 敵 AI ローテーション用トークン
+//    - ctx.attackTokens: カテゴリ別攻撃トークン（melee/aerial 等・各カテゴリで独立1枠）
 //    - tryThrownChainHit へそのまま受け渡す
 // ============================================================
 
@@ -45,17 +45,31 @@ import {
   KB_LV06_VY, KB_LV06_VX_MULT,
   applyRollHipPivot,
 } from './states.js';
-import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG } from './config.js';
+import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG } from './config.js';
 import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, fxState } from './hit-engine.js';
+import { spawnBanner } from './hud-system.js';
 import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
 import { isHitstunState, tryHitPlayer } from './damage-system.js';
-import { getActiveWallX } from './camera.js';
+import { getActiveWallX, getKnockbackWallX } from './camera.js';
+import { dropCR } from './cr-system.js';
 
 let _THREE = null;
 let _scene = null;
 let _players = null;
 let _enemies = null;
+
+// cunning の密集回避（14-D-3・enem01.md §性格軸 レイヤー3）。
+//   cunning は個別の laneZ（プレイヤー Z からのオフセット）を狙って散開する。
+const LANE_Z_MAX           = 55;  // laneZ の最大幅（±・rangeZ 80 内に収め攻撃は届く）
+const LANE_HOMING_DEADZONE = 25;  // cunning が laneZ に乗ったとみなす許容 Z
+const LANE_REROLL_FRAMES   = 90;  // laneZ 振り直し判定の間隔
+const LANE_CLUSTER_Z       = 35;  // 「同レーン」とみなす laneZ 差
+const LANE_CLUSTER_DIST    = 220; // 「近接」とみなす実距離
+
+// 敵同士の攻撃テンポ（14-D-5）：直近の攻撃終了から次の攻撃が始められるまでの全体待ち。
+// 0 になるまで誰も攻撃を開始できない。攻撃完了ごとにばらつき付きで再セットされる。
+let _attackRelay = 0;
 
 export function initEnemySystem(deps) {
   _THREE = deps.THREE;
@@ -133,6 +147,7 @@ export function buildDummyMesh() {
   // → head が detach されると Three.js 親子で nose も付いてくる
   group.userData.parts = { body, head, stand };
   group.userData.subParts = { nose };  // 参考用に残す（material 操作などで参照）
+  group.userData.baseColors = { body: 0x2d4a22, head: 0x77aa55 };  // hitFlash 復元用
 
   // === HP バー（敵頭上・初回被弾でフェードイン・dying で消滅）===
   // 本実装も意識して：scene 直配置で敵の rotation を継承しない
@@ -160,11 +175,169 @@ export function buildDummyMesh() {
 }
 
 // ============================================================
+//  メッシュ構築：enem02 ジャンパー（小型・シアン系）
+// ============================================================
+export function buildDummy02Mesh() {
+  const group = new _THREE.Group();
+  group.rotation.order = 'ZYX';
+  const baseMat   = new _THREE.MeshToonMaterial({ color: 0x1144cc });  // 青（基本色）
+  const accentMat = new _THREE.MeshToonMaterial({ color: 0x4488ff });  // 明るい青（アクセント）
+  const legMat    = new _THREE.MeshToonMaterial({ color: 0x0d3399 });  // 濃い青（脚）
+
+  // 胴体（横広・低重心）
+  const body = new _THREE.Mesh(new _THREE.BoxGeometry(75, 40, 65), baseMat);
+  body.position.y = 75;
+  body.castShadow = true;
+  group.add(body);
+
+  // 頭（前方にせり出す）
+  const head = new _THREE.Mesh(new _THREE.BoxGeometry(50, 38, 48), accentMat);
+  head.position.set(0, 112, -8);
+  head.castShadow = true;
+  group.add(head);
+
+  // 4本足（前後2対）
+  const legGeo = new _THREE.BoxGeometry(14, 55, 14);
+  const legOffsets = [
+    [-26, 27, -24],  // 前左
+    [ 26, 27, -24],  // 前右
+    [-26, 27,  24],  // 後左
+    [ 26, 27,  24],  // 後右
+  ];
+  const legs = legOffsets.map(([lx, ly, lz]) => {
+    const leg = new _THREE.Mesh(legGeo, legMat);
+    leg.position.set(lx, ly, lz);
+    leg.castShadow = true;
+    group.add(leg);
+    return leg;
+  });
+
+  // センサー目（白発光）
+  const eyeMat = new _THREE.MeshToonMaterial({
+    color: 0xffffff, emissive: 0x88ccff, emissiveIntensity: 0.9,
+  });
+  const eye = new _THREE.Mesh(new _THREE.BoxGeometry(20, 9, 4), eyeMat);
+  eye.position.set(0, 0, 26);
+  head.add(eye);
+
+  group.userData.parts = { body, head, legs };
+  group.userData.subParts = { eye };
+  group.userData.baseColors = { body: 0x1144cc, head: 0x4488ff, legs: 0x0d3399 };  // hitFlash 復元用
+
+  // HP バー
+  const HP_BAR_W = 70;
+  const HP_BAR_H = 5;
+  const bgGeom = new _THREE.PlaneGeometry(HP_BAR_W, HP_BAR_H);
+  const bg = new _THREE.Mesh(bgGeom, new _THREE.MeshBasicMaterial({
+    color: 0x111111, transparent: true, opacity: 0.85,
+  }));
+  const fillGeom = new _THREE.PlaneGeometry(HP_BAR_W, HP_BAR_H);
+  fillGeom.translate(HP_BAR_W / 2, 0, 0);
+  const fill = new _THREE.Mesh(fillGeom, new _THREE.MeshBasicMaterial({ color: 0xff3322 }));
+  bg.visible = false;
+  fill.visible = false;
+  group.userData.hpBar = { bg, fill, fullWidth: HP_BAR_W, yOffset: 165 };
+  return group;
+}
+
+// ============================================================
+//  メッシュ構築：midboss01 シールドガーダー（中ボス相当・グレー系）
+//  左腕：大型盾 / 右腕：マチェット
+// ============================================================
+export function buildMidboss01Mesh() {
+  const group = new _THREE.Group();
+  group.rotation.order = 'ZYX';
+  const bodyMat   = new _THREE.MeshToonMaterial({ color: 0x888888 });  // 中グレー
+  const darkMat   = new _THREE.MeshToonMaterial({ color: 0x555555 });  // 暗グレー（台座）
+  const shieldMat = new _THREE.MeshToonMaterial({ color: 0xaaaaaa });  // 明るいグレー（盾面）
+  const bladeMat  = new _THREE.MeshToonMaterial({ color: 0xdddddd });  // 刃色（マチェット）
+
+  // 胴体（enem01 より一回り大きい）
+  const body = new _THREE.Mesh(new _THREE.BoxGeometry(85, 145, 72), bodyMat);
+  body.position.y = 87;
+  body.castShadow = true;
+  group.add(body);
+
+  // 頭
+  const head = new _THREE.Mesh(new _THREE.BoxGeometry(55, 52, 50), bodyMat);
+  head.position.y = 188;
+  head.castShadow = true;
+  group.add(head);
+
+  // 台座（足台）
+  const stand = new _THREE.Mesh(new _THREE.BoxGeometry(75, 32, 72), darkMat);
+  stand.position.y = 16;
+  stand.castShadow = true;
+  group.add(stand);
+
+  // 左腕
+  const larm = new _THREE.Mesh(new _THREE.BoxGeometry(22, 95, 22), bodyMat);
+  larm.position.set(-70, 105, 0);
+  larm.castShadow = true;
+  group.add(larm);
+
+  // 盾（左腕先端の大型フラット盾）
+  const shield = new _THREE.Mesh(new _THREE.BoxGeometry(14, 120, 95), shieldMat);
+  shield.position.set(-93, 105, 0);
+  shield.castShadow = true;
+  group.add(shield);
+
+  // 右腕
+  const rarm = new _THREE.Mesh(new _THREE.BoxGeometry(22, 90, 22), bodyMat);
+  rarm.position.set(70, 105, 0);
+  rarm.castShadow = true;
+  group.add(rarm);
+
+  // マチェット（右腕先端・縦長の刃）
+  const machete = new _THREE.Mesh(new _THREE.BoxGeometry(9, 130, 25), bladeMat);
+  machete.position.set(92, 82, 0);
+  machete.castShadow = true;
+  group.add(machete);
+
+  group.userData.parts = { body, head, stand };
+  group.userData.baseColors = { body: 0x888888, head: 0x888888 };
+  // 盾 mesh の参照を保持（盾破壊時に visible=false にする。parts には入れない＝
+  //   死亡時のパーツ分離抽選を汚染しないため）。
+  group.userData.shield = shield;
+
+  // ガードドーム（ガード時＝青 / SHIELD BREAK 時＝白拡大）
+  //   プレイヤーの guardShield と同系の半球エフェクト。
+  //   scene への add は spawnDummy() 側で実施（ここでは scene 参照なし）。
+  const guardDome = new _THREE.Mesh(
+    new _THREE.SphereGeometry(75, 24, 16, 0, Math.PI, 0, Math.PI),
+    new _THREE.MeshBasicMaterial({
+      color: 0x66ccff, transparent: true, opacity: 0,
+      side: _THREE.DoubleSide, depthWrite: false,
+    }),
+  );
+  guardDome.visible = false;
+  group.userData.guardDome = guardDome;
+
+  // HP バー（中ボス：幅広め）
+  const HP_BAR_W = 100;
+  const HP_BAR_H = 6;
+  const bgGeom   = new _THREE.PlaneGeometry(HP_BAR_W, HP_BAR_H);
+  const bg       = new _THREE.Mesh(bgGeom, new _THREE.MeshBasicMaterial({
+    color: 0x111111, transparent: true, opacity: 0.85,
+  }));
+  const fillGeom = new _THREE.PlaneGeometry(HP_BAR_W, HP_BAR_H);
+  fillGeom.translate(HP_BAR_W / 2, 0, 0);
+  const fill = new _THREE.Mesh(fillGeom, new _THREE.MeshBasicMaterial({ color: 0xff3322 }));
+  bg.visible   = false;
+  fill.visible = false;
+  group.userData.hpBar = { bg, fill, fullWidth: HP_BAR_W, yOffset: 248 };
+  return group;
+}
+
+// ============================================================
 //  ダミー敵を 1 体生成して enemies に追加する共通ヘルパ
 //  Phase 2.4：複数体スポーンに対応。位置 (x, z) を指定して呼ぶ
 // ============================================================
 export function spawnDummy(x, z, opts = {}) {
-  const mesh = buildDummyMesh();
+  const _enemyType = opts.enemyType ?? 'enem01';
+  const mesh = (_enemyType === 'enem02') ? buildDummy02Mesh()
+             : (_enemyType === 'midboss01') ? buildMidboss01Mesh()
+             : buildDummyMesh();
   mesh.position.set(x, 0, z);
   // rotation.order='ZYX'：rotation.z（横倒し）と rotation.x（前後傾）両方を正しく見せる
   // YXZ/XYZ だと ry=±π/2 と rz の組み合わせで head が +Z 方向（カメラ手前）に倒れて見える
@@ -177,9 +350,12 @@ export function spawnDummy(x, z, opts = {}) {
     _scene.add(mesh.userData.hpBar.bg);
     _scene.add(mesh.userData.hpBar.fill);
   }
+  // ガードドームも scene 直下に追加（enemy mesh の rotation を継承しないため）
+  if (mesh.userData.guardDome) _scene.add(mesh.userData.guardDome);
   const _maxHp = (typeof opts.maxHp === 'number' && opts.maxHp > 0) ? opts.maxHp : 100;
-  // 性格（#14）：opts 指定 → なければ brave 既定。行動傾向値をテーブルから引く
-  const _personality = ENEMY_PERSONALITY[opts.personality] ? opts.personality : 'brave';
+  // 性格（#14）：opts 指定 → なければ既定（midboss01 は berserker / その他 brave）
+  const _personality = ENEMY_PERSONALITY[opts.personality] ? opts.personality
+                     : (_enemyType === 'midboss01' ? 'berserker' : 'brave');
   const _persona = ENEMY_PERSONALITY[_personality];
   const e = {
     mesh,
@@ -220,10 +396,32 @@ export function spawnDummy(x, z, opts = {}) {
     downTimer:        0,
     isAlive:          true,
     facing:           -1,
+    enemyType:        _enemyType,           // 'enem01' / 'enem02' / 'midboss01' etc.
+    // ガード強度：atk_lv がこの値以下の前面攻撃をガード成立で受ける（per-enemy）
+    guardStrength:    opts.guardStrength ?? (_enemyType === 'midboss01' ? 4 : 3),
+    // 盾システム（midboss01 専用）：本体 HP と独立した盾 HP。0 で盾破壊。
+    //   midboss01 以外は shieldBroken=true（最初から盾なし扱い）で hit-engine 側分岐を 1 条件に。
+    shieldMaxHp:      (_enemyType === 'midboss01') ? MIDBOSS_SHIELD_CONFIG.SHIELD_MAX_HP : 0,
+    shieldHp:         (_enemyType === 'midboss01') ? MIDBOSS_SHIELD_CONFIG.SHIELD_MAX_HP : 0,
+    shieldBroken:     (_enemyType !== 'midboss01'),
+    shieldBlockTimer:      0,   // ガードドーム表示残F（hit-engine でセット）
+    shieldBreakDomeTimer:  0,   // SHIELD BREAK 拡大フェードドーム残F
+    shieldBlockCount:      0,   // 連続前面ブロック数（閾値でガードカウンター発動）
+    guardCounterArmed:     false, // ガードカウンター即反撃フラグ
+    _blockDecayTimer:      0,   // ブロックカウント自然減衰タイマー
+    atkSlotIdx:            0,   // slash_rush 複数ヒットスロットインデックス
+    superArmor:            0,   // SA 値（berserker midboss01 は triggerShieldBreak でセット）
+    saHp:                  0,   // 現SA残HP（_beginEnemyAttack ごとにリセット）
+    repulseWindow:         false, // リパルスカウンター受付中（aim フェーズで true・hit-engine 参照）
+    slashHitFlash:         0,   // slash_rush ヒット瞬間の hitbox フラッシュ残F
+    _tick:                 0,   // 点滅・パルス計算用フレームカウンタ
     // === ミニマム AI（Phase 2.4）===
     aiEnabled:        opts.aiEnabled ?? true,
     atkPhase:         null,
     atkTimer:         0,
+    curAtkId:         null,   // 発動中の攻撃 ID（ENEMY_ATTACKS のキー・14-D）
+    atkPitchTarget:   0,      // enemy_attacking 中の rotation.x 目標（atkPhase 別に設定）
+    atkDashDist:      0,      // 突進タックル（kind=dash）の累積突進距離（14-D-2）
     atkCooldown:      opts.atkCooldown ?? 90,  // 初期は少し溜め（同時カウントを避けるため敵ごとに変える）
     hitDelivered:     false,
     // === Phase 3 AI ステート明示化 ===
@@ -242,8 +440,21 @@ export function spawnDummy(x, z, opts = {}) {
     reactCooldown:    0,                        // dodge/guard 再発動クールダウン残F
     _reactArmed:      true,                     // 現プレイヤー攻撃に未反応なら true（1 攻撃 1 判定）
     dodgeInvuln:      false,                    // enemy_dodge 前半の無敵フラグ
+    dodgePunish:      false,                    // cunning：回避完了後に突進タックルへ連携（14-D-3）
+    // ダッシュ追跡（14-D-4）：遭遇後に自機が離れたら、ワンテンポ置いてダッシュで詰める
+    encountered:      false,                    // 一度でも approachRange 内に入ったか
+    dashChasing:      false,                    // ダッシュ追跡中フラグ
+    dashChaseBeat:    -1,                       // ダッシュ開始前のワンテンポ残F（-1=未武装）
+    // cunning の密集回避（14-D-3）：個別 Z レーンオフセット + 振り直しタイマー
+    laneZ:            (_personality === 'cunning') ? (Math.random() * 2 - 1) * LANE_Z_MAX : 0,
+    laneReRollTimer:  Math.floor(Math.random() * LANE_REROLL_FRAMES),
     enraged:          false,                    // 興奮状態（HP 低下で 1 度だけ true・14-C）
     enragedHp:        _persona.enragedHp,        // この HP 割合以下で enraged 化
+    // === #14-D-2 攻撃頻度（性格別・enem01.md §性格軸 レイヤー1-3）===
+    atk02Weight:      _persona.atk02Weight,      // 近/中の重なり帯で突進タックルを選ぶ確率
+    cooldownMult:     _persona.cooldownMult,     // 攻撃クールダウン倍率（brave 短い）
+    retreatMult:      _persona.retreatMult,      // 攻撃後 retreat の長さ倍率（brave ≈0）
+    punishesHitstun:  _persona.punishesHitstun,  // プレイヤー被弾中でも攻撃する（brave 追撃確定）
     // === Phase 3 ステータス系（status_stun）===
     statusStunTimer:  0,    // status_stun 残F
     // === Phase 3-A/3-B 敵死亡（gore-scrap・2026-05-20 フラグ方式へリファクタ）===
@@ -294,12 +505,50 @@ export function applyStatusStun(e, frames, ctx) {
     e.atkPhase = null;
     e.atkTimer = 0;
     e.hitDelivered = false;
-    if (ctx && ctx.enemyAttackToken && ctx.enemyAttackToken.get() === e) {
-      ctx.enemyAttackToken.set(null);
-    }
+    _clearAllTokens(ctx, e);
   }
   e.state           = STATE.status_stun;
   e.statusStunTimer = (typeof frames === 'number' && frames > 0) ? frames : STATUS_STUN_CONFIG.defaultDuration;
+  return true;
+}
+
+// ============================================================
+//  midboss01 盾破壊：盾 HP が 0 になった瞬間に hit-engine から呼ぶ。
+//   - 盾 mesh を非表示・グレー粒子バースト・強ヒットストップ + シェイク
+//   - "SHIELD BREAK!" バナー（hud-system）
+//   - enraged_intro へ遷移し berserker（enraged）化
+//   - 進行中の攻撃があれば中断しトークン解放（ctx 経由）
+//   返り値：破壊した true / 既に破壊済みなら false
+// ============================================================
+export function triggerShieldBreak(e, ctx) {
+  if (!e || e.shieldBroken) return false;
+  const SC = MIDBOSS_SHIELD_CONFIG;
+  e.shieldBroken = true;
+  e.shieldHp = 0;
+  e.shieldBreakDomeTimer = 18;  // SHIELD BREAK 拡大フェードドーム（プレイヤーのガードクラッシュと同系）
+  // 盾 mesh を非表示（detach 機構は黒 material 化 + 非 dying で更新されないため使わない）
+  if (e.mesh && e.mesh.userData && e.mesh.userData.shield) {
+    e.mesh.userData.shield.visible = false;
+  }
+  // 盾飛散の代替＝グレー粒子バースト（盾のあった敵の正面側）
+  spawnHitParticles(e.x + e.facing * 50, e.y + 110, e.z, 0xaaaaaa, 24, { type: 'omni' });
+  triggerHitstop(SC.BREAK_HITSTOP);
+  triggerShake(SC.BREAK_SHAKE, SC.BREAK_SHAKE * 2 + 6);
+  spawnBanner('SHIELD BREAK!', { frames: SC.BANNER_FRAMES });
+  // 進行中の攻撃を中断（トークン解放）
+  if (e.state === STATE.enemy_attacking) {
+    e.atkPhase     = null;
+    e.atkTimer     = 0;
+    e.hitDelivered = false;
+    _clearAllTokens(ctx, e);
+  }
+  // enraged_intro へ直行 + berserker（enraged）化
+  e.enraged      = true;
+  e.superArmor   = MIDBOSS_SHIELD_CONFIG.BERSERKER_SA;   // 攻撃中のヒット吸収（SA）を付与
+  e.saHp         = 0;   // 次の _beginEnemyAttack で superArmor 値から再セット
+  e.state     = STATE.enraged_intro;
+  e.downTimer = ENEMY_ENRAGE_CONFIG.INTRO_FRAMES;
+  e.aiPhase   = 'enraged';
   return true;
 }
 
@@ -317,6 +566,12 @@ export function enterEnemyDying(e, ctx) {
   if (window.SB && window.SB.DEBUG_GORE_CRITICAL) {
     console.log(`[GORECRIT] enterEnemyDying called (hp=${e.hp}, y=${e.y|0}, lastHitter=${JSON.stringify(e.lastHitter)})`);
   }
+  _removeJdMarkers(e);
+  if (e.mesh) e.mesh.scale.y = 1.0;
+  e._chargeT     = 0;
+  e._hopLaunched = false;
+  e._hopAirborne = false;
+  _setMeshChargeColor(e, 0);  // チャージ黄色発光リセット
   e.dying            = true;
   e.dyingPhase       = 'reacting';   // 通常被弾モーション再生中（hold タイマー並列消費・wait01 到達待ち）
   e.dyingFadeTimer   = GORE_CONFIG.FADE_DURATION;
@@ -327,9 +582,7 @@ export function enterEnemyDying(e, ctx) {
   e.aiEnabled        = false;
   e.atkPhase         = null;
   e.hitDelivered     = false;
-  if (ctx && ctx.enemyAttackToken && ctx.enemyAttackToken.get() === e) {
-    ctx.enemyAttackToken.set(null);
-  }
+  _clearAllTokens(ctx, e);
   // ゴア・クリティカル抽選（基本構造・キャラ拡張で発火条件を絞る）
   _maybeArmGoreCritical(e);
   return true;
@@ -686,9 +939,7 @@ export function enterEnemyDyingBurst(e, ctx, hitFacing) {
   e.aiEnabled       = false;
   e.atkPhase        = null;
   e.hitDelivered    = false;
-  if (ctx && ctx.enemyAttackToken && ctx.enemyAttackToken.get() === e) {
-    ctx.enemyAttackToken.set(null);
-  }
+  _clearAllTokens(ctx, e);
   // 速度は触らない：直前の hit-engine lv6 dispatch が attack 由来の値を既に設定済
   //   （knockbackVx = facing * attack.knockback * 0.4 * sameScale * kb_vx_mult_lv6）
   //   （vy = attack.kb_vy_lv6 or KB_LV06_VY、kbDecay = attack.kb_vx_decay_lv6 等）
@@ -893,9 +1144,9 @@ function _detachOneNamed(e, name, sharedVelocity) {
 
 // 後方互換：旧 enterEnemyExplode は「残り全パーツを一気に分離 + 共用爆発」として残す（テスト用）
 // 非 dying でも強制的に dying 化してから爆散させ、flyingParts の cleanup が回るようにする
-export function enterEnemyExplode(e, hitFacing) {
+export function enterEnemyExplode(e, ctx, hitFacing) {
   if (!e) return false;
-  if (!e.dying) enterEnemyDying(e, null);
+  if (!e.dying) enterEnemyDying(e, ctx);
   _triggerFinalExplosion(e);
   return true;
 }
@@ -1045,6 +1296,7 @@ function _updateDyingTimers(e, ctx) {
     _advanceGoreCritical(e);
     _updateFlyingParts(e);
     if (e.dyingPhase === 'exploded' && (!e.flyingParts || e.flyingParts.length === 0)) {
+      _clearAllTokens(ctx, e);
       e.removed = true;
       e.isAlive = false;
     }
@@ -1093,6 +1345,7 @@ function _updateDyingTimers(e, ctx) {
   _updateFlyingParts(e);
   // 最終消滅判定
   if (e.dyingPhase === 'exploded' && (!e.flyingParts || e.flyingParts.length === 0)) {
+    _clearAllTokens(ctx, e);
     e.removed = true;
     e.isAlive = false;
   }
@@ -1124,6 +1377,7 @@ function _enterDyingFinal(e, ctx) {
 //   - 既に飛翔中の flyingParts（hit で抽選分離済）はそのまま継続（自然にバウンド・フェード）
 //   - 爆発感は spawnDeathExplosion に集約
 function _triggerFinalExplosion(e) {
+  dropCR(e.x, e.z, e.y + 80);  // 爆発タイミングで CR ドロップ
   // ゴア・クリティカル armed：キャラ拡張バリアントで方向・追加 FX を上書き
   if (e.goreCritical && e.goreCritical.armed) {
     // variant は goreCritical 自身に格納されている値を使う（旧コードは profile.criticalExplosionVariant
@@ -1505,15 +1759,172 @@ function _explodeSplitBackBlast(e) {
 }
 
 // ============================================================
+//  攻撃選択（14-D-2・enem01.md §距離別攻撃選択 + §性格軸 レイヤー1）
+//   - 近距離（attackRange 以内）= 基本振り e01_atk_01
+//   - 中距離（attackRange 〜 dashTackleRange）= 突進タックル e01_atk_02
+//   - 境界の重なり帯（atkSelectOverlap 幅）だけ性格 atk02Weight で抽選
+//   - 圏外（dashTackleRange 超）は null（攻撃せず接近継続）
+// ============================================================
+function _selectEnemyAtk(e, adx) {
+  if (e.enemyType === 'enem02') {
+    if (adx > DUMMY_ATK_CONFIG.approachRange) return null;
+    // 55% の確率でジャンプ急降下（atklv5）、残りは小ジャンプ攻撃
+    return (Math.random() < 0.55) ? 'e02_atk_02' : 'e02_atk_01';
+  }
+  if (e.enemyType === 'midboss01') {
+    if (adx > DUMMY_ATK_CONFIG.approachRange) return null;
+    if (!e.shieldBroken) {
+      // 盾あり: 盾叩きのみ（シールドガード態勢）
+      return 'mb01_atk_01';
+    }
+    // enraged（盾破壊後）: マチェット斬り or マチェットラッシュ（50:50）
+    return (Math.random() < 0.5) ? 'mb01_atk_02' : 'mb01_atk_03';
+  }
+  // enem01
+  const C = DUMMY_ATK_CONFIG;
+  const swingOnly = C.attackRange - C.atkSelectOverlap;  // ここ以下は基本振り確定
+  if (adx <= swingOnly)        return 'e01_atk_01';
+  if (adx >  C.attackRange)    return (adx >= C.minTackleRange && adx <= C.dashTackleRange) ? 'e01_atk_02' : null;
+  // 重なり帯：性格 weight で抽選（minTackleRange 未満なら基本振り固定）
+  return (adx >= C.minTackleRange && Math.random() < e.atk02Weight) ? 'e01_atk_02' : 'e01_atk_01';
+}
+
+// ============================================================
+//  jump_dive AOE マーカー（照準フェーズの予兆表示）
+//  一次 AOE：プレイヤー足元に固定赤リング（着弾地点）
+//  二次リング：大→小に収束するリング（収束完了で急降下開始）
+// ============================================================
+function _spawnJdMarkers(e, atk, targetX, targetZ) {
+  const Y = 0.5;
+  const r1 = atk.aoeRadius ?? 120;
+  // 一次 AOE：着弾地点を示す固定サイズの赤リング（ガイド）
+  const aoeMesh = new _THREE.Mesh(
+    new _THREE.RingGeometry(r1 * 0.80, r1, 40),
+    new _THREE.MeshBasicMaterial({
+      color: 0xff2200, transparent: true, opacity: 0.65,
+      side: _THREE.DoubleSide, depthTest: false,
+    }),
+  );
+  aoeMesh.rotation.x = -Math.PI / 2;
+  aoeMesh.position.set(targetX, Y, targetZ);
+  _scene.add(aoeMesh);
+  // 二次リング：内側（小）から外側へ拡大し一次 AOE に重なった瞬間に急降下
+  //   同じ r1 サイズで作成し scale 0.1 スタート → 1.0 まで拡大
+  const ringMesh = new _THREE.Mesh(
+    new _THREE.RingGeometry(r1 * 0.78, r1, 40),
+    new _THREE.MeshBasicMaterial({
+      color: 0xff6600, transparent: true, opacity: 0.30,
+      side: _THREE.DoubleSide, depthTest: false,
+    }),
+  );
+  ringMesh.rotation.x = -Math.PI / 2;
+  ringMesh.position.set(targetX, Y + 0.3, targetZ);
+  ringMesh.scale.setScalar(0.1);  // 内側（小）からスタート
+  _scene.add(ringMesh);
+  e._jdAoeMesh  = aoeMesh;
+  e._jdRingMesh = ringMesh;
+}
+
+// 照準進行 t（1.0→0.0）に合わせて二次リングを内側から外側へ拡大
+function _updateJdRing(e, atk, t) {
+  if (!e._jdRingMesh) return;
+  // t: 1.0（照準開始）→ 0.0（急降下）
+  // scale: 0.1（中心の小さなリング）→ 1.0（一次 AOE と重なる）
+  const s = 0.1 + (1.0 - t) * 0.9;
+  e._jdRingMesh.scale.setScalar(s);
+  // 外縁に近づくほど不透明に強調（攻撃直前が最も目立つ）
+  e._jdRingMesh.material.opacity = 0.20 + (1.0 - t) * 0.75;
+}
+
+// AOE マーカーを scene から除去（攻撃終了・中断・死亡）
+function _removeJdMarkers(e) {
+  if (e._jdAoeMesh)  { _scene.remove(e._jdAoeMesh);  e._jdAoeMesh  = null; }
+  if (e._jdRingMesh) { _scene.remove(e._jdRingMesh); e._jdRingMesh = null; }
+}
+
+// jump_dive 溜め中の黄色発光（t=0:基本色 / t=1:フル黄色）
+// 各パーツの baseColors から補間。リセット時は t=0 で呼ぶ。
+function _setMeshChargeColor(e, t) {
+  if (!e.mesh) return;
+  const _bc = e.mesh.userData.baseColors ?? { body: 0x2d4a22, head: 0x77aa55 };
+  const parts = e.mesh.userData.parts;
+  // legs が配列の場合に Set で高速 lookup
+  const _legSet = (parts?.legs && Array.isArray(parts.legs))
+    ? new Set(parts.legs) : null;
+  e.mesh.traverse((child) => {
+    if (!child.isMesh) return;
+    const isHead = parts && child === parts.head;
+    const isLeg  = _legSet && _legSet.has(child);
+    const base   = isHead ? _bc.head : isLeg ? (_bc.legs ?? _bc.body) : _bc.body;
+    const bR = ((base >> 16) & 0xff) / 255;
+    const bG = ((base >>  8) & 0xff) / 255;
+    const bB = ( base        & 0xff) / 255;
+    // 黄色(1,1,0)へ補間
+    child.material.color.setRGB(
+      bR + t * (1 - bR),
+      bG + t * (1 - bG),
+      bB * (1 - t),
+    );
+  });
+}
+
+// カテゴリトークン全解放：該当敵 e が保持しているトークンを全カテゴリから外す
+function _clearAllTokens(ctx, e) {
+  if (!ctx || !ctx.attackTokens) return;
+  for (const tok of Object.values(ctx.attackTokens)) {
+    if (tok.get() === e) tok.set(null);
+  }
+}
+
+// 攻撃開始：トークン取得 + enemy_attacking への遷移をまとめる
+// （通常の chase 発動と cunning の punish-dodge 連携で共用）
+function _beginEnemyAttack(e, atkId, ctx) {
+  const atk = ENEMY_ATTACKS[atkId];
+  e.curAtkCategory = atk.attackCategory ?? 'melee';
+  const _tok = ctx.attackTokens[e.curAtkCategory];
+  if (_tok) _tok.set(e);
+  e.state          = STATE.enemy_attacking;
+  e.atkPhase       = 'wind';
+  e.curAtkId       = atkId;
+  e.atkTimer       = atk.windFrames;
+  e.atkPitchTarget = atk.pitchWind;
+  e.atkDashDist    = 0;
+  e.atkSlotIdx     = 0;   // slash_rush 複数ヒットインデックスをリセット
+  e.saHp           = (e.superArmor > 0) ? e.superArmor : 0;   // SA を攻撃ごとにリセット
+  e.hitDelivered   = false;
+  e.aiPhase        = 'attack';
+  e._jdPhase       = null;   // jump_dive サブフェーズをリセット（残存マーカー消去）
+  _removeJdMarkers(e);
+}
+
+// cunning の密集回避（14-D-3）：laneReRollTimer 満了ごとに、近接する同レーンの
+// cunning がいれば laneZ を振り直す → cunning 同士が同じ Z レーンに固まらず散開する。
+function _updateLaneZ(e) {
+  if (e.personality !== 'cunning') return;
+  if (--e.laneReRollTimer > 0) return;
+  e.laneReRollTimer = LANE_REROLL_FRAMES;
+  for (const o of _enemies) {
+    if (o === e || !o.isAlive || o.personality !== 'cunning') continue;
+    if (Math.abs(o.laneZ - e.laneZ) < LANE_CLUSTER_Z &&
+        Math.hypot(o.x - e.x, o.z - e.z) < LANE_CLUSTER_DIST) {
+      e.laneZ = (Math.random() * 2 - 1) * LANE_Z_MAX;
+      break;
+    }
+  }
+}
+
+// ============================================================
 //  毎フレーム更新：state machine の遷移はここに集約（down_* / knockback* / bound 等）
 //
-//  ctx = { enemies, enemyAttackToken: { get, set }, getFrame }
-//   - enemyAttackToken: 敵 AI ローテーション用トークン
+//  ctx = { enemies, attackTokens: { melee, aerial, ... }, getFrame }
+//   - attackTokens: カテゴリ別攻撃トークン（melee/aerial 等）
 //   - tryThrownChainHit へ ctx をそのまま渡す
 // ============================================================
 export function updateEnemies(ctx) {
+  if (_attackRelay > 0) _attackRelay--;  // 敵同士の攻撃テンポ待ち（14-D-5）
   for (const e of _enemies) {
     if (!e.isAlive) continue;
+    _updateLaneZ(e);  // cunning の Z レーン振り直し（14-D-3・密集回避）
     // Phase 3：dying タイマー進行（state machine は維持・色フェード/最終フェーズ遷移を回す）
     //   exploded フェーズに入ると mesh が無いので、その時点で本フレームの残処理は skip
     if (e.dying) {
@@ -1566,9 +1977,10 @@ export function updateEnemies(ctx) {
       // Phase 3：被弾→wait01 復帰検出（aiPhase が hitstun のまま wait01 に来た瞬間）→ retreat 発火
       if (e.aiPhase === 'hitstun') {
         e.aiPhase = 'retreat';
-        e.aiRetreatTimer = DUMMY_ATK_CONFIG.postHitRetreatFrames;
+        // brave は retreatMult≈0 で被弾後もすぐ再交戦（前のめり・レイヤー3）
+        e.aiRetreatTimer = Math.round(DUMMY_ATK_CONFIG.postHitRetreatFrames * e.retreatMult);
         // 攻撃中に被弾していた場合のトークン解放（保険）
-        if (ctx.enemyAttackToken.get() === e) ctx.enemyAttackToken.set(null);
+        _clearAllTokens(ctx, e);
         e.atkPhase = null;
         e.hitDelivered = false;
         if (e.atkCooldown < 30) e.atkCooldown = 30;
@@ -1620,9 +2032,10 @@ export function updateEnemies(ctx) {
     // 超吹き飛ばし中（down_super_start/loop）に壁に到達 → 強制 down_wall_start
     //   ※ skipWallCollision フラグ（同コンボ 2 回目以降の super 飛行）は壁張り付きをスキップして
     //     ステージ端の x クランプも無視 → そのまま地面到達で down_roll_start に流す（2026-05-18）
-    //   壁の x は getActiveWallX：画面端追従 or levelWalls 優先（2026-05-18 改修）
-    const wallL = Math.max(PHYSICS.STAGE_LEFT,  getActiveWallX('left'));
-    const wallR = Math.min(PHYSICS.STAGE_RIGHT, getActiveWallX('right'));
+    //   壁の x は getKnockbackWallX：画面端ベースの封じ込め壁（2026-05-21 改修）。
+    //   敵が画面外へ長距離吹き飛ばないよう、進行ステージでも画面端側で止める。
+    const wallL = Math.max(PHYSICS.STAGE_LEFT,  getKnockbackWallX('left'));
+    const wallR = Math.min(PHYSICS.STAGE_RIGHT, getKnockbackWallX('right'));
     const hitLeft  = e.x < wallL;
     const hitRight = e.x > wallR;
     if ((hitLeft || hitRight) && !e.skipWallCollision) {
@@ -1673,7 +2086,13 @@ export function updateEnemies(ctx) {
       let myStrength = 0;
       const s = e.state;
       if (s === STATE.enemy_attacking) myStrength = 2.5;
+      // 走行（dash）はダッシュ追跡で速く動くため分離も強め（Z 方向に散らして重なり回避）
+      else if (s === STATE.dash) myStrength = 3.0;
       else if (s === STATE.wait01 || s === STATE.walk_fwd || s === STATE.walk_back) myStrength = 1.5;
+      // 立ち姿勢の防御・リアクション系（短いが重なると見栄えが悪いので分離する）
+      else if (s === STATE.enemy_dodge || s === STATE.enemy_guard ||
+               s === STATE.enemy_block_hit || s === STATE.enemy_stagger ||
+               s === STATE.enraged_intro) myStrength = 1.5;
       else if (s === STATE.knockback01 || s === STATE.knockback02 ||
                s === STATE.knockback_air01 || s === STATE.knockback03 ||
                s === STATE.down_front_start || s === STATE.down_front_loop ||
@@ -1692,7 +2111,9 @@ export function updateEnemies(ctx) {
           // 攻撃中の敵がいたら最小距離を広め・それ以外は最小限（完全密着回避）
           const eitherAttacking = (e.state === STATE.enemy_attacking || other.state === STATE.enemy_attacking);
           const minDx = eitherAttacking ? 110 : 70;
-          const minDz = 50;
+          // Z 方向の最小距離。狭いと同 X で奥行きが被って「重なって」見えるため広めに取る
+          // （90 → 敵はプレイヤー前後 ±45 程度に散る・攻撃の rangeZ 80 内に収まり手は届く）
+          const minDz = 90;
           if (adx < minDx && adz < minDz) {
             // X 方向に押す。dx≈0 の場合はランダムで左右どちらかに
             const dxSign = (adx < 0.5) ? (Math.random() < 0.5 ? 1 : -1) : Math.sign(dx);
@@ -1863,7 +2284,7 @@ export function updateEnemies(ctx) {
     // - state===wait01 のときに aiPhase で idle / chase / retreat を切り替え
     // - state===enemy_attacking のとき aiPhase='attack'（atkPhase が細部を制御）
     // - 被弾系 state（stun ラベル）は上部の同期で自動設定済
-    // ローテーション攻撃：enemyAttackToken を取得した敵だけが attacking に遷移可能。
+    // ローテーション攻撃：attackTokens のカテゴリ枠を取得した敵だけが attacking に遷移可能。
     // 被弾中追撃禁止：プレイヤーが isHitstunState の間は新規 attacking 遷移しない。
     // === 診断：黒くなった非 dying 敵が歩いてくるバグ調査（2026-05-18）===
     //   1 体ごとに 1 回だけ警告（_darkWarned）。診断情報を拡充：
@@ -1906,8 +2327,10 @@ export function updateEnemies(ctx) {
       const p0 = _players[0];
       const playerInHitstun = isHitstunState(p0);
       if (e.atkCooldown > 0) e.atkCooldown--;
-      if (e.state === STATE.wait01 || e.state === STATE.walk_fwd || e.state === STATE.walk_back) {
+      if (e.state === STATE.wait01 || e.state === STATE.walk_fwd ||
+          e.state === STATE.walk_back || e.state === STATE.dash) {
         const _x0 = e.x, _z0 = e.z;  // 移動 state 判定用：AI 移動前の座標を退避（#14-A）
+        let _chaseDash = false;      // 遠間合いの走行（state=dash）フラグ（14-D-2）
         const dx = p0.x - e.x;
         const dz = p0.z - e.z;
         const adx = Math.abs(dx);
@@ -1922,8 +2345,10 @@ export function updateEnemies(ctx) {
         //   被弾時 RNG ではなく「攻撃を検知して先に防御へ入る」確率（先出し＝読ませる）。
         //   1 プレイヤー攻撃につき 1 回だけ判定（_reactArmed）。
         let _reacted = false;
-        // 興奮トリガー（#14-C）：HP が閾値以下で 1 度だけ enraged 化 → enraged_intro モーション
-        if (!e.enraged && e.hp > 0 && e.hp <= e.maxHp * e.enragedHp) {
+        // 興奮トリガー（#14-C）：HP が閾値以下で 1 度だけ enraged 化 → enraged_intro モーション。
+        //   berserker（midboss01）は HP% では興奮せず、盾破壊（triggerShieldBreak）でのみ enraged 化する。
+        if (ENEMY_ENRAGE_CONFIG.ENABLE_HP_ENRAGE && e.personality !== 'berserker' &&
+            !e.enraged && e.hp > 0 && e.hp <= e.maxHp * e.enragedHp) {
           e.enraged   = true;
           e.state     = STATE.enraged_intro;
           e.downTimer = ENEMY_ENRAGE_CONFIG.INTRO_FRAMES;
@@ -1949,6 +2374,20 @@ export function updateEnemies(ctx) {
             e.kbDecay       = ENEMY_REACT_CONFIG.DODGE_DECAY;
             e.reactCooldown = ENEMY_REACT_CONFIG.REACT_COOLDOWN;
             e.aiPhase       = 'dodge';
+            // cunning レイヤー3：punish-dodge（回避→突進タックル連携）にするか。
+            //   トークンを確保できた時だけ punish 化＝回避中にトークンを予約し、
+            //   回避完了後のタックルを確実に出す（他敵が攻撃中なら通常回避に留める）。
+            // punish-dodge 予約：突進タックルは melee カテゴリなので melee トークンを確認
+            const _meleeTok = ctx.attackTokens && ctx.attackTokens.melee;
+            const _tk = _meleeTok ? _meleeTok.get() : null;
+            if (e.personality === 'cunning' &&
+                Math.random() < ENEMY_REACT_CONFIG.DODGE_PUNISH_CHANCE &&
+                _attackRelay <= 0 && (_tk === null || _tk === e)) {
+              e.dodgePunish = true;
+              if (_meleeTok) _meleeTok.set(e);
+            } else {
+              e.dodgePunish = false;
+            }
             _reacted = true;
           } else if (_r < e.dodgeTendency + e.guardTendency) {
             // ガード：構えに入る（前面 lv≤3 のヒットは hit-engine で enemy_block_hit に降格）
@@ -1972,60 +2411,127 @@ export function updateEnemies(ctx) {
             }
             // Z 軸はそのまま（前後ジリジリ感を保つ）
           } else {
-            // タイマー満了 → 距離で再判定（次フレームで chase / idle へ）
-            e.aiPhase = (adx < DUMMY_ATK_CONFIG.approachRange && adz < DUMMY_ATK_CONFIG.approachRange)
-              ? 'chase' : 'idle';
+            // タイマー満了 → X 距離で再判定（Z は chase 中に別途追従するので含めない）
+            e.aiPhase = (adx < DUMMY_ATK_CONFIG.approachRange) ? 'chase' : 'idle';
           }
         } else {
-          // === idle / chase 判定 + 接近・攻撃発動 ===
-          const inRange = (adx < DUMMY_ATK_CONFIG.approachRange && adz < DUMMY_ATK_CONFIG.approachRange);
-          if (!inRange) {
-            e.aiPhase = 'idle';
-          } else {
-            e.aiPhase = 'chase';
-            // 攻撃発動条件：距離 + cooldown + 接地 + 「トークン取得可」+ 「プレイヤー被弾中でない」
-            const inAttackRange = (adx <= DUMMY_ATK_CONFIG.attackRange && adz < 100 && e.atkCooldown <= 0 && e.y <= ENEMY_AIRBORNE_Y_THRESHOLD);
-            const curToken = ctx.enemyAttackToken.get();
-            const tokenAvailable = (curToken === null || curToken === e);
-            if (inAttackRange && tokenAvailable && !playerInHitstun) {
-              // 攻撃発動：トークン取得 + 攻撃 state へ遷移
-              ctx.enemyAttackToken.set(e);
-              e.state         = STATE.enemy_attacking;
-              e.atkPhase      = 'wind';
-              e.atkTimer      = DUMMY_ATK_CONFIG.windupFrames;
-              e.hitDelivered  = false;
-              e.aiPhase       = 'attack';
+          // === ダッシュ追跡（14-D-4）+ idle / chase 判定 + 接近・攻撃発動 ===
+          const C = DUMMY_ATK_CONFIG;
+          // 遭遇フラグ：一度でも approachRange 内に入ったら立てる
+          if (!e.encountered && adx < C.approachRange) e.encountered = true;
+          // ダッシュ追跡の状態更新（遭遇済みのみ）：自機が approachRange 外へ離れたら
+          //   ワンテンポ置いてダッシュ開始。dashChaseStop まで詰めたら終了。
+          if (e.encountered) {
+            if (e.dashChasing) {
+              if (adx <= C.dashChaseStop) e.dashChasing = false;
+            } else if (adx > C.approachRange) {
+              if (e.dashChaseBeat < 0)      e.dashChaseBeat = C.dashChaseBeat;  // 武装
+              else if (e.dashChaseBeat > 0) e.dashChaseBeat--;                  // ワンテンポ消化
+              else { e.dashChasing = true; e.dashChaseBeat = -1; }              // ダッシュ開始
             } else {
-              // 接近移動（X / Z 両軸・Z は 2.5D 圧縮考慮で 0.7 倍）
-              // トークン不所持でも接近は OK（位置取り）。興奮中は接近速度上昇（#14-C）
-              const _appSpd = DUMMY_ATK_CONFIG.approachSpeed *
-                (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
-              if (adx > DUMMY_ATK_CONFIG.attackRange) {
-                e.x += Math.sign(dx) * _appSpd;
+              e.dashChaseBeat = -1;  // approachRange 内に戻った → 武装解除
+            }
+          }
+
+          if (e.dashChasing) {
+            // ダッシュ追跡中：自機方向へ高速移動（state=dash は移動量反映ブロックが付与）
+            e.aiPhase = 'chase';
+            _chaseDash = true;
+            const _ds = C.dashChaseSpeed * (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
+            e.x += Math.sign(dx) * _ds;
+            if (adz > 80) {
+              const _zSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * C.zChaseFactor;
+              e.z += Math.sign(dz) * Math.min(_zSpd, adz);
+            }
+          } else if (e.dashChaseBeat >= 0) {
+            // ワンテンポ待機中：その場で「溜め」（移動せず・move-state 反映で wait01）
+            e.aiPhase = 'chase';
+          } else {
+            // === 通常 idle / chase 判定 + 接近・攻撃発動 ===
+            // X 距離のみで判定（Z は chase 中に追従する。X 近・Z 遠でも idle にしない）
+            const inRange = (adx < C.approachRange);
+            if (!inRange) {
+              e.aiPhase = 'idle';
+            } else {
+              e.aiPhase = 'chase';
+              // 攻撃発動条件：距離（基本振り/タックルの圏内）+ cooldown + relay + 接地。
+              //   性格 punishesHitstun（brave）はプレイヤー被弾中でも攻撃可＝追撃確定（レイヤー3）
+              //   トークンチェックは攻撃種別が確定してからカテゴリ別に行う（変更3d）
+              // ガードカウンター（midboss01 専用）: 盾ブロック累積が閾値に達したら即反撃
+              //   cooldown / relay を無視して発動（プレイヤーへのペナルティ）
+              const _isGuardCounter = (e.guardCounterArmed ?? false) && e.enemyType === 'midboss01';
+              if (_isGuardCounter) {
+                e.guardCounterArmed = false;
+                e.shieldBlockCount  = 0;
+                e._blockDecayTimer  = 0;
               }
-              if (adz > 80) {  // active ヒットの rangeZ 圏内まで詰める
-                e.z += Math.sign(dz) * _appSpd * 0.7;
+              const basicCanAttack = _isGuardCounter || (adz < 100 && e.atkCooldown <= 0 && _attackRelay <= 0 &&
+                e.y <= ENEMY_AIRBORNE_Y_THRESHOLD && (!playerInHitstun || e.punishesHitstun));
+              const atkId = basicCanAttack
+                ? (_isGuardCounter ? 'mb01_atk_gc' : _selectEnemyAtk(e, adx))
+                : null;
+              if (atkId) {
+                const _atkDef = ENEMY_ATTACKS[atkId];
+                const _cat = _atkDef.attackCategory ?? 'melee';
+                const _catTok = ctx.attackTokens[_cat];
+                const tokenAvailable = !_catTok || _catTok.get() === null || _catTok.get() === e;
+                if (tokenAvailable) {
+                  // 攻撃発動（14-D-2：距離で振り/タックル選択）
+                  _beginEnemyAttack(e, atkId, ctx);
+                }
+              } else {
+                // 接近移動（歩き速度・X / Z 両軸）。興奮中は接近速度上昇（#14-C）
+                const _appSpd = C.approachSpeed * (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
+                if (e.enemyType === 'enem02') {
+                  // enem02 後方待機型：自分から前線に詰めない。
+                  //   極端に遠い場合（> approachRange × 1.5）のみゆっくり詰め（攻撃圏に入るため）。
+                  //   それ以下の距離では静止してジャンプダイブを狙う。
+                  //   プレイヤーが接近してきたら _selectEnemyAtk がダッシュで追い払う。
+                  const _e02FarLimit = C.approachRange * 1.5;  // 600wu
+                  if (adx > _e02FarLimit) {
+                    e.x += Math.sign(dx) * _appSpd * 0.4;
+                  }
+                } else {
+                  if (adx > C.attackRange) {
+                    e.x += Math.sign(dx) * _appSpd;
+                  }
+                }
+                // Z 追従（enem02 含む全タイプ共通）
+                // cunning は laneZ ぶんずらした位置を狙って散開（14-D-3 密集回避）。
+                const _goalZ  = p0.z + e.laneZ;
+                const _laneDz = (e.personality === 'cunning') ? LANE_HOMING_DEADZONE : 80;
+                const _dzGoal = _goalZ - e.z;
+                if (Math.abs(_dzGoal) > _laneDz) {
+                  const _zSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * C.zChaseFactor;
+                  e.z += Math.sign(_dzGoal) * Math.min(_zSpd, Math.abs(_dzGoal));
+                }
+                // 攻撃圏内だが token 不可 / cooldown 中 → その場で待機（ジリジリ感）
               }
-              // attackRange 内だが token 不可 / player 被弾中 → その場で待機（ジリジリ感）
             }
           }
         }
-        // 移動 state 反映（#14-A）：AI で動いていれば walk_fwd/back、停止なら wait01。
-        //   攻撃発動で enemy_attacking へ遷移済みのときは触らない。
-        if (e.state === STATE.wait01 || e.state === STATE.walk_fwd || e.state === STATE.walk_back) {
+        // 移動 state 反映（#14-A / 14-D-2）：AI で動いていれば dash/walk_fwd/walk_back、
+        //   停止なら wait01。攻撃発動で enemy_attacking へ遷移済みのときは触らない。
+        if (e.state === STATE.wait01 || e.state === STATE.walk_fwd ||
+            e.state === STATE.walk_back || e.state === STATE.dash) {
           const _dxm = e.x - _x0;
           if (_dxm === 0 && e.z === _z0) {
             e.state = STATE.wait01;
           } else {
             const _toward = Math.sign(_dxm) === Math.sign(p0.x - _x0);
-            e.state = (_dxm !== 0 && !_toward) ? STATE.walk_back : STATE.walk_fwd;
+            if (_dxm !== 0 && !_toward) {
+              e.state = STATE.walk_back;
+            } else {
+              e.state = _chaseDash ? STATE.dash : STATE.walk_fwd;
+            }
           }
         }
       } else if (e.state === STATE.enemy_attacking) {
         e.aiPhase = 'attack';
+        const atk = ENEMY_ATTACKS[e.curAtkId] ?? ENEMY_ATTACKS.e01_atk_01;
         e.atkTimer--;
         if (e.atkPhase === 'wind') {
-          // カウントダウン中もプレイヤーに追従（向き合わせ + X/Z 両軸で詰める）
+          // 溜め中もプレイヤーに追従（向き合わせ + X/Z 両軸で詰める）
           const dx = p0.x - e.x;
           const dz = p0.z - e.z;
           const adx = Math.abs(dx);
@@ -2034,52 +2540,256 @@ export function updateEnemies(ctx) {
             e.facing = dx > 0 ? 1 : -1;
             e.mesh.rotation.y = e.facing * Math.PI / 2;
           }
-          // 距離が attackRange より外なら少しずつ追う（カウントダウン中の追跡速度は控えめ）
-          if (adx > DUMMY_ATK_CONFIG.attackRange * 0.75) {
-            e.x += Math.sign(dx) * DUMMY_ATK_CONFIG.approachSpeed * 0.6;
+          if (atk.kind === 'jump_dive') {
+            // jump_dive 溜め：完全静止。向きだけ維持（追跡はジャンプ後の照準フェーズで行う）
+            const windProg = 1.0 - (e.atkTimer / atk.windFrames);  // 0→1
+            e._chargeT = windProg;  // hitFlash 上書き対策用に保存
+            if (e.mesh) {
+              e.mesh.scale.y = 1.0 - windProg * 0.40;  // 1.0→0.60（しゃがみ）
+              _setMeshChargeColor(e, windProg);          // 基本色→黄色へ漸変（チャージ予兆）
+            }
+            // 移動なし（静止）
+          } else {
+            // 通常攻撃の溜め：プレイヤーへ追従（向き合わせ + X/Z 詰め）
+            // 距離が attackRange より外なら少しずつ追う（溜め中の追跡速度は控えめ）
+            if (adx > DUMMY_ATK_CONFIG.attackRange * 0.75) {
+              e.x += Math.sign(dx) * DUMMY_ATK_CONFIG.approachSpeed * 0.6;
+            }
+            // Z 追従：active で当てるため、溜め中にプレイヤー Z へしっかり寄せる。
+            if (adz > 30) {
+              const _wzSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * DUMMY_ATK_CONFIG.zChaseFactor;
+              e.z += Math.sign(dz) * Math.min(_wzSpd, adz);
+            }
           }
-          if (adz > 80) {  // Z 軸も詰める（active 判定の rangeZ 圏内に）
-            e.z += Math.sign(dz) * DUMMY_ATK_CONFIG.approachSpeed * 0.6 * 0.7;
-          }
-          // approachRange を完全に超えたらキャンセルして wait01 復帰（X / Z 共通）
-          if (adx > DUMMY_ATK_CONFIG.approachRange || adz > DUMMY_ATK_CONFIG.approachRange) {
+          // approachRange を完全に超えたらキャンセルして wait01 復帰（jump_dive は発動後キャンセルしない）
+          if (atk.kind !== 'jump_dive' &&
+              (adx > DUMMY_ATK_CONFIG.approachRange || adz > DUMMY_ATK_CONFIG.approachRange)) {
             e.state         = STATE.wait01;
             e.atkPhase      = null;
             e.atkCooldown   = 30;
             e.hitDelivered  = false;
             e.aiPhase       = 'idle';  // wind キャンセル → 次F に距離再判定
-            if (ctx.enemyAttackToken.get() === e) ctx.enemyAttackToken.set(null);  // トークン解放
+            _clearAllTokens(ctx, e);  // トークン解放
+            if (e.mesh) e.mesh.scale.y = 1.0;
+            e._chargeT = 0;
+            _setMeshChargeColor(e, 0);  // 黄色発光リセット
+            _removeJdMarkers(e);
           } else if (e.atkTimer <= 0) {
-            e.atkPhase = 'active';
-            e.atkTimer = DUMMY_ATK_CONFIG.activeFrames;
-            // カウントダウン終了 → アクティブ：踏み込み
-            e.x += e.facing * 8;
-          }
-        } else if (e.atkPhase === 'active') {
-          if (!e.hitDelivered) {
-            if (tryHitPlayer(e, DUMMY_ATK_CONFIG)) {
-              e.hitDelivered = true;
+            e.atkPhase       = 'active';
+            e.atkTimer       = atk.activeFrames;
+            e.atkDashDist    = 0;
+            // 溜め終了 → アクティブ：踏み込み + 振りは即スナップ（打撃感）
+            e.atkPitchTarget = atk.pitchActive;
+            e.pitchAngle     = atk.pitchActive;
+            if (atk.kind === 'jump_dive') {
+              e._jdPhase     = 'launch';
+              e.vy           = atk.jumpVy ?? 35;
+              e._chargeT     = 0;
+              if (e.mesh) e.mesh.scale.y = 1.0;  // しゃがみ解除
+              _setMeshChargeColor(e, 0);           // 黄色発光リセット（ジャンプ開始）
+            } else {
+              e.x += e.facing * (atk.lungeVx ?? 0);  // 突進タックル（dash）は lungeVx 無し
             }
           }
-          if (e.atkTimer <= 0) {
-            e.atkPhase = 'recover';
-            e.atkTimer = DUMMY_ATK_CONFIG.recoverFrames;
+        } else if (e.atkPhase === 'active') {
+          if (atk.kind === 'dash') {
+            // 突進タックル：facing 方向へ dashSpeed で前進。
+            //   終了条件＝ヒット成立 / 壁で停止 / dashMaxDist 到達 / activeFrames フォールバック
+            const wallL = Math.max(PHYSICS.STAGE_LEFT,  getActiveWallX('left'));
+            const wallR = Math.min(PHYSICS.STAGE_RIGHT, getActiveWallX('right'));
+            const step  = atk.dashSpeed;
+            const nx    = Math.min(wallR, Math.max(wallL, e.x + e.facing * step));
+            const moved = Math.abs(nx - e.x);
+            e.x = nx;
+            e.atkDashDist += moved;
+            let dashEnd = false;
+            if (!e.hitDelivered && tryHitPlayer(e, atk)) { e.hitDelivered = true; dashEnd = true; }
+            if (moved < step * 0.5)               dashEnd = true;  // 壁で停止
+            if (e.atkDashDist >= atk.dashMaxDist) dashEnd = true;  // 最大距離到達
+            if (e.atkTimer <= 0)                  dashEnd = true;  // 持続F フォールバック
+            if (dashEnd) {
+              e.atkPhase       = 'recover';
+              e.atkTimer       = atk.recoverFrames;
+              e.atkPitchTarget = 0;
+            }
+          } else if (atk.kind === 'hop_strike') {
+            // 小ジャンプ攻撃：短いホップで前進→空中でヒット→着地でリカバリー
+            if (!e._hopLaunched) {
+              e._hopLaunched = true;
+              e._hopAirborne = false;
+              e.vy           = atk.hopVy ?? 10;
+            }
+            // 水平移動（前方向に進む）
+            const _hspd = atk.dashSpeed ?? 9;
+            e.x += e.facing * _hspd;
+            e.atkDashDist += _hspd;
+            if (e.y > 0) e._hopAirborne = true;
+            // 空中でヒット判定（1 回のみ）
+            if (!e.hitDelivered && e._hopAirborne) {
+              if (tryHitPlayer(e, atk)) e.hitDelivered = true;
+            }
+            // 着地またはタイムアウトでリカバリー
+            const _hopEnd = (e._hopAirborne && e.y <= 0)
+              || e.atkDashDist >= (atk.dashMaxDist ?? 200)
+              || e.atkTimer <= 0;
+            if (_hopEnd) {
+              e.y = 0; e.vy = 0;
+              e._hopLaunched   = false;
+              e._hopAirborne   = false;
+              e.atkPhase       = 'recover';
+              e.atkTimer       = atk.recoverFrames;
+              e.atkPitchTarget = 0;
+            }
+          } else if (atk.kind === 'jump_dive') {
+            const _jdp = e._jdPhase;
+            if (_jdp === 'launch') {
+              // 上昇中：頂点付近（vy≤2）で照準フェーズへ移行
+              if (e.vy <= 2) {
+                e._jdPhase       = 'aim';
+                e.repulseWindow  = true;   // リパルスカウンター受付開始
+                e._jdHoldY       = e.y;
+                e._jdAimTimer    = atk.aimFrames ?? 80;
+                const _p = _players && _players[0];
+                e._jdTargetX  = _p ? _p.x : e.x;
+                e._jdTargetZ  = _p ? _p.z : e.z;
+                _spawnJdMarkers(e, atk, e._jdTargetX, e._jdTargetZ);
+              }
+            } else if (_jdp === 'aim') {
+              // aim 中に被弾したら攻撃キャンセル → recover へ（AOE も消去）
+              if (e.hitFlashTimer > 0) {
+                e.atkPhase       = 'recover';
+                e.atkTimer       = atk.recoverFrames;
+                e.atkPitchTarget = 0;
+                e._jdPhase       = null;
+                e.repulseWindow  = false;  // リパルスカウンター受付終了（被弾キャンセル）
+                e._chargeT       = 0;
+                _clearAllTokens(ctx, e);
+              } else {
+              // 照準フェーズ：空中位置凍結（物理を上書き）+ 二次リング収束 + プレイヤー追尾
+              e.y  = e._jdHoldY;
+              e.vy = 0;
+              const t = --e._jdAimTimer / (atk.aimFrames ?? 80);  // 1.0→0.0
+              _updateJdRing(e, atk, Math.max(0, t));
+              // aim 中はプレイヤーを追尾（AOE・リングも一緒に移動）lerp 0.1 で遅れ追従
+              const _aimP = _players && _players[0];
+              if (_aimP) {
+                e._jdTargetX += (_aimP.x - e._jdTargetX) * 0.05;
+                e._jdTargetZ += (_aimP.z - e._jdTargetZ) * 0.05;
+                if (e._jdAoeMesh) {
+                  e._jdAoeMesh.position.x += (_aimP.x - e._jdAoeMesh.position.x) * 0.05;
+                  e._jdAoeMesh.position.z += (_aimP.z - e._jdAoeMesh.position.z) * 0.05;
+                }
+                if (e._jdRingMesh) {
+                  e._jdRingMesh.position.x += (_aimP.x - e._jdRingMesh.position.x) * 0.05;
+                  e._jdRingMesh.position.z += (_aimP.z - e._jdRingMesh.position.z) * 0.05;
+                }
+              }
+              if (e._jdAimTimer <= 0) {
+                // 急降下開始（この瞬間 _jdTargetX/Z が確定・追尾解除）
+                e._jdPhase      = 'dive';
+                e.repulseWindow = false;  // リパルスカウンター受付終了（降下開始）
+                _removeJdMarkers(e);
+              }
+              } // end else (no hitFlash)
+            } else if (_jdp === 'dive') {
+              // 超高速降下：物理を無視して直接 Y を更新
+              e.x  = e._jdTargetX;
+              e.z  = e._jdTargetZ;
+              const _dspd = atk.diveSpeed ?? 80;
+              e.y  = Math.max(0, e.y - _dspd);
+              e.vy = -_dspd;
+              if (!e.hitDelivered && e.y <= (atk.hitboxRangeY / 2)) {
+                if (tryHitPlayer(e, atk)) e.hitDelivered = true;
+              }
+              if (e.y <= 0) {
+                e.y = 0; e.vy = 0;
+                e.atkPhase       = 'recover';
+                e.atkTimer       = atk.recoverFrames + 60;  // +60F しゃがみ硬直（隙・反撃猶予）
+                e.atkPitchTarget = 0;
+                if (e.mesh) e.mesh.scale.y = 0.60;  // 着地しゃがみポーズ
+              }
+            } else {
+              // フォールバック：_jdPhase が null のまま active に入った場合
+              e._jdPhase = 'launch';
+              e.vy = atk.jumpVy ?? 35;
+            }
+            // タイムアウト保険
+            if (e.atkTimer <= 0 && e.atkPhase === 'active') {
+              _removeJdMarkers(e);
+              e.y = 0; e.vy = 0;
+              e.atkPhase       = 'recover';
+              e.atkTimer       = atk.recoverFrames + 60;  // +60F しゃがみ硬直
+              e.atkPitchTarget = 0;
+              if (e.mesh) e.mesh.scale.y = 0.60;
+            }
+          } else if (atk.kind === 'slash_rush') {
+            // マチェットラッシュ：突進しながら hitSlots 定義の複数フレームで当たり判定。
+            //   突進自体は無攻撃。各スロットは atkSlotIdx で管理（hitDelivered 非使用）。
+            const wallL = Math.max(PHYSICS.STAGE_LEFT,  getActiveWallX('left'));
+            const wallR = Math.min(PHYSICS.STAGE_RIGHT, getActiveWallX('right'));
+            const _step  = atk.dashSpeed ?? 5;
+            const _nx    = Math.min(wallR, Math.max(wallL, e.x + e.facing * _step));
+            const _moved = Math.abs(_nx - e.x);
+            e.x = _nx;
+            e.atkDashDist += _moved;
+            // 経過フレーム数に応じて hitSlots を順番に発火
+            const _elapsed = atk.activeFrames - e.atkTimer;
+            const _slots   = atk.hitSlots ?? [];
+            while ((e.atkSlotIdx ?? 0) < _slots.length &&
+                   _elapsed >= _slots[e.atkSlotIdx ?? 0].frame) {
+              const _slot    = _slots[e.atkSlotIdx];
+              const _slotAtk = Object.assign({}, atk, _slot);
+              tryHitPlayer(e, _slotAtk);
+              e.slashHitFlash = 6;   // hitbox フラッシュ表示（6F）
+              e.atkSlotIdx = (e.atkSlotIdx ?? 0) + 1;
+            }
+            const _rushEnd = e.atkTimer <= 0
+                          || e.atkDashDist >= (atk.dashMaxDist ?? 500)
+                          || _moved < _step * 0.5;
+            if (_rushEnd) {
+              e.atkPhase       = 'recover';
+              e.atkTimer       = atk.recoverFrames;
+              e.atkPitchTarget = 0;
+              e.atkSlotIdx     = 0;
+            }
+          } else {
+            // その場振り：active 中ずっとヒット判定（1 ヒットのみ）
+            if (!e.hitDelivered) {
+              if (tryHitPlayer(e, atk)) {
+                e.hitDelivered = true;
+              }
+            }
+            if (e.atkTimer <= 0) {
+              e.atkPhase       = 'recover';
+              e.atkTimer       = atk.recoverFrames;
+              e.atkPitchTarget = 0;   // recover：直立へ戻す
+            }
           }
         } else if (e.atkPhase === 'recover') {
           if (e.atkTimer <= 0) {
             e.state         = STATE.wait01;
             e.atkPhase      = null;
-            // 興奮中は攻撃クールダウン短縮（攻撃頻度↑・#14-C）
-            e.atkCooldown   = Math.round(DUMMY_ATK_CONFIG.cooldownFrames *
+            // 攻撃クールダウン：性格 cooldownMult（brave 短い）× 興奮短縮（#14-C）
+            e.atkCooldown   = Math.round(atk.cooldownFrames * e.cooldownMult *
               (e.enraged ? ENEMY_ENRAGE_CONFIG.COOLDOWN_MULT : 1));
             e.hitDelivered  = false;
-            // Phase 3：recover 完了 → retreat フェーズへ
+            // Phase 3：recover 完了 → retreat フェーズへ（brave は retreatMult≈0 で退却拒否）
             e.aiPhase       = 'retreat';
-            e.aiRetreatTimer = DUMMY_ATK_CONFIG.retreatFrames;
-            if (ctx.enemyAttackToken.get() === e) ctx.enemyAttackToken.set(null);  // トークン解放
+            e.aiRetreatTimer = Math.round(DUMMY_ATK_CONFIG.retreatFrames * e.retreatMult);
+            _clearAllTokens(ctx, e);  // トークン解放
+            // 敵同士の攻撃テンポ（14-D-5）：次の攻撃まで「見合う」間をばらつき付きで確保
+            _attackRelay = Math.round(ENEMY_ATTACK_RELAY.BASE *
+              (1 + (Math.random() * 2 - 1) * ENEMY_ATTACK_RELAY.VARIANCE));
+            if (e.mesh) e.mesh.scale.y = 1.0;  // スケール安全リセット
           }
         }
       }
+    }
+
+    // AOE マーカーリーク防止（被弾・死亡等で aim フェーズを抜けた場合に残存マーカーを消去）
+    if ((e._jdAoeMesh || e._jdRingMesh) &&
+        !(e.state === STATE.enemy_attacking && e.atkPhase === 'active' && e._jdPhase === 'aim')) {
+      _removeJdMarkers(e);
     }
 
     // ステータス系：status_stun のタイマー駆動（duration 経過で wait01）
@@ -2155,7 +2865,25 @@ export function updateEnemies(ctx) {
       // バックステップ回避（#14-B）：水平移動は共通 KB ブロックが担当。前半のみ無敵。
       e.downTimer--;
       if (e.downTimer <= ENEMY_DODGE_FRAMES - ENEMY_DODGE_INVULN) e.dodgeInvuln = false;
-      if (e.downTimer <= 0) { e.state = STATE.wait01; e.dodgeInvuln = false; }
+      if (e.downTimer <= 0) {
+        e.dodgeInvuln = false;
+        // cunning レイヤー3：punish-dodge は回避完了直後に突進タックルへ連携（隙突き）。
+        //   突進タックルは melee カテゴリなので melee トークンが空いている時のみ発動。
+        const _meleeTok2 = ctx.attackTokens && ctx.attackTokens.melee;
+        const _tk = _meleeTok2 ? _meleeTok2.get() : null;
+        if (e.dodgePunish && (_tk === null || _tk === e)) {
+          const _p = _players[0];
+          if (_p && _p.x !== e.x) {  // 突進前にプレイヤー方向へ向き直す
+            e.facing = _p.x > e.x ? 1 : -1;
+            e.mesh.rotation.y = e.facing * Math.PI / 2;
+          }
+          const _punishAtkId = (e.enemyType === 'enem02') ? 'e02_atk_01' : 'e01_atk_02';
+          _beginEnemyAttack(e, _punishAtkId, ctx);
+        } else {
+          e.state = STATE.wait01;
+        }
+        e.dodgePunish = false;
+      }
     } else if (e.state === STATE.enemy_guard) {
       // ガード姿勢を保持 → タイマー満了で wait01（ガード成立処理は hit-engine 側）
       if (--e.downTimer <= 0) e.state = STATE.wait01;
@@ -2328,6 +3056,11 @@ export function updateEnemies(ctx) {
       // あおむけ姿勢（lv05 系）：X 軸で背中を下に向ける
       e.mesh.rotation.x = -Math.PI / 2;
       e.pitchAngle = 0;
+    } else if (e.state === STATE.enemy_attacking) {
+      // 攻撃モーション（14-D）：atkPhase 別に設定した atkPitchTarget へ前後傾を補間。
+      //   wind=溜めの予兆／active=前傾の踏み込み（active 突入で即スナップ済）／recover=直立へ。
+      e.pitchAngle += (e.atkPitchTarget - e.pitchAngle) * STATE_PITCH_LERP;
+      e.mesh.rotation.x = e.pitchAngle;
     } else if (STATE_PITCH_TARGET[e.state] !== undefined) {
       // pitch system 対象ステート（knockback01/02/_air01）：rx 駆動の前後傾
       const pitchTarget = STATE_PITCH_TARGET[e.state];
@@ -2350,52 +3083,56 @@ export function updateEnemies(ctx) {
       e.mesh.position.z = e.z;
     }
 
-    // ヒットフラッシュ（2026-05-20 緑配色対応：元色 0x2d4a22 / 0x77aa55）
-    //   2026-05-20：detach 済（parent !== e.mesh）の part には書き込まない
-    //   → MeshBasicMaterial(0x000000) で上書き済の飛翔中パーツが緑に戻ってしまうバグ対策
+    // ヒットフラッシュ（敵種ごとの元色を mesh.userData.baseColors から取得）
+    //   detach 済（parent !== e.mesh）の part には書き込まない
+    //   → MeshBasicMaterial(0x000000) で上書き済の飛翔中パーツが元色に戻るのを防止
     const _body = e.mesh.userData.parts.body;
     const _head = e.mesh.userData.parts.head;
     const _bodyAtt = _body && _body.parent === e.mesh;
     const _headAtt = _head && _head.parent === e.mesh;
+    const _bc = e.mesh.userData.baseColors ?? { body: 0x2d4a22, head: 0x77aa55 };
+    const _bR = ((_bc.body >> 16) & 0xff) / 255;
+    const _bG = ((_bc.body >>  8) & 0xff) / 255;
+    const _bB = ( _bc.body        & 0xff) / 255;
+    const _hR = ((_bc.head >> 16) & 0xff) / 255;
+    const _hG = ((_bc.head >>  8) & 0xff) / 255;
+    const _hB = ( _bc.head        & 0xff) / 255;
     if (e.hitFlashTimer > 0) {
       e.hitFlashTimer--;
-      const t = e.hitFlashTimer / 7;
-      // body: 0x2d4a22 (0.176, 0.290, 0.133) → flash bright green (0.6, 1.0, 0.4)
+      // 被弾した瞬間にチャージ発光をキャンセル
+      if (e._chargeT > 0) e._chargeT = 0;
+      const t = e.hitFlashTimer / 7;  // 1→0（白 → 元色）
+      if (_bodyAtt) _body.material.color.setRGB(_bR + t*(1-_bR), _bG + t*(1-_bG), _bB + t*(1-_bB));
+      if (_headAtt) _head.material.color.setRGB(_hR + t*(1-_hR), _hG + t*(1-_hG), _hB + t*(1-_hB));
+    } else if (e.enraged && !e.dying) {
+      // berserker enraged: キャラ全体を赤く発光（50% 強度・脈動）
+      const _pulse = 0.45 + Math.sin(e._tick * 0.12) * 0.13;  // 0.32～0.58 で脈動
       if (_bodyAtt) _body.material.color.setRGB(
-        0.176 + t * 0.424, 0.290 + t * 0.710, 0.133 + t * 0.267
-      );
-      // head: 0x77aa55 (0.467, 0.667, 0.333) → flash brighter (0.85, 1.0, 0.55)
+        _bR * (1 - _pulse) + _pulse, _bG * (1 - _pulse), _bB * (1 - _pulse));
       if (_headAtt) _head.material.color.setRGB(
-        0.467 + t * 0.383, 0.667 + t * 0.333, 0.333 + t * 0.217
-      );
+        _hR * (1 - _pulse) + _pulse, _hG * (1 - _pulse), _hB * (1 - _pulse));
     } else {
-      if (_bodyAtt) _body.material.color.setHex(0x2d4a22);
-      if (_headAtt) _head.material.color.setHex(0x77aa55);
+      if (_bodyAtt) _body.material.color.setHex(_bc.body);
+      if (_headAtt) _head.material.color.setHex(_bc.head);
     }
+    // チャージ発光が active な場合は hitFlash の上書きを戻す（最後に書いて勝つ）
+    if (e._chargeT > 0) _setMeshChargeColor(e, e._chargeT);
 
     // きりもみやられ突入フラッシュ：紫を「乗算」で body/head 色に被せる
-    //   元色 (0x2d4a22 / 0x77aa55) × 紫 (0x6622ff) を t=1 とし、t=0 で元色へフェード復帰
-    //   持続は ENEMY_BURST_FLASH_FRAMES = SPECIAL_CONFIG.FLASH_FRAMES * 1.5（紫の余韻を強調）
-    //   トリガは hit-engine.js の down_burst_start 遷移時に burstFlashTimer をセット
+    //   元色 × 紫 (0x6622ff) を t=1 とし、t=0 で元色へフェード復帰（敵種別色対応）
     if (e.burstFlashTimer > 0) {
       e.burstFlashTimer--;
       const t = e.burstFlashTimer / ENEMY_BURST_FLASH_FRAMES;
-      // 元色（2026-05-20 緑配色）
-      const bR = 0x2d/255, bG = 0x4a/255, bB = 0x22/255;
-      const hR = 0x77/255, hG = 0xaa/255, hB = 0x55/255;
-      // 紫乗算後
-      const bMr = bR * PURPLE_R, bMg = bG * PURPLE_G, bMb = bB * PURPLE_B;
-      const hMr = hR * PURPLE_R, hMg = hG * PURPLE_G, hMb = hB * PURPLE_B;
-      // lerp: t=1 紫乗算 / t=0 元色 — detach 済パーツには書き込まない
+      const bMr = _bR * PURPLE_R, bMg = _bG * PURPLE_G, bMb = _bB * PURPLE_B;
+      const hMr = _hR * PURPLE_R, hMg = _hG * PURPLE_G, hMb = _hB * PURPLE_B;
       if (_bodyAtt) _body.material.color.setRGB(
-        bR + (bMr - bR) * t, bG + (bMg - bG) * t, bB + (bMb - bB) * t,
+        _bR + (bMr - _bR) * t, _bG + (bMg - _bG) * t, _bB + (bMb - _bB) * t,
       );
       if (_headAtt) _head.material.color.setRGB(
-        hR + (hMr - hR) * t, hG + (hMg - hG) * t, hB + (hMb - hB) * t,
+        _hR + (hMr - _hR) * t, _hG + (hMg - _hG) * t, _hB + (hMb - _hB) * t,
       );
       e._burstFlashWasOn = true;
     } else if (e._burstFlashWasOn) {
-      // 直後の元色復帰は上の hitFlash else 分岐が毎フレーム行うので追加リセット不要
       e._burstFlashWasOn = false;
     }
     // Phase 3：dying 色オーバーライ（毎フレーム最後・hitFlash/burstFlash 結果を黒へ lerp）
@@ -2432,6 +3169,56 @@ export function updateEnemies(ctx) {
         hpBar.fill.scale.x = Math.max(0, Math.min(1, e.hp / e.maxHp));
       }
     }
+    // フレームカウンタ（赤点滅・赤発光パルスの周期計算用）
+    e._tick = ((e._tick ?? 0) + 1) | 0;
+    if ((e.slashHitFlash ?? 0) > 0) e.slashHitFlash--;
+    // 盾ブロックカウント自然減衰（90F 間ブロックがなければリセット）
+    if (e.enemyType === 'midboss01' && !e.shieldBroken && (e.shieldBlockCount ?? 0) > 0) {
+      e._blockDecayTimer = (e._blockDecayTimer ?? 0) + 1;
+      if (e._blockDecayTimer >= 90) { e.shieldBlockCount = 0; e._blockDecayTimer = 0; }
+    }
+
+    // midboss01 盾 HP 低下時の赤点滅（50% 以下から開始・HP ゼロに近いほど高速）
+    const _shMesh = !e.shieldBroken && e.mesh && e.mesh.userData.shield;
+    if (_shMesh) {
+      if (e.shieldHp < (e.shieldMaxHp ?? 60) * 0.5) {
+        const _ratio = e.shieldHp / (e.shieldMaxHp ?? 60);
+        const _period = Math.max(4, Math.round(4 + _ratio * 28));  // HP0=4F, 50%=18F
+        const _blink  = (e._tick % _period) < Math.round(_period * 0.45);
+        _shMesh.material.color.setHex(_blink ? 0xff3333 : 0xaaaaaa);
+      } else {
+        _shMesh.material.color.setHex(0xaaaaaa);  // 通常色（明グレー）
+      }
+      // ガード時に盾を前に出す（local +Z = 向き方向に押し出す）
+      _shMesh.position.z = ((e.shieldBlockTimer ?? 0) > 0) ? 20 : 0;
+    }
+
+    // midboss01 ガードドーム（通常ガード＝青 / SHIELD BREAK 拡大フェード＝白）
+    const _dome = e.mesh && e.mesh.userData.guardDome;
+    if (_dome) {
+      if ((e.shieldBreakDomeTimer ?? 0) > 0) {
+        // SHIELD BREAK: プレイヤーのガードクラッシュと同系の白拡大フェード
+        e.shieldBreakDomeTimer--;
+        const _t = e.shieldBreakDomeTimer / 18;
+        _dome.visible = true;
+        _dome.position.set(e.x, e.y + 100, e.z);
+        _dome.rotation.y = (e.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+        _dome.scale.setScalar(1 + (1 - _t) * 0.9);
+        _dome.material.color.setHex(0xffffff);
+        _dome.material.opacity = _t * 0.85;
+      } else if ((e.shieldBlockTimer ?? 0) > 0) {
+        // 通常ガード: 青ドーム（プレイヤーのガードシールドと同色）
+        e.shieldBlockTimer--;
+        _dome.visible = true;
+        _dome.position.set(e.x, e.y + 100, e.z);
+        _dome.rotation.y = (e.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
+        _dome.scale.setScalar(1);
+        _dome.material.color.setHex(0x66ccff);
+        _dome.material.opacity = 0.30;
+      } else {
+        _dome.visible = false;
+      }
+    }
   }
   // Phase 3-A：cleanup pass — フェード完了で removed=true の敵を scene + 配列から除去
   //   Phase 3-B（2026-05-20）：mortal モードなら同じ位置に即リスポーン
@@ -2439,6 +3226,7 @@ export function updateEnemies(ctx) {
   for (let i = _enemies.length - 1; i >= 0; i--) {
     if (_enemies[i].removed) {
       const dead = _enemies[i];
+      _removeJdMarkers(dead);   // 照準マーカーが残っていれば除去
       if (dead.mesh) _scene.remove(dead.mesh);
       // HP バー meshes も scene から除去（mesh の子ではないため自動消去されない）
       const _hpBar = dead.mesh && dead.mesh.userData && dead.mesh.userData.hpBar;
@@ -2446,6 +3234,8 @@ export function updateEnemies(ctx) {
         if (_hpBar.bg && _hpBar.bg.parent) _hpBar.bg.parent.remove(_hpBar.bg);
         if (_hpBar.fill && _hpBar.fill.parent) _hpBar.fill.parent.remove(_hpBar.fill);
       }
+      const _gdome = dead.mesh && dead.mesh.userData && dead.mesh.userData.guardDome;
+      if (_gdome && _gdome.parent) _gdome.parent.remove(_gdome);
       // mortal モード時：元の spawn 位置に同条件で復活させる（HP は _spawnOpts.maxHp に従う）
       if (window.SB && window.SB.MORTAL_MODE && dead._spawnX !== undefined) {
         _respawnQueue.push({ x: dead._spawnX, z: dead._spawnZ, opts: dead._spawnOpts });

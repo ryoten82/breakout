@@ -286,40 +286,265 @@ export const GUARD_CONFIG = {
   DAMAGE_MULT:           0.3,  // 受けるダメージ倍率
   HIT_KB_MULT:           0.4,  // 受けるノックバック倍率
   HIT_SP_COST:           8,    // 被弾1回あたり追加 SP 削り
-  CRASH_THRESHOLD:       0,    // この SP 以下になったらクラッシュ
+  CRASH_THRESHOLD:       0,    // この SP 以下になったらクラッシュ（SP 枯渇クラッシュ）
   CRASH_RECOVER_FRAMES:  60,   // ガードクラッシュ硬直
   FRONT_ONLY:            true, // 前方からの攻撃のみガード成立
+  // --- ガード強度システム（14-E）---
+  //  クリーンガードの反動 KB（atk_lv 別・vx。HIT_KB_DECAY 0.82 → 距離 ≒ vx × 5.6）：
+  //  lv1/lv7 弱反動 / lv2 中反動（半キャラ） / lv3 大反動（1キャラ）
+  RECOIL_KB_BY_LV:  { 1: 5, 2: 9, 3: 18, 7: 5 },
+  CRASH_KB_VX:      12,   // ガードクラッシュの大反動（knockback02・約1.5キャラ）
+  CRASH_SP_COST:    10,   // クラッシュ時の SP 消費（0.5 ストック ＝ STOCK_SIZE 20 × 0.5）
+  CRASH_SHIELD_FADE: 16,  // クラッシュ砕け散りアニメのフレーム数（元位置で拡大→消滅）
 };
 
 // ============================================================
-//  #section enemy-ai-dummy — ダミー敵ミニマム攻撃（Phase 2.4・テスト用 AI）
+//  #section enemy-ai-dummy — 雑魚敵 AI の移動・間合いパラメータ（Phase 2.4〜3）
 //  - SB.ENEMY_AI.enabled で全敵 AI をトグル（数字キー 4 で切替）
-//  - 接近 → wind(180F = 3秒カウントダウン) → active(8F) → recover(30F) → cooldown(45F) → 接近...
-//  - wind 中もプレイヤー追跡 / approachRange 超過でキャンセル
-//  - active 中だけ赤 AABB のヒットボックスを可視化（enemyHitboxMesh）
+//  - 接近 → 攻撃（ENEMY_ATTACKS）→ recover → cooldown → retreat → 接近...
+//  - 攻撃モーション・ヒット値は ENEMY_ATTACKS 側（本テーブルは移動・間合いのみ）
 // ============================================================
 export const ENEMY_AI = { enabled: true };
 export const DUMMY_ATK_CONFIG = {
-  approachRange:    400,   // この距離以下で接近開始
-  attackRange:      130,   // この距離以下で攻撃発動
+  approachRange:    400,   // この距離以下で接近開始（aiPhase=chase）。遭遇判定／ダッシュ追跡境界も兼ねる
+  attackRange:      130,   // この距離以下で基本振り（e01_atk_01）発動
+  dashTackleRange:  350,   // attackRange 〜本値の中距離帯で突進タックル（e01_atk_02）発動
+  atkSelectOverlap: 24,    // 近/中の境界に設ける重なり帯の幅（ここだけ性格 weight で抽選）
   approachSpeed:    1.4,   // 接近移動速度（wu/F）
-  windupFrames:     180,   // カウントダウン 3,2,1（60F/秒 × 3秒）
-  activeFrames:     8,     // 当たり判定アクティブ
-  recoverFrames:    30,    // 振り終わり硬直
-  cooldownFrames:   45,    // 攻撃終了 → 次の攻撃までのインターバル
-  hitboxRangeX:     110,
-  hitboxRangeY:     90,
-  hitboxRangeZ:     80,
-  damage:           10,
-  atk_lv:           1,
-  knockback:        12,
-  hitstop:          5,
-  shake:            4,
-  hitColor:         0xff8844,
+  zChaseFactor:     0.6,   // Z 追従速度のプレイヤー比（SPEED×Z_SPEED_MULT に対する倍率）
+  // ダッシュ追跡（14-D-4）：遭遇後、自機が approachRange 外へ離れたら発動
+  dashChaseBeat:    28,    // ダッシュ開始前の「ワンテンポ」待機F
+  dashChaseSpeed:   5.5,   // ダッシュ追跡の移動速度（wu/F・通常接近 1.4 より速い）
+  dashChaseStop:    300,   // ダッシュはこの距離まで詰めたら終了 → 通常追跡へ戻る
+  minTackleRange:   200,   // 突進タックルを出す最小距離（これ未満は基本振りのみ・至近距離での誤タックル防止）
   // Phase 3 AI ステート明示化（aiPhase）: retreat フェーズ用
   retreatFrames:        40,   // 攻撃 recover 後の強制後退時間
   retreatSpeed:         1.0,  // 後退時の移動速度（wu/F・approachSpeed より控えめ）
   postHitRetreatFrames: 30,   // 被弾→wait01 復帰後の後退時間（被弾後の間合い取り）
+};
+
+// ============================================================
+//  #section enemy-attacks — 雑魚敵の攻撃テーブル（14-D・enem01.md §攻撃カタログ）
+//  - 攻撃ごとに wind/active/recover/cooldown とヒット値（tryHitPlayer 互換）を定義
+//  - e.curAtkId で現在の攻撃を参照。新規攻撃はここに 1 エントリ追加する
+//  - pitchWind/pitchActive：rotation.x で振りの予兆と踏み込みを表現（読みやすさの担保）
+//  - 値はランタイム調整可：window.SB.ENEMY_ATTACKS.e01_atk_01.damage = 12 など
+// ============================================================
+export const ENEMY_ATTACKS = {
+  // enem01（スクラッパー）基本振り：短リーチ・速い・読みやすい牽制
+  e01_atk_01: {
+    name:           '基本振り',
+    kind:           'swing',  // 攻撃の種類（swing=その場振り / dash=突進タックル）
+    attackCategory: 'melee',
+    windFrames:     18,    // 溜め（予兆モーション）
+    activeFrames:   8,     // 当たり判定アクティブ
+    recoverFrames:  25,    // 振り終わり硬直
+    cooldownFrames: 45,    // 次の攻撃までのインターバル（連打抑止）
+    lungeVx:        8,     // active 突入時の踏み込み量（wu）
+    hitboxRangeX:   110,
+    hitboxRangeY:   90,
+    hitboxRangeZ:   80,
+    damage:         5,     // 一旦半減（旧 10・敵攻撃力 暫定調整）
+    atk_lv:         1,
+    knockback:      12,
+    hitstop:        5,
+    shake:          4,
+    hitColor:       0xff8844,
+    pitchWind:     -0.20,  // 溜め：のけぞって予兆（プレイヤーに読ませる）
+    pitchActive:   +0.32,  // 振り：前傾の踏み込み
+  },
+  // enem01 突進タックル：中距離から dash で詰める。外すと recover が長く＝攻めどころ
+  //   active は固定フレームではなく「ヒット / 壁 / dashMaxDist」のいずれかで終了する
+  e01_atk_02: {
+    name:           '突進タックル',
+    kind:           'dash',
+    attackCategory: 'melee',
+    windFrames:     32,    // 溜め（突進の予兆・読みやすさ重視で長め）
+    activeFrames:   60,    // 突進の最大持続F（通常は dashMaxDist 到達で早期終了）
+    recoverFrames:  35,    // 突進終了後の硬直（外し時の攻めどころ）
+    cooldownFrames: 90,    // 次の攻撃までのインターバル（基本振りの 2 倍・連発しない）
+    dashSpeed:      9,     // 突進速度（wu/F・仕様 3.5 は遅すぎたため引き上げ・SB で調整可）
+    dashMaxDist:    420,   // 突進の最大移動距離（wu・これか壁で停止）
+    hitboxRangeX:   140,
+    hitboxRangeY:   90,
+    hitboxRangeZ:   100,
+    damage:         9,     // 一旦半減（旧 18・敵攻撃力 暫定調整）
+    atk_lv:         3,
+    knockback:      22,
+    hitstop:        7,
+    shake:          6,
+    hitColor:       0xff4422,
+    pitchWind:     -0.30,  // 溜め：深くのけぞる（基本振りより大きい予兆）
+    pitchActive:   +0.42,  // 突進：大きく前傾
+  },
+
+  // -------------------------------------------------------
+  // enem02（ジャンパー）攻撃
+  // -------------------------------------------------------
+  // 小ジャンプ攻撃：短いホップで前進→空中でぶつかる。外すと recover が短め
+  e02_atk_01: {
+    name:           '小ジャンプ攻撃',
+    kind:           'hop_strike',
+    attackCategory: 'melee',
+    windFrames:     12,   // 短い溜め（素早い）
+    activeFrames:   45,   // ホップ中の最大持続（着地で打ち切り）
+    recoverFrames:  18,
+    cooldownFrames: 50,
+    hopVy:          10,   // 上昇初速（軽いホップ）
+    dashSpeed:      9,    // 水平移動速度（wu/F）
+    dashMaxDist:    200,  // 水平距離上限（wu）
+    hitboxRangeX:   100,
+    hitboxRangeY:   90,   // 空中ヒット用にやや高め
+    hitboxRangeZ:   80,
+    damage:         7,
+    atk_lv:         2,
+    knockback:      16,
+    hitstop:        5,
+    shake:          4,
+    hitColor:       0x44ccff,
+    pitchWind:     -0.20,
+    pitchActive:   +0.35,
+  },
+  // ジャンプ急降下（3段階予兆付き）
+  //   Phase 1：wind で~2s しゃがみ溜め（第1予兆）
+  //   Phase 2：高速上昇→頂点で照準フェーズ（第2予兆：AOE + 収束リング）
+  //   Phase 3：リング収束完了で超高速急降下（atklv 5/5/-）
+  //   リパルスカウンター対象：自機 atklv4（SP1/↑J）で迎撃すると成立
+  e02_atk_02: {
+    name:            'ジャンプ急降下',
+    kind:            'jump_dive',
+    attackCategory:  'aerial',
+    windFrames:      120,   // ~2s しゃがみ溜め（第1予兆）
+    activeFrames:    360,   // 上昇＋照準＋降下の最大持続F（フォールバック）
+    recoverFrames:   40,
+    cooldownFrames:  110,
+    jumpVy:          35,    // 上昇初速（頂点≈747wu ≈ キャラ7体分・要調整）
+    aimFrames:       80,    // 照準フェーズ：二次リングが収束するまでの F
+    aoeRadius:       120,   // 一次 AOE サークル半径（wu・要調整）
+    ringStartRadius: 360,   // 二次リング開始半径（wu）
+    diveSpeed:       80,    // 急降下速度（wu/F・物理を無視した直接移動）
+    hitboxRangeX:    110,
+    hitboxRangeY:    150,   // 縦長（叩きつけ）
+    hitboxRangeZ:    110,
+    damage:          14,
+    atk_lv:          5,     // atklv 5/5/-（溜め・ヒット共に5・recover は無し）
+    knockback:       28,
+    hitstop:         10,    // 中程度のヒットストップ
+    shake:           8,
+    hitColor:        0xff3300,
+    pitchWind:      -0.30,
+    pitchActive:     0,     // 空中飛翔中は傾けない
+    repulseAxis:    'aerial',  // リパルスカウンター軸（対空 = sp_02 昇竜で迎撃）
+  },
+
+  // -------------------------------------------------------
+  // midboss01（シールドガーダー）攻撃 — 中ボス相当・守勢型
+  // -------------------------------------------------------
+  // 盾叩き：盾を大きく構えてから前方を突き押す。リーチ広め・ガード崩し感あり
+  mb01_atk_01: {
+    name:           'シールドバッシュ',
+    kind:           'swing',
+    attackCategory: 'melee',
+    windFrames:     18,
+    activeFrames:   8,
+    recoverFrames:  22,
+    cooldownFrames: 60,
+    lungeVx:        10,
+    hitboxRangeX:   80,
+    hitboxRangeY:   90,
+    hitboxRangeZ:   70,
+    damage:         8,
+    atk_lv:         2,
+    knockback:      10,
+    hitstop:        5,
+    shake:          4,
+    hitColor:       0xaaaacc,
+    pitchWind:     -0.25,
+    pitchActive:   +0.38,
+  },
+  // 怒り狂い連打：盾破壊後。近〜中距離の 2 段連打。
+  mb01_atk_02: {
+    name:           '怒り狂い連打',
+    kind:           'swing',
+    attackCategory: 'melee',
+    windFrames:     8,
+    activeFrames:   12,
+    recoverFrames:  25,
+    cooldownFrames: 75,
+    lungeVx:        10,
+    hitboxRangeX:   100,
+    hitboxRangeY:   90,
+    hitboxRangeZ:   80,
+    damage:         6,
+    atk_lv:         2,
+    knockback:      8,
+    hitstop:        5,
+    shake:          5,
+    hitColor:       0xccaa44,
+    pitchWind:     -0.22,
+    pitchActive:   +0.42,
+  },
+  // ガードカウンター：盾で受け続けた直後に放つ素早い盾バッシュ。wind が極端に短い。
+  mb01_atk_gc: {
+    name:           'ガードカウンター',
+    kind:           'swing',
+    attackCategory: 'melee',
+    windFrames:     8,     // 極短（即反撃感）
+    activeFrames:   8,
+    recoverFrames:  28,
+    cooldownFrames: 55,
+    lungeVx:        18,    // 前に強く踏み込む
+    hitboxRangeX:   130,
+    hitboxRangeY:   110,
+    hitboxRangeZ:   90,
+    damage:         10,
+    atk_lv:         2,
+    knockback:      22,
+    hitstop:        7,
+    shake:          6,
+    hitColor:       0xaaccff,
+    pitchWind:     -0.12,
+    pitchActive:   +0.50,
+  },
+  // マチェットラッシュ：enraged 時のみ。突進しながら 3 連続斬撃（atk_lv 2/2/3）。
+  //   突進自体は無攻撃。hitSlots の各 frame で当たり判定を出す（slash_rush kind）。
+  mb01_atk_03: {
+    name:           'マチェットラッシュ',
+    kind:           'slash_rush',
+    attackCategory: 'melee',
+    windFrames:     14,
+    activeFrames:   36,
+    recoverFrames:  120,  // 疲れ硬直 約2秒（この間 SA 無効・攻撃の隙）
+    cooldownFrames: 90,
+    dashSpeed:      5.0,
+    dashMaxDist:    550,
+    hitboxRangeX:   150,
+    hitboxRangeY:   110,
+    hitboxRangeZ:   90,
+    multiHit:       true,  // hitstun 中プレイヤーにも 2・3 発目が着弾
+    // 3 スロット当たり判定（elapsed フレームで順次発火）
+    hitSlots: [
+      { frame:  8, damage:  7, atk_lv: 2, knockback: 12 },
+      { frame: 20, damage:  7, atk_lv: 2, knockback: 12 },
+      { frame: 32, damage: 11, atk_lv: 3, knockback: 20 },
+    ],
+    hitstop:        5,
+    shake:          4,
+    hitColor:       0xddaa22,
+    pitchWind:     -0.20,
+    pitchActive:   +0.35,
+  },
+};
+
+// ============================================================
+//  #section enemy-attack-relay — 敵同士の攻撃テンポ（14-D-5）
+//  - ある敵の攻撃が終わってから、次の敵が攻撃を始められるまでの待ち時間。
+//  - 「敵同士が見合う」間（ま）を作る。VARIANCE で毎回ばらつかせテンポを一定にしない。
+//  - 実際の待ち ＝ BASE ×（1 ± VARIANCE のランダム）。
+// ============================================================
+export const ENEMY_ATTACK_RELAY = {
+  BASE:     45,   // 攻撃終了 → 次の攻撃可能までの基準F
+  VARIANCE: 0.5,  // 振れ幅（±50%）。実待ち ＝ BASE × [0.5, 1.5]
 };
 
 // ============================================================
@@ -331,9 +556,25 @@ export const DUMMY_ATK_CONFIG = {
 //  - 値はランタイム調整可：window.SB.ENEMY_PERSONALITY.cunning.dodgeTendency = 0.6 など
 // ============================================================
 //  - enragedHp：HP がこの割合以下で興奮（enraged）。brave は早発（高 HP で発火）
+//  - 攻撃頻度（14-D-2・enem01.md §性格軸 レイヤー1-3）：
+//    - atk02Weight：近/中の重なり帯で突進タックルを選ぶ確率（残りが基本振り）
+//    - cooldownMult：攻撃クールダウン倍率（brave 0.7＝短い＝追ってくる）
+//    - retreatMult：攻撃後 retreat の長さ倍率（brave ≈0＝退却拒否で前のめり）
+//    - punishesHitstun：true なら「プレイヤー被弾中」でも攻撃可（brave の追撃確定）
 export const ENEMY_PERSONALITY = {
-  brave:   { guardTendency: 0.12, dodgeTendency: 0.08, staggerThreshold: 6, enragedHp: 0.50 },
-  cunning: { guardTendency: 0.40, dodgeTendency: 0.45, staggerThreshold: 4, enragedHp: 0.38 },
+  brave:    { guardTendency: 0.12, dodgeTendency: 0.08, staggerThreshold: 6, enragedHp: 0.50,
+              atk02Weight: 0.60, cooldownMult: 0.7, retreatMult: 0.15, punishesHitstun: true },
+  cunning:  { guardTendency: 0.40, dodgeTendency: 0.45, staggerThreshold: 4, enragedHp: 0.38,
+              atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 1.0,  punishesHitstun: false },
+  // guardian：盾特化。頻繁にガード姿勢を取り、隙を見て攻撃。dodge はほぼしない
+  guardian: { guardTendency: 0.65, dodgeTendency: 0.05, staggerThreshold: 5, enragedHp: 0.30,
+              atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 0.5,  punishesHitstun: false },
+  // berserker：中ボス専用。読み合い・回避・退却をしない前のめりの攻め。
+  //   guard/dodgeTendency 0＝防御抽選が常に不成立。retreatMult 0＝攻撃後に退かない。
+  //   enragedHp 0＝HP% 興奮は発火せず、enraged 化は盾破壊でのみ起こる（midboss01）。
+  //   staggerThreshold 80＝雑魚スケール（4〜6）に対し桁違いに打たれ強い。
+  berserker:{ guardTendency: 0.0,  dodgeTendency: 0.0,  staggerThreshold: 80, enragedHp: 0.0,
+              atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 0.0,  punishesHitstun: true },
 };
 
 // ============================================================
@@ -345,6 +586,43 @@ export const ENEMY_ENRAGE_CONFIG = {
   INTRO_FRAMES:  40,    // enraged_intro モーションの長さ
   COOLDOWN_MULT: 0.5,   // 興奮中の攻撃クールダウン倍率（攻撃頻度↑）
   APPROACH_MULT: 1.25,  // 興奮中の接近速度倍率
+  // HP% 興奮トリガーのグローバル ON/OFF
+  // false にすると enem01/enem02 の低 HP 興奮が無効化。
+  // midboss01 の盾破壊 enraged 化は別経路（triggerShieldBreak）なのでこのフラグの影響を受けない。
+  ENABLE_HP_ENRAGE: false,
+};
+
+// ============================================================
+//  #section midboss-shield — midboss01 シールドガーダーの盾システム
+//  - 盾は本体 HP と独立した「盾 HP」を持つ。前面攻撃は本体完全防御だが盾 HP は削れる。
+//    背面/上からの攻撃は本体に通り、盾 HP もより大きく削れる。
+//  - 盾 HP 0 で盾破壊 → SHIELD BREAK 演出 → enraged_intro → berserker 化。
+//  - 叩き台値。window.SB.MIDBOSS_SHIELD_CONFIG で実機調整して決める。
+// ============================================================
+export const MIDBOSS_SHIELD_CONFIG = {
+  SHIELD_MAX_HP:          102,   // 盾 HP（60 × 1.7 倍・前面のみで割るには数コンボ要する程度）
+  GUARD_COUNTER_THRESHOLD:  3,   // 連続ブロック数でガードカウンター発動
+  BERSERKER_SA:             2,   // berserker 化時に付与するスーパーアーマー値（hits）
+  CHIP_FRONT_MULT: 1.0,   // 前面ヒット時の盾削り倍率（攻撃素ダメージ基準）
+  CHIP_BACK_MULT:  2.5,   // 背面/上ヒット時の盾削り倍率（前面より大きい）
+  BREAK_HITSTOP:   14,    // 盾破壊の強ヒットストップ F
+  BREAK_SHAKE:     12,    // 盾破壊のシェイク強度
+  BANNER_FRAMES:   60,    // "SHIELD BREAK!" バナー表示 F（約 1 秒）
+};
+
+// ============================================================
+//  #section repulse-counter — リパルスカウンター設定
+//  - 敵の特定大技に「相反する軸」の SP を合わせると確定クリ＋即死＋gc 発動
+//  - 軸：aerial（対空）/ ground（対地）/ frontal（対正面）
+//  - 現在は e02_atk_02（jump_dive）+ c01_sp_02（昇竜）= aerial 軸のみ実装
+// ============================================================
+export const REPULSE_CONFIG = {
+  // 「危」UI の表示期間（aim フェーズ中は常時表示なので寿命は不要）
+  BANNER_FRAMES:   50,    // 成功時バナー表示 F
+  FLASH_COLOR:     0xcc88ff,  // 成功時ヒットパーティクル色
+  FLASH_COUNT:     24,
+  // 軸ラベルとアイコン文字（HUD 表示用）
+  AXIS_ICON:       { aerial: '↑', ground: '↓', frontal: '→' },
 };
 
 // ============================================================
@@ -361,6 +639,10 @@ export const ENEMY_REACT_CONFIG = {
   DODGE_DECAY:       0.86,  // バックステップ減衰
   GUARD_DAMAGE_MULT: 0.25,  // ガード成立時のダメージ倍率
   GUARD_KB_VX:       6,     // enemy_block_hit の軽ノックバック水平速度
+  // cunning レイヤー3（14-D-3）：cunning の dodge をこの確率で「punish-dodge」にする。
+  // punish-dodge は回避完了直後に突進タックル（e01_atk_02）へ連携して隙を突く。
+  // dodgeTendency 0.45 × 0.7 ≒ windup 検知の 30%（enem01.md §性格軸 レイヤー3 と一致）。
+  DODGE_PUNISH_CHANCE: 0.7,
 };
 
 // ============================================================
@@ -502,6 +784,9 @@ export const GORE_CRITICAL_CONFIG = {
 // ============================================================
 export const PLAYER_PROFILE = {
   METEO: {
+    // ガード強度（14-E）：atk_lv がこの値以下ならクリーンガード、超過でガードクラッシュ。
+    //   lv7（追い打ち）は強度に関わらずクリーン（例外）。
+    guardStrength: 3,
     gore: {
       // ゴア・クリティカル登録：ID（c01_gc_NN）ごとに定義
       //   NN は被弾側の atk_lv に対応：03=後方吹き飛ばし / 04=打ち上げ / 05=叩きつけ / 06=超吹き飛ばし
@@ -666,3 +951,16 @@ export const KEY_CONFIG = {
   megaCrash:    { kb: 'KeyU'                      }, // U / R1（J+K同時も発動）
   ult:          { kb: 'KeyI'                      }, // I / R2（J+K+L同時も発動）
 };
+
+// ============================================================
+//  #section overclock-cards — OVERCLOCK カード定義（試験実装）
+//  - wave 2 クリア後に 4 枚から 2 枚をランダムで提示 → 1 枚選択で効果発動
+//  - 効果は ATTACKS / SP_CONFIG などのランタイム値を直接書き換え
+//  - id で applyOCEffect が分岐。color は選択 UI のアクセントカラー
+// ============================================================
+export const OVERCLOCK_CARDS = [
+  { id: 'POWER_UP',  label: 'POWER UP',  desc: '攻撃力 ×1.3',     color: '#ff5533' },
+  { id: 'SP_RUSH',   label: 'SP RUSH',   desc: 'SP 獲得 ×2',      color: '#22aaff' },
+  { id: 'REGEN_UP',  label: 'REGEN UP',  desc: 'SP 回復 ×3',      color: '#44dd88' },
+  { id: 'SP_FULL',   label: 'SP FULL',   desc: 'SP ゲージ即時満タン', color: '#ffcc22' },
+];

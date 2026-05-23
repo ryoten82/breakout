@@ -266,17 +266,17 @@ export function checkBreakable(b, frame) {
 }
 
 // === 攻撃トークン整合性検査 ===
-// enemyAttackToken が dying / removed の敵を保持していないか
+// attackToken が dying / removed の敵を保持していないか（カテゴリ別トークン各枠に適用）
 export function checkAttackToken(token, frame) {
   if (!token) return;
   // 🔴 token が enemy 参照だが、その敵が removed / isAlive=false
   if (token.removed || token.isAlive === false) {
-    _warn('fatal', `[INV-T🔴] enemyAttackToken refers removed/dead enemy`, token);
+    _warn('fatal', `[INV-T🔴] attackToken refers removed/dead enemy`, token);
   }
   if (!_isFlagOn()) return;
   // 🟡 dying enemy を持ち続けている
   if (token.dying) {
-    _warn('warn', `[INV-T🟡] enemyAttackToken refers dying enemy (state=${token.state})`, token);
+    _warn('warn', `[INV-T🟡] attackToken refers dying enemy (state=${token.state})`, token);
   }
 }
 

@@ -44,7 +44,7 @@ import {
   ENEMY_ROLL_KB_VX, ENEMY_ROLL_KB_DECAY,
   applyRollHipPivot,
 } from './states.js';
-import { SP_CONFIG, GUARD_CONFIG, PHYSICS, UKEMI_CONFIG } from './config.js';
+import { SP_CONFIG, GUARD_CONFIG, PHYSICS, UKEMI_CONFIG, CRIT_CONFIG, PLAYER_PROFILE } from './config.js';
 import { getActiveWallX } from './camera.js';
 
 // ============================================================
@@ -188,7 +188,7 @@ export function damagePlayer(p, attack, source) {
 
   // (2) 被弾中は完全無敵（プレイヤー区別化）：吹き飛び中・ダウン中は一切ヒットを受けず
   //   コンボでハメられない。guard_crash はガード崩れの隙なので無敵にしない（反撃を受ける）。
-  if (isHitstunState(p) && p.state !== STATE.guard_crash) return false;
+  if (isHitstunState(p) && p.state !== STATE.guard_crash && !attack.multiHit) return false;
   const incomingLv = attack.atk_lv ?? 1;
 
   // (3) ガード判定（前方からのみ）
@@ -196,36 +196,67 @@ export function damagePlayer(p, attack, source) {
   const facingFromAttacker = -srcFromRight;  // KB は攻撃側の逆方向
   let damage    = attack.damage ?? 0;
   let knockback = attack.knockback ?? 0;
+  let _guardCrashThrough = false;  // lv6 クラッシュ時: guard ブロックを抜けて通常被弾へ
   if (p.guarding) {
     // 前方ガードのみ成立：プレイヤーが攻撃側を向いていればガード成功
     const front = (Math.sign(source.x - p.x) === p.facing);
     if (front || !GUARD_CONFIG.FRONT_ONLY) {
-      damage    *= GUARD_CONFIG.DAMAGE_MULT;
-      knockback *= GUARD_CONFIG.HIT_KB_MULT;
       p.guardDrainPauseTimer = GUARD_CONFIG.DRAIN_PAUSE_FRAMES;
-      p.guardKbVx       = -srcFromRight * GUARD_CONFIG.HIT_KNOCKBACK_VX;
       p.guardFlashTimer = GUARD_CONFIG.FLASH_FRAMES;
       p.guardOpacity    = 1.0;
       // ガードヒット演出（青パーティクル）
       _spawnHitParticles(p.x + p.facing * 60, p.y + 80, p.z, 0x66ccff, 14);
       _triggerHitstop(GUARD_CONFIG.HIT_HITSTOP);
       if (attack.shake) _triggerShake(Math.max(1, attack.shake - 2), 4);
-      // (4) ガードクラッシュ判定（SP 枯渇）
-      if (p.sp <= GUARD_CONFIG.CRASH_THRESHOLD) {
+      // (4) ガードクラッシュ判定（14-E）：atk_lv がガード強度を超えるとクラッシュ。
+      //   lv7（追い打ち）は強度に関わらずクリーン。SP 枯渇でも従来どおりクラッシュ。
+      const _lvCrash = (incomingLv !== 7) && (incomingLv > PLAYER_PROFILE.METEO.guardStrength);
+      const _spCrash = (p.sp <= GUARD_CONFIG.CRASH_THRESHOLD);
+      if (_lvCrash || _spCrash) {
+        // ガードクラッシュ共通処理
         p.guarding = false;
-        p.guardFadeTimer = GUARD_CONFIG.FADE_OUT_FRAMES;
+        // 砕け散りアニメ用：元位置を記録し専用タイマーで拡大フェード（通常フェードは抑制）
+        p.guardCrashX = p.x;
+        p.guardCrashY = p.y + GUARD_CONFIG.SHIELD_Y_OFFSET;
+        p.guardCrashZ = p.z;
+        p.guardCrashFadeTimer = GUARD_CONFIG.CRASH_SHIELD_FADE;
+        p.guardFadeTimer = 0;
+        p.guardOpacity  = 0;
         _cancelPlayerAction(p);
-        p.state = STATE.guard_crash;
-        p.stateTimer = GUARD_CONFIG.CRASH_RECOVER_FRAMES;
-        _spawnHitParticles(p.x, p.y + 80, p.z, 0xffdd44, 20);
+        p.sp = Math.max(0, p.sp - GUARD_CONFIG.CRASH_SP_COST);
         resetCombo();
+        // ドーム砕け散りエフェクト：白閃光 + 青破片を全方向に放出
+        const _shieldY = p.y + GUARD_CONFIG.SHIELD_Y_OFFSET;
+        _spawnHitParticles(p.x, _shieldY, p.z, 0xffffff, 20, { type: 'omni' });
+        _spawnHitParticles(p.x, _shieldY, p.z, GUARD_CONFIG.SHIELD_COLOR, 28, { type: 'omni' });
+        _triggerHitstop(GUARD_CONFIG.HIT_HITSTOP + 3);
+        _triggerShake(12, 20);
+        if (incomingLv >= 6) {
+          // lv6 クラッシュ：バリア砕け → lv6 直撃扱い。return せず下流の被弾処理へ
+          _guardCrashThrough = true;
+        } else {
+          // lv4/5 クラッシュ：後方よろけ（guard_crash 硬直）
+          p.state = STATE.guard_crash;
+          p.stateTimer = GUARD_CONFIG.CRASH_RECOVER_FRAMES;
+          p.kbVx = facingFromAttacker * GUARD_CONFIG.CRASH_KB_VX;  // 攻撃の逆方向（後退）
+          p.kbVy = 0;
+          return true;
+        }
+      }
+      if (!_guardCrashThrough) {
+        // クリーンガード：反動 KB を atk_lv 別に（弱/中/大）。HP は 0 ダメージ。
+        const _recoil = GUARD_CONFIG.RECOIL_KB_BY_LV[incomingLv] ?? GUARD_CONFIG.RECOIL_KB_BY_LV[1];
+        p.guardKbVx = -srcFromRight * _recoil;
         return true;
       }
-      // ガード成功：HP も減らないし state も遷移しない（その場で耐える）
-      return true;
+      // _guardCrashThrough = true: ここを抜けて通常被弾コードへ
     }
-    // 背面被弾：ガード貫通して通常被弾扱いに
+    // 背面被弾 or lv6 クラッシュ fall-through：通常被弾扱いに
   }
+
+  // ガードクラッシュのけぞり中の被弾：クリティカル（×1.5）。下流で即ダウン化（14-E 救済）。
+  const guardCrashHit = (p.state === STATE.guard_crash);
+  if (guardCrashHit) damage *= CRIT_CONFIG.DAMAGE_MULT;
 
   // (5) HP 減算 & 被弾時 SP 微増
   const finalDamage = Math.max(0, damage);
@@ -254,10 +285,15 @@ export function damagePlayer(p, attack, source) {
   }
   _cancelPlayerAction(p);
   if (p.guarding) {
+    // 背面被弾（ここに入るのは front=false で guard 判定スキップしたケースのみ）
+    // ガードは発動していないので即消し
     p.guarding = false;
-    p.guardFadeTimer = GUARD_CONFIG.FADE_OUT_FRAMES;
+    p.guardFadeTimer = 0;
+    p.guardOpacity   = 0;
   }
   resetCombo();
+  // 必殺技クールダウンをリセット：被弾割り込みで技が中断された場合に再発動できるようにする
+  if (p._specialFireFrames) p._specialFireFrames = {};
 
   // (6.5) 向き強制：攻撃側を向く＝カメラから見て必ず横向きにする
   p.facing = (source && source.x > p.x) ? 1 : -1;
@@ -293,7 +329,14 @@ export function damagePlayer(p, attack, source) {
   p.fallDir = facingFromAttacker;
   p.ukemiBuffer = 0;       // 新規被弾：受け身バッファをリセット（前被弾の押下を持ち越さない）
   p.ukemiAttempted = false;// 新規被弾ごとに受け身1回の権利を再付与（吹き飛ばし→受け身の連鎖は許容）
-  if (lv === 7) {
+  if (guardCrashHit) {
+    // 即ダウン救済（14-E）：クラッシュのけぞり中に1発食らったら強制ダウン。
+    //   ダウン state は被弾無敵なので、クリ追撃ループが1発で打ち止めになる。
+    p.state = STATE.down_front_start;
+    p.stateTimer = PLAYER_DOWN_FRONT_START_FRAMES;
+    p.kbVx = facingFromAttacker * (knockback * 0.5);
+    p.kbVy = 14;
+  } else if (lv === 7) {
     if (isPlayerDowned) {
       p.state = STATE.down_bas_loop;
       p.stateTimer = PLAYER_DOWN_BAS_LOOP_FRAMES;
@@ -365,11 +408,13 @@ export function damagePlayer(p, attack, source) {
     }
   }
 
-  // (9) 演出
+  // (9) 演出（ガードクラッシュ中の被弾＝クリティカルは hitstop / shake を強める）
   const hitColor = attack.hitColor ?? 0xff4444;
   _spawnHitParticles(p.x, p.y + 80, p.z, hitColor, 14);
-  if (attack.hitstop) _triggerHitstop(attack.hitstop);
-  if (attack.shake) _triggerShake(attack.shake, attack.shake * 2 + 4);
+  const _hs = (attack.hitstop ?? 0) + (guardCrashHit ? CRIT_CONFIG.HITSTOP_BONUS : 0);
+  const _sh = (attack.shake ?? 0) + (guardCrashHit ? CRIT_CONFIG.SHAKE_BONUS : 0);
+  if (_hs) _triggerHitstop(_hs);
+  if (_sh) _triggerShake(_sh, _sh * 2 + 4);
 
   // 連続ヒット防止の無敵F は撤去：被弾中は (2) の被弾 state ガードで完全無敵のため不要。
   // invincibleFrames は「起き上がり後の点滅グレース」専用に。吹き飛び中は点滅しない。
@@ -640,6 +685,11 @@ export function updatePlayerHitstun(p) {
       p.state = STATE.wait01;
     }
   } else if (s === STATE.guard_crash) {
+    // 後退移動：kbVx を減衰しながら適用
+    if (Math.abs(p.kbVx) > 0.1) {
+      p.x += p.kbVx;
+      p.kbVx *= 0.82;
+    }
     p.stateTimer--;
     if (p.stateTimer <= 0) {
       p.state = STATE.wait01;
@@ -740,7 +790,7 @@ export function updatePlayerHitstun(p) {
     } else if (s === STATE.down_bas_start || s === STATE.down_bas_loop || s === STATE.down_bas_end) {
       p.mesh.rotation.x = 0;
     } else if (s === STATE.guard_crash) {
-      p.mesh.rotation.x = 0.4;
+      p.mesh.rotation.x = -0.4;  // 後傾（攻撃方向と逆に仰け反る）
     } else {
       p.mesh.rotation.x = 0;  // down_super_* / down_wall_start 等は直立で飛ぶ
     }
