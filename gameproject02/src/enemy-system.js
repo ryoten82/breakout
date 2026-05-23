@@ -582,6 +582,7 @@ export function enterEnemyDying(e, ctx) {
   e.aiEnabled        = false;
   e.atkPhase         = null;
   e.hitDelivered     = false;
+  e.repulseWindow    = false;   // dying 死体に「危↑」HUD が残るリーク防止
   _clearAllTokens(ctx, e);
   // ゴア・クリティカル抽選（基本構造・キャラ拡張で発火条件を絞る）
   _maybeArmGoreCritical(e);
@@ -939,6 +940,7 @@ export function enterEnemyDyingBurst(e, ctx, hitFacing) {
   e.aiEnabled       = false;
   e.atkPhase        = null;
   e.hitDelivered    = false;
+  e.repulseWindow   = false;   // dying 死体に「危↑」HUD が残るリーク防止
   _clearAllTokens(ctx, e);
   // 速度は触らない：直前の hit-engine lv6 dispatch が attack 由来の値を既に設定済
   //   （knockbackVx = facing * attack.knockback * 0.4 * sameScale * kb_vx_mult_lv6）
