@@ -157,6 +157,14 @@ export function _cancelPlayerAction(p) {
   p.jHeldDuringCharge  = false;
   p.attackBuffered     = false;
   p.kBuffered          = false;
+  // ダッシュ系フラグもクリア（D-1：被弾でフラグが残ると復帰後ダッシュ入力が canDash の
+  // !p.dashActive 条件で永遠にブロックされる）。cooldown は触らず naturally tick down に任せる。
+  p.dashActive         = false;
+  p.dashDirX           = 0;
+  p.dashDirZ           = 0;
+  p.airWasDash         = false;
+  p.lastTapDir         = null;
+  p.lastTapTimer       = 0;
 }
 
 // コンボ強制リセット（プレイヤー被弾時。checkComboBreak は敵 wait01 条件のため別途必要）
