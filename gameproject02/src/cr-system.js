@@ -42,6 +42,10 @@ export const CR_CONFIG = {
   COIN_R:           14,     // コイン半径（wu）
   COIN_H:           5,      // コイン厚み（wu）
   COLOR:            0xffdd33, // CR 識別色（黄）
+  // 残存タイマー：放置されたコインの掃除（手触り改善）
+  LIFE_PERSIST_FRAMES: 600, // 10s @60FPS：着地後この間は完全永続表示
+  LIFE_BLINK_FRAMES:   300, // 5s：以降この間は点滅して消滅予告
+  BLINK_PERIOD_FRAMES: 10,  // 点滅 1 サイクルのフレーム数
 };
 
 export function initCrSystem({ THREE, scene, players, hudLayerEl, spawnEffect }) {
@@ -86,6 +90,9 @@ export function dropCR(x, z, spawnY = 80) {
       bounceCount: 0,
       landed: false,
       magnetFrames: 0,
+      ageFrames: 0,             // 着地後経過フレーム（残存タイマー判定用）
+      forceMagnet: false,       // GAME CLEAR 自動回収などで強制吸引したい時に true
+      _innerMesh: inner,        // 点滅で visible 切替する本体メッシュ参照
       value: C.VALUE_MIN + Math.floor(Math.random() * (C.VALUE_MAX - C.VALUE_MIN + 1)),
     });
   }
@@ -119,12 +126,14 @@ export function updateCrSystem() {
         }
       }
     } else {
-      // 着地後：プレイヤーが磁力範囲内なら吸い寄せ、外なら摩擦で減速
+      // 着地後：プレイヤーが磁力範囲内（or 強制マグネット）なら吸い寄せ、外なら摩擦で減速
+      c.ageFrames++;
       let magnet = false;
       if (p && p.hp > 0) {
         const dx = p.x - c.x, dz = p.z - c.z;
         const dist = Math.hypot(dx, dz);
-        if (dist < C.MAGNET_RANGE && dist > 0.01) {
+        const inRange = (dist < C.MAGNET_RANGE && dist > 0.01);
+        if ((inRange || c.forceMagnet) && dist > 0.01) {
           magnet = true;
           c.magnetFrames++;
           // 滞在時間とともに引力増加、速度全体を減衰して周回軌道を崩す
@@ -144,6 +153,24 @@ export function updateCrSystem() {
       }
       if (!magnet) { c.vx *= C.GROUND_FRICTION; c.vz *= C.GROUND_FRICTION; }
       c.x += c.vx; c.z += c.vz;
+
+      // 残存タイマー：プレイヤー範囲外なら経過時間で点滅 → 消滅
+      // 強制マグネット中はタイマーを進めない（GAME CLEAR 回収中に消える事故防止）
+      if (c.forceMagnet) {
+        if (c._innerMesh) c._innerMesh.visible = true;
+      } else {
+        const expireFrame = C.LIFE_PERSIST_FRAMES + C.LIFE_BLINK_FRAMES;
+        if (c.ageFrames >= expireFrame) {
+          // 消滅
+          _disposeCoinGroup(c.mesh);
+          _pickups.splice(i, 1);
+          continue;
+        } else if (c.ageFrames >= C.LIFE_PERSIST_FRAMES) {
+          // 点滅フェーズ：BLINK_PERIOD_FRAMES サイクルで visible 反転
+          const phase = (c.ageFrames - C.LIFE_PERSIST_FRAMES) % C.BLINK_PERIOD_FRAMES;
+          if (c._innerMesh) c._innerMesh.visible = (phase < C.BLINK_PERIOD_FRAMES / 2);
+        }
+      }
     }
     // ステージギミック（穴等）のバリアからコインを押し戻す
     _applyCrBarriers(c);
@@ -229,6 +256,16 @@ function _disposeCoinGroup(group) {
   for (const child of group.children) {
     if (child.geometry) child.geometry.dispose();
     if (child.material) child.material.dispose();
+  }
+}
+
+// GAME CLEAR 等で全コインを強制マグネット吸引する。
+// プレイヤー位置に向けて吸引が始まり、updateCrSystem の通常回収判定でカウントされる。
+// 残存タイマー（点滅・消滅）は forceMagnet 中は止まる。
+export function collectAllCR() {
+  for (const c of _pickups) {
+    c.forceMagnet = true;
+    if (c._innerMesh) c._innerMesh.visible = true;   // 点滅中だった分を強制表示
   }
 }
 
