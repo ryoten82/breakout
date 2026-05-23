@@ -94,7 +94,8 @@ export function updateSPGauge() {
   _spBarEl.style.width = barW.toFixed(1) + '%';
   if (_spStockNumEl) _spStockNumEl.textContent = fullStocks;
   // MAX 到達時は色を変えて可視化（ULT 発動可サイン）
-  _spBarEl.style.background = atMax ? '#00ffaa' : '#00ddff';
+  // SP 色：通常時エメラルドグリーン（pickup SP タンクと色同期）/ MAX 時はやや明るく
+  _spBarEl.style.background = atMax ? '#44ee99' : '#22cc88';
   // ストック充填エッジ：fullStocks が前フレームより増えたタイミングでリング放射
   if (_prevFullStocks >= 0 && fullStocks > _prevFullStocks) {
     spawnSPStockRing();

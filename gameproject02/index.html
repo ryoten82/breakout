@@ -275,7 +275,7 @@
     #sp-label {
       font-family: 'Courier New', monospace;
       font-size: var(--fs-md);
-      color: #00ddff;
+      color: #22cc88;
       letter-spacing: var(--ls-wide);
     }
     /* SP ストック数（ゲージの左に表示・カウントアップ・2倍サイズ） */
@@ -348,8 +348,8 @@
     #sp-bar-bg {
       width: 400px;
       height: 20px;
-      background: rgba(0, 30, 60, 0.7);
-      border: 2px solid #006688;
+      background: rgba(0, 40, 24, 0.7);
+      border: 2px solid #008855;
       border-radius: 3px;
       overflow: hidden;
       position: relative;
@@ -360,7 +360,7 @@
       top: 0;
       height: 100%;
       width: 0%;
-      background: #00ddff;
+      background: #22cc88;   /* エメラルドグリーン（pickup SP タンクと色同期）*/
       transition: width 0.05s linear, background 0.1s linear;
     }
     /* メガクラ用画面暗転オーバーレイ */
@@ -692,6 +692,8 @@
     <div id="hk-ult">I / R2 / J+K+L: ULT（超必殺技）</div>
     <div id="hk-pause" class="small">ESC / START: 一時停止</div>
     <div class="small">Phase 3 — 敵 AI ステート明示化 + status_stun + 死亡フロー</div>
+    <div class="small">破壊物：CR 常時 + HP リンゴ10/バーガー4/肉1% + SP15% 抽選（接触で自動回収）</div>
+    <div class="small">チップ：白C / 緑U / 青R / 紫E / 橙L（Legendary は茶柱）ボスから 3+α 確定</div>
   </div>
 
   <!-- デバッグメニュー（右下・数字キートグル群を分離・2026-05-20）-->
@@ -934,6 +936,8 @@
     import { initOcGem, spawnOcGem, updateOcGem, isOcGemActive } from './src/oc-gem.js';
     // === cr-system（CR ドロップ＆回収・14-F テスト版）===
     import { initCrSystem, updateCrSystem, getCrTotal, dropCR, CR_CONFIG, collectAllCR } from './src/cr-system.js';
+    import { initItemSystem, updateItemSystem, dropItem, rollAndDropFromContainer, resetItemSystem, dropBossChips } from './src/item-system.js';
+    import { ITEM_CONFIG, ITEM_KIND, CONTAINER_LOOT_TABLE, CHIP_RARITY, CHIP_DROP_TABLE_NORMAL, CHIP_DROP_TABLE_RARE_PLUS, BOSS_CHIP_DROP_CONFIG } from './src/config.js';
     // === debug-invariants（意図しない挙動の自動検知・致命検知は常時 ON）===
     import {
       setKnownStates as _invSetKnownStates,
@@ -2210,7 +2214,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-24 敵+20% / spawn variant(fall/walkin) / filler / St2-3 boss = midboss01';
+    const LAST_UPDATE = '2026-05-25 アイテム時間消滅は CR のみ（HP/SP/チップは取得まで残存）';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {
@@ -2513,10 +2517,16 @@
       isHitstunState,
       // OC コンテナ破壊 → 破壊位置に OC ジェムを出現させる
       onOcContainerBreak: (x, y, z) => spawnOcGem(x, z),
-      // crate / 非地雷 canister 破壊 → CR コインドロップ（軽め設定：crate 2-3, canister 4-6）
-      onContainerLoot: (kind, x, y, z) => {
+      // crate / 非地雷 canister 破壊：
+      //   (1) CR コイン常時ドロップ（手触り維持・従来量）
+      //   (2) lootOverride 指定があれば確定 item ドロップ（テーブル抽選を経由しない）
+      //   (3) lootTable 指定があれば専用テーブルで抽選（ボス前 'pre_boss_hp' 等）
+      //   (4) なければ kind 既定テーブル（仕様 §18：apple 10 / burger 4 / meat 1 / sp 15 / miss 70）
+      onContainerLoot: (kind, x, y, z, lootOverride, lootTable) => {
         if (kind === 'crate')         dropCR(x, z, 80, { countMin: 2, countMax: 3 });
         else if (kind === 'canister') dropCR(x, z, 80, { countMin: 4, countMax: 6 });
+        if (lootOverride) { dropItem(lootOverride, x, z, 80); return; }
+        rollAndDropFromContainer(lootTable || kind, x, z, 80);
       },
     });
 
@@ -2527,6 +2537,23 @@
     initCrSystem({
       scene, THREE, players, hudLayerEl: document.getElementById('hud-layer'),
       spawnEffect: (x, y, z) => spawnHitParticles(x, y, z, 0xffdd33, 10, { type: 'omni' }),
+    });
+
+    // item-system 初期化（HP/SP タンク pickup・仕様書 §18）
+    //   spawnEffect は (x,y,z,color) で受けて kind ごとに色を変える
+    //   onPickupSE は kind 別 SE を将来鳴らすための窓口。今は no-op（音源未配線）
+    initItemSystem({
+      scene, THREE, players,
+      spawnEffect: (x, y, z, color) => spawnHitParticles(x, y, z, color, 12, { type: 'omni' }),
+      onPickupSE: (kind) => {
+        // TODO: 種別 SE 配線（音源待ち）
+        //   HP 系 → se_item_heal / SP → se_item_sp / CR → se_item_cr
+        //   チップ → se_item_chip / レジェンダリーチップ → se_item_legendary（特別 SE 確定）
+        // kind 値： 'hp_apple' | 'hp_burger' | 'hp_meat' | 'sp_tank' | 'chip_*'
+        if (kind === 'chip_legendary') {
+          // TODO: 専用 SE（特別な音）+ 全画面フラッシュ等の演出も検討
+        }
+      },
     });
 
     // player-system 初期化（ガード/特殊技/チャージ等）
@@ -3153,6 +3180,8 @@
       if (_ocOpenTimer > 0 && --_ocOpenTimer === 0) showOCSelection();
       // CR ドロップ：散らばり物理 + 磁力吸い寄せ + 回収（14-F テスト版）
       updateCrSystem();
+      // アイテム pickup（HP/SP タンク）：CR と同じパイプライン
+      updateItemSystem();
       // ダメージ範囲可視化（リング寿命・パルス拡張）
       updateAreas();
       // ステージ tick：init 済みのステージのみ走らせる（モード選択中は未 init）
@@ -3694,6 +3723,12 @@
       DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_AI, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, tryHitPlayer,
       // CR ドロップ：SB.dropCR(x,z) で手動ばらまき / SB.getCrTotal() で所持確認 / SB.CR_CONFIG で調整
       dropCR, getCrTotal, CR_CONFIG,
+      // アイテム pickup：SB.dropItem('hp_apple',x,z) / SB.rollAndDropFromContainer('crate',x,z)
+      //   ITEM_CONFIG.HP_APPLE.HEAL_RATIO 等で実機調整可能。CONTAINER_LOOT_TABLE で確率調整。
+      dropItem, rollAndDropFromContainer, ITEM_CONFIG, ITEM_KIND, CONTAINER_LOOT_TABLE,
+      // チップドロップ：SB.dropBossChips(x,z) でボス確定 3+α 個ドロップ
+      //   レアリティ調整：SB.CHIP_RARITY / SB.CHIP_DROP_TABLE_NORMAL / SB.BOSS_CHIP_DROP_CONFIG
+      dropBossChips, CHIP_RARITY, CHIP_DROP_TABLE_NORMAL, CHIP_DROP_TABLE_RARE_PLUS, BOSS_CHIP_DROP_CONFIG,
       TEST_CONFIG, PAUSE_CONFIG, GAME_SPEED,
       // Phase 3：敵 aiPhase 頭上ラベル ON/OFF（数字キー 8）
       DEBUG_AI: false,

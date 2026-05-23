@@ -9,6 +9,7 @@
 // 将来：ガードクラッシュ等、他のアクション検証要素もここへ追加していく。
 
 import { createMine } from '../../props/factory/mine.js';
+import { createCrate } from '../../props/factory/crate.js';
 import { registerBreakable } from '../../breakables.js';
 import { levelWalls } from '../../camera.js';
 
@@ -129,6 +130,23 @@ function _buildRoom(scene, THREE) {
     label.position.set(m.x, LABEL_Y, MINE_Z);
     scene.add(label);
   }
+
+  // 確定ドロップ試験用クレート（HP 3 種 + SP）— player 初期位置の手前に並べる
+  //   仕様書 §18：loot 指定された prop は確率抽選を無視して 100% その item を出す
+  //   apple(20%) / burger(40%) / meat(100%・最大) / sp(エメラルド)
+  _spawnTestCrate(scene, THREE, -800,  80, 'hp_apple');
+  _spawnTestCrate(scene, THREE, -700,  80, 'hp_burger');
+  _spawnTestCrate(scene, THREE, -600,  80, 'hp_meat');
+  _spawnTestCrate(scene, THREE, -500,  80, 'sp_tank');
+}
+
+// テスト crate：lootOverride 動作確認用。爆発しても自動リスポーンしないシンプル版。
+function _spawnTestCrate(scene, THREE, x, z, lootKind) {
+  const crate = createCrate({ THREE });
+  crate.position.set(x, 0, z);
+  crate.userData.lootOverride = lootKind;
+  scene.add(crate);
+  registerBreakable(crate);
 }
 
 // 通常ステージの背景要素（床・柱・背景書割）を隠す。Group / Mesh / 配列いずれも可。
@@ -161,6 +179,7 @@ export function initActionTest(deps) {
   _built = true;
 }
 
+let _chipDemoPlaced = false;
 export function tickActionTest() {
   // 自由移動テスト部屋：ウェーブ進行なし。地雷リスポーンは updateBreakables 側で進む。
   // 敵の即リスポーン：死亡フロー（dying）に入ったスロットを毎フレーム検出し、すぐ補充する。
@@ -173,6 +192,16 @@ export function tickActionTest() {
       (e.enemyType ?? 'enem01') === (slot.enemyType ?? 'enem01') &&
       e.isAlive && !e.dying && !e.removed);
     if (!alive) _spawnSlot(slot);
+  }
+  // 起動直後に 5 レアリティのチップを並べる（item-system が init 済みの前提・1 回のみ）
+  //   後ろ側（z=600 ≒ プレイヤーから少し離れた奥）に並べ、磁石範囲外で観察できる位置に
+  //   SB.dropBossChips もコンソールから呼べる（ボス確定 3+α の動作確認用）
+  if (!_chipDemoPlaced && window.SB && typeof window.SB.dropItem === 'function') {
+    _chipDemoPlaced = true;
+    const xs = [-1000, -500, 0, 500, 1000];
+    const kinds = ['chip_common', 'chip_uncommon', 'chip_rare', 'chip_epic', 'chip_legendary'];
+    // z=450：プレイヤー初期 z=300 と地雷 z=700 の間に並べる
+    kinds.forEach((k, i) => window.SB.dropItem(k, xs[i], 450));
   }
 }
 

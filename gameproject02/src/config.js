@@ -611,6 +611,151 @@ export const MIDBOSS_SHIELD_CONFIG = {
 };
 
 // ============================================================
+//  #section item-pickup — HP/SP タンク pickup インフラ（仕様書 §18）
+//  - container（crate / canister）破壊時に「CR は常時ドロップ＋確率テーブルで追加抽選」。
+//  - lootOverride（ステージ配置 props 側に loot:'hp_tank' 等）を指定すると確率を無視し
+//    100% その item を確定ドロップ（ボス前に体力タンク確定など、設計者意図）。
+//  - マグネット挙動は CR と統一手触り：cr-system.js の CR_CONFIG.MAGNET_* を流用するため、
+//    item-system.js 側ではマグネット定数を持たない（流用元を変えれば連動する）。
+// ============================================================
+// HP 回復は 3 種（apple < burger < meat）にサイズと回復量で「嬉しさ」を表現。
+//   見た目はメカ世界観と合わないが分かりやすさ優先（ユーザー方針 2026-05-25）。
+// SP は 1 種のみ（エメラルドグリーンで SP バーと色同期）。
+// チップは 5 レアリティ（white / green / blue / purple / orange）。
+//   pickup 物理は他アイテムと共通。装飾は派手目で「最重要アイテム」感を出す。
+//   Legendary のみ「茶柱（上空への光の柱）」演出 + 取得時専用 SE 鳴らし枠。
+export const ITEM_KIND = {
+  HP_APPLE:        'hp_apple',     // 小：リンゴ
+  HP_BURGER:       'hp_burger',    // 中：ハンバーガー
+  HP_MEAT:         'hp_meat',      // 大：骨付き肉（完全回復・最大サイズ・最大の嬉しさ）
+  SP_TANK:         'sp_tank',      // SP：エメラルドグリーン
+  CHIP_COMMON:     'chip_common',    // 白
+  CHIP_UNCOMMON:   'chip_uncommon',  // 緑
+  CHIP_RARE:       'chip_rare',      // 青
+  CHIP_EPIC:       'chip_epic',      // 紫
+  CHIP_LEGENDARY:  'chip_legendary', // オレンジ（+ 茶柱 + 専用 SE）
+};
+
+// チップレアリティの正本（2026-05-25 ユーザー指示・仕様書 §10/§1211 と同期）
+//   旧仕様の「Legendary=金」は **オレンジ** へ変更。
+export const CHIP_RARITY = {
+  common:    { color: 0xffffff, glow: 0xffffff, label: 'Common',    mesh: 44 },
+  uncommon:  { color: 0x44dd55, glow: 0x88ff99, label: 'Uncommon',  mesh: 48 },
+  rare:      { color: 0x3388ff, glow: 0x77bbff, label: 'Rare',      mesh: 52 },
+  epic:      { color: 0xaa55ff, glow: 0xcc99ff, label: 'Epic',      mesh: 58 },
+  legendary: { color: 0xff8a22, glow: 0xffcc66, label: 'Legendary', mesh: 64 },
+};
+
+// chip kind → rarity key の対応
+export const CHIP_KIND_RARITY = {
+  chip_common:    'common',
+  chip_uncommon:  'uncommon',
+  chip_rare:      'rare',
+  chip_epic:      'epic',
+  chip_legendary: 'legendary',
+};
+
+// 通常 chip 抽選テーブル（コンテナの将来追加・ドロップ拡張で使う基準値・現状未使用）
+//   common 主体・上に行くほど稀。合計 100。
+export const CHIP_DROP_TABLE_NORMAL = [
+  { kind: 'chip_common',    w: 60 },
+  { kind: 'chip_uncommon',  w: 25 },
+  { kind: 'chip_rare',      w: 12 },
+  { kind: 'chip_epic',      w:  2.5 },
+  { kind: 'chip_legendary', w:  0.5 },
+];
+
+// 「レア以上確定」抽選テーブル（ボス確定 1 個に使う）
+//   rare 主体・epic 中、legendary 低確率（仕様 §10 「Stage 3 ボス Legendary 低確率」と整合）
+export const CHIP_DROP_TABLE_RARE_PLUS = [
+  { kind: 'chip_rare',      w: 70 },
+  { kind: 'chip_epic',      w: 25 },
+  { kind: 'chip_legendary', w:  5 },
+];
+
+// ボス共通ドロップ仕様（2026-05-25 ユーザー指示）：
+//   - 確定で最低 BASE_COUNT 個（3）
+//   - うち 1 個は CHIP_DROP_TABLE_RARE_PLUS で抽選（レア以上確定）
+//   - 残りは CHIP_DROP_TABLE_NORMAL で抽選
+//   - 上振れ：BONUS_CHANCE で +1、その後さらに HALF で +1 …と逓減（最大 BONUS_MAX 個）
+//   仕様書 §10 の「Stage1=2-4 / Stage2=3-5 / Stage3=4-6」表は本ルールで統一上書き済み。
+export const BOSS_CHIP_DROP_CONFIG = {
+  BASE_COUNT:     3,    // 確定ドロップ個数
+  GUARANTEED_RARE_PLUS: 1, // うちレア以上確定 個数
+  BONUS_CHANCE:   0.35, // 1 個目の追加確率
+  BONUS_HALF:     0.5,  // 2 個目以降は前回確率 × 本値 で逓減
+  BONUS_MAX:      3,    // 追加最大個数
+};
+
+// バーの色（index.html CSS）と同期：HP=#ff4444 / SP=#22cc88（エメラルド）
+export const HP_BAR_COLOR = 0xff4444;
+export const SP_BAR_COLOR = 0x22cc88;
+
+export const ITEM_CONFIG = {
+  // HP 3 種：A<B<C でサイズと回復量がスケール
+  HP_APPLE:  { HEAL_RATIO: 0.20, COLOR: HP_BAR_COLOR, MESH_SIZE: 32 },  // 20% 回復
+  HP_BURGER: { HEAL_RATIO: 0.40, COLOR: HP_BAR_COLOR, MESH_SIZE: 44 },  // 40% 回復
+  HP_MEAT:   { HEAL_RATIO: 1.00, COLOR: HP_BAR_COLOR, MESH_SIZE: 64 },  // 完全回復・最大サイズ
+  SP_TANK:   { GAIN_STOCKS: 1,   COLOR: SP_BAR_COLOR, MESH_SIZE: 44 },  // 旧 22→44（2x）
+
+  USE_CR_MAGNET:       true,   // CR_CONFIG.MAGNET_* を流用（true 固定運用・将来独立調整窓口）
+  LIFE_PERSIST_FRAMES: 600,    // 10s @60FPS：完全永続表示
+  LIFE_BLINK_FRAMES:   300,    //  5s：点滅して消滅予告
+  BLINK_PERIOD_FRAMES:  10,    // 点滅 1 サイクルのフレーム数
+  COLLECT_RANGE:        55,    // XZ 接触距離（CR と同じ）
+  // 散らばり物理（CR と同等の手触り）
+  SCATTER_VX:       4.0,
+  SCATTER_VY:       9.0,
+  GRAVITY:          0.5,
+  GROUND_FRICTION:  0.78,
+  BOUNCE_COEF:      0.42,
+  MAX_BOUNCES:      2,
+  BOUNCE_MIN_VY:    1.5,
+  // 取得演出：CR コイン取得時の拡張リングを色変えで再現
+  PICKUP_RING_FRAMES:     18,  // リング寿命 F
+  PICKUP_RING_R_INNER:    18,  // リング内径
+  PICKUP_RING_R_OUTER:    52,  // リング外径
+  PICKUP_PARTICLE_COUNT:  14,  // sparkle 粒数
+  // 吸引中の y ターゲット：プレイヤー胴体高（足元 y=0 ベース）
+  //   pickup が床から目標 y へ ease 上昇し「胴体に吸われる」見た目を作る
+  ABSORB_TARGET_Y:        60,  // wu（プレイヤー高さ 100wu のおおよそ中段）
+  ABSORB_Y_LERP:          0.12, // 1F あたりの目標 y へ寄せる比率（0.12 ≒ 8F で 63% 到達）
+};
+
+// container 種別ごとの「追加ロール」抽選テーブル（CR は別途必ずドロップする前提）。
+//   各エントリ { kind, w } の w（重み）を合計 100 で読む。kind:'miss' は空振り（何も出ない）。
+//   仕様 §18：回復 15% / バフ 15%（→今回バフ未実装で miss）/ 空振り 10% → 計 70 miss
+//   HP は 3 段階に分割（apple 10 / burger 4 / meat 1 = 計 15）：肉ほど稀＝レアリティ感
+//   SP は単一（15）
+//   将来 buff 追加時は { kind:'buff', w:15 } に分割して miss を w:55 に減らす。
+export const CONTAINER_LOOT_TABLE = {
+  crate:    [
+    { kind: 'hp_apple',  w: 10 }, { kind: 'hp_burger', w: 4 }, { kind: 'hp_meat', w: 1 },
+    { kind: 'sp_tank',   w: 15 },
+    { kind: 'miss',      w: 70 },
+  ],
+  canister: [
+    { kind: 'hp_apple',  w: 10 }, { kind: 'hp_burger', w: 4 }, { kind: 'hp_meat', w: 1 },
+    { kind: 'sp_tank',   w: 15 },
+    { kind: 'miss',      w: 70 },
+  ],
+  // ボス前専用：HP が確定で出る回復セット（miss / sp なし）
+  //   ステージ配置 props に `lootTable: 'pre_boss_hp'` を書くと有効化。
+  //   burger 主体・apple 小当たり・meat 当たりの「ボス前ご褒美」分布（2026-05-25 ユーザー指示）。
+  pre_boss_hp: [
+    { kind: 'hp_apple',  w: 20 },
+    { kind: 'hp_burger', w: 75 },
+    { kind: 'hp_meat',   w:  5 },
+  ],
+};
+
+// 敵ドロップの指針（実装は midboss01 分岐実装時に反映）：
+//   - 敵を倒して出る HP 系は **リンゴまで**（burger / meat は出さない）
+//   - midboss01 ドロップ分岐（案 S）では shieldBroken 状態でも HP 単発は hp_apple 限定
+//   - HP 中・大は「コンテナ・ボス前のご褒美」枠で温存し、敵を倒すだけで完全回復しないルートを保つ
+//   詳細：~/.claude/plans/chars/midboss01.md / 仕様書 §18
+
+// ============================================================
 //  #section repulse-counter — リパルスカウンター設定
 //  - 敵の特定大技に「相反する軸」の SP を合わせると確定クリ＋即死＋gc 発動
 //  - 軸：aerial（対空）/ ground（対地）/ frontal（対正面）

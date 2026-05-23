@@ -53,7 +53,11 @@ let _players = null;
 let _damageArea = null;  // { addStaticArea, updateAreaPosition, removeArea, spawnExpandPulse }
 let _isHitstunState = null;  // 被弾中判定（proximity 点火を被弾中プレイヤーで誘発させないため）
 let _onOcContainerBreak = null;  // OC コンテナ破壊時コールバック（x, y, z）
-let _onContainerLoot = null;     // crate / 非地雷 canister 破壊時コールバック（kind, x, y, z）
+let _onContainerLoot = null;     // crate / 非地雷 canister 破壊時コールバック
+                                 //   (kind, x, y, z, lootOverride, lootTable)
+                                 // lootOverride：確定ドロップ指定（item-system.js dropItem の kind 文字列）
+                                 // lootTable：CONTAINER_LOOT_TABLE のキー（'pre_boss_hp' 等の専用抽選）
+                                 // どちらも null なら kind 既定テーブルで抽選。両方ある時は lootOverride 優先。
 
 export function initBreakables({ scene, THREE, triggerHitstop, damagePlayer, killEnemy, enemies, players, damageArea, isHitstunState, onOcContainerBreak, onContainerLoot }) {
   _scene = scene;
@@ -432,11 +436,14 @@ function _detonate(mesh) {
     _onOcContainerBreak(groupX, groupY, groupZ);
   }
   // crate / 非地雷 canister：戦利品（CR コイン等）をドロップ。地雷は proximityTrigger で除外
+  // lootOverride / lootTable：placeBreakables 経由で mesh.userData にセット済みなら配線側で利用
   if (_onContainerLoot) {
+    const lootOverride = mesh.userData.lootOverride || null;
+    const lootTable    = mesh.userData.lootTable    || null;
     if (mesh.userData.kind === 'breakable-crate') {
-      _onContainerLoot('crate', groupX, groupY, groupZ);
+      _onContainerLoot('crate', groupX, groupY, groupZ, lootOverride, lootTable);
     } else if (mesh.userData.kind === 'breakable-canister' && !mesh.userData.proximityTrigger) {
-      _onContainerLoot('canister', groupX, groupY, groupZ);
+      _onContainerLoot('canister', groupX, groupY, groupZ, lootOverride, lootTable);
     }
   }
 }
