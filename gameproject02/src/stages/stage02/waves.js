@@ -14,7 +14,7 @@ export const STAGE02_META = {
   worldXMin: 0,
   worldXMax: 6900,
   sectionBoundaries: [1700, 5100],
-  // 最終ウェーブ撃破後、ここまで歩くとステージクリア（手前の OC コンテナを取る余白）
-  clearWalkX: 6650,
+  // 2026-05-23：boss 撃破時に OC ジェム直接ドロップに変更したため clearWalkX は廃止
+  // （ボス位置で OC 取得 → triggerStageClear が OC 完了を待ってからバナー）
   nextStageId: 'stage03',
 };

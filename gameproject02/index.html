@@ -514,13 +514,13 @@
       transition: border-color 0.12s, transform 0.1s, box-shadow 0.12s;
       text-align: center;
     }
-    .oc-card:hover,
+    /* キーボード操作とマウス操作の両方で focusIdx を同期するため、
+       :hover の見た目強調は廃止し --focused だけを active 表現とする
+       （旧仕様だと :hover と --focused が別カードに付いて 2 つアクティブに見えた） */
     .oc-card--focused {
       border-color: #ff8800;
       transform: translateY(-4px) scale(1.03);
       box-shadow: 0 8px 24px rgba(255,136,0,0.4);
-    }
-    .oc-card--focused {
       outline: 2px solid #ffaa44;
     }
     /* 選択確定：強フラッシュ → 実機復帰前の一発演出 */
@@ -931,9 +931,9 @@
       getFlyingPartsCount, hitBreakableExternal, findBreakableHitBy,
     } from './src/breakables.js';
     // === oc-gem（OC コンテナ破壊で出現する紫ジェム → OC 選択トリガー）===
-    import { initOcGem, spawnOcGem, updateOcGem } from './src/oc-gem.js';
+    import { initOcGem, spawnOcGem, updateOcGem, isOcGemActive } from './src/oc-gem.js';
     // === cr-system（CR ドロップ＆回収・14-F テスト版）===
-    import { initCrSystem, updateCrSystem, getCrTotal, dropCR, CR_CONFIG } from './src/cr-system.js';
+    import { initCrSystem, updateCrSystem, getCrTotal, dropCR, CR_CONFIG, collectAllCR } from './src/cr-system.js';
     // === debug-invariants（意図しない挙動の自動検知・致命検知は常時 ON）===
     import {
       setKnownStates as _invSetKnownStates,
@@ -2210,7 +2210,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-23 ステージ拡張: ウェーブ間隔1画面化 + プロップ/穴3個/地雷 再配置';
+    const LAST_UPDATE = '2026-05-23 不具合修正: 被弾後ダッシュ復帰 / OC マウス&キー同期 / ジャンパー hitbox 残留';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {
@@ -2283,6 +2283,7 @@
     const _ocPadPrev      = { left: false, right: false, select: false };  // rising-edge
     let   _ocInputDelay   = 0;    // 開いた直後の誤入力防止タイマー（60F = 1 秒）
     let   _ocSelecting    = false; // 選択フラッシュ演出中（再入力ロック）
+    let   _ocFlashTimer   = null;  // _selectOC の確定フラッシュ setTimeout ID（クリーンアップ用）
 
     // OC ジェム取得：画面フラッシュ → 少し見せてから OC 選択画面へ
     function _onOcGemAcquired() {
@@ -2302,25 +2303,36 @@
       });
     }
 
+    // SKIP カード（OVERCLOCK_CARDS には入れず UI 時点で末尾に常設）。
+    // 選択時は _applyOCEffect で何もしないルートに分岐する。
+    const _OC_SKIP_CARD = { id: 'SKIP', label: 'SKIP', desc: '今回の OC をスルー', color: '#888888' };
+
     function showOCSelection() {
-      // OVERCLOCK_CARDS から 2 枚をランダム抽出
+      // OVERCLOCK_CARDS から 2 枚をランダム抽出 + SKIP を末尾に固定
       const shuffled = [...OVERCLOCK_CARDS].sort(() => Math.random() - 0.5);
-      _ocCards = shuffled.slice(0, 2);
+      _ocCards = [...shuffled.slice(0, 2), _OC_SKIP_CARD];
 
       const overlay  = document.getElementById('oc-overlay');
       const cardsEl  = document.getElementById('oc-cards');
       if (!overlay || !cardsEl) return;
 
       cardsEl.innerHTML = '';
-      for (const card of _ocCards) {
+      _ocCards.forEach((card, i) => {
         const div = document.createElement('div');
         div.className = 'oc-card';
         div.innerHTML =
           `<div class="oc-card-label" style="color:${card.color}">${card.label}</div>` +
           `<div class="oc-card-desc">${card.desc}</div>`;
         div.addEventListener('click', () => _selectOC(card.id));
+        // マウスホバー時にキー focusIdx を同期 → ホバー先と --focused が常に一致し
+        // 「2 つアクティブに見える」表示バグを解消（D-2）
+        div.addEventListener('mouseenter', () => {
+          if (!_ocPending || _ocSelecting) return;
+          _ocFocusIdx = i;
+          _updateOcFocus();
+        });
         cardsEl.appendChild(div);
-      }
+      });
 
       _ocFocusIdx = 0;
       _updateOcFocus();
@@ -2331,7 +2343,7 @@
       _ocPadPrev.left = false; _ocPadPrev.right = false; _ocPadPrev.select = false;
       _ocSelecting = false;
       _ocPending = true;
-      document.addEventListener('keydown', _ocKeyHandler);
+      // 入力はメインループの inp() rising-edge に一本化（旧 keydown ハンドラは廃止）
     }
 
     function _updateOcFocus() {
@@ -2339,19 +2351,9 @@
       cards.forEach((el, i) => el.classList.toggle('oc-card--focused', i === _ocFocusIdx));
     }
 
-    function _ocKeyHandler(e) {
-      if (!_ocPending || e.repeat || _ocInputDelay > 0) return;
-      // ArrowLeft/Right は inp() ゲームループ側で rising-edge 管理（ここで処理すると二重トグルになる）
-      if (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyJ' || e.code === 'KeyK') {
-        _selectOC(_ocCards[_ocFocusIdx].id);
-        e.preventDefault();
-      }
-    }
-
     function _selectOC(cardId) {
       if (_ocSelecting) return;   // フラッシュ演出中の二重選択を弾く
       _ocSelecting = true;
-      document.removeEventListener('keydown', _ocKeyHandler);
       // 選択カードを強フラッシュ、非選択カードはディム
       const idx = _ocCards.findIndex(c => c.id === cardId);
       const cardEls = document.querySelectorAll('.oc-card');
@@ -2361,7 +2363,10 @@
         else           el.classList.add('oc-card--dimmed');
       });
       // フラッシュを見せてから効果適用 → オーバーレイを閉じて実機へ復帰
-      setTimeout(() => {
+      // タイマー ID を保持し、二重起動・ステージ遷移時に clearTimeout で取り消せるようにする
+      if (_ocFlashTimer) clearTimeout(_ocFlashTimer);
+      _ocFlashTimer = setTimeout(() => {
+        _ocFlashTimer = null;
         _applyOCEffect(cardId);
         const overlay = document.getElementById('oc-overlay');
         if (overlay) overlay.style.display = 'none';
@@ -2373,7 +2378,25 @@
       }, 480);
     }
 
+    // OC 選択画面の強制クリーンアップ（ステージ遷移などで OC が中断される場合に呼ぶ）。
+    // 現状は reload 方式のため明示呼び出し箇所は無し（タイマーは page unload で破棄される）。
+    // ただし将来 in-place 遷移を導入した時の保険として用意。
+    function _disposeOCSelection() {
+      if (_ocFlashTimer) { clearTimeout(_ocFlashTimer); _ocFlashTimer = null; }
+      _ocOpenTimer = 0;
+      const overlay = document.getElementById('oc-overlay');
+      if (overlay) overlay.style.display = 'none';
+      _ocPending   = false;
+      _ocSelecting = false;
+      _ocInputDelay = 0;
+    }
+
     function _applyOCEffect(cardId) {
+      // SKIP は何も適用せず閉じる（リスクなし・リターンなし）
+      if (cardId === 'SKIP') {
+        console.log('[OC] SKIP（適用なし）');
+        return;
+      }
       switch (cardId) {
         case 'POWER_UP':
           if (!_ocMods.powerUp) {
@@ -3443,8 +3466,9 @@
         const _right  = inp('ArrowRight') || inp('KeyD');
         const _sel    = inp('Space') || inp('KeyJ') || inp('KeyK');
         if (_ocInputDelay <= 0) {
-          if (_left  && !_ocPadPrev.left)   { _ocFocusIdx = _ocFocusIdx === 0 ? 1 : 0; _updateOcFocus(); }
-          if (_right && !_ocPadPrev.right)  { _ocFocusIdx = _ocFocusIdx === 0 ? 1 : 0; _updateOcFocus(); }
+          const _n = _ocCards.length;   // 通常 3（OC 2 + SKIP）。将来 4 枚化等にも追従
+          if (_left  && !_ocPadPrev.left)   { _ocFocusIdx = (_ocFocusIdx - 1 + _n) % _n; _updateOcFocus(); }
+          if (_right && !_ocPadPrev.right)  { _ocFocusIdx = (_ocFocusIdx + 1) % _n;       _updateOcFocus(); }
           if (_sel   && !_ocPadPrev.select) { _selectOC(_ocCards[_ocFocusIdx].id); }
         }
         // delay 中も prev を更新しておく（delay 終了直後に押しっぱなしで即発火しないよう）
@@ -3723,6 +3747,12 @@
       //   SB.OVERCLOCK_CARDS    → カードテーブル確認
       OVERCLOCK_CARDS,
       oc: { show: showOCSelection, apply: _applyOCEffect, gem: (x, z) => spawnOcGem(x ?? 0, z ?? 0) },
+      // ステージクリア演出が OC 完了を待つために使う
+      isOcActive: () => isOcGemActive() || _ocPending || _ocOpenTimer > 0,
+      // GAME CLEAR でフィールド上の全コインを強制マグネット吸引
+      collectAllCR,
+      // ステージボスの撃破時に OC ジェムを直接 spawn（wave-runner から呼ぶ）
+      spawnOcGem: (x, z) => spawnOcGem(x ?? 0, z ?? 0),
     };
     console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / pad / mega crash / ult) loaded.');
     console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG / SB.KEY_CONFIG');
