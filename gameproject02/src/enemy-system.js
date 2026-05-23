@@ -583,6 +583,14 @@ export function enterEnemyDying(e, ctx) {
   e.atkPhase         = null;
   e.hitDelivered     = false;
   e.repulseWindow    = false;   // dying 死体に「危↑」HUD が残るリーク防止
+  // enemy_attacking state のまま dying に入ると、state machine が curAtkId+atkPhase=null で
+  // どのフェーズブロックにも当てはまらずロックする（敵 mesh が attack ポーズで固まる）。
+  // 例：ジャンパー jump_dive 中にバレル爆発で死亡 → 攻撃判定が画面に残って見える（D-3）。
+  // enemy_attacking 限定で state を wait01 に解放し machine を素通りさせる。
+  if (e.state === STATE.enemy_attacking) {
+    e.state    = STATE.wait01;
+    e.atkTimer = 0;
+  }
   _clearAllTokens(ctx, e);
   // ゴア・クリティカル抽選（基本構造・キャラ拡張で発火条件を絞る）
   _maybeArmGoreCritical(e);
@@ -941,6 +949,10 @@ export function enterEnemyDyingBurst(e, ctx, hitFacing) {
   e.atkPhase        = null;
   e.hitDelivered    = false;
   e.repulseWindow   = false;   // dying 死体に「危↑」HUD が残るリーク防止
+  // enemy_attacking state でこのフローに入った場合のロック回避（D-3）。
+  // burst ルートは下で state を STATE.down_burst_start に上書きするので明示変更は不要だが、
+  // 念のため atkTimer はクリアしておく（machine が再評価される事故防止）
+  e.atkTimer        = 0;
   _clearAllTokens(ctx, e);
   // 速度は触らない：直前の hit-engine lv6 dispatch が attack 由来の値を既に設定済
   //   （knockbackVx = facing * attack.knockback * 0.4 * sameScale * kb_vx_mult_lv6）
