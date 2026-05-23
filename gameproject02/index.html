@@ -2283,6 +2283,7 @@
     const _ocPadPrev      = { left: false, right: false, select: false };  // rising-edge
     let   _ocInputDelay   = 0;    // 開いた直後の誤入力防止タイマー（60F = 1 秒）
     let   _ocSelecting    = false; // 選択フラッシュ演出中（再入力ロック）
+    let   _ocFlashTimer   = null;  // _selectOC の確定フラッシュ setTimeout ID（クリーンアップ用）
 
     // OC ジェム取得：画面フラッシュ → 少し見せてから OC 選択画面へ
     function _onOcGemAcquired() {
@@ -2361,7 +2362,10 @@
         else           el.classList.add('oc-card--dimmed');
       });
       // フラッシュを見せてから効果適用 → オーバーレイを閉じて実機へ復帰
-      setTimeout(() => {
+      // タイマー ID を保持し、二重起動・ステージ遷移時に clearTimeout で取り消せるようにする
+      if (_ocFlashTimer) clearTimeout(_ocFlashTimer);
+      _ocFlashTimer = setTimeout(() => {
+        _ocFlashTimer = null;
         _applyOCEffect(cardId);
         const overlay = document.getElementById('oc-overlay');
         if (overlay) overlay.style.display = 'none';
@@ -2371,6 +2375,20 @@
         _ocSelecting = false;
         console.log('[OC] 発動:', cardId);
       }, 480);
+    }
+
+    // OC 選択画面の強制クリーンアップ（ステージ遷移などで OC が中断される場合に呼ぶ）。
+    // 現状は reload 方式のため明示呼び出し箇所は無し（タイマーは page unload で破棄される）。
+    // ただし将来 in-place 遷移を導入した時の保険として用意。
+    function _disposeOCSelection() {
+      if (_ocFlashTimer) { clearTimeout(_ocFlashTimer); _ocFlashTimer = null; }
+      _ocOpenTimer = 0;
+      document.removeEventListener('keydown', _ocKeyHandler);
+      const overlay = document.getElementById('oc-overlay');
+      if (overlay) overlay.style.display = 'none';
+      _ocPending   = false;
+      _ocSelecting = false;
+      _ocInputDelay = 0;
     }
 
     function _applyOCEffect(cardId) {
