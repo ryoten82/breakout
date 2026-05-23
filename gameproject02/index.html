@@ -2210,7 +2210,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-24 Stage3 ボス登場演出 + 落とし穴汎用化/kb01救済 + ボンベ過密緩和';
+    const LAST_UPDATE = '2026-05-24 敵+20% / spawn variant(fall/walkin) / filler / St2-3 boss = midboss01';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {
@@ -2513,6 +2513,11 @@
       isHitstunState,
       // OC コンテナ破壊 → 破壊位置に OC ジェムを出現させる
       onOcContainerBreak: (x, y, z) => spawnOcGem(x, z),
+      // crate / 非地雷 canister 破壊 → CR コインドロップ（軽め設定：crate 2-3, canister 4-6）
+      onContainerLoot: (kind, x, y, z) => {
+        if (kind === 'crate')         dropCR(x, z, 80, { countMin: 2, countMax: 3 });
+        else if (kind === 'canister') dropCR(x, z, 80, { countMin: 4, countMax: 6 });
+      },
     });
 
     // OC ジェム初期化（コンテナ破壊 → ジェム出現 → 滞在 → 取得フラッシュ → OC 選択）

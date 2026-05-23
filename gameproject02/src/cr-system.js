@@ -66,11 +66,14 @@ export function initCrSystem({ THREE, scene, players, hudLayerEl, spawnEffect })
 }
 
 // 爆発地点 (x, spawnY, z) に CR コインをばらまく。_triggerFinalExplosion から呼ぶ。
-export function dropCR(x, z, spawnY = 80) {
+// opts.countMin / countMax で粒数レンジを上書き可能（コンテナ別ドロップ量等）。
+// 未指定時は CR_CONFIG.DROP_COUNT_MIN / MAX を継続使用。
+export function dropCR(x, z, spawnY = 80, opts = {}) {
   if (!_THREE || !_scene) return;
   const C = CR_CONFIG;
-  const n = C.DROP_COUNT_MIN +
-    Math.floor(Math.random() * (C.DROP_COUNT_MAX - C.DROP_COUNT_MIN + 1));
+  const cMin = opts.countMin ?? C.DROP_COUNT_MIN;
+  const cMax = opts.countMax ?? C.DROP_COUNT_MAX;
+  const n = cMin + Math.floor(Math.random() * (cMax - cMin + 1));
   for (let i = 0; i < n; i++) {
     // コイングループ：立てたシリンダーを Y 回転でスピン
     const group = new _THREE.Group();

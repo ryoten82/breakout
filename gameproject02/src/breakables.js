@@ -53,8 +53,9 @@ let _players = null;
 let _damageArea = null;  // { addStaticArea, updateAreaPosition, removeArea, spawnExpandPulse }
 let _isHitstunState = null;  // 被弾中判定（proximity 点火を被弾中プレイヤーで誘発させないため）
 let _onOcContainerBreak = null;  // OC コンテナ破壊時コールバック（x, y, z）
+let _onContainerLoot = null;     // crate / 非地雷 canister 破壊時コールバック（kind, x, y, z）
 
-export function initBreakables({ scene, THREE, triggerHitstop, damagePlayer, killEnemy, enemies, players, damageArea, isHitstunState, onOcContainerBreak }) {
+export function initBreakables({ scene, THREE, triggerHitstop, damagePlayer, killEnemy, enemies, players, damageArea, isHitstunState, onOcContainerBreak, onContainerLoot }) {
   _scene = scene;
   _THREE = THREE;
   _vec3Tmp = new THREE.Vector3();
@@ -66,6 +67,7 @@ export function initBreakables({ scene, THREE, triggerHitstop, damagePlayer, kil
   _damageArea     = damageArea || null;
   _isHitstunState = isHitstunState || null;
   _onOcContainerBreak = onOcContainerBreak || null;
+  _onContainerLoot    = onContainerLoot || null;
 }
 
 // 配置済の mesh（group）を破壊可能オブジェクトとして登録する
@@ -428,6 +430,14 @@ function _detonate(mesh) {
   // OC コンテナ：破壊位置に OC ジェムを出現させる
   if (mesh.userData.kind === 'breakable-oc-container' && _onOcContainerBreak) {
     _onOcContainerBreak(groupX, groupY, groupZ);
+  }
+  // crate / 非地雷 canister：戦利品（CR コイン等）をドロップ。地雷は proximityTrigger で除外
+  if (_onContainerLoot) {
+    if (mesh.userData.kind === 'breakable-crate') {
+      _onContainerLoot('crate', groupX, groupY, groupZ);
+    } else if (mesh.userData.kind === 'breakable-canister' && !mesh.userData.proximityTrigger) {
+      _onContainerLoot('canister', groupX, groupY, groupZ);
+    }
   }
 }
 

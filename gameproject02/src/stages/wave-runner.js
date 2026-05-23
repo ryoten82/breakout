@@ -18,9 +18,36 @@ import { initWaveHud, updateWaveHud } from './stage01/wave-hud.js';
 import { triggerStageClear, isStageCleared } from './stage01/clear.js';
 import { showArrowHud, hideArrowHud } from './arrow-hud.js';
 import { levelWalls } from '../camera.js';
+import { STATE } from '../states.js';
+
+// 画面外スポーン用オフセット（walkin variant）：1 画面 ≒ 1244wu の概ね 2/3
+const WALKIN_OFFSET_X = 800;
+// 落下スポーン開始 Y（fall variant）：エレベーター（elevator.js spawnYHigh:760）と同等の高さ
+const FALL_SPAWN_Y = 600;
 
 function _isEnemyDead(e) {
   return !e || e.removed === true || e.isAlive === false;
+}
+
+// spawn variant の適用：spawnDummy 直後に位置/state を書き換える。
+//   'ground'        : 既定（その場で出現）
+//   'fall'          : 高所 y に持ち上げ fall_loop（updateEnemies の重力で着地）
+//   'walkin_left'   : 目標 x より左にオフセット（プレイヤー後方/左奥から歩いてくる）
+//   'walkin_right'  : 目標 x より右にオフセット（前方から歩いてくる）
+function _applySpawnVariant(e, s) {
+  const v = s.variant || 'ground';
+  if (v === 'fall') {
+    e.y = FALL_SPAWN_Y;
+    e.vy = 0;
+    e.state = STATE.fall_loop;
+    if (e.mesh) e.mesh.position.y = e.y;   // 初フレームの地上チラ見え防止
+  } else if (v === 'walkin_left') {
+    e.x = s.x - WALKIN_OFFSET_X;
+    if (e.mesh) e.mesh.position.x = e.x;
+  } else if (v === 'walkin_right') {
+    e.x = s.x + WALKIN_OFFSET_X;
+    if (e.mesh) e.mesh.position.x = e.x;
+  }
 }
 
 export function createWaveRunner(opts) {
@@ -48,8 +75,16 @@ export function createWaveRunner(opts) {
   let _pendingClear = false;
   let _pendingClearNextId = null;
 
+  // HUD 表示用：waves[0..idx-1] の中の !noLock wave 数（filler を除外したカウント）。
+  // meta.totalWaves は呼び出し側で waves.filter(w => !w.noLock).length と一致させる。
+  function _mainWavesUpTo(idx) {
+    let n = 0;
+    for (let i = 0; i < idx && i < waves.length; i++) if (!waves[i].noLock) n++;
+    return n;
+  }
+
   function _spawnWave(wave) {
-    _activeWaveEnemies = [];
+    const spawned = [];
     for (const s of wave.spawns) {
       const tpl = enemyTpl[s.type] || {};
       const base = {
@@ -60,8 +95,11 @@ export function createWaveRunner(opts) {
       const extra = spawnOptsForWave ? spawnOptsForWave(wave) : null;
       const finalOpts = extra ? { ...base, ...extra } : base;
       const e = _spawnDummy(s.x, s.z ?? 0, finalOpts);
-      _activeWaveEnemies.push(e);
+      _applySpawnVariant(e, s);
+      spawned.push(e);
     }
+    // noLock の filler wave は撃破追跡に積まない（残置 OK・進行を止めない）
+    if (!wave.noLock) _activeWaveEnemies = spawned;
   }
 
   function init(deps) {
@@ -104,12 +142,22 @@ export function createWaveRunner(opts) {
     if (!_activeWave && _nextWaveIndex < waves.length) {
       const wave = waves[_nextWaveIndex];
       if (p.x >= wave.triggerX) {
-        _activeWave = wave;
-        const maxEnemyX = wave.spawns.reduce((m, s) => Math.max(m, s.x), 0);
-        lockArena(maxEnemyX + 200);
-        _spawnWave(wave);
-        updateWaveHud(_nextWaveIndex + 1, meta.totalWaves, true);
-        hideArrowHud();
+        if (wave.noLock) {
+          // フィラー wave：spawn だけして即進行（arena lock せず・撃破追跡しない）
+          _spawnWave(wave);
+          _nextWaveIndex++;
+        } else {
+          _activeWave = wave;
+          // walkin_right の実スポーン位置（s.x + offset）が arena 右壁外にならないよう広げる
+          const maxSpawnX = wave.spawns.reduce((m, s) => {
+            const x = (s.variant === 'walkin_right') ? (s.x + WALKIN_OFFSET_X) : s.x;
+            return Math.max(m, x);
+          }, 0);
+          lockArena(maxSpawnX + 200);
+          _spawnWave(wave);
+          updateWaveHud(_mainWavesUpTo(_nextWaveIndex + 1), meta.totalWaves, true);
+          hideArrowHud();
+        }
       }
     }
 
@@ -145,7 +193,7 @@ export function createWaveRunner(opts) {
             triggerStageClear({ nextStageId: nextId });
           }
         } else {
-          updateWaveHud(_nextWaveIndex, meta.totalWaves, false);
+          updateWaveHud(_mainWavesUpTo(_nextWaveIndex), meta.totalWaves, false);
           showArrowHud();
           if (_onWaveClear) _onWaveClear(completedWaveIndex);
         }
