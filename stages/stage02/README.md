@@ -15,7 +15,7 @@ Act 1 = factory の 2 番目のステージ。**工場内部の生産フロア**
 - ウェーブ：敵編成は stage01 と共用（`STAGE01_WAVES` を再 export）。META は stage02 専用
   （`stage02/waves.js`：worldXMax 6900 / `clearWalkX` 6650 / nextStageId stage03）
 - ウェーブ間隔は 1 画面（≒1200wu）確保（2026-05-23 拡張）。trig x = 800 / 2300 / 4000 / 5700
-- 地面穴ギミック（`floor-hazard.js`）：Stage 2 固有。**穴 3 個**をウェーブ合間に配置（後述）
+- 地面穴ギミックは汎用システム（`src/hazards/floor-hole.js`）を利用。Stage 2 固有の穴 **3 個** を `addFloorHole` で登録（後述）
 - 壊れ物：序盤コンテナ多め → 後半ボンベ多め。穴に重ならないよう x をずらして配置
 - OC コンテナ：**最終ウェーブ撃破後**、`clearWalkX` 手前の余白（x=6500）に固定 1 個
 - 装飾：既存の内部柱組（`buildBackWallPillars`）＋床↘パース＋bgElements
@@ -24,7 +24,7 @@ Act 1 = factory の 2 番目のステージ。**工場内部の生産フロア**
 
 ## 地面穴ギミック（2026-05-23 複数化）
 
-`floor-hazard.js` が管理。穴 3 個を `HAZARD_CONFIG.holes` 配列で定義し、ウェーブ合間に分散：
+汎用システム `src/hazards/floor-hole.js`（`initFloorHoleSystem` / `addFloorHole(rect)` / `tickFloorHoleSystem`）を Stage 2 から 3 回呼んで登録：
 
 | 穴 | X 範囲 | 配置 |
 |---|---|---|

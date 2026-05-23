@@ -19,14 +19,11 @@ const _STAGE1_PROPS = [
   // W2–W3 合間（OC コンテナ：破壊で OC ジェム出現 → OC 選択へ）
   { type: 'oc-container', x: 3100, z:   0 },
   { type: 'crate',        x: 3450, z:  20 },
-  { type: 'canister',     x: 3650, z: -20 },
   { type: 'canister',     x: 3800, z:  15 },
-  // W3–W4 合間（後半：ボンベ多めの嫌がらせ帯）
-  { type: 'canister',     x: 4850, z: -20 },
-  { type: 'canister',     x: 5000, z:  20 },
-  { type: 'crate',        x: 5150, z:   0 },
-  { type: 'canister',     x: 5350, z: -15 },
-  { type: 'canister',     x: 5500, z:  20 },
+  // W3–W4 合間（後半：ボンベ寄りだが密度は控えめに crate で間を空ける）
+  { type: 'canister',     x: 4900, z: -20 },
+  { type: 'crate',        x: 5200, z:   0 },
+  { type: 'canister',     x: 5450, z:  20 },
 ];
 
 // 被弾 state テスト用のデバッグ地雷は「アクションテスト部屋」（src/stages/action-test/）

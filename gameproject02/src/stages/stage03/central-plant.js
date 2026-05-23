@@ -19,14 +19,16 @@ const BAND_HEIGHT = 900;    // Y 方向の高さ
 const BAND_Z      = -300;   // 奥（プレイ平面より少し奥）
 
 // D セクション 巨大発光装置（§3.5）
-const EMITTER_X       = 4100;     // D セクション中央 (3400-4800 の真ん中)
+// 2026-05-23 ステージ拡張で D セクションが 5200-6000 に移動したため中央 5600 に合わせる。
+const EMITTER_X       = 5600;     // D セクション中央 (5200-6000 の真ん中)
 const EMITTER_Y       = 320;      // 中心高さ（少し高めに置いて見せる）
 const EMITTER_Z       = -700;     // 奥（プレイ平面 z=0 より大きく奥）
 const EMITTER_RADIUS  = 200;
 const EMITTER_COLOR   = 0x3399ff; // 青
 
 // E セクション ボス台座（§4・円形シャフトリフト）
-const PLATFORM_X         = 5400;
+// 2026-05-23 ボス spawn が x=6300 になったので台座も同 x へ揃える（ボスが台座上に乗る）。
+const PLATFORM_X         = 6300;
 const PLATFORM_Z         = 0;
 const PLATFORM_DISK_R    = 100;
 const PLATFORM_DISK_H    = 20;
@@ -141,10 +143,12 @@ export function addCentralPlant(scene, THREE) {
   scene.add(emitter);
   _props.push(emitter);
 
-  // E セクション ボス台座
+  // E セクション ボス台座（boss-intro が「せり上がり」アニメに使うため参照を返す）
   const platform = makeBossPlatform(THREE);
   scene.add(platform);
   _props.push(platform);
+
+  return { platformGroup: platform };
 }
 
 export function disposeCentralPlant(scene) {
