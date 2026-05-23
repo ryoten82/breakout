@@ -514,13 +514,13 @@
       transition: border-color 0.12s, transform 0.1s, box-shadow 0.12s;
       text-align: center;
     }
-    .oc-card:hover,
+    /* キーボード操作とマウス操作の両方で focusIdx を同期するため、
+       :hover の見た目強調は廃止し --focused だけを active 表現とする
+       （旧仕様だと :hover と --focused が別カードに付いて 2 つアクティブに見えた） */
     .oc-card--focused {
       border-color: #ff8800;
       transform: translateY(-4px) scale(1.03);
       box-shadow: 0 8px 24px rgba(255,136,0,0.4);
-    }
-    .oc-card--focused {
       outline: 2px solid #ffaa44;
     }
     /* 選択確定：強フラッシュ → 実機復帰前の一発演出 */
@@ -2210,7 +2210,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-23 体験改善: St2 boss OC ドロップ / OC SKIP / クリア演出延長 / コイン残存・自動回収';
+    const LAST_UPDATE = '2026-05-23 不具合修正: 被弾後ダッシュ復帰 / OC マウス&キー同期 / ジャンパー hitbox 残留';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {
@@ -2317,15 +2317,22 @@
       if (!overlay || !cardsEl) return;
 
       cardsEl.innerHTML = '';
-      for (const card of _ocCards) {
+      _ocCards.forEach((card, i) => {
         const div = document.createElement('div');
         div.className = 'oc-card';
         div.innerHTML =
           `<div class="oc-card-label" style="color:${card.color}">${card.label}</div>` +
           `<div class="oc-card-desc">${card.desc}</div>`;
         div.addEventListener('click', () => _selectOC(card.id));
+        // マウスホバー時にキー focusIdx を同期 → ホバー先と --focused が常に一致し
+        // 「2 つアクティブに見える」表示バグを解消（D-2）
+        div.addEventListener('mouseenter', () => {
+          if (!_ocPending || _ocSelecting) return;
+          _ocFocusIdx = i;
+          _updateOcFocus();
+        });
         cardsEl.appendChild(div);
-      }
+      });
 
       _ocFocusIdx = 0;
       _updateOcFocus();
