@@ -12,9 +12,12 @@ import { addSectionMarkers } from '../stage01/section-markers.js';
 import { placeBreakables } from '../../props/place-props.js';
 import { createWaveRunner } from '../wave-runner.js';
 import { initFloorHazard, tickFloorHazard } from './floor-hazard.js';
+import { spawnOcGem } from '../../oc-gem.js';
 
-// 壊れ物配置：序盤コンテナ多め → 後半ボンベ多め。OC コンテナは最終ウェーブ後（clearWalkX 手前）。
+// 壊れ物配置：序盤コンテナ → 後半ボンベ。
 // 穴 3 個（x 1640-1980 / 3120-3460 / 4980-5320）に重ならないよう x をずらして配置する。
+// 2026-05-23 改修：OC は boss 撃破時に直接ドロップ（onFinalWaveClear 経由）するため、
+// 固定 OC コンテナ（x=6500）と clearWalkX 余白は廃止。
 const _STAGE2_PROPS = [
   // W1–W2 合間（穴1 1640-1980 を回避）
   { type: 'crate',        x: 1300, z: -20 },
@@ -31,8 +34,6 @@ const _STAGE2_PROPS = [
   { type: 'canister',     x: 4850, z:  20 },
   { type: 'canister',     x: 5450, z: -15 },
   { type: 'canister',     x: 5600, z:  20 },
-  // 最終ウェーブ後（clearWalkX 6650 手前）：OC コンテナ
-  { type: 'oc-container', x: 6500, z:   0 },
 ];
 
 const _runner = createWaveRunner({
@@ -44,6 +45,10 @@ const _runner = createWaveRunner({
       addSectionMarkers(deps.scene, deps.THREE);
       placeBreakables(deps.scene, deps.THREE, _STAGE2_PROPS);
     }
+  },
+  // 最終ウェーブ撃破時：boss 位置に OC ジェムを直接出現させる
+  onFinalWaveClear: (bossPos) => {
+    spawnOcGem(bossPos.x, bossPos.z ?? 0);
   },
 });
 

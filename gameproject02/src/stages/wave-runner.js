@@ -31,6 +31,8 @@ export function createWaveRunner(opts) {
     decorate = null,
     resolveNextStageId = null,
     spawnOptsForWave = null,
+    // 最終 wave 全滅時のフック。引数：{ x, z } = 最後の敵の最終位置（ボス位置として使える）
+    onFinalWaveClear = null,
   } = opts;
 
   // クロージャ管理の内部状態
@@ -117,6 +119,14 @@ export function createWaveRunner(opts) {
       if (allDead) {
         const wasLastWave = (_nextWaveIndex === waves.length - 1);
         const completedWaveIndex = _nextWaveIndex;
+        // 最終 wave 撃破時は敵リストクリア前にボス（最後の敵）位置を保存
+        let bossPos = null;
+        if (wasLastWave && _activeWaveEnemies.length > 0) {
+          const last = _activeWaveEnemies[_activeWaveEnemies.length - 1];
+          if (last && typeof last.x === 'number') {
+            bossPos = { x: last.x, z: last.z ?? 0 };
+          }
+        }
         _activeWave = null;
         _activeWaveEnemies = [];
         _nextWaveIndex++;
@@ -125,6 +135,8 @@ export function createWaveRunner(opts) {
           const nextId = resolveNextStageId ? resolveNextStageId() : (meta.nextStageId ?? null);
           updateWaveHud(meta.totalWaves, meta.totalWaves, false);
           hideArrowHud();
+          // ステージ固有のボス撃破フック（OC ドロップ等）。triggerStageClear は OC 待ちなので順序は問題なし
+          if (onFinalWaveClear) onFinalWaveClear(bossPos || { x: p.x, z: 0 });
           if (meta.clearWalkX != null) {
             // 最終ウェーブ後の「歩いて OC を取る余白」：到達までクリアを保留
             _pendingClear = true;
