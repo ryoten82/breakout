@@ -720,6 +720,11 @@ export const ITEM_CONFIG = {
   //   pickup が床から目標 y へ ease 上昇し「胴体に吸われる」見た目を作る
   ABSORB_TARGET_Y:        60,  // wu（プレイヤー高さ 100wu のおおよそ中段）
   ABSORB_Y_LERP:          0.12, // 1F あたりの目標 y へ寄せる比率（0.12 ≒ 8F で 63% 到達）
+  // 拾い不可猶予（2026-05-25 ユーザー指示）：
+  //   spawn 直後にプレイヤー密着でも即吸引されないようにし、必ず広がる挙動を見せる。
+  //   `landed === true` または `spawnFrames >= ARM_FRAMES_AFTER_SPAWN` のどちらか早い方で armed。
+  //   CR_CONFIG.ARM_FRAMES_AFTER_SPAWN と同期して運用（CR も同じ仕様）。
+  ARM_FRAMES_AFTER_SPAWN: 60,  // 1s @60FPS
 };
 
 // container 種別ごとの「追加ロール」抽選テーブル（CR は別途必ずドロップする前提）。

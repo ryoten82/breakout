@@ -46,6 +46,10 @@ export const CR_CONFIG = {
   LIFE_PERSIST_FRAMES: 600, // 10s @60FPS：着地後この間は完全永続表示
   LIFE_BLINK_FRAMES:   300, // 5s：以降この間は点滅して消滅予告
   BLINK_PERIOD_FRAMES: 10,  // 点滅 1 サイクルのフレーム数
+  // 拾い不可猶予（2026-05-25 ユーザー指示）：
+  //   spawn 直後にプレイヤー密着でも即吸引されないようにし、必ず広がる挙動を見せる。
+  //   `landed === true` または `spawnFrames >= ARM_FRAMES_AFTER_SPAWN` のどちらか早い方で armed。
+  ARM_FRAMES_AFTER_SPAWN: 60,  // 1s @60FPS
 };
 
 export function initCrSystem({ THREE, scene, players, hudLayerEl, spawnEffect }) {
@@ -94,6 +98,7 @@ export function dropCR(x, z, spawnY = 80, opts = {}) {
       landed: false,
       magnetFrames: 0,
       ageFrames: 0,             // 着地後経過フレーム（残存タイマー判定用）
+      spawnFrames: 0,           // spawn 後の経過フレーム（拾い不可猶予判定用）
       forceMagnet: false,       // GAME CLEAR 自動回収などで強制吸引したい時に true
       _innerMesh: inner,        // 点滅で visible 切替する本体メッシュ参照
       value: C.VALUE_MIN + Math.floor(Math.random() * (C.VALUE_MAX - C.VALUE_MIN + 1)),
@@ -112,6 +117,10 @@ export function updateCrSystem() {
   const C = CR_CONFIG;
   for (let i = _pickups.length - 1; i >= 0; i--) {
     const c = _pickups[i];
+    c.spawnFrames++;
+    // armed：着地済み or spawn から 1 秒経過のどちらか早い方
+    //   forceMagnet（GAME CLEAR 強制回収）は猶予を無視
+    const armed = c.forceMagnet || c.landed || c.spawnFrames >= C.ARM_FRAMES_AFTER_SPAWN;
     if (!c.landed) {
       // 散らばり＆バウンド：重力で落下 → 地面で最大 MAX_BOUNCES 回跳ね返る
       c.vy -= C.GRAVITY;
@@ -132,7 +141,8 @@ export function updateCrSystem() {
       // 着地後：プレイヤーが磁力範囲内（or 強制マグネット）なら吸い寄せ、外なら摩擦で減速
       c.ageFrames++;
       let magnet = false;
-      if (p && p.hp > 0) {
+      // armed でない（猶予中）はマグネット OFF。地面で静止したまま広がりを見せる
+      if (armed && p && p.hp > 0) {
         const dx = p.x - c.x, dz = p.z - c.z;
         const dist = Math.hypot(dx, dz);
         const inRange = (dist < C.MAGNET_RANGE && dist > 0.01);
@@ -178,7 +188,8 @@ export function updateCrSystem() {
     // ステージギミック（穴等）のバリアからコインを押し戻す
     _applyCrBarriers(c);
     // 回収判定（XZ 距離・Y 無視＝床のアイテム）
-    if (p && p.hp > 0) {
+    //   armed まで（着地 or 1 秒経過）は接触取得不可：広がる挙動を見せる
+    if (armed && p && p.hp > 0) {
       const dx = p.x - c.x, dz = p.z - c.z;
       if (dx * dx + dz * dz < C.COLLECT_RANGE * C.COLLECT_RANGE) {
         _crTotal += c.value;

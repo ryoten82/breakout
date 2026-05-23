@@ -102,6 +102,7 @@ export function dropItem(kind, x, z, spawnY = 80) {
     landed: false,
     magnetFrames: 0,
     ageFrames: 0,
+    spawnFrames: 0,             // spawn 後経過 F（拾い不可猶予判定用）
     meshSize: cfg.MESH_SIZE,
     spinPhase: Math.random() * Math.PI * 2,
     isChip: _isChipKind(kind),
@@ -176,6 +177,9 @@ export function updateItemSystem() {
 
   for (let i = _pickups.length - 1; i >= 0; i--) {
     const it = _pickups[i];
+    it.spawnFrames++;
+    // armed：着地済み or spawn から 1 秒経過のどちらか早い方
+    const armed = it.landed || it.spawnFrames >= C.ARM_FRAMES_AFTER_SPAWN;
     if (!it.landed) {
       it.vy -= C.GRAVITY;
       it.x += it.vx; it.y += it.vy; it.z += it.vz;
@@ -194,7 +198,8 @@ export function updateItemSystem() {
     } else {
       it.ageFrames++;
       let magnet = false;
-      if (p && p.hp > 0) {
+      // armed まではマグネット OFF（広がる挙動を見せる）
+      if (armed && p && p.hp > 0) {
         const dx = p.x - it.x, dz = p.z - it.z;
         const dist = Math.hypot(dx, dz);
         if (dist < M.MAGNET_RANGE && dist > 0.01) {
@@ -232,7 +237,8 @@ export function updateItemSystem() {
       //   将来「ステージ進行で持ち越し制御したい時の窓口」として ITEM_CONFIG に残置。
     }
     // 回収判定（XZ 距離・Y 無視）
-    if (p && p.hp > 0) {
+    //   armed まで（着地 or 1 秒経過）は接触取得不可
+    if (armed && p && p.hp > 0) {
       const dx = p.x - it.x, dz = p.z - it.z;
       if (dx * dx + dz * dz < C.COLLECT_RANGE * C.COLLECT_RANGE) {
         _applyPickup(it.kind, p);
