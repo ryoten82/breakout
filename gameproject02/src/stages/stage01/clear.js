@@ -9,8 +9,10 @@
 // MVP: URL リロード方式（scene 再構築の衝突リスク回避）。
 // 将来 in-place 遷移にする時はここを差し替える。
 
-const CLEAR_TO_TRANSITION_MS = 3000;  // バナー表示 → 遷移開始までの待ち
+const CLEAR_TO_TRANSITION_MS = 5000;  // バナー表示 → 遷移開始までの待ち（コイン回収時間込み）
 const FADE_OUT_MS = 800;              // 黒フェードアウト時間
+const POLL_OC_INTERVAL_MS = 200;       // OC 完了ポーリング間隔
+const GAME_CLEAR_AUTO_COLLECT_DELAY_MS = 1500;  // GAME CLEAR 表示からコイン自動回収開始まで
 
 let overlayEl = null;
 let cleared = false;
@@ -45,14 +47,41 @@ export function triggerStageClear(opts = {}) {
   if (cleared) return;
   cleared = true;
   const nextStageId = opts.nextStageId || null;
+
+  // OC 選択中（ボスドロップ OC ジェム滞在中 or カード選択中）はバナー表示を待機。
+  // SB.isOcActive() が true の間ポーリングし、終わったら本体演出を開始。
+  const _begin = () => _beginClearPresentation(nextStageId);
+  const _checkOc = () => {
+    const active = (typeof window !== 'undefined') && window.SB
+      && typeof window.SB.isOcActive === 'function' && window.SB.isOcActive();
+    if (active) {
+      setTimeout(_checkOc, POLL_OC_INTERVAL_MS);
+    } else {
+      _begin();
+    }
+  };
+  _checkOc();
+}
+
+function _beginClearPresentation(nextStageId) {
   const el = ensureOverlay();
   el.textContent = nextStageId ? 'STAGE CLEAR' : 'GAME CLEAR';
+  // バナー表示中は背景を暗くしない（プレイ画面の戦利品収集を妨げない）
   requestAnimationFrame(() => {
-    el.style.background = 'rgba(0,0,0,0.6)';
+    el.style.background = 'rgba(0,0,0,0)';
     el.style.opacity = '1';
   });
 
-  if (!nextStageId) return;  // 最終ステージは遷移なし
+  if (!nextStageId) {
+    // 最終ステージ：GAME CLEAR 表示後にフィールド上のコインを強制マグネット回収。
+    // 取り逸し防止のため、SB.collectAllCR() を呼んでコインをプレイヤーへ吸引させる。
+    setTimeout(() => {
+      if (window.SB && typeof window.SB.collectAllCR === 'function') {
+        window.SB.collectAllCR();
+      }
+    }, GAME_CLEAR_AUTO_COLLECT_DELAY_MS);
+    return;
+  }
 
   setTimeout(() => {
     // 黒フェードアウト → リロード
