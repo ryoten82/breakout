@@ -53,6 +53,7 @@ import { ATTACKS } from './attacks.js';
 import { isHitstunState, tryHitPlayer } from './damage-system.js';
 import { getActiveWallX, getKnockbackWallX } from './camera.js';
 import { dropCR } from './cr-system.js';
+import { dropBossChips } from './item-system.js';
 
 let _THREE = null;
 let _scene = null;
@@ -1392,6 +1393,11 @@ function _enterDyingFinal(e, ctx) {
 //   - 爆発感は spawnDeathExplosion に集約
 function _triggerFinalExplosion(e) {
   dropCR(e.x, e.z, e.y + 80);  // 爆発タイミングで CR ドロップ
+  // ボス相当（中ボス以上）はチップ確定ドロップ：仕様 §10/§1211
+  //   将来 boss01 / boss02 / boss03 等の enemyType を増やしたらここに追加
+  if (e.enemyType === 'midboss01') {
+    dropBossChips(e.x, e.z, e.y + 80);
+  }
   // ゴア・クリティカル armed：キャラ拡張バリアントで方向・追加 FX を上書き
   if (e.goreCritical && e.goreCritical.armed) {
     // variant は goreCritical 自身に格納されている値を使う（旧コードは profile.criticalExplosionVariant
