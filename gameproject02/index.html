@@ -2332,7 +2332,7 @@
       _ocPadPrev.left = false; _ocPadPrev.right = false; _ocPadPrev.select = false;
       _ocSelecting = false;
       _ocPending = true;
-      document.addEventListener('keydown', _ocKeyHandler);
+      // 入力はメインループの inp() rising-edge に一本化（旧 keydown ハンドラは廃止）
     }
 
     function _updateOcFocus() {
@@ -2340,19 +2340,9 @@
       cards.forEach((el, i) => el.classList.toggle('oc-card--focused', i === _ocFocusIdx));
     }
 
-    function _ocKeyHandler(e) {
-      if (!_ocPending || e.repeat || _ocInputDelay > 0) return;
-      // ArrowLeft/Right は inp() ゲームループ側で rising-edge 管理（ここで処理すると二重トグルになる）
-      if (e.code === 'Enter' || e.code === 'Space' || e.code === 'KeyJ' || e.code === 'KeyK') {
-        _selectOC(_ocCards[_ocFocusIdx].id);
-        e.preventDefault();
-      }
-    }
-
     function _selectOC(cardId) {
       if (_ocSelecting) return;   // フラッシュ演出中の二重選択を弾く
       _ocSelecting = true;
-      document.removeEventListener('keydown', _ocKeyHandler);
       // 選択カードを強フラッシュ、非選択カードはディム
       const idx = _ocCards.findIndex(c => c.id === cardId);
       const cardEls = document.querySelectorAll('.oc-card');
@@ -2383,7 +2373,6 @@
     function _disposeOCSelection() {
       if (_ocFlashTimer) { clearTimeout(_ocFlashTimer); _ocFlashTimer = null; }
       _ocOpenTimer = 0;
-      document.removeEventListener('keydown', _ocKeyHandler);
       const overlay = document.getElementById('oc-overlay');
       if (overlay) overlay.style.display = 'none';
       _ocPending   = false;
