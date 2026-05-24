@@ -88,6 +88,23 @@ export const UKEMI_CONFIG = {
 // ============================================================
 //  SP ゲージ設定
 // ============================================================
+// ============================================================
+//  MISSION TIMER（ステージ制限時間）
+// ============================================================
+//  - 各ステージ START 時にカウントダウン開始（meta.timeLimitSec フレーム換算で減算）
+//  - 0 到達でプレイヤー強制 HP 0 → 撤退（dying → dead 演出）
+//  - Stage 3 ボス突入で freezeMissionTimer() 経由で停止（ボス戦に集中）
+//  - HUD は画面上中央・残 WARN_THRESHOLD_SEC 秒で色変化
+// ============================================================
+export const MISSION_TIMER_CONFIG = {
+  WARN_THRESHOLD_SEC:    30,   // 残りこの秒数以下で色を赤に
+  CRITICAL_THRESHOLD_SEC: 10,  // この秒数以下で点滅追加
+  HUD_FONT_SIZE_PX:      48,
+  HUD_COLOR_NORMAL:      '#ffee44',
+  HUD_COLOR_WARN:        '#ff8844',
+  HUD_COLOR_CRITICAL:    '#ff4444',
+};
+
 export const SP_CONFIG = {
   // ストック性（5 段階・各 STOCK_SIZE pt）：MAX = STOCK_SIZE * MAX_STOCKS = 100
   MAX:              100,

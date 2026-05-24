@@ -898,7 +898,7 @@
       isHitstunState, _cancelPlayerAction,
       damagePlayer, tryHitPlayer,
       updatePlayerHitstun, updateInvincibleBlink, updateCrisisEffect,
-      revivePlayer, _cancelHitstunForReversal, resetCombo,
+      revivePlayer, forceKillPlayer, _cancelHitstunForReversal, resetCombo,
       cacheBodyColors, tintBody, restoreBodyColor,
     } from './src/damage-system.js';
     // === hit-engine（演出系 + コンボ管理 + 敵被弾判定）は src/hit-engine.js に分離（Step D-2a/b/c）===
@@ -2247,7 +2247,7 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-27 SP 改定：初期 0 / 通常 1.5・必殺 0.5 / 攻撃インスタンス単位（多敵巻き込み一定）+ SP ゲージを HP 下に移動';
+    const LAST_UPDATE = '2026-05-27 ミッション制限時間：St1/St2/St3 各 300 秒 / 画面上中央 HUD / 0 で強制 GAMEOVER / St3 ボス突入で freeze';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
@@ -3952,6 +3952,10 @@
       //   floor-hole が敵を removed 扱いにする前に呼ぶ。呼ばないと
       //   debug-invariants が "token が dead enemy を参照" を毎 F 警告し続ける
       releaseEnemyTokens: (e) => releaseEnemyTokens(hitCtx, e),
+      // ミッション制限時間切れフック：wave-runner が 0F 到達で呼ぶ → 強制 GAMEOVER（撤退）
+      onMissionTimeUp: () => {
+        for (const p of players) forceKillPlayer(p);
+      },
       oc: { show: showOCSelection, apply: _applyOCEffect, gem: (x, z) => spawnOcGem(x ?? 0, z ?? 0) },
       // ステージクリア演出が OC 完了を待つために使う
       isOcActive: () => isOcGemActive() || _ocPending || _ocOpenTimer > 0,

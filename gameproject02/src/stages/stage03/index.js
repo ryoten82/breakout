@@ -90,6 +90,8 @@ export function tickStage03() {
   if (!_bossIntroStarted && p && p.x >= _BOSS_TRIGGER_X) {
     _bossIntroStarted = true;
     startBossIntro();
+    // ミッション制限時間を freeze（ボス戦に集中させる）
+    if (_runner.freezeTimer) _runner.freezeTimer();
   }
   // 演出中は wave-runner を止める（BOSS spawn を遅延 → 演出後に通常 trigger）
   if (isBossIntroActive()) {

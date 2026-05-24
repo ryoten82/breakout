@@ -893,6 +893,26 @@ export function _cancelHitstunForReversal(p) {
   }
 }
 
+// 強制死亡：ミッションタイムアウト等、攻撃由来でない死亡経路。
+//   無敵フラグを無視して dying ステートへ直行する（damagePlayer の hp<=0 経路と同じ演出）。
+export function forceKillPlayer(p) {
+  if (!p || !p.mesh) return;
+  if (p.state === STATE.dying || p.state === STATE.dead) return;
+  p.hp = 0;
+  // 必殺/ガード/グラブ等の進行状態を解除（damagePlayer の (5)(5.5)(6) 相当を最小限）
+  if (typeof _cancelPlayerAction === 'function') _cancelPlayerAction(p);
+  resetCombo();
+  const totalF = HP_CONFIG.DEATH_FADE_FRAMES + HP_CONFIG.DEATH_BLINK_FRAMES;
+  p.state           = STATE.dying;
+  p.stateTimer      = totalF;
+  p.deathPhaseTimer = totalF;
+  p.deathBlinkTimer = HP_CONFIG.DEATH_BLINK_START_PERIOD;
+  p.deathBlinkOn    = false;
+  p.kbVx = 0;
+  p.kbVy = 8;
+  if (_spawnHitParticles) _spawnHitParticles(p.x, p.y + 80, p.z, 0xff2222, 24);
+}
+
 export function revivePlayer(p) {
   p.hp = p.maxHp;
   p.state = STATE.respawning;

@@ -90,4 +90,6 @@ export const STAGE03_META = {
   sectionBoundaryColors: [0xffaa22, 0x3399ff, 0xffaa22, 0xff3344],
   // クリア後の遷移先（null = GAME CLEAR で停止）
   nextStageId: null,
+  // ミッション制限時間（秒）。ボス突入で freeze（boss-intro 起動時に freezeTimer）
+  timeLimitSec: 300,
 };

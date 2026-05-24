@@ -17,6 +17,7 @@ import { lockArena, release as releaseLock } from './stage01/progress-lock.js';
 import { initWaveHud, updateWaveHud } from './stage01/wave-hud.js';
 import { triggerStageClear, isStageCleared } from './stage01/clear.js';
 import { showArrowHud, hideArrowHud } from './arrow-hud.js';
+import { showMissionTimer, hideMissionTimer, updateMissionTimerHud } from './mission-timer-hud.js';
 import { levelWalls } from '../camera.js';
 import { STATE } from '../states.js';
 
@@ -74,6 +75,12 @@ export function createWaveRunner(opts) {
   // 最終ウェーブ撃破後、meta.clearWalkX 指定時はそこへ歩くまでクリアを保留する
   let _pendingClear = false;
   let _pendingClearNextId = null;
+  // ミッション制限時間（meta.timeLimitSec）。0 到達で forceKillPlayer。
+  //   freeze 状態（Stage3 ボス突入）では減算停止して HUD のみ表示し続ける。
+  let _timerFrames = 0;
+  let _timerEnabled = false;
+  let _timerFrozen = false;
+  let _timerExpired = false;
 
   // HUD 表示用：waves[0..idx-1] の中の !noLock wave 数（filler を除外したカウント）。
   // meta.totalWaves は呼び出し側で waves.filter(w => !w.noLock).length と一致させる。
@@ -121,6 +128,24 @@ export function createWaveRunner(opts) {
     _pendingClearNextId = null;
     _started = true;
     updateWaveHud(0, meta.totalWaves, false);
+    // ミッションタイマー初期化（meta.timeLimitSec があれば起動）
+    const _limitSec = meta.timeLimitSec;
+    if (typeof _limitSec === 'number' && _limitSec > 0) {
+      _timerFrames = _limitSec * 60;  // 60fps 換算
+      _timerEnabled = true;
+      _timerFrozen  = false;
+      _timerExpired = false;
+      updateMissionTimerHud(_limitSec, false);
+      showMissionTimer();
+    } else {
+      _timerEnabled = false;
+      hideMissionTimer();
+    }
+  }
+
+  // Stage3 ボス突入時に呼ぶ：時間進行を止め HUD を frozen 表示に
+  function freezeTimer() {
+    _timerFrozen = true;
   }
 
   function tick() {
@@ -128,6 +153,23 @@ export function createWaveRunner(opts) {
     if (!_players || _players.length === 0) return;
     const p = _players[0];
     if (!p) return;
+
+    // 0-T) ミッションタイマー進行（dying/dead/stage-clear 中は進めない）
+    if (_timerEnabled && !_timerExpired && !_timerFrozen
+        && !isStageCleared()
+        && p.state !== STATE.dying && p.state !== STATE.dead) {
+      _timerFrames--;
+      if (_timerFrames <= 0) {
+        _timerFrames = 0;
+        _timerExpired = true;
+        // SB 経由で外部 hook に通知（index.html 側で forceKillPlayer する）
+        const _SB = (typeof window !== 'undefined') ? window.SB : null;
+        if (_SB && typeof _SB.onMissionTimeUp === 'function') _SB.onMissionTimeUp();
+      }
+    }
+    if (_timerEnabled) {
+      updateMissionTimerHud(_timerFrames / 60, _timerFrozen);
+    }
 
     // 0) 最終ウェーブ撃破後の保留クリア：clearWalkX へ歩き切ったら遷移
     if (_pendingClear) {
@@ -214,5 +256,5 @@ export function createWaveRunner(opts) {
     };
   }
 
-  return { init, tick, getDebug };
+  return { init, tick, getDebug, freezeTimer };
 }

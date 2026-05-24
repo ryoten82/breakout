@@ -103,4 +103,6 @@ export const STAGE01_META = {
   sectionBoundaries: [1700, 5100],
   // クリア後の遷移先（null なら GAME CLEAR）
   nextStageId: 'stage02',
+  // ミッション制限時間（秒）。0 到達で強制 GAMEOVER（撤退）
+  timeLimitSec: 300,
 };
