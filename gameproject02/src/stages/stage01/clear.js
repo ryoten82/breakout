@@ -100,8 +100,8 @@ function _beginClearPresentation(nextStageId) {
           sessionStorage.setItem('_sbCarryMaxHp', String(_p.maxHp));
           sessionStorage.setItem('_sbCarrySp',    String(_p.sp));
         }
-        // デバッグ HUD の表示状態を引継ぎ（非表示なら次ステージでも非表示）
-        const _hudHidden = document.getElementById('hud')?.style.display === 'none';
+        // デバッグ HUD の表示状態を引継ぎ（html.dbg-hidden クラスで判定）
+        const _hudHidden = document.documentElement.classList.contains('dbg-hidden');
         if (_hudHidden) sessionStorage.setItem('_sbDbgHidden', '1');
         else sessionStorage.removeItem('_sbDbgHidden');
       } catch (_) { /* ignore */ }

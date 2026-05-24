@@ -642,6 +642,19 @@
       transition: none;
       z-index: 51;
     }
+    /* デバッグ HUD 一括非表示（html.dbg-hidden クラスで制御） */
+    html.dbg-hidden #hud,
+    html.dbg-hidden #sp-hud,
+    html.dbg-hidden #debug-hud,
+    html.dbg-hidden #debug,
+    html.dbg-hidden #build-info,
+    html.dbg-hidden #fps,
+    html.dbg-hidden #state-hud,
+    html.dbg-hidden #clock-hud,
+    html.dbg-hidden #gamespeed-hud,
+    html.dbg-hidden #dummy-hp,
+    html.dbg-hidden #inv-hud-badge,
+    html.dbg-hidden #combo-history-panel { display: none; }
   </style>
 </head>
 <body>
@@ -667,13 +680,11 @@
   <script>
     (function(){
       if (!sessionStorage.getItem('_sbAutoTransition')) return;
-      // スタート画面を非表示
+      // スタート画面を非表示（!important を使わず style タグで隠す。ES module defer より前に実行）
       document.write('<style>#start-screen-overlay{display:none!important}</style>');
-      // デバッグ HUD が非表示だった場合も引継ぎ
+      // デバッグ HUD 非表示引継ぎ：html.dbg-hidden クラスを付与するだけ（CSS は静的ルール側）
       if (sessionStorage.getItem('_sbDbgHidden') === '1') {
-        var ids = ['hud','sp-hud','debug-hud','debug','build-info','fps','state-hud',
-                   'clock-hud','gamespeed-hud','dummy-hp','inv-hud-badge','combo-history-panel'];
-        document.write('<style>' + ids.map(function(id){return '#'+id}).join(',') + '{display:none!important}</style>');
+        document.documentElement.classList.add('dbg-hidden');
       }
     })();
   </script>
@@ -3164,20 +3175,10 @@
         console.log('[ENEMY_AI] enabled =', ENEMY_AI.enabled);
       }
       // デバッグ UI 一括 ON/OFF：- キー（通常プレイ向けクリーンビュー）
-      // 非表示対象：操作ガイド / デバッグパネル / 座標表示 / ビルド情報 / FPS / state バー
+      // html.dbg-hidden クラスのトグルで制御（CSS 静的ルール側で display:none）
       if (e.code === 'Minus' && !e.repeat) {
-        const _DBG_IDS = ['hud', 'sp-hud', 'debug-hud', 'debug', 'build-info', 'fps', 'state-hud',
-                          'clock-hud', 'gamespeed-hud', 'dummy-hp', 'inv-hud-badge', 'combo-history-panel'];
-        const _anyVisible = _DBG_IDS.some(id => {
-          const _el = document.getElementById(id);
-          return _el && _el.style.display !== 'none';
-        });
-        const _nextDisplay = _anyVisible ? 'none' : '';
-        for (const _id of _DBG_IDS) {
-          const _el = document.getElementById(_id);
-          if (_el) _el.style.display = _nextDisplay;
-        }
-        console.log('[DEBUG_UI]', _anyVisible ? 'OFF（クリーンビュー）' : 'ON');
+        const _nowHidden = document.documentElement.classList.toggle('dbg-hidden');
+        console.log('[DEBUG_UI]', _nowHidden ? 'OFF（クリーンビュー）' : 'ON');
       }
     });
 
