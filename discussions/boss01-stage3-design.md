@@ -244,6 +244,43 @@ Phase 別配分（**40/40/20**）：
 
 ---
 
+---
+
+## ⑦ art-reference 統合（2026-05-26 ✅）
+
+> 参考：`art-reference-room/reference/enemies/boss/crusher/INDEX.md`（2026-05-19 ユーザー発言起点）
+
+### art ref が持ち込んだ強いコンセプト
+
+| 要素 | art ref の主張 | AI 設計への影響 |
+|---|---|---|
+| **両腕ジャガーノート** | 武器なし・素手の拳闘型 | 攻撃カタログ全部 atk_01-03 を **両腕パンチ系**に統一（モチーフ書き換え）|
+| **隠しミサイルポッド** | 通常戦闘で見せない・移行で露出 | **Phase 3 移行 = ミサイルポッド開放演出**を最大の見せ場に。RC 対象必殺 atk_05 を「MISSILE STORM」に改名（旧「CRUSHER STOMP 落下叩きつけ」は廃案）|
+| **オレンジ系配色** | 黄寄りオレンジ・主体 | METEO 赤系と区別。Phase 移行赤メガクラとも視覚分離可 |
+| **拳サイズ 1.5 倍** | プレイヤー機の 1.5 倍 | メッシュ実装時の基準値・buildBoss01Mesh 拡張 |
+| **背中装甲開閉ギミック** | 観音開きはダサい懸念 | スライド / ロール / ハッチ / 立ち上がり 等から後日選定（🟡 art 部屋連動）|
+
+### art ref と AI 部屋方針の衝突 → 整理結果
+
+| 論点 | art ref | AI 部屋 | 決着 |
+|---|---|---|---|
+| フェーズ数 | 2 | 3（共通枠組み準拠）| **AI 部屋 3 採用**（共通枠組み優先・後続ボスとの統一性）|
+| 部位破壊 | 両腕＝部位破壊対象 | やらない（リソース集中）| **AI 部屋「やらない」維持**。腕重視シルエットは撃破時崩壊（SCRAP THEM!!!）で表現 |
+| 弱点露出 | Phase 2 でミサイルポッド = 弱点露出 | Phase 3 専用必殺技解禁 | **両者合流**：Phase 3 移行で露出 + ミサイル発射タイミングが RC 対象（弾けば「弱点が露わな瞬間」を突ける）|
+
+### 統合された設計の最終形（要約）
+
+| Phase | 攻撃 | 学習トリガー |
+|---|---|---|
+| Phase 1 | 両拳叩きつけ / 横薙ぎフック / 地響きスマッシュ（拳起点）| 「武器なしの拳闘ボス」を理解 |
+| Phase 2 | Phase 1 高速化 + 二段フック | パンチ密度に慣れる |
+| Phase 3 移行 | **背中装甲開放 → ミサイルポッド露出** | 「武器ないと思ってたら…！」のサプライズ |
+| Phase 3 | MISSILE STORM（RC 必殺）+ DOUBLE RUSH TACKLE（SA 崩し大技）| リパルスカウンター学習 + 大技見切り |
+
+→ **art ref と AI 設計が綺麗に接続**。Phase 3 移行が単なる激化ではなく**新装備の解放イベント**になり、戦闘の物語性が深まる。
+
+---
+
 ## 次セッション準備（実装移行時）
 
 - `chars/boss01.md` を midboss01.md の章立てで本格書き直し
@@ -255,7 +292,10 @@ Phase 別配分（**40/40/20**）：
 ## 関連
 
 - `chars/midboss01.md` — テンプレ章立て
-- `chars/boss01.md`（旧）— 暫定設計・本議論で改稿
-- `art-reference-room/reference/enemies/boss/INDEX.md` — 美術方針
+- `chars/boss01.md` — 本議論を反映済（art-reference 統合版）
+- `art-reference-room/reference/enemies/boss/INDEX.md` — 美術方針（大ボス全体）
+- `art-reference-room/reference/enemies/boss/crusher/INDEX.md` — **CRUSHER 個別仕様**（両腕ジャガーノート + 隠しミサイルポッド + オレンジ系）
 - `memory/handoff_scrapblitz_2026-05-26_boss-framework.md` — 共通枠組み
+- `memory/project_scrapblitz_stage_boss_doctrine.md` — Stage 構成方針
 - `memory/project_scrapblitz_boss_randomization.md` — 後続ボスとの整合
+- `memory/project_scrapblitz_multilock.md` — MISSILE STORM 実装基盤（projectile system 共有）

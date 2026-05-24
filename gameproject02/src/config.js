@@ -547,7 +547,7 @@ export const ENEMY_ATTACKS = {
   },
 
   // -------------------------------------------------------
-  // boss01（CRUSHER 暫定）攻撃 — Stage1 本ボス・完全 SA・AOE 多彩
+  // boss01（CRUSHER）攻撃 — Stage 3 大ボス・完全 SA・両腕ジャガーノート + 隠しミサイルポッド
   // -------------------------------------------------------
   // 全攻撃 stub（命中ロジックは未実装 / wind・recover の予兆だけでも動作確認用）
   // 仕様：chars/boss01.md §攻撃カタログ
@@ -556,8 +556,10 @@ export const ENEMY_ATTACKS = {
   // boss1_atk_04    ：Phase 2 派生（二段薙ぎ払い）
   // boss1_atk_05    ：Phase 3 必殺技（CRUSHER STOMP / RC 対象）
   // boss1_atk_06    ：Phase 3 大技（DOUBLE RUSH TACKLE / RC 対象外・SA 崩しトリガー）
+  // boss1_atk_01：クラッシャー振り下ろし（両拳叩きつけ）
+  //   art-reference 統合：両腕ジャガーノート系・武器なし素手の縦軸 AOE
   boss1_atk_01: {
-    name:           'クラッシャー振り下ろし',
+    name:           'クラッシャー振り下ろし（両拳叩きつけ）',
     kind:           'swing',
     attackCategory: 'melee',
     windFrames:     40,
@@ -577,8 +579,10 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.32,
     pitchActive:   +0.48,
   },
+  // boss1_atk_02：横薙ぎフック（片腕大振り）
+  //   art-reference 統合：素手フック・横軸 AOE 広範囲
   boss1_atk_02: {
-    name:           '横薙ぎなぎ払い',
+    name:           '横薙ぎフック',
     kind:           'swing',
     attackCategory: 'melee',
     windFrames:     35,
@@ -598,8 +602,10 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.28,
     pitchActive:   +0.18,
   },
+  // boss1_atk_03：地響きスマッシュ（拳を地面に叩きつけ → パンチ衝撃波）
+  //   art-reference 統合：「パンチ衝撃波で間合いを埋める」コンセプトをここに集約
   boss1_atk_03: {
-    name:           '地響き衝撃波',
+    name:           '地響きスマッシュ',
     kind:           'swing',  // TODO: 専用 kind='shockwave_aoe' を別セッションで設計
     attackCategory: 'melee',
     windFrames:     45,
@@ -619,8 +625,10 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.42,
     pitchActive:   +0.55,
   },
+  // boss1_atk_04：二段フック（Phase 2 派生・左右連続）
+  //   art-reference 統合：横軸の攻撃密度を上げる方向（拳闘型らしさ）
   boss1_atk_04: {
-    name:           '二段薙ぎ払い',
+    name:           '二段フック',
     kind:           'swing',
     attackCategory: 'melee',
     windFrames:     28,
@@ -640,11 +648,15 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.30,
     pitchActive:   +0.20,
   },
-  // CRUSHER STOMP（Phase 3 必殺技・リパルスカウンター対象）
-  // 大ジャンプ → 落下叩きつけ → 全画面衝撃波
+  // MISSILE STORM（Phase 3 必殺技・リパルスカウンター対象）
+  //   art-reference 統合：「背中の隠しミサイルポッドが Phase 3 移行で露出 → 散布」が CRUSHER 戦の最大の見せ場
+  //   旧案「CRUSHER STOMP（大ジャンプ落下叩きつけ）」は廃案 — 叩きつけは atk_01/03 で十分
+  //   弾き対象は「ミサイル発射のトリガー音/光」（背中ポッドが点火する瞬間）
+  //   TODO: projectile system 新設タイミングで多弾頭追尾ミサイルへ差し替え（kind='missile_barrage'）
+  //         multilock 系（CANNON/VIPER）と共通基盤で実装
   boss1_atk_05: {
-    name:           'CRUSHER STOMP',
-    kind:           'swing',  // TODO: 専用 kind='boss_smash_aoe' で大ジャンプ → 落下 → 衝撃波
+    name:           'MISSILE STORM',
+    kind:           'swing',  // 暫定（projectile system 未実装のため AOE 一閃で挙動確認）。本実装で 'missile_barrage' へ
     attackCategory: 'melee',
     windFrames:     55,
     activeFrames:   25,
