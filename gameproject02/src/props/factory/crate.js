@@ -12,11 +12,20 @@ const COLOR_MAIN  = 0xf0c020;
 const COLOR_RIB   = 0xb88010;
 const COLOR_FRAME = 0x202020;
 
-export function createCrate({ THREE }) {
-  const g = new THREE.Group();
+// 派生色プリセット（用途別に「中身が分かる」配色を持たせる）。
+// hp: HP 確定コンテナ（赤）。視認のしやすさ優先。
+export const CRATE_COLOR_PRESETS = {
+  hp: { main: 0xd02020, rib: 0x801010 },
+};
 
-  const matMain  = new THREE.MeshLambertMaterial({ color: COLOR_MAIN });
-  const matRib   = new THREE.MeshLambertMaterial({ color: COLOR_RIB });
+export function createCrate({ THREE, preset } = {}) {
+  const g = new THREE.Group();
+  const colors = (preset && CRATE_COLOR_PRESETS[preset]) || null;
+  const cMain = colors ? colors.main : COLOR_MAIN;
+  const cRib  = colors ? colors.rib  : COLOR_RIB;
+
+  const matMain  = new THREE.MeshLambertMaterial({ color: cMain });
+  const matRib   = new THREE.MeshLambertMaterial({ color: cRib });
   const matFrame = new THREE.MeshLambertMaterial({ color: COLOR_FRAME });
 
   // 本体

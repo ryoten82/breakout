@@ -88,9 +88,9 @@ export const STAGE01_WAVES = [
     section: 'S3',
     triggerX: 5700,
     spawns: [
-      // 本ボス CRUSHER（実装スタブ段階）。実装テスト時は単体・本実装でフェーズ単位の増援を予定。
-      // 仕様：chars/boss01.md / 議論：discussions/boss01-stage1-design.md
-      { type: 'boss01', x: 6200, variant: 'fall' },
+      // 通しプレイ用：本ボス CRUSHER は未実装スタブのため、当面は tier05 雑魚で代用しクリア可能に。
+      // 本ボス実装完了後に { type: 'boss01', ... } へ戻す。
+      { type: 'tier05', x: 6200, variant: 'fall' },
     ],
   },
 ];

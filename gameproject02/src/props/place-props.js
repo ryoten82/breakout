@@ -16,10 +16,10 @@ import { createMine } from './factory/mine.js';
 import { registerBreakable } from '../breakables.js';
 
 const _FACTORY = {
-  'crate':        (THREE) => createCrate({ THREE }),
-  'canister':     (THREE) => createCanister({ THREE }),
-  'oc-container': (THREE) => createOcContainer({ THREE }),
-  'mine':         (THREE) => createMine({ THREE }),
+  'crate':        (THREE, p) => createCrate({ THREE, preset: p?.preset }),
+  'canister':     (THREE)    => createCanister({ THREE }),
+  'oc-container': (THREE)    => createOcContainer({ THREE }),
+  'mine':         (THREE)    => createMine({ THREE }),
 };
 
 export function placeBreakables(scene, THREE, list) {
@@ -27,7 +27,7 @@ export function placeBreakables(scene, THREE, list) {
   for (const p of list) {
     const make = _FACTORY[p.type];
     if (!make) continue;
-    const mesh = make(THREE);
+    const mesh = make(THREE, p);
     mesh.position.set(p.x, 0, p.z ?? 0);
     if (p.type === 'mine') mesh.userData.proximityTrigger = true;
     if (p.loot) mesh.userData.lootOverride = p.loot;       // 確定ドロップ（dropItem の kind）
