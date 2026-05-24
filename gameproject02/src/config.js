@@ -625,28 +625,39 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.42,
     pitchActive:   +0.55,
   },
-  // boss1_atk_04：二段フック（Phase 2 派生・左右連続）
-  //   art-reference 統合：横軸の攻撃密度を上げる方向（拳闘型らしさ）
+  // boss1_atk_04：横薙ぎフック × 2 連（Phase 2 派生）
+  //   D 案再編 2026-05-26：atk_02 のモーション/値を流用して 2 連発射する派生形
+  //   ★ 量産パターンの第一号：「基本技 × 2 連」で派生を作る → モーション 1 つで派生種数を増やせる
+  //   将来的に他の基本技も同様の 2 連派生を量産可能（atk_01×2 / atk_03×2 等）
+  //   実装注：本来は parent: 'boss1_atk_02', repeat: 2 の宣言型が理想だが、
+  //           現状はフィールドコピー + multiHit で表現（リファクタは別セッション）
   boss1_atk_04: {
-    name:           '二段フック',
+    name:           '横薙ぎフック × 2 連',
     kind:           'swing',
     attackCategory: 'melee',
-    windFrames:     28,
-    activeFrames:   22,
-    recoverFrames:  40,
-    cooldownFrames: 130,
-    lungeVx:        3,
-    hitboxRangeX:   360,
+    // ↓ atk_02 流用部分（モーション・range は同一に保つ）
+    hitboxRangeX:   320,
     hitboxRangeY:   140,
     hitboxRangeZ:   140,
-    damage:         15,
     atk_lv:         4,
-    knockback:      30,
-    hitstop:        7,
-    shake:          11,
     hitColor:       0xffaa33,
-    pitchWind:     -0.30,
+    // ↓ 2 連用に振る舞いだけ変える
+    windFrames:     28,           // 1 連目のタメは短縮（連打感）
+    activeFrames:   50,           // 2 振り分（25F × 2）
+    recoverFrames:  40,           // 連発後の硬直
+    cooldownFrames: 130,
+    lungeVx:        3,
+    damage:         14,           // 1 発分（multiHit で 2 回適用される）
+    knockback:      28,
+    hitstop:        6,            // 連打感のため通常より短め
+    shake:          9,
+    pitchWind:     -0.28,
     pitchActive:   +0.20,
+    multiHit:       true,
+    hitSlots: [
+      { frame: 5,  damage: 14, atk_lv: 4, knockback: 28 },   // 1 連目（往）
+      { frame: 30, damage: 14, atk_lv: 4, knockback: 32 },   // 2 連目（戻し・KB やや強化）
+    ],
   },
   // MISSILE BARRAGE（Phase 2 通常技・背中ミサイルポッド使用）
   //   D 案再編 2026-05-26：Phase 2 移行で背中装甲が強制で外れ・ここからミサイル攻撃が解禁
