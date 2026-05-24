@@ -1412,9 +1412,6 @@ function _aabbOverlap(a, b) {
 }
 
 // main loop から毎フレーム呼ぶ。enemies は updateEnemies の後の最新状態を渡す
-// load-time marker: リロード確認用（このログがコンソールに出てなければキャッシュが効いている）
-console.log('[hit-engine.js loaded v2026-05-27 RC-tick]');
-
 export function updateRepulseDetection(p, enemies) {
   // プレイヤーの生存判定は p.hp > 0（敵の e.isAlive とは別規約）。
   // 2026-05-27：以前 !p.isAlive で判定していたため undefined 扱いで毎フレーム早期 return → RC 全不発の原因だった。

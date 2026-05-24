@@ -319,7 +319,9 @@ function _applyPickup(kind, p) {
     //   将来 p.chipInventory.push({ kind, rarityKey, rolledStats... }) を想定
     const rarityKey = CHIP_KIND_RARITY[kind];
     const r = CHIP_RARITY[rarityKey];
-    console.log(`[chip] +1 ${r.label}`);
+    if (typeof window !== 'undefined' && window.SB?.DEBUG_CHIP) {
+      console.log(`[chip] +1 ${r.label}`);
+    }
     // legendary は将来 onPickupSE で別 SE 鳴らす窓口あり（kind で識別可能）
   }
 }

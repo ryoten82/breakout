@@ -584,6 +584,7 @@ export function enterEnemyDying(e, ctx) {
   e.atkPhase         = null;
   e.hitDelivered     = false;
   e.repulseWindow    = false;   // dying 死体に「危↑」HUD が残るリーク防止
+  e._jdDiveGrace     = 0;       // RC dive grace の残値クリア（デバッグログ汚染防止）
   // enemy_attacking state のまま dying に入ると、state machine が curAtkId+atkPhase=null で
   // どのフェーズブロックにも当てはまらずロックする（敵 mesh が attack ポーズで固まる）。
   // 例：ジャンパー jump_dive 中にバレル爆発で死亡 → 攻撃判定が画面に残って見える（D-3）。
@@ -950,6 +951,7 @@ export function enterEnemyDyingBurst(e, ctx, hitFacing) {
   e.atkPhase        = null;
   e.hitDelivered    = false;
   e.repulseWindow   = false;   // dying 死体に「危↑」HUD が残るリーク防止
+  e._jdDiveGrace    = 0;       // RC dive grace の残値クリア
   // enemy_attacking state でこのフローに入った場合のロック回避（D-3）。
   // burst ルートは下で state を STATE.down_burst_start に上書きするので明示変更は不要だが、
   // 念のため atkTimer はクリアしておく（machine が再評価される事故防止）
@@ -2683,6 +2685,7 @@ export function updateEnemies(ctx) {
                 e.atkPitchTarget = 0;
                 e._jdPhase       = null;
                 e.repulseWindow  = false;  // リパルスカウンター受付終了（被弾キャンセル）
+                e._jdDiveGrace   = 0;
                 e._chargeT       = 0;
                 _clearAllTokens(ctx, e);
               } else {
@@ -2741,6 +2744,10 @@ export function updateEnemies(ctx) {
                 e.atkPhase       = 'recover';
                 e.atkTimer       = atk.recoverFrames + 60;  // +60F しゃがみ硬直（隙・反撃猶予）
                 e.atkPitchTarget = 0;
+                // dive 着地で RC grace を強制終了：grace 残値があるまま recover へ遷移すると
+                // 次フレーム以降 dive 分岐が走らず repulseWindow=true が残置される
+                e._jdDiveGrace   = 0;
+                e.repulseWindow  = false;
                 if (e.mesh) e.mesh.scale.y = 0.60;  // 着地しゃがみポーズ
               }
             } else {
