@@ -38,7 +38,7 @@ import {
   PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG, MIDBOSS_SHIELD_CONFIG, REPULSE_CONFIG,
 } from './config.js';
 import { resolveAttackAttr, ATTACKS } from './attacks.js';
-import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak, forceArmGoreCriticalIfPossible, triggerBossPhaseTransition } from './enemy-system.js';
+import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak, forceArmGoreCriticalIfPossible, triggerBossPhaseTransition, igniteEnemy } from './enemy-system.js';
 import { spawnDamageNumber, spawnBanner } from './hud-system.js';
 
 let _THREE = null;
@@ -1181,6 +1181,13 @@ export function tryHitEnemies(p, attack, ctx) {
     // SP 獲得：attack.noSpGain で個別オプトアウト可（ULT 等の自己回復ループ防止用）
     if (!attack.noSpGain) {
       p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
+    }
+    // OC「点火」取得済み × 必殺技命中：被弾敵に延焼を付与
+    //   mega / ULT は AoE 由来で巻き込み量が多すぎるので除外（バランス調整余地）
+    if (window.SB && window.SB.OC_FLAGS && window.SB.OC_FLAGS.ignite
+        && typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_')
+        && !p.attackId.startsWith('c01_sp_mega') && !p.attackId.startsWith('c01_sp_ult')) {
+      igniteEnemy(e, { sourceId: p.attackId });
     }
     // 同技補正カウンタ：攻撃インスタンスにつき 1 回だけ +1（複数敵巻き込みでも 1 加算）
     if (!p._sameAtkCounted && _sameAtkBaseId) {

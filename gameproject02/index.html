@@ -888,6 +888,7 @@
       CAM_CONFIG, PIXEL_SHADER, OUTLINE_CONFIG,
       CHARGE_RING_CONFIG, CHARGE_PARTICLE_CONFIG,
       COMBO_LEVELS, getComboLevel, SLOWMO, KEY_CONFIG, OVERCLOCK_CARDS,
+      BURN_CONFIG,
     } from './src/config.js';
     // === damage-system は src/damage-system.js に分離（Step D-1・ESM import）===
     import {
@@ -945,7 +946,7 @@
       initEnemySystem, buildDummyMesh, spawnDummy, updateEnemies, applyStatusStun,
       enterEnemyDying, killEnemy, initEnemyGoreBlack,
       enterEnemyExplode, handleEnemyDyingHit, detachOnePart, enterEnemyDyingBurst,
-      jumpEnemy,
+      jumpEnemy, igniteEnemy,
     } from './src/enemy-system.js';
     // === breakables（壊れ物プロップの破壊・パーツ飛び散り）===
     import {
@@ -2236,7 +2237,7 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-27 RC まわり強化（暗転安定化 / GC airborneKill 経路修正 / 2 段 hitstop 解消）+ boss01 Phase1 基本行動';
+    const LAST_UPDATE = '2026-05-27 延焼テンポ調整（DoT 60F / 伝播 90F）+ オレンジ shell-outline 点滅（body/head 1.10x BackSide / sin 28F・本体 emissive と非干渉）';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
@@ -2337,9 +2338,23 @@
     // 選択時は _applyOCEffect で何もしないルートに分岐する。
     const _OC_SKIP_CARD = { id: 'SKIP', label: 'SKIP', desc: '今回の OC をスルー', color: '#888888' };
 
+    // OC カードプールから「前提未充足」のものを除外する積層フィルタ。
+    // 延焼ビルドの取得順を「点火 → 延焼 → 連鎖爆発」に強制してビルド感を出す。
+    function _filterOcPool() {
+      return OVERCLOCK_CARDS.filter(c => {
+        if (c.id === 'SPREAD'      && !window.SB?.OC_FLAGS?.ignite) return false;
+        if (c.id === 'CHAIN_BLAST' && !window.SB?.OC_FLAGS?.spread) return false;
+        // 既に取得済みのフラグ系（IGNITE/SPREAD/CHAIN_BLAST）は再抽選しない
+        if (c.id === 'IGNITE'      &&  window.SB?.OC_FLAGS?.ignite) return false;
+        if (c.id === 'SPREAD'      &&  window.SB?.OC_FLAGS?.spread) return false;
+        if (c.id === 'CHAIN_BLAST' &&  window.SB?.OC_FLAGS?.chainBlast) return false;
+        return true;
+      });
+    }
+
     function showOCSelection() {
-      // OVERCLOCK_CARDS から 2 枚をランダム抽出 + SKIP を末尾に固定
-      const shuffled = [...OVERCLOCK_CARDS].sort(() => Math.random() - 0.5);
+      // フィルタ済みプールから 2 枚をランダム抽出 + SKIP を末尾に固定
+      const shuffled = [..._filterOcPool()].sort(() => Math.random() - 0.5);
       _ocCards = [...shuffled.slice(0, 2), _OC_SKIP_CARD];
 
       const overlay  = document.getElementById('oc-overlay');
@@ -2464,6 +2479,30 @@
           break;
         case 'SP_FULL':
           for (const p of players) { p.sp = SP_CONFIG.MAX; }
+          break;
+        // ===== 延焼ビルド =====
+        // OC_FLAGS の各フラグは hit-engine（必殺技ヒット時）/ enemy-system（GC arm 時 / 死亡時爆発）から参照される。
+        // BURN_CONFIG.*_ENABLED と二重管理になっているのは、SPREAD/CHAIN_BLAST のチェックを呼び出し側で
+        // 1 行で済ませるため（updateBurnTick の if 条件が短くなる）。
+        case 'IGNITE':
+          if (!_ocMods.ignite) {
+            _ocMods.ignite = true;
+            window.SB.OC_FLAGS.ignite = true;
+          }
+          break;
+        case 'SPREAD':
+          if (!_ocMods.spread) {
+            _ocMods.spread = true;
+            window.SB.OC_FLAGS.spread = true;
+            BURN_CONFIG.SPREAD_ENABLED = true;
+          }
+          break;
+        case 'CHAIN_BLAST':
+          if (!_ocMods.chainBlast) {
+            _ocMods.chainBlast = true;
+            window.SB.OC_FLAGS.chainBlast = true;
+            BURN_CONFIG.DEATH_BLAST_ENABLED = true;
+          }
           break;
       }
     }
@@ -3889,6 +3928,14 @@
       //   SB.oc.gem(x, z)       → 任意座標に OC ジェムを出現（フロー確認用）
       //   SB.OVERCLOCK_CARDS    → カードテーブル確認
       OVERCLOCK_CARDS,
+      // 延焼（burn）：素では burn 付与不可。OC「点火」取得後に SP 命中 / GC 撃破で発火
+      //   SB.BURN_CONFIG.SPREAD_ENABLED = true  → 伝播強制 ON（カード未取得でも検証可）
+      //   SB.BURN_CONFIG.DEATH_BLAST_ENABLED = true → 死亡時爆発強制 ON
+      //   SB.igniteEnemy(SB.enemies[0])         → 強制点火（デバッグ）
+      //   SB.OC_FLAGS                           → IGNITE/SPREAD/CHAIN_BLAST 取得状態
+      BURN_CONFIG,
+      OC_FLAGS: { ignite: false, spread: false, chainBlast: false },
+      igniteEnemy,
       oc: { show: showOCSelection, apply: _applyOCEffect, gem: (x, z) => spawnOcGem(x ?? 0, z ?? 0) },
       // ステージクリア演出が OC 完了を待つために使う
       isOcActive: () => isOcGemActive() || _ocPending || _ocOpenTimer > 0,

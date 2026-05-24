@@ -45,9 +45,9 @@ import {
   KB_LV06_VY, KB_LV06_VX_MULT,
   applyRollHipPivot,
 } from './states.js';
-import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG } from './config.js';
+import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG, BURN_CONFIG } from './config.js';
 import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, fxState } from './hit-engine.js';
-import { spawnBanner } from './hud-system.js';
+import { spawnBanner, spawnDamageNumber } from './hud-system.js';
 import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
 import { isHitstunState, tryHitPlayer } from './damage-system.js';
@@ -581,9 +581,163 @@ export function spawnDummy(x, z, opts = {}) {
     thrownProjectile: false,  // 飛行中フラグ（true なら他敵との衝突判定が走る）
     thrownByPlayer:   null,   // ダメージ帰属（コンボ・SP 加算用）
     thrownDir:        0,      // 飛行方向（+1=右 / -1=左）
+    // === 延焼（burn）===
+    // OC カード「点火」取得後、SP 命中 / GC 撃破で igniteEnemy 経由で付与される
+    burnTimer:        0,    // 残フレーム（0 = 燃えていない）
+    burnTickAcc:      0,    // 次 DoT tick までの累積
+    burnSpreadAcc:    0,    // 次伝播判定までの累積
+    burnSpreadChain:  0,    // 自分が受け継いだチェーン段数（連鎖上限制御）
+    burnFlameAcc:     0,    // 炎パーティクル間引きカウンタ
+    burnSourceId:    null,  // 点火源 attack id（将来分析用）
+    burnShells:      null,  // burn 中の BackSide オレンジ shell mesh（body/head 別）
   };
   _enemies.push(e);
   return e;
+}
+
+// ============================================================
+//  延焼（burn）付与 API
+//  - 素では呼ばれない。OC「点火」カード取得後に hit-engine / enterEnemyDyingBurst から呼ぶ
+//  - 再点火：REFRESH_ON_REIGNITE=true なら残時間を max で更新（chain は維持）
+//  - 連鎖伝播・死亡時爆発の各機能は BURN_CONFIG.*_ENABLED が true のときのみ updateEnemies 側で起動
+// ============================================================
+export function igniteEnemy(e, opts = {}) {
+  if (!e || !e.isAlive || e.dying) return false;
+  const cfg = BURN_CONFIG;
+  const dur = (typeof opts.duration === 'number') ? opts.duration : cfg.DURATION_FRAMES;
+  if (e.burnTimer > 0 && cfg.REFRESH_ON_REIGNITE) {
+    e.burnTimer = Math.max(e.burnTimer, dur);
+    // chain は維持（既存連鎖の上限制御を壊さない）
+  } else if (e.burnTimer <= 0) {
+    e.burnTimer       = dur;
+    e.burnTickAcc     = 0;
+    e.burnSpreadAcc   = 0;
+    e.burnFlameAcc    = 0;
+    e.burnSpreadChain = opts.chain ?? 0;
+    _attachBurnOutline(e);  // 新規点火時のみ shell 生成（再点火では使い回し）
+  }
+  e.burnSourceId = opts.sourceId ?? null;
+  return true;
+}
+
+// 延焼アウトライン（shell-outline 方式）：body/head の BackSide コピーを少し大きめに重ね、
+// MeshBasicMaterial で平坦オレンジ色にする。既存の outline shader（プレイヤー専用 RT 経路）には
+// 触らない。Body emissive とぶつからないよう、本体マテリアルには介入しない。
+function _attachBurnOutline(e) {
+  if (!_THREE_REF || !e.mesh || !e.mesh.userData || !e.mesh.userData.parts) return;
+  if (e.burnShells && e.burnShells.length > 0) return;  // 既に装着済み
+  const cfg = BURN_CONFIG;
+  const parts = e.mesh.userData.parts;
+  const shells = [];
+  for (const key of ['body', 'head']) {
+    const part = parts[key];
+    if (!part || !part.geometry || part.parent !== e.mesh) continue;
+    const mat = new _THREE_REF.MeshBasicMaterial({
+      color:        cfg.OUTLINE_COLOR,
+      side:         _THREE_REF.BackSide,
+      transparent:  true,
+      opacity:      cfg.OUTLINE_OPACITY_MAX,
+      depthWrite:   false,
+    });
+    const shell = new _THREE_REF.Mesh(part.geometry, mat);
+    shell.scale.setScalar(cfg.OUTLINE_SCALE);
+    shell.userData._isBurnShell = true;  // detach 抽選 / outline mask から除外できるよう識別
+    part.add(shell);
+    shells.push(shell);
+  }
+  e.burnShells = shells;
+}
+
+function _detachBurnOutline(e) {
+  if (!e.burnShells || e.burnShells.length === 0) return;
+  for (const sh of e.burnShells) {
+    if (sh.parent) sh.parent.remove(sh);
+    if (sh.material) sh.material.dispose();
+  }
+  e.burnShells = null;
+}
+
+// 内部：burn DoT/伝播/演出 tick（updateEnemies 内から呼ぶ）
+//   - dying / grabbed / frozenByUlt は呼び出し側で skip 済み前提
+function _updateBurnTick(e, ctx) {
+  if (e.burnTimer <= 0) return;
+  const cfg = BURN_CONFIG;
+  e.burnTimer--;
+  // burnTimer が切れた瞬間に shell を解放（次の if(0) で early-return する前に処理）
+  if (e.burnTimer <= 0) {
+    _detachBurnOutline(e);
+    return;
+  }
+  // アウトライン点滅（sin 正弦波で MIN→MAX を往復）
+  if (e.burnShells && e.burnShells.length > 0) {
+    const t = (e._tick ?? 0);
+    const phase = (Math.sin((2 * Math.PI * t) / cfg.OUTLINE_PULSE_FRAMES) + 1) * 0.5;  // 0..1
+    const op = cfg.OUTLINE_OPACITY_MIN + (cfg.OUTLINE_OPACITY_MAX - cfg.OUTLINE_OPACITY_MIN) * phase;
+    for (const sh of e.burnShells) { if (sh.material) sh.material.opacity = op; }
+  }
+  // 炎パーティクル（HP バー直下から立ち上る）
+  e.burnFlameAcc++;
+  if (e.burnFlameAcc >= cfg.FLAME_PARTICLE_INTERVAL_FRAMES) {
+    e.burnFlameAcc = 0;
+    spawnHitParticles(e.x, e.y + 80, e.z, cfg.FLAME_PARTICLE_COLOR, cfg.FLAME_PARTICLE_COUNT, { type: 'omni' });
+  }
+  // DoT：noSpGain / noKnockback 相当（プレイヤー操作に依存しない時間ダメージ）
+  e.burnTickAcc++;
+  if (e.burnTickAcc >= cfg.TICK_INTERVAL_FRAMES) {
+    e.burnTickAcc = 0;
+    e.hp -= cfg.DAMAGE_PER_TICK;
+    e.hitFlashTimer = Math.max(e.hitFlashTimer, 4);
+    spawnDamageNumber(e.x, e.y + 130, e.z, cfg.DAMAGE_PER_TICK, { crit: true });
+    // hp<=0 になっても updateEnemies の死亡判定が同フレーム後段で動くので、ここでは hp 削るだけで OK
+  }
+  // 伝播（OC SPREAD カードで ON）
+  if (cfg.SPREAD_ENABLED && e.burnSpreadChain < cfg.SPREAD_MAX_CHAINS) {
+    e.burnSpreadAcc++;
+    if (e.burnSpreadAcc >= cfg.SPREAD_INTERVAL_FRAMES) {
+      e.burnSpreadAcc = 0;
+      _trySpreadBurn(e);
+    }
+  }
+}
+
+// 最近接の非 burn 敵に伝播（半径 SPREAD_RADIUS 以内・1 体のみ）
+function _trySpreadBurn(src) {
+  const cfg = BURN_CONFIG;
+  const r2 = cfg.SPREAD_RADIUS * cfg.SPREAD_RADIUS;
+  let best = null, bestD2 = r2 + 1;
+  for (const o of _enemies) {
+    if (o === src || !o.isAlive || o.dying) continue;
+    if (o.burnTimer > 0) continue;  // 既に燃えてる対象は除外
+    const dx = o.x - src.x, dz = o.z - src.z;
+    const d2 = dx * dx + dz * dz;
+    if (d2 < bestD2 && d2 <= r2) { best = o; bestD2 = d2; }
+  }
+  if (best) {
+    const nextChain = src.burnSpreadChain + 1;
+    const inheritMul = Math.pow(cfg.SPREAD_DURATION_INHERIT, nextChain);
+    igniteEnemy(best, { chain: nextChain, duration: cfg.DURATION_FRAMES * inheritMul, sourceId: 'spread' });
+  }
+}
+
+// 内部：burn 状態で死亡した敵の周囲爆発（OC CHAIN_BLAST カードで ON）
+//   - enterEnemyDying / enterEnemyDyingBurst から「burn 中 && DEATH_BLAST_ENABLED」の場合だけ呼ぶ
+function _spawnBurnDeathBlast(e) {
+  const cfg = BURN_CONFIG;
+  spawnDeathExplosion(e.x, e.y + 60, e.z, { skipHitstop: true });
+  const r2 = cfg.DEATH_BLAST_RADIUS * cfg.DEATH_BLAST_RADIUS;
+  const nextChain = e.burnSpreadChain + 1;
+  const inheritDur = cfg.DURATION_FRAMES * cfg.DEATH_BLAST_CHAIN_DURATION;
+  for (const o of _enemies) {
+    if (o === e || !o.isAlive || o.dying) continue;
+    const dx = o.x - e.x, dz = o.z - e.z;
+    if (dx * dx + dz * dz > r2) continue;
+    o.hp -= cfg.DEATH_BLAST_DAMAGE;
+    o.hitFlashTimer = Math.max(o.hitFlashTimer, 6);
+    if (cfg.DEATH_BLAST_IGNITES) {
+      igniteEnemy(o, { chain: nextChain, duration: inheritDur, sourceId: 'death_blast' });
+    }
+  }
+  triggerShake(10, 14);
 }
 
 // ============================================================
@@ -721,8 +875,14 @@ export function enterEnemyDying(e, ctx) {
     e.atkTimer = 0;
   }
   _clearAllTokens(ctx, e);
+  // 延焼関連処理：burn shell は GC 抽選（パーツ detach 可能性あり）より前に剥がす
+  const _burnActive = (e.burnTimer > 0);
+  _detachBurnOutline(e);
   // ゴア・クリティカル抽選（基本構造・キャラ拡張で発火条件を絞る）
   _maybeArmGoreCritical(e);
+  // 延焼中に死亡 → CHAIN_BLAST：周囲爆発 + 範囲内の生存敵に burn 付与
+  if (BURN_CONFIG.DEATH_BLAST_ENABLED && _burnActive) _spawnBurnDeathBlast(e);
+  e.burnTimer = 0;
   return true;
 }
 
@@ -805,7 +965,24 @@ function _maybeArmGoreCritical(e) {
     _setupArmedKinematics(e, v.explosionVariant);
     // variant.freezeFrames が指定されていれば優先（gc_03 等で hitstop を抑えたい時用）
     _kickGoreCriticalFx(v.freezeFrames);
+    // OC「点火」取得済みなら GC 撃破を起点に周囲に延焼を撒く
+    //   - 死体自身も burn 状態にして、CHAIN_BLAST 取得済みなら GC 爆散と burn death blast が連動
+    if (window.SB && window.SB.OC_FLAGS && window.SB.OC_FLAGS.ignite) _igniteAroundGc(e);
     return;
+  }
+}
+
+// OC「点火」フック：GC arm 成立時に周囲を延焼
+//   半径は SPREAD_RADIUS を流用（伝播範囲と同じ感覚）
+//   死体自身もマーク（CHAIN_BLAST 取得時は dying 進行と連動して死亡時爆発も発火）
+function _igniteAroundGc(src) {
+  igniteEnemy(src, { sourceId: 'gc_arm', chain: 0 });
+  const r = BURN_CONFIG.SPREAD_RADIUS;
+  const r2 = r * r;
+  for (const o of _enemies) {
+    if (o === src || !o.isAlive || o.dying) continue;
+    const dx = o.x - src.x, dz = o.z - src.z;
+    if (dx * dx + dz * dz <= r2) igniteEnemy(o, { sourceId: 'gc_arm', chain: 0 });
   }
 }
 
@@ -1145,8 +1322,14 @@ export function enterEnemyDyingBurst(e, ctx, hitFacing) {
   e.downTimer = ENEMY_DOWN_BURST_START_FRAMES;
   e.hitFlashTimer = 0;
   e.burstFlashTimer = 0;
+  // 延焼関連処理：burn shell は GC 抽選より前に剥がす
+  const _burnActive = (e.burnTimer > 0);
+  _detachBurnOutline(e);
   // ゴア・クリティカル抽選（burst ルートも対象：SP4 lv06 killing hit 等）
   _maybeArmGoreCritical(e);
+  // 延焼中に burst kill → CHAIN_BLAST：周囲爆発 + 範囲内の生存敵に burn 付与
+  if (BURN_CONFIG.DEATH_BLAST_ENABLED && _burnActive) _spawnBurnDeathBlast(e);
+  e.burnTimer = 0;
   return true;
 }
 
@@ -2307,6 +2490,9 @@ export function updateEnemies(ctx) {
         if (e.atkCooldown < 30) e.atkCooldown = 30;
       }
     }
+    // === 延焼（burn）tick（OC「点火」未取得なら e.burnTimer=0 で no-op）===
+    // frozenByUlt / grabbed / armed-GC は既に上で continue 済み・dying は !e.isAlive まで進まない
+    if (e.burnTimer > 0) _updateBurnTick(e, ctx);
     // 死亡判定（Phase 3-A/B：instantRespawn フラグで分岐 / 2026-05-20 e.dying へ）
     if (e.hp <= 0) {
       if (e.instantRespawn) {

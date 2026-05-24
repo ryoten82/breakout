@@ -1129,6 +1129,47 @@ export const GORE_CONFIG = {
 };
 
 // ============================================================
+//  #section burn — 延焼（burn）DoT + 伝播 + 死亡時爆発
+//  - 素では burn 付与不可。OC カード「点火 / 延焼 / 連鎖爆発」で段階的に解禁する積層設計
+//  - 付与経路：igniteEnemy(e, opts) を hit-engine / enemy-system から呼ぶ
+//  - DoT は noSpGain / noKnockback 相当（プレイヤー操作とは独立した時間ダメージ）
+//  - 伝播は SPREAD_ENABLED が true のときのみ起動（OC SPREAD カード取得で true）
+//  - 死亡時爆発は DEATH_BLAST_ENABLED が true のときのみ起動（OC CHAIN_BLAST カード取得で true）
+// ============================================================
+export const BURN_CONFIG = {
+  // DoT
+  TICK_INTERVAL_FRAMES:   60,    // tick 間隔（1 秒・テンポ控えめ）
+  DAMAGE_PER_TICK:        3,     // 1 tick あたりダメージ
+  DURATION_FRAMES:        360,   // 持続フレーム（6 秒・6 tick = 18 dmg）
+  REFRESH_ON_REIGNITE:    true,  // 再点火で残時間リフレッシュ
+  MAX_STACKS:             1,     // V1 は単純付与（将来 OC でスタック化する余地）
+
+  // 伝播（OC SPREAD カードで ON）
+  SPREAD_ENABLED:         false,
+  SPREAD_RADIUS:          180,   // wu 半径内の最近接 1 体へ
+  SPREAD_INTERVAL_FRAMES: 90,    // 伝播判定間隔（1.5 秒・延焼テンポと整合）
+  SPREAD_MAX_CHAINS:      3,     // 1 burn から派生する連鎖上限
+  SPREAD_DURATION_INHERIT:0.7,   // 伝播先 duration 倍率（先細りで無限連鎖防止）
+
+  // 死亡時爆発（OC CHAIN_BLAST カードで ON）
+  DEATH_BLAST_ENABLED:    false,
+  DEATH_BLAST_RADIUS:     240,
+  DEATH_BLAST_DAMAGE:     12,
+  DEATH_BLAST_IGNITES:    true,  // 爆風範囲の生存敵に burn 付与
+  DEATH_BLAST_CHAIN_DURATION: 0.5, // 爆発由来 burn の duration 倍率
+
+  // 演出（オレンジ・アウトライン点滅 + 立ち上り炎パーティクル）
+  OUTLINE_COLOR:          0xff8822,  // burn 中の敵を包む shell-outline 色
+  OUTLINE_SCALE:          1.10,      // body/head を何倍にスケールして包むか
+  OUTLINE_PULSE_FRAMES:   28,        // 点滅 1 周期（sin 1 周）
+  OUTLINE_OPACITY_MIN:    0.30,
+  OUTLINE_OPACITY_MAX:    0.95,
+  FLAME_PARTICLE_COLOR:   0xff8822,
+  FLAME_PARTICLE_INTERVAL_FRAMES: 14,  // パーティクル間隔も少し疎に
+  FLAME_PARTICLE_COUNT:   3,
+};
+
+// ============================================================
 //  #section gore-critical — 必殺技/キャラ固有のフィニッシャー演出（2026-05-18 導入）
 //  仕様：spec-room/discussions/gore-critical.md
 //   - dying フロー突入時に 1 回だけ抽選（PROBABILITY）
@@ -1374,4 +1415,11 @@ export const OVERCLOCK_CARDS = [
   { id: 'SP_RUSH',   label: 'SP RUSH',   desc: 'SP 獲得 ×2',      color: '#22aaff' },
   { id: 'REGEN_UP',  label: 'REGEN UP',  desc: 'SP 回復 ×3',      color: '#44dd88' },
   { id: 'SP_FULL',   label: 'SP FULL',   desc: 'SP ゲージ即時満タン', color: '#ffcc22' },
+  // ===== 延焼ビルド（積層型・取得順を強制：点火 → 延焼 → 連鎖爆発）=====
+  //  - 点火を取らないと「延焼」「連鎖爆発」はプールに出ない
+  //  - 延焼を取らないと「連鎖爆発」はプールに出ない
+  //  - フィルタは index.html showOCSelection 内の _filterOcPool が担当
+  { id: 'IGNITE',      label: '点火',     desc: '必殺技 / ゴアクリ撃破で敵に延焼を付与', color: '#ff7733' },
+  { id: 'SPREAD',      label: '延焼',     desc: '延焼中の敵から周囲へ炎が広がる',         color: '#ff5522' },
+  { id: 'CHAIN_BLAST', label: '連鎖爆発', desc: '延焼中の敵が倒れると爆発し周囲を延焼',   color: '#ff2200' },
 ];
