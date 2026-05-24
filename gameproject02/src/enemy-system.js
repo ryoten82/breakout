@@ -45,7 +45,7 @@ import {
   KB_LV06_VY, KB_LV06_VX_MULT,
   applyRollHipPivot,
 } from './states.js';
-import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG } from './config.js';
+import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG } from './config.js';
 import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, fxState } from './hit-engine.js';
 import { spawnBanner } from './hud-system.js';
 import { tryPinballHit } from './pinball.js';
@@ -331,6 +331,92 @@ export function buildMidboss01Mesh() {
 }
 
 // ============================================================
+//  メッシュ構築：boss01 CRUSHER（Stage1 本ボス・2 脚直立人型・スケール 4 倍）
+//  仕様：chars/boss01.md / 議論：discussions/boss01-stage1-design.md
+//  スタブ：midboss01 メッシュを BOSS01_CONFIG.MESH_SCALE 倍に拡大し色を CRUSHER 想定に変更
+//  TODO: 専用モデル（クラッシャー腕 / 肩ランチャー / コア）を art-reference 連動で設計
+// ============================================================
+export function buildBoss01Mesh() {
+  const group = new _THREE.Group();
+  group.rotation.order = 'ZYX';
+  const SCALE = BOSS01_CONFIG.MESH_SCALE;  // 4.0
+  // CRUSHER の色：重工業感のあるダーク + 警告色のアクセント
+  const bodyMat   = new _THREE.MeshToonMaterial({ color: 0x554444 });  // 暗い赤茶（鈍重感）
+  const darkMat   = new _THREE.MeshToonMaterial({ color: 0x332222 });  // さらに暗い（脚部）
+  const accentMat = new _THREE.MeshToonMaterial({ color: 0xcc4422 });  // 警告色アクセント
+  const crusherMat = new _THREE.MeshToonMaterial({ color: 0x666666 }); // クラッシャー（金属）
+
+  // 胴体（巨大）
+  const body = new _THREE.Mesh(new _THREE.BoxGeometry(85 * SCALE, 145 * SCALE, 72 * SCALE), bodyMat);
+  body.position.y = 87 * SCALE;
+  body.castShadow = true;
+  group.add(body);
+
+  // 頭（小さめ・コア感）
+  const head = new _THREE.Mesh(new _THREE.BoxGeometry(45 * SCALE, 42 * SCALE, 42 * SCALE), accentMat);
+  head.position.y = 188 * SCALE;
+  head.castShadow = true;
+  group.add(head);
+
+  // 台座 / 脚部基部
+  const stand = new _THREE.Mesh(new _THREE.BoxGeometry(95 * SCALE, 40 * SCALE, 80 * SCALE), darkMat);
+  stand.position.y = 20 * SCALE;
+  stand.castShadow = true;
+  group.add(stand);
+
+  // 左腕クラッシャー（大型）
+  const larm = new _THREE.Mesh(new _THREE.BoxGeometry(32 * SCALE, 110 * SCALE, 32 * SCALE), bodyMat);
+  larm.position.set(-78 * SCALE, 100 * SCALE, 0);
+  larm.castShadow = true;
+  group.add(larm);
+
+  const lcrusher = new _THREE.Mesh(new _THREE.BoxGeometry(50 * SCALE, 45 * SCALE, 50 * SCALE), crusherMat);
+  lcrusher.position.set(-78 * SCALE, 38 * SCALE, 0);
+  lcrusher.castShadow = true;
+  group.add(lcrusher);
+
+  // 右腕クラッシャー（大型）
+  const rarm = new _THREE.Mesh(new _THREE.BoxGeometry(32 * SCALE, 110 * SCALE, 32 * SCALE), bodyMat);
+  rarm.position.set(78 * SCALE, 100 * SCALE, 0);
+  rarm.castShadow = true;
+  group.add(rarm);
+
+  const rcrusher = new _THREE.Mesh(new _THREE.BoxGeometry(50 * SCALE, 45 * SCALE, 50 * SCALE), crusherMat);
+  rcrusher.position.set(78 * SCALE, 38 * SCALE, 0);
+  rcrusher.castShadow = true;
+  group.add(rcrusher);
+
+  // 肩部アクセント（警告色）
+  const lshoulder = new _THREE.Mesh(new _THREE.BoxGeometry(38 * SCALE, 32 * SCALE, 38 * SCALE), accentMat);
+  lshoulder.position.set(-60 * SCALE, 160 * SCALE, 0);
+  lshoulder.castShadow = true;
+  group.add(lshoulder);
+
+  const rshoulder = new _THREE.Mesh(new _THREE.BoxGeometry(38 * SCALE, 32 * SCALE, 38 * SCALE), accentMat);
+  rshoulder.position.set(60 * SCALE, 160 * SCALE, 0);
+  rshoulder.castShadow = true;
+  group.add(rshoulder);
+
+  group.userData.parts = { body, head, stand };
+  group.userData.baseColors = { body: 0x554444, head: 0xcc4422 };
+
+  // HP バー（本ボス：幅広・高位置）
+  const HP_BAR_W = 140;
+  const HP_BAR_H = 8;
+  const bgGeom   = new _THREE.PlaneGeometry(HP_BAR_W, HP_BAR_H);
+  const bg       = new _THREE.Mesh(bgGeom, new _THREE.MeshBasicMaterial({
+    color: 0x111111, transparent: true, opacity: 0.85,
+  }));
+  const fillGeom = new _THREE.PlaneGeometry(HP_BAR_W, HP_BAR_H);
+  fillGeom.translate(HP_BAR_W / 2, 0, 0);
+  const fill = new _THREE.Mesh(fillGeom, new _THREE.MeshBasicMaterial({ color: 0xff2211 }));
+  bg.visible   = false;
+  fill.visible = false;
+  group.userData.hpBar = { bg, fill, fullWidth: HP_BAR_W, yOffset: 230 * SCALE };
+  return group;
+}
+
+// ============================================================
 //  ダミー敵を 1 体生成して enemies に追加する共通ヘルパ
 //  Phase 2.4：複数体スポーンに対応。位置 (x, z) を指定して呼ぶ
 // ============================================================
@@ -338,6 +424,7 @@ export function spawnDummy(x, z, opts = {}) {
   const _enemyType = opts.enemyType ?? 'enem01';
   const mesh = (_enemyType === 'enem02') ? buildDummy02Mesh()
              : (_enemyType === 'midboss01') ? buildMidboss01Mesh()
+             : (_enemyType === 'boss01') ? buildBoss01Mesh()
              : buildDummyMesh();
   mesh.position.set(x, 0, z);
   // rotation.order='ZYX'：rotation.z（横倒し）と rotation.x（前後傾）両方を正しく見せる
@@ -397,9 +484,18 @@ export function spawnDummy(x, z, opts = {}) {
     downTimer:        0,
     isAlive:          true,
     facing:           -1,
-    enemyType:        _enemyType,           // 'enem01' / 'enem02' / 'midboss01' etc.
+    enemyType:        _enemyType,           // 'enem01' / 'enem02' / 'midboss01' / 'boss01' etc.
     // ガード強度：atk_lv がこの値以下の前面攻撃をガード成立で受ける（per-enemy）
     guardStrength:    opts.guardStrength ?? (_enemyType === 'midboss01' ? 4 : 3),
+    // ===== boss01 専用フィールド（仕様：chars/boss01.md / TODO: フェーズ移行ロジック実装は別セッション）=====
+    isBoss:            (_enemyType === 'boss01'),
+    bossPhase:         (_enemyType === 'boss01') ? 1 : 0,  // 1 / 2 / 3
+    bossPhaseGateHP:   (_enemyType === 'boss01')
+                         ? [BOSS01_CONFIG.PHASE_1_TO_2_GATE_HP, BOSS01_CONFIG.PHASE_2_TO_3_GATE_HP, 0]
+                         : null,
+    bossPhaseTransitioning: false,  // フェーズ移行演出中フラグ
+    bossFullSA:        (_enemyType === 'boss01'),  // 完全 SA フラグ（boss01 は常時 true）
+    bossSAStunTimer:   0,           // SA 崩しスタン残 F（RC 成功 / ULT 命中 / 大技 recover で立つ）
     // 盾システム（midboss01 専用）：本体 HP と独立した盾 HP。0 で盾破壊。
     //   midboss01 以外は shieldBroken=true（最初から盾なし扱い）で hit-engine 側分岐を 1 条件に。
     shieldMaxHp:      (_enemyType === 'midboss01') ? MIDBOSS_SHIELD_CONFIG.SHIELD_MAX_HP : 0,
