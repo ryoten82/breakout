@@ -375,7 +375,8 @@ function specialBaseId(id) {
   // burst トリガ（敵単位 1 回制限）は基底 ID で共有させたいので
   // チャージ段階別の sp_04 系も同じ ID にまとめる
   let s = id;
-  if (s.endsWith('_air')) s = s.slice(0, -4);
+  if (s.endsWith('_air'))   s = s.slice(0, -4);
+  if (s.endsWith('_short')) s = s.slice(0, -6);   // 2026-05-26：SP2 短押し版（c01_sp_02_short → c01_sp_02）
   s = s.replace(/_\d{2}$/, '');  // _01, _02, ... の段階サフィックスを剥がす
   return s;
 }
@@ -441,6 +442,7 @@ export function processSpecialInput(p) {
   // === 常時更新 ===
   updateDirHistory(p);
   updateChargeJ(p);
+  updateSp2Hold(p);
 
   // J / K エッジ検出（必殺技用：processAttackInput の zKeyWasDown / kKeyWasDown とは独立）
   // コマンドは J/K どちらでも受付可。チャージは J のみ（K は通常強攻撃で即発動するため）
@@ -506,12 +508,68 @@ export function processStrongAttackInput(p) {
 
   // 命名規則 §9.0：↑K=SP2 / ↓K=SP3 / それ以外（中立 K / ←/→ + K）= SP1（波動）
   // 中立 K もデフォルトで SP1 を発射するので、無方向でも何か出る = 入口を下げた設計。
+  // SP2：押下即発動（2026-05-26・ホールド分岐は一旦廃止 / 押した瞬間出るシンプル版に絞る）
+  //   - 地上：c01_sp_02_short（大昇り単発・粉塵昇竜の自機上昇感を残した形態）
+  //   - 空中：c01_sp_02_air（控えめ単発・コンボ降下しない調整）
+  //   - 旧 ホールド分岐コード（updateSp2Hold / SP2_HOLD_FRAMES）は実装は残置・本入口だけ即発に戻す
+  if (upHeld) {
+    const id = p.isGrounded ? 'c01_sp_02_short' : 'c01_sp_02_air';
+    startSpecial(p, id);
+    return;
+  }
+
   let baseId;
-  if (upHeld)      baseId = 'c01_sp_02';
-  else if (dnHeld) baseId = 'c01_sp_03';
-  else             baseId = 'c01_sp_01';
+  if (dnHeld) baseId = 'c01_sp_03';
+  else        baseId = 'c01_sp_01';
 
   startSpecial(p, pickSpecialAttackId(baseId, p.isGrounded));
+}
+
+// ============================================================
+//  SP2 ホールド分岐（2026-05-26）
+//  - processStrongAttackInput が ↑+K 押下時に p.sp2Holding を立てる
+//  - 本関数は毎フレーム呼ばれ、K 継続/リリース/最大 F を見て発動を確定する
+//  - 短押し（< SP2_HOLD_FRAMES） → c01_sp_02_air（単発・弱形態）
+//  - 長押し（≥ SP2_HOLD_FRAMES）→ 地上 c01_sp_02（粉塵昇竜）/ 空中 c01_sp_02_air
+//  - 最大 F（SP2_HOLD_FRAMES_MAX）到達でリリース待たず強制発動（昇竜）
+//  - state 異常（grab/ult 等）に陥った場合はキャンセル
+// ============================================================
+export function updateSp2Hold(p) {
+  // 2026-05-26：SP2 を押下即発動に戻したためホールド処理は無効化。
+  // 旧 sp2Holding が立ったままの個体があれば畳むだけ。
+  if (p.sp2Holding) { p.sp2Holding = false; p.sp2HoldFrames = 0; }
+  return;
+  // ↓ 旧ホールド分岐ロジック（将来復活する場合のため残置）
+  // eslint-disable-next-line no-unreachable
+  if (!p.sp2Holding) return;
+  const kHeld = _inp('KeyK');
+  // チャージ中に発動不能 state に陥ったらキャンセル（破棄）
+  if (p.guarding || p.ultActive || p.state === STATE.grabbing) {
+    p.sp2Holding    = false;
+    p.sp2HoldFrames = 0;
+    return;
+  }
+  p.sp2HoldFrames++;
+  const maxReached = p.sp2HoldFrames >= SPECIAL_CONFIG.SP2_HOLD_FRAMES_MAX;
+  // K リリース or 最大 F 到達で発動確定
+  if (!kHeld || maxReached) {
+    // 長押し粉塵昇竜は一旦無効化（2026-05-26・RC 検証中の混線を避けるため）。
+    // SP_HOLD_FRAMES 経過しても常に短押し形態（単発アッパー）が出る。
+    // 復活時は `useStrong = p.sp2HoldFrames >= SPECIAL_CONFIG.SP2_HOLD_FRAMES` に戻す。
+    const useStrong = false;
+    p.sp2Holding    = false;
+    p.sp2HoldFrames = 0;
+    if (!canStartSpecial(p)) return;
+    let id;
+    if (useStrong) {
+      // 長押し（封印中）：地上 c01_sp_02（粉塵昇竜）/ 空中 c01_sp_02_air
+      id = pickSpecialAttackId('c01_sp_02', p.isGrounded);
+    } else {
+      // 短押し：地上 c01_sp_02_short（大昇り単発）/ 空中 c01_sp_02_air（控えめ単発）
+      id = p.isGrounded ? 'c01_sp_02_short' : 'c01_sp_02_air';
+    }
+    startSpecial(p, id);
+  }
 }
 
 // p.usedDerivativesThisCombo をクリア（コンボリセット時に呼ばれる・派生 J 封じ解除）

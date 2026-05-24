@@ -4,7 +4,7 @@
 //   - プレイヤーとボスのみ配置。コンテナ・地雷なし
 //   - 死亡時は即リスポーン（ボステスト目的のため演出は途中まで）
 //
-// 仕様：chars/boss01.md / 議論：discussions/boss01-stage1-design.md
+// 仕様：chars/boss01.md / 議論：discussions/boss01-stage3-design.md
 
 import { levelWalls } from '../../camera.js';
 
@@ -97,8 +97,10 @@ export function getBossTestDebugState() {
   return {
     stage: 'bossTest',
     built: _built,
-    bossHp:    boss?.hp ?? null,
-    bossMaxHp: boss?.maxHp ?? null,
-    bossPhase: boss?.bossPhase ?? null,
+    bossHp:           boss?.hp ?? null,
+    bossMaxHp:        boss?.maxHp ?? null,
+    bossPhase:        boss?.bossPhase ?? null,
+    bossTransitioning: boss?.bossPhaseTransitioning ?? false,
+    bossGateNext:     boss?.bossPhaseGateHP?.[(boss?.bossPhase ?? 1) - 1] ?? null,
   };
 }

@@ -478,6 +478,8 @@ export const ATTACKS = {
     flashOnStart: true,
     showHitbox:   true,
     repulseAxis:  'aerial',   // リパルスカウンター：対空軸（e02_atk_02 などに合わせる）
+    // RC 受付ボックス（パリィボックス・2026-05-26）：頭上に大きく広く。攻撃の物理 hitbox とは独立
+    repulseBox:   { offsetX: 0, offsetY: 500, w: 600, h: 1000, d: 160 },
   },
   // 空中版：単発打ち上げ（多段は触感的に苦しかったため単発化・2026-05-14）
   //   ヒットストップは重め維持で必殺技コマンド入力余地を確保
@@ -508,6 +510,50 @@ export const ATTACKS = {
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
+    repulseAxis:  'aerial',           // 空中 SP2 も RC（aerial 軸）対応：地上版と揃える（2026-05-26）
+    repulseBox:   { offsetX: 0, offsetY: 500, w: 600, h: 1000, d: 160 },
+  },
+  // 地上短押し版（弱形態・単発アッパー・2026-05-26）：
+  //   ↑+K を短押し（< SP2_HOLD_FRAMES）で地上発動した時の専用 ID。
+  //   c01_sp_02_air をベースに、自機上昇のみ粉塵昇竜最終段と同等（plyrLiftVy=24 / delay=10）に強化。
+  //   「単体アッパーでもしっかり飛び上がる絵」をユーザー指示で実現（2026-05-26）。
+  //   空中短押し時は c01_sp_02_air をそのまま使うため、空中の手触り（コンボ降下しない控えめ上昇）は維持。
+  c01_sp_02_short: {
+    label:        'c01_sp_02_short (METEO 対空コマンド・地上短押し版・単発)',
+    // フレーム構成（2026-05-26 RC 反応性改善）：
+    //   frame 1-5  : 攻撃判定 active（hitFrame=1 で押下即発・5F 残留）
+    //   frame 6-10 : RC 判定 active（repulseFrameStart/End で限定）
+    //   frame 11-13: 残り（cancel 受付）
+    duration:     14, hitFrame: 1, hitDuration: 5, cancelWindow: 20,
+    damage:       25,
+    rangeX:       200, rangeZ: 100, rangeY: 200,
+    knockback:    45, hitstop: 12, shake: 7,
+    atk_lv:       4,
+    atk_lv_air:   4,
+    launchVy:     22,
+    launchVyAirborne: 13,
+    launcher:     true,
+    attrGroup:    'LAUNCH_COMBO',
+    hitColor:     0xffcc44,
+    hitCount:     22,
+    // 自機上昇：粉塵昇竜最終段と同等（plyrLiftVy=24 / delay=10）
+    // 前進量は通常 SP2 と同じ 5 を維持（普段使いの手触りを保つ・2026-05-26）。
+    // すり抜けは RC 判定 box を横方向に十分広く取ることでカバーする方針へ
+    plyrLiftVx:       5,
+    plyrLiftVy:       24,
+    plyrLiftVyDelay:  10,
+    aerialHop:    false,
+    partsAnim:    'upper_cut',
+    isSpecial:    true,
+    flashOnStart: true,
+    showHitbox:   true,
+    repulseAxis:  'aerial',
+    repulseBox:   { offsetX: 0, offsetY: 500, w: 600, h: 1000, d: 160 },
+    // RC 判定 active 期間（2026-05-26）：攻撃判定（1-5F）の後、6-10F で 5F 限定 active。
+    // 「攻撃当たり判定 → RC 判定」と段階を分けることで、AOE タイミングに左右されず
+    // 押下の意図を素直に拾える。フィールドなしの attack は duration 中ずっと active（後方互換）。
+    repulseFrameStart: 6,
+    repulseFrameEnd:   10,
   },
   // === sp_04 系：N 段階チャージ（stage1=50F / stage2=120F MAX / 将来 stage3+ は _03, _04...）===
   //   stage1 → c01_sp_04_01 / c01_sp_04_01_air：今までの判定そのまま・後方ノックバック付与（lv6）

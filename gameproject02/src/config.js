@@ -176,6 +176,13 @@ export const SPECIAL_CONFIG = {
   //   タップコマンド廃止 + K=SP ボタン化に伴い未参照となった。必殺技は方向 + ボタン直接 dispatch。
   CHARGE_FRAMES_STAGE1: 50,  // sp_04 第1段階成立（≈0.83秒）→ c01_sp_04_01 発動（旧 c01_sp_04 / 2026-05-20 _NN 連番化）
   CHARGE_FRAMES_STAGE2: 120, // sp_04 第2段階成立（2.0秒）→ c01_sp_04_02 発動（旧 c01_sp_04_max）。OC/チップで stage3+ を _03, _04... と追加可能
+  // === SP2 ホールド分岐（2026-05-26）===
+  // ↑+K 押下時にチャージ開始。リリースまでの経過 F で「単発（弱形態）」/「粉塵昇竜（強形態）」を分岐。
+  // 短押し（< SP2_HOLD_FRAMES）→ c01_sp_02_air（単発打ち上げ・空中地上共通）
+  // 長押し（≥ SP2_HOLD_FRAMES）→ 地上：c01_sp_02 粉塵昇竜 / 空中：c01_sp_02_air（空中昇竜なし）
+  // 最大 F に達したらリリース待たず自動発動（昇竜版）
+  SP2_HOLD_FRAMES:     12,   // 約 0.2 秒（粉塵昇竜分岐の閾値）
+  SP2_HOLD_FRAMES_MAX: 30,   // 約 0.5 秒（強制発動）
   FLASH_FRAMES:      12,    // 発動時の白フラッシュ長
   FLASH_COLOR:       0xffffff,
   SHOW_HITBOX:       true,  // 必殺技ヒットボックス可視化（本番では false）
@@ -422,7 +429,7 @@ export const ENEMY_ATTACKS = {
     aimFrames:       80,    // 照準フェーズ：二次リングが収束するまでの F
     aoeRadius:       120,   // 一次 AOE サークル半径（wu・要調整）
     ringStartRadius: 360,   // 二次リング開始半径（wu）
-    diveSpeed:       80,    // 急降下速度（wu/F・物理を無視した直接移動）
+    diveSpeed:       45,    // 急降下速度（wu/F・物理を無視した直接移動）2026-05-26：80→56→45（更に 80% 削減）
     hitboxRangeX:    110,
     hitboxRangeY:    150,   // 縦長（叩きつけ）
     hitboxRangeZ:    110,
@@ -435,6 +442,10 @@ export const ENEMY_ATTACKS = {
     pitchWind:      -0.30,
     pitchActive:     0,     // 空中飛翔中は傾けない
     repulseAxis:    'aerial',  // リパルスカウンター軸（対空 = sp_02 昇竜で迎撃）
+    // RC 受付ボックス（敵側・パリィボックス・2026-05-26）：
+    //   ジャンパー飛び降りの「先端」＝足元前方に広めの受付窓。
+    //   敵基点（敵の x,y,z）+ facing 反転で配置。アクティブな期間は repulseWindow=true（aim フェーズ中）。
+    repulseTargetBox: { offsetX: 0, offsetY: -40, w: 240, h: 160, d: 140 },
   },
 
   // -------------------------------------------------------
@@ -949,6 +960,16 @@ export const REPULSE_CONFIG = {
   FLASH_COUNT:     24,
   // 軸ラベルとアイコン文字（HUD 表示用）
   AXIS_ICON:       { aerial: '↑', ground: '↓', frontal: '→' },
+  // === パリィボックス方式（2026-05-26）===
+  // 旧「攻撃 hit 時の軸照合」を撤去し、専用の repulseBox / repulseTargetBox の AABB 重なり判定で成立させる。
+  // 成立すると両者を「お膳立て位置」へワープし、軽い演出後に RC 発動（確定クリ + 100% gc）。
+  MAX_WARP_DISTANCE: 200,   // この距離を超えるとワープせず成立しない
+  WARP_FRONT_OFFSET: 80,    // ワープ後の敵 X：プレイヤー facing 前方への距離
+  WARP_Y_OFFSET:     120,   // ワープ後の敵 Y：プレイヤー頭上（attack hit 想定位置）
+  CAM_ZOOM_BOOST:    0.15,  // 一時的なカメラズーム加算
+  CAM_ZOOM_FRAMES:   14,    // ズーム持続 F
+  SHAKE_AMOUNT:      6,
+  SHAKE_FRAMES:      8,
 };
 
 // ============================================================
