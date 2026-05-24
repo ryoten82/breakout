@@ -650,6 +650,37 @@ export function triggerShieldBreak(e, ctx) {
 }
 
 // ============================================================
+//  boss01 フェーズ移行（HP ゲート到達時に hit-engine から呼ぶ）
+//   - 仕様：chars/boss01.md §フェーズ移行演出 / handoff_scrapblitz_2026-05-26_boss-framework
+//   - HP ゲートで境界 1 残しでダメージ停止 → これを呼ぶ → 次フェーズ開始
+//   - MVP：banner + flash + shake + 進行中攻撃中断のみ。メガクラ流用本格演出は別セッション
+//   - 戻り値：移行発火した true / 既に移行中・非ボスなら false
+// ============================================================
+export function triggerBossPhaseTransition(e, ctx) {
+  if (!e || !e.isBoss || e.bossPhaseTransitioning) return false;
+  if ((e.bossPhase ?? 1) >= 3) return false;  // Phase 3 が最終
+  e.bossPhase = Math.min(3, (e.bossPhase ?? 1) + 1);
+  e.bossPhaseTransitioning = true;
+  e.bossPhaseTransitionTimer = BOSS01_CONFIG.PHASE_TRANSITION_FRAMES;
+  // 進行中の攻撃を中断（仕切り直し）
+  if (e.state === STATE.enemy_attacking) {
+    e.atkPhase     = null;
+    e.atkTimer     = 0;
+    e.hitDelivered = false;
+    _clearAllTokens(ctx, e);
+  }
+  e.state     = STATE.wait01;
+  e.aiPhase   = 'idle';
+  e.downTimer = 0;
+  // 視覚演出（MVP・将来メガクラ流用差し替え予定）
+  spawnHitParticles(e.x, e.y + 200, e.z, BOSS01_CONFIG.PHASE_TRANSITION_COLOR, 48, { type: 'omni' });
+  triggerHitstop(14);
+  triggerShake(16, 36);
+  spawnBanner(`PHASE ${e.bossPhase}!`, { frames: 70, color: '#ff5544', fontSize: 64 });
+  return true;
+}
+
+// ============================================================
 //  敵死亡フロー開始（Phase 3-A/B/C・gore-scrap-mob-prototype.md 仕様）
 //   - 2026-05-20 フラグ方式：state は変更せず、e.dying=true を立てて並列にフェーズ管理
 //   - 被弾モーション（knockback/down_* 等）はそのまま再生継続
@@ -1896,6 +1927,37 @@ function _selectEnemyAtk(e, adx) {
     // enraged（盾破壊後）: マチェット斬り or マチェットラッシュ（50:50）
     return (Math.random() < 0.5) ? 'mb01_atk_02' : 'mb01_atk_03';
   }
+  if (e.enemyType === 'boss01') {
+    // フェーズ移行演出中は攻撃不可（仕切り直し）
+    if (e.bossPhaseTransitioning) return null;
+    // 接近圏外は攻撃せず歩み寄り（boss01 は AOE 多彩なので拡大圏内まで待つ）
+    if (adx > DUMMY_ATK_CONFIG.approachRange * 1.4) return null;
+    const phase = e.bossPhase ?? 1;
+    // Phase 1：基本 AOE 3 種から均等抽選
+    if (phase === 1) {
+      const r = Math.random();
+      if (r < 0.34) return 'boss1_atk_01';
+      if (r < 0.67) return 'boss1_atk_02';
+      return 'boss1_atk_03';
+    }
+    // Phase 2：基本 3 種 + 派生 1 種（atk_04 を確率 25% で挿入）
+    if (phase === 2) {
+      const r = Math.random();
+      if (r < 0.25) return 'boss1_atk_04';
+      if (r < 0.50) return 'boss1_atk_01';
+      if (r < 0.75) return 'boss1_atk_02';
+      return 'boss1_atk_03';
+    }
+    // Phase 3：必殺技（atk_05）+ 大技（atk_06）解禁
+    //   atk_05 は RC 対象・atk_06 は SA 崩しトリガー大技。残りは Phase 2 同等プール。
+    const r = Math.random();
+    if (r < 0.20) return 'boss1_atk_05';
+    if (r < 0.35) return 'boss1_atk_06';
+    if (r < 0.55) return 'boss1_atk_04';
+    if (r < 0.70) return 'boss1_atk_01';
+    if (r < 0.85) return 'boss1_atk_02';
+    return 'boss1_atk_03';
+  }
   // enem01
   const C = DUMMY_ATK_CONFIG;
   const swingOnly = C.attackRange - C.atkSelectOverlap;  // ここ以下は基本振り確定
@@ -2041,6 +2103,15 @@ export function updateEnemies(ctx) {
   for (const e of _enemies) {
     if (!e.isAlive) continue;
     _updateLaneZ(e);  // cunning の Z レーン振り直し（14-D-3・密集回避）
+    // boss01 フェーズ移行タイマー（triggerBossPhaseTransition で開始・カウントダウンで自動解除）
+    //   移行中は AI 攻撃停止（_selectEnemyAtk で null 返す）+ HP 削れない（hit-engine 側でクランプ）
+    if (e.bossPhaseTransitioning) {
+      e.bossPhaseTransitionTimer = (e.bossPhaseTransitionTimer ?? 0) - 1;
+      if (e.bossPhaseTransitionTimer <= 0) {
+        e.bossPhaseTransitioning = false;
+        e.bossPhaseTransitionTimer = 0;
+      }
+    }
     // Phase 3：dying タイマー進行（state machine は維持・色フェード/最終フェーズ遷移を回す）
     //   exploded フェーズに入ると mesh が無いので、その時点で本フレームの残処理は skip
     if (e.dying) {
