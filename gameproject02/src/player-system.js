@@ -494,6 +494,41 @@ export function processSpecialInput(p) {
 //  SP4 のみチャージ J リリース経由で従来通り発動（processSpecialInput）。
 //  従来の派生 K（↑K / →K / ↓K）は J 系へ移動（attack-engine.js の processAttackInput）。
 // ============================================================
+// SP2 押下時のタイミング検証ログ（2026-05-27）。
+//   window.SB.DEBUG_SP2_LOG = true で ON。
+//   押下瞬間の「敵 _jdPhase / repulseWindow / 距離 / grace 残 F」をスナップショット。
+//   何回か押すと、自分が「aim 中で押せている / dive grace 中 / もう dive 進行済 / そもそも aim 入ってない」のどれが多いか可視化できる。
+let _sp2LogSeq = 0;
+function _logSp2Snapshot(p, attackId) {
+  if (typeof window === 'undefined' || !window.SB?.DEBUG_SP2_LOG) return;
+  if (!_enemies) return;
+  _sp2LogSeq++;
+  const frame = getGameFrame();
+  // 最寄りの jump_dive 中の敵を 1 体ピック
+  let best = null, bestDist = Infinity;
+  for (const e of _enemies) {
+    if (!e || !e.isAlive || e.dying) continue;
+    const atk = e.curAtkId && ENEMY_ATTACKS[e.curAtkId];
+    if (!atk || atk.kind !== 'jump_dive') continue;
+    const d = Math.hypot(e.x - p.x, e.z - p.z);
+    if (d < bestDist) { bestDist = d; best = e; }
+  }
+  const tag = `[SP2 #${_sp2LogSeq}]`;
+  if (!best) {
+    console.log(`${tag} frame=${frame} attack=${attackId} → 敵 jump_dive 中なし（aim/dive 未起動）`);
+    return;
+  }
+  const phase = best._jdPhase ?? 'null';
+  const win   = !!best.repulseWindow;
+  const grace = best._jdDiveGrace ?? 0;
+  const aimLeft = best._jdAimTimer ?? 0;
+  console.log(
+    `${tag} frame=${frame} attack=${attackId} | enemy.phase=${phase} repulseWindow=${win} ` +
+    `dist=${bestDist.toFixed(0)}wu aimLeft=${aimLeft}F diveGrace=${grace}F` +
+    `${win ? '  ✅ RC 受付中' : '  ❌ RC OFF'}`
+  );
+}
+
 export function processStrongAttackInput(p) {
   const kPressed = _inp('KeyK');
   const justPressed = kPressed && !kKeyWasDown;
@@ -514,7 +549,19 @@ export function processStrongAttackInput(p) {
   //   - 旧 ホールド分岐コード（updateSp2Hold / SP2_HOLD_FRAMES）は実装は残置・本入口だけ即発に戻す
   if (upHeld) {
     const id = p.isGrounded ? 'c01_sp_02_short' : 'c01_sp_02_air';
+    _logSp2Snapshot(p, id);  // タイミング検証ログ（window.SB.DEBUG_SP2_LOG で ON/OFF）
+    const _attackIdBefore = p.attackId;
+    const _stateBefore    = p.state;
+    const _spBefore       = p.sp;
     startSpecial(p, id);
+    if (typeof window !== 'undefined' && window.SB?.DEBUG_SP2_LOG) {
+      const fired = p.attackId === id && p.attackId !== _attackIdBefore;
+      if (!fired) {
+        console.log(`  [SP2 START FAIL] reason check: state(before)=${_stateBefore} attackId(before)=${_attackIdBefore} attackId(after)=${p.attackId} sp=${_spBefore.toFixed(1)}`);
+      } else {
+        console.log(`  [SP2 START OK] attackId=${p.attackId} stateTimer=${p.stateTimer} sp=${p.sp.toFixed(1)}`);
+      }
+    }
     return;
   }
 

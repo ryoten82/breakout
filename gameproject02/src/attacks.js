@@ -478,8 +478,10 @@ export const ATTACKS = {
     flashOnStart: true,
     showHitbox:   true,
     repulseAxis:  'aerial',   // リパルスカウンター：対空軸（e02_atk_02 などに合わせる）
-    // RC 受付ボックス（パリィボックス・2026-05-26）：頭上に大きく広く。攻撃の物理 hitbox とは独立
-    repulseBox:   { offsetX: 0, offsetY: 500, w: 600, h: 1000, d: 160 },
+    // RC 受付ボックス（パリィボックス・2026-05-26 → 2026-05-27 Y 上方向拡張）：
+    //   頭上に大きく広く。攻撃の物理 hitbox とは独立。
+    //   敵 e02_atk_02 aim 中ピーク Y ≈ 747wu に対し余裕を持って Y 上限 1600wu まで拾う。
+    repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
   },
   // 空中版：単発打ち上げ（多段は触感的に苦しかったため単発化・2026-05-14）
   //   ヒットストップは重め維持で必殺技コマンド入力余地を確保
@@ -511,7 +513,8 @@ export const ATTACKS = {
     flashOnStart: true,
     showHitbox:   true,
     repulseAxis:  'aerial',           // 空中 SP2 も RC（aerial 軸）対応：地上版と揃える（2026-05-26）
-    repulseBox:   { offsetX: 0, offsetY: 500, w: 600, h: 1000, d: 160 },
+    // RC 受付ボックス（Y 上方向拡張・2026-05-27）：地上版と統一
+    repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
   },
   // 地上短押し版（弱形態・単発アッパー・2026-05-26）：
   //   ↑+K を短押し（< SP2_HOLD_FRAMES）で地上発動した時の専用 ID。
@@ -548,12 +551,15 @@ export const ATTACKS = {
     flashOnStart: true,
     showHitbox:   true,
     repulseAxis:  'aerial',
-    repulseBox:   { offsetX: 0, offsetY: 500, w: 600, h: 1000, d: 160 },
+    // RC 受付ボックス（Y 上方向拡張・2026-05-27）：地上長押し版と統一
+    repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
     // RC 判定 active 期間（2026-05-26）：攻撃判定（1-5F）の後、6-10F で 5F 限定 active。
     // 「攻撃当たり判定 → RC 判定」と段階を分けることで、AOE タイミングに左右されず
     // 押下の意図を素直に拾える。フィールドなしの attack は duration 中ずっと active（後方互換）。
-    repulseFrameStart: 6,
-    repulseFrameEnd:   10,
+    // 2026-05-27：短押しの RC 取りこぼし軽減のため 6-10（5F）→ 4-14（11F）に拡張。
+    // hitFrame=1 / hitDuration=5 なので、攻撃 active と 1F だけ重なるが、RC 成立判定が先に走るので問題なし。
+    repulseFrameStart: 4,
+    repulseFrameEnd:   14,
   },
   // === sp_04 系：N 段階チャージ（stage1=50F / stage2=120F MAX / 将来 stage3+ は _03, _04...）===
   //   stage1 → c01_sp_04_01 / c01_sp_04_01_air：今までの判定そのまま・後方ノックバック付与（lv6）

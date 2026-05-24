@@ -1412,11 +1412,29 @@ function _aabbOverlap(a, b) {
 }
 
 // main loop から毎フレーム呼ぶ。enemies は updateEnemies の後の最新状態を渡す
+// load-time marker: リロード確認用（このログがコンソールに出てなければキャッシュが効いている）
+console.log('[hit-engine.js loaded v2026-05-27 RC-tick]');
+
 export function updateRepulseDetection(p, enemies) {
-  if (!p || !p.attackId || !p.isAlive) return;
+  // プレイヤーの生存判定は p.hp > 0（敵の e.isAlive とは別規約）。
+  // 2026-05-27：以前 !p.isAlive で判定していたため undefined 扱いで毎フレーム早期 return → RC 全不発の原因だった。
+  if (!p || !p.attackId || p.hp <= 0) {
+    // attack 終了：次回の attack 開始を検出するため lastAttackId をクリア
+    if (p && !p.attackId) p._lastRcAttackId = null;
+    return;
+  }
   const atk = ATTACKS[p.attackId];
-  if (!atk || !atk.repulseBox) return;
-  // 同一 attackId 内で 1 度成立したら再成立しない（連発防止）
+  if (!atk || !atk.repulseBox) {
+    p._lastRcAttackId = p.attackId;  // attackId は変わったので追跡だけ更新
+    return;
+  }
+  // 新規 attack 開始検出：前回と attackId が違う or 前回 null → 連発防止フラグをクリア
+  // 2026-05-27：以前は同一文字列 attackId で固定比較していたため、同じ技を連発すると 2 回目以降が永続無効化されていた
+  if (p._lastRcAttackId !== p.attackId) {
+    p._repulseFiredForAttackId = null;
+    p._lastRcAttackId = p.attackId;
+  }
+  // 同一 attack インスタンス内で 1 度成立したら再成立しない（連発防止）
   if (p._repulseFiredForAttackId === p.attackId) return;
   // RC 判定 active 期間：attack.repulseFrameStart/End が定義されていればその範囲のみ active。
   // 未定義なら duration 中ずっと active（後方互換）。
@@ -1426,19 +1444,45 @@ export function updateRepulseDetection(p, enemies) {
   }
 
   const pBox = _resolveRepulseBoxToWorld(p.x, p.y, p.z, p.facing, atk.repulseBox);
+  const _dbg = (typeof window !== 'undefined') && window.SB?.DEBUG_SP2_LOG;
 
   for (const e of enemies) {
     if (!e || !e.isAlive || e.dying) continue;
-    if (!e.repulseWindow) continue;
+    // フェイル ログは jump_dive 中の敵に絞る（他の敵で大量ノイズが出るのを防ぐ）
+    const _isJd = e.curAtkId && ENEMY_ATTACKS[e.curAtkId]?.kind === 'jump_dive';
+    if (!e.repulseWindow) {
+      if (_dbg && _isJd) console.log(`  [RC fail] repulseWindow=false phase=${e._jdPhase ?? 'null'} grace=${e._jdDiveGrace ?? 0}`);
+      continue;
+    }
     const eAtk = ENEMY_ATTACKS[e.curAtkId];
     if (!eAtk || !eAtk.repulseTargetBox) continue;
-    if (eAtk.repulseAxis !== atk.repulseAxis) continue;
+    if (eAtk.repulseAxis !== atk.repulseAxis) { if (_dbg && _isJd) console.log(`  [RC fail] axis mismatch p=${atk.repulseAxis} e=${eAtk.repulseAxis}`); continue; }
     const dx = e.x - p.x, dz = e.z - p.z;
-    if (Math.hypot(dx, dz) > REPULSE_CONFIG.MAX_WARP_DISTANCE) continue;
+    const xzDist = Math.hypot(dx, dz);
+    if (xzDist > REPULSE_CONFIG.MAX_WARP_DISTANCE) { if (_dbg && _isJd) console.log(`  [RC fail] dist=${xzDist.toFixed(0)} > ${REPULSE_CONFIG.MAX_WARP_DISTANCE}`); continue; }
     const eBox = _resolveRepulseBoxToWorld(e.x, e.y, e.z, e.facing, eAtk.repulseTargetBox);
-    if (!_aabbOverlap(pBox, eBox)) continue;
+    if (!_aabbOverlap(pBox, eBox)) {
+      if (_dbg && _isJd) {
+        const xOK = pBox.x1 < eBox.x2 && pBox.x2 > eBox.x1;
+        const yOK = pBox.y1 < eBox.y2 && pBox.y2 > eBox.y1;
+        const zOK = pBox.z1 < eBox.z2 && pBox.z2 > eBox.z1;
+        console.log(
+          `  [RC fail AABB] X:${xOK?'OK':'NG'}(p${pBox.x1.toFixed(0)}..${pBox.x2.toFixed(0)} vs e${eBox.x1.toFixed(0)}..${eBox.x2.toFixed(0)}) ` +
+          `Y:${yOK?'OK':'NG'}(p${pBox.y1.toFixed(0)}..${pBox.y2.toFixed(0)} vs e${eBox.y1.toFixed(0)}..${eBox.y2.toFixed(0)}) ` +
+          `Z:${zOK?'OK':'NG'}(p${pBox.z1.toFixed(0)}..${pBox.z2.toFixed(0)} vs e${eBox.z1.toFixed(0)}..${eBox.z2.toFixed(0)}) ` +
+          `phase=${e._jdPhase ?? 'null'} grace=${e._jdDiveGrace ?? 0}`
+        );
+      }
+      continue;
+    }
 
     _triggerRepulseSuccess(p, e, atk, eAtk);
+    if (typeof window !== 'undefined' && window.SB?.DEBUG_SP2_LOG) {
+      const dist = Math.hypot(e.x - p.x, e.z - p.z);
+      const phase = e._jdPhase ?? 'null';
+      const grace = e._jdDiveGrace ?? 0;
+      console.log(`[RC HIT] attack=${p.attackId} | enemy.phase=${phase} dist=${dist.toFixed(0)}wu diveGrace残=${grace}F`);
+    }
     p._repulseFiredForAttackId = p.attackId;
     return;
   }

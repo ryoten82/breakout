@@ -787,7 +787,7 @@ export const REPULSE_CONFIG = {
   // === パリィボックス方式（2026-05-26）===
   // 旧「攻撃 hit 時の軸照合」を撤去し、専用の repulseBox / repulseTargetBox の AABB 重なり判定で成立させる。
   // 成立すると両者を「お膳立て位置」へワープし、軽い演出後に RC 発動（確定クリ + 100% gc）。
-  MAX_WARP_DISTANCE: 200,   // この距離を超えるとワープせず成立しない
+  MAX_WARP_DISTANCE: 350,   // この距離を超えるとワープせず成立しない（2026-05-27：200→350・aim 中ラグ + 退避動作許容）
   WARP_FRONT_OFFSET: 80,    // ワープ後の敵 X：プレイヤー facing 前方への距離
   WARP_Y_OFFSET:     120,   // ワープ後の敵 Y：プレイヤー頭上（attack hit 想定位置）
   CAM_ZOOM_BOOST:    0.15,  // 一時的なカメラズーム加算

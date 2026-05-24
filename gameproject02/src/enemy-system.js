@@ -2667,6 +2667,7 @@ export function updateEnemies(ctx) {
               if (e.vy <= 2) {
                 e._jdPhase       = 'aim';
                 e.repulseWindow  = true;   // リパルスカウンター受付開始
+                e._jdDiveGrace   = 0;      // 前回 dive の残値をクリア
                 e._jdHoldY       = e.y;
                 e._jdAimTimer    = atk.aimFrames ?? 80;
                 const _p = _players && _players[0];
@@ -2711,11 +2712,21 @@ export function updateEnemies(ctx) {
               if (e._jdAimTimer <= 0) {
                 // 急降下開始（この瞬間 _jdTargetX/Z が確定・追尾解除）
                 e._jdPhase      = 'dive';
-                e.repulseWindow = false;  // リパルスカウンター受付終了（降下開始）
+                // リパルスカウンター grace（2026-05-27）：dive 開始後も短時間 RC 受付。
+                //   理由：人間反応は「降ってきた！」を見てから SP2 → aim 終端で即 OFF だと反応間に合わず抜ける。
+                //   12F ≒ 0.2s 猶予で「dive 確認 → SP2」が成立可能になる。
+                e._jdDiveGrace  = 12;
                 _removeJdMarkers(e);
               }
               } // end else (no hitFlash)
             } else if (_jdp === 'dive') {
+              // dive grace（2026-05-27）：dive 突入後も短時間 RC 受付（人間反応猶予）。
+              //   grace 中は repulseWindow=true を維持、カウンタ尽きたら false。
+              if (e._jdDiveGrace > 0) {
+                e.repulseWindow = true;
+                e._jdDiveGrace--;
+                if (e._jdDiveGrace <= 0) e.repulseWindow = false;
+              }
               // 超高速降下：物理を無視して直接 Y を更新
               e.x  = e._jdTargetX;
               e.z  = e._jdTargetZ;
