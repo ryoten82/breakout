@@ -37,7 +37,7 @@ import {
   COMBO_LEVELS, getComboLevel,
   PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG, MIDBOSS_SHIELD_CONFIG, REPULSE_CONFIG,
 } from './config.js';
-import { resolveAttackAttr } from './attacks.js';
+import { resolveAttackAttr, ATTACKS } from './attacks.js';
 import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak } from './enemy-system.js';
 import { spawnDamageNumber, spawnBanner } from './hud-system.js';
 
@@ -590,16 +590,12 @@ export function tryHitEnemies(p, attack, ctx) {
     //   それ以外は基礎確率。ガード成立時はクリ無効。敵 state は直後に上書きされるため先に判定。
     const _isCounterHit = (e.state === STATE.enemy_attacking &&
                            (e.atkPhase === 'wind' || e.atkPhase === 'active'));
-    // リパルスカウンター判定：aim フェーズ中（repulseWindow=true）の敵に、軸が一致する SP を当てた場合。
-    //   確定クリ＋即死（雑魚）＋専用バナー＋パーティクル。SP コスト消費なし（腕前ゲート不要）。
-    const _repulseMatch = e.repulseWindow && attack.repulseAxis &&
-      ENEMY_ATTACKS[e.curAtkId]?.repulseAxis === attack.repulseAxis;
-    if (_repulseMatch) e.repulseWindow = false;   // ウィンドウ消費（1 回限り）
-    const _isCrit = !_guarded && (_repulseMatch || _isCounterHit || (Math.random() < CRIT_CONFIG.BASE_CHANCE));
+    // RC（リパルスカウンター）は新方式（パリィボックス・updateRepulseDetection）で先に成立判定するため、
+    // ここでの「attack hit 時の軸照合」は廃止（2026-05-26）。本 hit 経路は通常クリ判定のみ。
+    const _isCrit = !_guarded && (_isCounterHit || (Math.random() < CRIT_CONFIG.BASE_CHANCE));
     let _finalDamage = _isCrit
       ? Math.round(_scaledDamage * CRIT_CONFIG.DAMAGE_MULT)
       : _scaledDamage;
-    if (_repulseMatch) _finalDamage = Math.max(_finalDamage, e.hp);   // 雑魚は即死保証
     if (_guarded) _finalDamage = Math.max(1, Math.round(_finalDamage * ENEMY_REACT_CONFIG.GUARD_DAMAGE_MULT));
     // midboss01 盾ダメージ振り分け：盾 HP を削り、前面接地ヒットは本体ダメージを 0 にする。
     //   盾削りはクリ補正前の素ダメージ基準（クリ補正は本体専用）。
@@ -616,12 +612,7 @@ export function tryHitEnemies(p, attack, ctx) {
     // 与ダメージ数値ポップ（本体ダメージ＝橙/白、盾ダメージ＝水色を別行で）
     if (_finalDamage > 0) spawnDamageNumber(e.x, e.y + 110, e.z, _finalDamage, { crit: _isCrit });
     if (_shieldDmg > 0)   spawnDamageNumber(e.x, e.y + 150, e.z, _shieldDmg, { shield: true });
-    // リパルスカウンター成立演出（バナー＋紫パーティクルバースト）
-    if (_repulseMatch) {
-      const _RC = REPULSE_CONFIG;
-      spawnBanner('REPULSE!', { frames: _RC.BANNER_FRAMES, color: '#cc88ff', fontSize: 62 });
-      spawnHitParticles(e.x, e.y + 100, e.z, _RC.FLASH_COLOR, _RC.FLASH_COUNT, { type: 'omni' });
-    }
+    // 旧 RC 成立演出ブロックは新方式（updateRepulseDetection / triggerRepulseSuccess）へ移行（2026-05-26）
     // 最終ヒッター記録（ゴア・クリティカル抽選で参照・enterEnemyDying 内で profile lookup に使う）
     // wasGrounded：被弾"前"の接地状態を記録（gc 抽選の requireGrounded 判定で使用）。
     //   この時点ではまだ攻撃の vy/knockback が dispatch されてないので、ここで取れば「打ち上げ前」の値が取れる。
@@ -1395,4 +1386,91 @@ export function updateParticles() {
       particles.splice(i, 1);
     }
   }
+}
+
+// ============================================================
+//  RC（リパルスカウンター）パリィボックス方式（2026-05-26 新設）
+//  - 攻撃の物理 hit に依存せず、専用の repulseBox / repulseTargetBox の AABB 重なりで成立判定
+//  - プレイヤー SP2 系（attack.repulseBox 持ち）× 敵 attack（repulseTargetBox + repulseWindow=true）
+//  - 軸（repulseAxis）一致 + 距離 ≤ REPULSE_CONFIG.MAX_WARP_DISTANCE
+//  - 成立 → 敵を「お膳立て位置」（プレイヤー前方頭上）へワープ → 軽演出 → 確定 burst へ送る
+//  - 旧「attack hit 時の軸照合」（_repulseMatch）はこのファイル内で既に撤去済
+// ============================================================
+function _resolveRepulseBoxToWorld(x, y, z, facing, box) {
+  // facing = 1（右向き）/ -1（左向き）。offsetX は facing 方向に反転する
+  const ox = (facing || 1) * box.offsetX;
+  return {
+    x1: x + ox - box.w / 2, x2: x + ox + box.w / 2,
+    y1: y + box.offsetY - box.h / 2, y2: y + box.offsetY + box.h / 2,
+    z1: z - box.d / 2, z2: z + box.d / 2,
+  };
+}
+function _aabbOverlap(a, b) {
+  return a.x1 < b.x2 && a.x2 > b.x1 &&
+         a.y1 < b.y2 && a.y2 > b.y1 &&
+         a.z1 < b.z2 && a.z2 > b.z1;
+}
+
+// main loop から毎フレーム呼ぶ。enemies は updateEnemies の後の最新状態を渡す
+export function updateRepulseDetection(p, enemies) {
+  if (!p || !p.attackId || !p.isAlive) return;
+  const atk = ATTACKS[p.attackId];
+  if (!atk || !atk.repulseBox) return;
+  // 同一 attackId 内で 1 度成立したら再成立しない（連発防止）
+  if (p._repulseFiredForAttackId === p.attackId) return;
+  // RC 判定 active 期間：attack.repulseFrameStart/End が定義されていればその範囲のみ active。
+  // 未定義なら duration 中ずっと active（後方互換）。
+  if (atk.repulseFrameStart != null && atk.repulseFrameEnd != null) {
+    const elapsed = (atk.duration ?? 0) - (p.stateTimer ?? 0);
+    if (elapsed < atk.repulseFrameStart || elapsed > atk.repulseFrameEnd) return;
+  }
+
+  const pBox = _resolveRepulseBoxToWorld(p.x, p.y, p.z, p.facing, atk.repulseBox);
+
+  for (const e of enemies) {
+    if (!e || !e.isAlive || e.dying) continue;
+    if (!e.repulseWindow) continue;
+    const eAtk = ENEMY_ATTACKS[e.curAtkId];
+    if (!eAtk || !eAtk.repulseTargetBox) continue;
+    if (eAtk.repulseAxis !== atk.repulseAxis) continue;
+    const dx = e.x - p.x, dz = e.z - p.z;
+    if (Math.hypot(dx, dz) > REPULSE_CONFIG.MAX_WARP_DISTANCE) continue;
+    const eBox = _resolveRepulseBoxToWorld(e.x, e.y, e.z, e.facing, eAtk.repulseTargetBox);
+    if (!_aabbOverlap(pBox, eBox)) continue;
+
+    _triggerRepulseSuccess(p, e, atk, eAtk);
+    p._repulseFiredForAttackId = p.attackId;
+    return;
+  }
+}
+
+function _triggerRepulseSuccess(p, e, atk, eAtk) {
+  const _RC = REPULSE_CONFIG;
+  // === ワープお膳立て ===
+  // 敵をプレイヤー正面・頭上へ。攻撃が「ちょうど当たる」位置関係を強制再現
+  e.x = p.x + (p.facing || 1) * _RC.WARP_FRONT_OFFSET;
+  e.z = p.z;
+  e.y = Math.max(e.y, p.y + _RC.WARP_Y_OFFSET);
+  e.facing = -(p.facing || 1);
+  // 敵 attack の続行をキャンセル：repulseWindow を消費 + 攻撃 phase 強制終了
+  e.repulseWindow = false;
+  // === 演出（軽め）===
+  spawnBanner('REPULSE!', { frames: _RC.BANNER_FRAMES, color: '#cc88ff', fontSize: 62 });
+  spawnHitParticles(e.x, e.y + 40, e.z, _RC.FLASH_COLOR, _RC.FLASH_COUNT, { type: 'omni' });
+  triggerShake(_RC.SHAKE_AMOUNT, _RC.SHAKE_FRAMES);
+  // カメラズーム boost：camera-system に専用 API がまだ無いので、SB 経由でフラグだけ立てる（後追い接続用）
+  if (typeof window !== 'undefined' && window.SB) {
+    window.SB._repulseCamBoost = { frames: _RC.CAM_ZOOM_FRAMES, amount: _RC.CAM_ZOOM_BOOST };
+  }
+  // === RC ヒット成立処理 ===
+  // 確定クリ・大ダメージ・burst へ送る。雑魚は即死、ボスは HP 0 まで持っていく（雑魚相当の暴力的処理）。
+  // 将来ボス用は別途「連続判定版」で振る舞いを分ける（[[project_scrapblitz_repulse_counter]]）。
+  const _dmg = Math.max(e.hp, 999);
+  spawnDamageNumber(e.x, e.y + 110, e.z, _dmg, { crit: true });
+  e.hp = 0;
+  e.lastHitter = { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: 4, wasGrounded: false };
+  triggerBurstState(e, p.facing);
+  // dying フローへ：ゴアクリ抽選は通常通り走る（100% gc を強制したい場合は別途オプション化）
+  enterEnemyDyingBurst(e, { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: 4, wasGrounded: false }, p.facing);
+  bumpCombo(e);
 }

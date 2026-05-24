@@ -2690,18 +2690,22 @@ export function updateEnemies(ctx) {
               e.vy = 0;
               const t = --e._jdAimTimer / (atk.aimFrames ?? 80);  // 1.0→0.0
               _updateJdRing(e, atk, Math.max(0, t));
-              // aim 中はプレイヤーを追尾（AOE・リングも一緒に移動）lerp 0.1 で遅れ追従
+              // aim 中はプレイヤーを追尾（AOE・リングも一緒に移動）lerp 0.05 で遅れ追従
+              // 2026-05-26：敵実体も _jdTargetX/Z に同期させて「実体が AOE 真上に居る」絵に統一
+              //   （旧：敵 x/z は凍結で AOE だけ動く → RC 判定や視認性で違和感が出ていた）
               const _aimP = _players && _players[0];
               if (_aimP) {
                 e._jdTargetX += (_aimP.x - e._jdTargetX) * 0.05;
                 e._jdTargetZ += (_aimP.z - e._jdTargetZ) * 0.05;
+                e.x = e._jdTargetX;
+                e.z = e._jdTargetZ;
                 if (e._jdAoeMesh) {
-                  e._jdAoeMesh.position.x += (_aimP.x - e._jdAoeMesh.position.x) * 0.05;
-                  e._jdAoeMesh.position.z += (_aimP.z - e._jdAoeMesh.position.z) * 0.05;
+                  e._jdAoeMesh.position.x = e._jdTargetX;
+                  e._jdAoeMesh.position.z = e._jdTargetZ;
                 }
                 if (e._jdRingMesh) {
-                  e._jdRingMesh.position.x += (_aimP.x - e._jdRingMesh.position.x) * 0.05;
-                  e._jdRingMesh.position.z += (_aimP.z - e._jdRingMesh.position.z) * 0.05;
+                  e._jdRingMesh.position.x = e._jdTargetX;
+                  e._jdRingMesh.position.z = e._jdTargetZ;
                 }
               }
               if (e._jdAimTimer <= 0) {

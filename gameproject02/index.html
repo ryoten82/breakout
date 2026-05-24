@@ -715,7 +715,7 @@
   <div id="sp-hud">
     <div class="title">必殺技コマンド</div>
     <div id="hk-sp1">K（中立 / ← / →）: SP1（波動・プラズマカノン）</div>
-    <div id="hk-sp2">↑ + K: SP2（対空キャノン・「危↑」中に使うとリパルスカウンター）</div>
+    <div id="hk-sp2">↑ + K: SP2（押下即発・単発アッパー・「危↑」中で RC）</div>
     <div id="hk-sp3">↓ + K: SP3（急降下踏みつけ）</div>
     <div id="hk-sp4">J 長押し: SP4（チャージパンチ・2 段階）</div>
   </div>
@@ -891,6 +891,7 @@
       combo, bumpCombo, checkComboBreak,
       tryHitEnemies, tryHitEnemiesMultiHit, tryThrownChainHit,
       updateSuperFlightTrails, superFlightTrails,
+      updateRepulseDetection,
     } from './src/hit-engine.js';
     // === attack-engine（攻撃フローコア + 特殊技）は src/attack-engine.js に分離（Step D-3-1/2）===
     import {
@@ -2214,7 +2215,7 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-25 pickup 拾い不可猶予（着地 or 1 秒）でドロップ広がり保証';
+    const LAST_UPDATE = '2026-05-26 SP2 短押し版を攻撃判定 5F→RC判定 5F の段階分けに（hitFrame:1/repulseFrameStart:6-10）+ 前進ゼロ（plyrLiftVx 5→0）でジャンパー下すり抜け防止';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {
@@ -3172,6 +3173,8 @@
     function update() {
       players.forEach(updatePlayer);
       updateEnemies(hitCtx);
+      // RC（パリィボックス）判定：updatePlayer/updateEnemies の後で双方の最新 attack 状態を見て成立判定
+      players.forEach(p => updateRepulseDetection(p, enemies));
       // 壊れ物プロップ：フラッシュ進行・飛び散りパーツ物理
       updateBreakables();
       // OC ジェム：湧き上がり → 滞在 → 取得演出
