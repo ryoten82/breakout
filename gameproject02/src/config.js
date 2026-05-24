@@ -93,9 +93,14 @@ export const SP_CONFIG = {
   MAX:              100,
   STOCK_SIZE:       20,    // 1 ストックあたりの SP 量
   MAX_STOCKS:       5,     // 最大ストック数（Marvel vs Capcom 方式の LEVEL）
-  INITIAL_STOCKS:   3,     // 戦闘開始時のストック数
+  INITIAL_STOCKS:   0,     // 戦闘開始時のストック数（2026-05-27 3→0：必殺技は溜めてから）
   REGEN_RATE:       0.01,  // フレームごとの自然回復量（攻撃優先設計：逃げ回りだけでは遅い）
-  GAIN_ON_HIT:      3,     // ヒット1発あたりの獲得量（Phase 2.4 で 8→3 にトーンダウン）
+  // ヒット獲得量（2026-05-27 半減 + 攻撃インスタンス単位化）
+  //   - 通常技（c01_atk_*）：1.5（旧 3 の半分）
+  //   - 必殺技（c01_sp_*）：0.5（さらに少なく・必殺技はそれ自体で見せ場が完結するため）
+  //   - hit-engine 側で 1 攻撃インスタンスにつき 1 回のみ加算（複数敵巻き込みでも一定量）
+  GAIN_ON_HIT:          1.5,
+  GAIN_ON_HIT_SPECIAL:  0.5,
   GAIN_ON_TAKEN:    3,     // 被弾1発あたりの獲得量
   GAIN_ON_GUARDED:  2,     // ガード成立1発あたりの獲得量
   MEGA_CRASH_COST:  20,    // メガクラッシュ消費（= 1 ストック）

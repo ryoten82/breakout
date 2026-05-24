@@ -114,6 +114,9 @@ export function startAttackById(p, id, chainIdx) {
   p._aggregateRouteAppended = false;
   // 同技補正用：新攻撃インスタンスにつき 1 回だけ attackHitCounts を +1 するためのフラグ
   p._sameAtkCounted = false;
+  // SP 獲得用：新攻撃インスタンスにつき 1 回だけ SP を加算するためのフラグ
+  //   （複数敵巻き込みでも SP は一定量。2026-05-27 仕様）
+  p._spGainCounted = false;
   // 急降下技：発動時はホバー（vy=0）→ divePause F 後に急降下
   if (ATTACKS[id].diveVy !== undefined && !p.isGrounded) {
     p.vy = 0;

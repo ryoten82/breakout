@@ -1179,8 +1179,13 @@ export function tryHitEnemies(p, attack, ctx) {
       { type: _pType, dirX: dx, dirZ: 0 });
     bumpCombo(e);
     // SP 獲得：attack.noSpGain で個別オプトアウト可（ULT 等の自己回復ループ防止用）
-    if (!attack.noSpGain) {
-      p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
+    //   攻撃インスタンスにつき 1 回のみ加算（複数敵巻き込みでも一定量・2026-05-27 仕様）
+    //   通常技 / 必殺技で gain 量を切り替え（c01_sp_* は SPECIAL）
+    if (!attack.noSpGain && !p._spGainCounted) {
+      const _isSpecial = typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_');
+      const _gain = _isSpecial ? SP_CONFIG.GAIN_ON_HIT_SPECIAL : SP_CONFIG.GAIN_ON_HIT;
+      p.sp = Math.min(SP_CONFIG.MAX, p.sp + _gain);
+      p._spGainCounted = true;
     }
     // OC「点火」取得済み × 必殺技命中：被弾敵に延焼を付与
     //   mega / ULT は AoE 由来で巻き込み量が多すぎるので除外（バランス調整余地）
@@ -1392,8 +1397,12 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     p.multiHitNextHit.set(e, gameFrame + (attack.hitInterval ?? 6));
     // コンボ +1（ヒットごと）
     bumpCombo(e);
-    if (!attack.noSpGain) {
-      p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
+    // SP 獲得：攻撃インスタンスにつき 1 回（多段技でも 1 回・複数敵巻き込みでも 1 回）
+    if (!attack.noSpGain && !p._spGainCounted) {
+      const _isSpecial = typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_');
+      const _gain = _isSpecial ? SP_CONFIG.GAIN_ON_HIT_SPECIAL : SP_CONFIG.GAIN_ON_HIT;
+      p.sp = Math.min(SP_CONFIG.MAX, p.sp + _gain);
+      p._spGainCounted = true;
     }
     anyHit = true;
   }

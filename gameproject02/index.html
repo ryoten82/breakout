@@ -82,7 +82,8 @@
        hud-layer の transform: scale() で window スケールに自動追従する */
     #hud {
       position: absolute;
-      top: 120px; left: var(--sp-lg);   /* HP ゲージとかぶらないよう下に */
+      /* 2026-05-27 SP ゲージ（top:110・高さ ~40）の下へ。120 → 160 */
+      top: 160px; left: var(--sp-lg);
       padding: var(--sp-md) var(--fs-md);
       background: rgba(0, 20, 40, 0.55);
       border-left: var(--hud-accent-w) solid #00ddff;
@@ -265,7 +266,8 @@
 
     #sp-gauge-wrap {
       position: absolute;
-      bottom: var(--sp-xl); left: var(--sp-lg);
+      /* 2026-05-27 HP ゲージ直下に移動。HP(top:40 + padding:32 + bar:24 ≒ 96) + 余白 14 = top:110 */
+      top: 110px; left: var(--sp-lg);
       width: 500px;           /* HP wrap と同じ固定幅。バーを margin-left:auto で右寄せして右端揃え */
       display: flex;
       align-items: center;
@@ -2245,7 +2247,7 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-27 fix：敵 hitbox 取り残し（enemies.splice 後に visible=true のまま残る赤箱）+ floor-hole の attackToken リーク';
+    const LAST_UPDATE = '2026-05-27 SP 改定：初期 0 / 通常 1.5・必殺 0.5 / 攻撃インスタンス単位（多敵巻き込み一定）+ SP ゲージを HP 下に移動';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
