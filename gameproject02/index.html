@@ -611,10 +611,12 @@
       text-shadow: 2px 2px 0 #000;
       transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     }
-    #start-screen-overlay .start-mode-btn:hover {
+    #start-screen-overlay .start-mode-btn:hover,
+    #start-screen-overlay .start-mode-btn.start-mode-btn--focused {
       background: rgba(40, 72, 112, 0.96);
-      border-color: #88ddff;
+      border-color: #ffee44;
       color: #ffffff;
+      box-shadow: 0 0 16px rgba(255, 220, 80, 0.55), 0 0 4px rgba(255, 255, 255, 0.4) inset;
     }
 
     /* ULT 用画面暗転オーバーレイ（メガクラより少し濃い） */
@@ -2215,9 +2217,14 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-26 SP2 短押し版を攻撃判定 5F→RC判定 5F の段階分けに（hitFrame:1/repulseFrameStart:6-10）+ 前進ゼロ（plyrLiftVx 5→0）でジャンパー下すり抜け防止';
+    // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
+    const LAST_UPDATE = '2026-05-26 開始画面モード選択にキーボード/パッド対応（←→で移動・Space/J/K/Enterで決定）+ タブ名同期インフラ';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
+    // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
+    // LAST_UPDATE と同時に更新する運用（feedback_last_update_hud.md §1.5）
+    const TAB_LABEL = '実装部屋';
+    document.title = TAB_LABEL;
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2356,6 +2363,16 @@
       cards.forEach((el, i) => el.classList.toggle('oc-card--focused', i === _ocFocusIdx));
     }
 
+    // モード選択メニュー：キー/パッド操作中のフォーカスをボタン要素に反映（OC と同パターン）
+    //   _modeMenuOptions（picker 登録時に作られる stageId 配列）と同インデックスで .start-mode-btn を辿る。
+    //   HTML のボタン順は左→右と一致している前提。
+    function _updateModeMenuFocus() {
+      const btns = document.querySelectorAll('#start-screen-overlay .start-mode-btn');
+      btns.forEach((el, i) => {
+        el.classList.toggle('start-mode-btn--focused', i === _modeMenuFocusIdx);
+      });
+    }
+
     function _selectOC(cardId) {
       if (_ocSelecting) return;   // フラッシュ演出中の二重選択を弾く
       _ocSelecting = true;
@@ -2451,6 +2468,14 @@
     // モード選択メニュー表示中フラグ：true の間はキー/クリックで自動 dismiss しない
     //   （通しプレイ / アクションテストのボタン押下のみで閉じる）
     let _modeMenuActive = false;
+    // モード選択メニュー：キーボード / ゲームパッド操作用の状態
+    //   _modeMenuOptions が並び順（左→右）。_modeMenuFocusIdx は現在フォーカス位置。
+    //   _modeMenuPickFn は実選択ハンドラ（モード選択ブロックで実体を代入）。
+    let _modeMenuOptions = [];
+    let _modeMenuFocusIdx = 0;
+    let _modeMenuPickFn = null;
+    let _modeMenuInputDelay = 0;
+    const _modeMenuPadPrev = { left: false, right: false, select: false };
     function _dismissStartScreen() {
       if (!_startScreenShown) return;
       _startScreenShown = false;
@@ -2640,19 +2665,38 @@
       window.__SB_SELECTED_STAGE = 'stage01';
       _skipStartOverlay();
     } else if (_showModeMenu) {
-      // 開始画面のモード選択：ボタン押下でステージ init → オーバーレイを閉じる
+      // 開始画面のモード選択：ボタン押下 or キー/パッド操作でステージ init → オーバーレイを閉じる
       _modeMenuActive = true;
       window.__SB_SELECTED_STAGE = 'stage01';  // 暫定（選択で上書きされる）
       const _pickMode = (id) => {
         if (_stageInited) return;
         _modeMenuActive = false;
+        _modeMenuPickFn = null;
         _initStageById(id);
         _dismissStartScreen();
       };
+      _modeMenuPickFn = _pickMode;
       const _btnPlay = document.getElementById('mode-play');
       const _btnTest = document.getElementById('mode-actiontest');
-      if (_btnPlay) _btnPlay.addEventListener('click', () => _pickMode('stage01'));
-      if (_btnTest) _btnTest.addEventListener('click', () => _pickMode('actionTest'));
+      // 並び順（DOM 左→右）と stageId を対応付け（左右キー / マウス hover で共用）
+      // 将来 mode-XXX ボタンを HTML に増やしたらこの配列にエントリ追加するだけで連動する。
+      const _modeBtnEntries = [
+        { el: _btnPlay, id: 'stage01' },
+        { el: _btnTest, id: 'actionTest' },
+      ].filter(e => e.el);
+      _modeMenuOptions = _modeBtnEntries.map(e => e.id);
+      _modeMenuFocusIdx = 0;
+      _modeMenuInputDelay = 8;   // メニュー表示直後の暴発防止（押しっぱなしフレーム避け）
+      _updateModeMenuFocus();
+      // クリック + マウス hover でフォーカス追従（hover とキー操作の整合：OC と同パターン）
+      _modeBtnEntries.forEach((entry, i) => {
+        entry.el.addEventListener('click', () => _pickMode(entry.id));
+        entry.el.addEventListener('mouseenter', () => {
+          if (!_modeMenuActive) return;
+          _modeMenuFocusIdx = i;
+          _updateModeMenuFocus();
+        });
+      });
     } else {
       // 自動遷移 / URL 直接指定：モード選択を挟まず即起動
       _initStageById(SELECTED_STAGE);
@@ -3495,6 +3539,23 @@
       }
 
       pollGamepad();
+      // モード選択メニュー中のキーボード / ゲームパッド入力（ポーズ中でも走らせる）
+      //   左右で stage01 / actionTest / bossTest をフォーカス遷移、決定（Space/J/K + パッド）で確定
+      if (_modeMenuActive && _modeMenuPickFn && _modeMenuOptions.length > 0) {
+        if (_modeMenuInputDelay > 0) _modeMenuInputDelay--;
+        const _mLeft   = inp('ArrowLeft')  || inp('KeyA');
+        const _mRight  = inp('ArrowRight') || inp('KeyD');
+        const _mSelect = inp('Space') || inp('KeyJ') || inp('KeyK') || inp('Enter');
+        if (_modeMenuInputDelay <= 0) {
+          const _mN = _modeMenuOptions.length;
+          if (_mLeft   && !_modeMenuPadPrev.left)   { _modeMenuFocusIdx = (_modeMenuFocusIdx - 1 + _mN) % _mN; _updateModeMenuFocus(); }
+          if (_mRight  && !_modeMenuPadPrev.right)  { _modeMenuFocusIdx = (_modeMenuFocusIdx + 1) % _mN;       _updateModeMenuFocus(); }
+          if (_mSelect && !_modeMenuPadPrev.select) { _modeMenuPickFn(_modeMenuOptions[_modeMenuFocusIdx]); }
+        }
+        _modeMenuPadPrev.left   = _mLeft;
+        _modeMenuPadPrev.right  = _mRight;
+        _modeMenuPadPrev.select = _mSelect;
+      }
       // OC 選択中のゲームパッド入力（ポーズ中でも走らせる）
       if (_ocPending && !_ocSelecting) {
         if (_ocInputDelay > 0) _ocInputDelay--;
