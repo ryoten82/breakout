@@ -82,8 +82,8 @@
        hud-layer の transform: scale() で window スケールに自動追従する */
     #hud {
       position: absolute;
-      /* 2026-05-27 SP ゲージ（top:110・高さ ~40）の下へ。120 → 160 */
-      top: 160px; left: var(--sp-lg);
+      /* CR 表示（top:172・高さ ~44）の下へ。172 + 44 + 6gap = 222 */
+      top: 222px; left: var(--sp-lg);
       padding: var(--sp-md) var(--fs-md);
       background: rgba(0, 20, 40, 0.55);
       border-left: var(--hud-accent-w) solid #00ddff;
@@ -642,7 +642,9 @@
       transition: none;
       z-index: 51;
     }
-    /* デバッグ HUD 一括非表示（html.dbg-hidden クラスで制御） */
+    /* デバッグ HUD 一括非表示（html.dbg-hidden クラスで制御）
+       !important が必要：inline style に display:flex を持つ要素（state-hud 等）を確実に隠すため。
+       クラスを外せば inline style が復帰するので - キートグルは正常動作する。 */
     html.dbg-hidden #hud,
     html.dbg-hidden #sp-hud,
     html.dbg-hidden #debug-hud,
@@ -654,7 +656,7 @@
     html.dbg-hidden #gamespeed-hud,
     html.dbg-hidden #dummy-hp,
     html.dbg-hidden #inv-hud-badge,
-    html.dbg-hidden #combo-history-panel { display: none; }
+    html.dbg-hidden #combo-history-panel { display: none !important; }
   </style>
 </head>
 <body>
@@ -982,7 +984,7 @@
     // === oc-gem（OC コンテナ破壊で出現する紫ジェム → OC 選択トリガー）===
     import { initOcGem, spawnOcGem, updateOcGem, isOcGemActive } from './src/oc-gem.js';
     // === cr-system（CR ドロップ＆回収・14-F テスト版）===
-    import { initCrSystem, updateCrSystem, getCrTotal, dropCR, CR_CONFIG, collectAllCR } from './src/cr-system.js';
+    import { initCrSystem, updateCrSystem, getCrTotal, addCrTotal, dropCR, CR_CONFIG, collectAllCR } from './src/cr-system.js';
     import { initItemSystem, updateItemSystem, dropItem, rollAndDropFromContainer, resetItemSystem, dropBossChips } from './src/item-system.js';
     import { ITEM_CONFIG, ITEM_KIND, CONTAINER_LOOT_TABLE, CHIP_RARITY, CHIP_DROP_TABLE_NORMAL, CHIP_DROP_TABLE_RARE_PLUS, BOSS_CHIP_DROP_CONFIG } from './src/config.js';
     // === debug-invariants（意図しない挙動の自動検知・致命検知は常時 ON）===
@@ -2271,7 +2273,7 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-25 HP/SP ステージ引継ぎ（HP+30% ボーナス）/ OC 調整 / アイテム壁クランプ / 死亡爆発 hitstop×0.7 / SP 獲得調整';
+    const LAST_UPDATE = '2026-05-25 CR ステージ引継ぎ / CR HUD 位置・サイズ変更 / デバッグ HUD トグル修正';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
@@ -2783,6 +2785,8 @@
         if (_stageInited) return;
         _modeMenuActive = false;
         _modeMenuPickFn = null;
+        // 通しプレイ：デバッグ HUD は非表示からスタート（- キーで表示可）
+        if (id === 'stage01') document.documentElement.classList.add('dbg-hidden');
         _initStageById(id);
         _dismissStartScreen();
       };
@@ -2830,6 +2834,10 @@
             _cp.hp    = Math.min(_mh, _cHp + _mh * 0.30);  // 引継ぎ + 30% 回復
           }
           if (_cp && !isNaN(_cSp)) _cp.sp = _cSp;
+          // CR 引継ぎ
+          const _cCr = parseInt(sessionStorage.getItem('_sbCarryCr') ?? '');
+          sessionStorage.removeItem('_sbCarryCr');
+          if (!isNaN(_cCr) && _cCr > 0) addCrTotal(_cCr);
           sessionStorage.removeItem('_sbDbgHidden');  // inline script 側で使用済み
         } catch (_) { /* ignore */ }
       }
@@ -3939,7 +3947,7 @@
       gameStep: (n = 1) => { for (let i = 0; i < n; i++) update(); },
       DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_AI, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG, tryHitPlayer,
       // CR ドロップ：SB.dropCR(x,z) で手動ばらまき / SB.getCrTotal() で所持確認 / SB.CR_CONFIG で調整
-      dropCR, getCrTotal, CR_CONFIG,
+      dropCR, getCrTotal, addCrTotal, CR_CONFIG,
       // アイテム pickup：SB.dropItem('hp_apple',x,z) / SB.rollAndDropFromContainer('crate',x,z)
       //   ITEM_CONFIG.HP_APPLE.HEAL_RATIO 等で実機調整可能。CONTAINER_LOOT_TABLE で確率調整。
       dropItem, rollAndDropFromContainer, ITEM_CONFIG, ITEM_KIND, CONTAINER_LOOT_TABLE,
