@@ -1933,29 +1933,34 @@ function _selectEnemyAtk(e, adx) {
     // 接近圏外は攻撃せず歩み寄り（boss01 は AOE 多彩なので拡大圏内まで待つ）
     if (adx > DUMMY_ATK_CONFIG.approachRange * 1.4) return null;
     const phase = e.bossPhase ?? 1;
-    // Phase 1：基本 AOE 3 種から均等抽選
+    // Phase 1：拳のみ 3 種を均等抽選（完全 SA / 弱点なし）
     if (phase === 1) {
       const r = Math.random();
       if (r < 0.34) return 'boss1_atk_01';
       if (r < 0.67) return 'boss1_atk_02';
       return 'boss1_atk_03';
     }
-    // Phase 2：基本 3 種 + 派生 1 種（atk_04 を確率 25% で挿入）
+    // Phase 2：拳 4 種 + ミサイル + 大技解禁（D 案再編 2026-05-26）
+    //   背中装甲開放と同時にミサイル(atk_05) と 大技(atk_06) が使えるようになる
+    //   atk_05/atk_06 は cooldown 長め（連打抑止）
     if (phase === 2) {
       const r = Math.random();
-      if (r < 0.25) return 'boss1_atk_04';
-      if (r < 0.50) return 'boss1_atk_01';
-      if (r < 0.75) return 'boss1_atk_02';
+      if (r < 0.25) return 'boss1_atk_05';   // ミサイル散布
+      if (r < 0.40) return 'boss1_atk_06';   // タックル大技
+      if (r < 0.55) return 'boss1_atk_04';   // 派生 二段フック
+      if (r < 0.70) return 'boss1_atk_01';
+      if (r < 0.85) return 'boss1_atk_02';
       return 'boss1_atk_03';
     }
-    // Phase 3：必殺技（atk_05）+ 大技（atk_06）解禁
-    //   atk_05 は RC 対象・atk_06 は SA 崩しトリガー大技。残りは Phase 2 同等プール。
+    // Phase 3：拳の必殺 atk_07 解禁（D 案再編 2026-05-26）
+    //   ゼロ距離タメ突き・RC 対象。Phase 2 ミサイル避け（遠距離）の逆を突く
     const r = Math.random();
-    if (r < 0.20) return 'boss1_atk_05';
-    if (r < 0.35) return 'boss1_atk_06';
-    if (r < 0.55) return 'boss1_atk_04';
-    if (r < 0.70) return 'boss1_atk_01';
-    if (r < 0.85) return 'boss1_atk_02';
+    if (r < 0.25) return 'boss1_atk_07';   // OVERDRIVE PUNCH 必殺
+    if (r < 0.45) return 'boss1_atk_05';   // ミサイル
+    if (r < 0.60) return 'boss1_atk_06';   // タックル大技
+    if (r < 0.70) return 'boss1_atk_04';   // 派生
+    if (r < 0.80) return 'boss1_atk_01';
+    if (r < 0.90) return 'boss1_atk_02';
     return 'boss1_atk_03';
   }
   // enem01
