@@ -373,6 +373,17 @@
       transition: none;  /* JS で都度上書きする */
       z-index: 50;
     }
+    /* RC（リパルスカウンター）用画面暗転オーバーレイ。
+       ややブルー寄りの暗で「電気的な凄み」を演出 */
+    #rc-darken {
+      position: absolute;
+      inset: 0;
+      background: #02040c;
+      opacity: 0;
+      pointer-events: none;
+      transition: none;
+      z-index: 51;
+    }
     /* デバッグ：グラブ用ゲージ（敵の頭上・本番では非表示予定）*/
     #grab-gauge {
       position: absolute;
@@ -635,6 +646,7 @@
   <div id="game-frame">
   <div id="mega-darken"></div>
   <div id="ult-darken"></div>
+  <div id="rc-darken"></div>
   <div id="pause-overlay">
     <div class="pause-text">PAUSED</div>
     <div class="pause-hint">ESC で再開</div>
@@ -889,7 +901,7 @@
       initHitEngine,
       fxState, particles,
       triggerHitstop, triggerShake,
-      spawnHitParticles, spawnLaunchSmoke, spawnDeathExplosion, updateParticles,
+      spawnHitParticles, spawnLaunchSmoke, spawnDeathExplosion, updateParticles, updateRcBolts,
       combo, bumpCombo, checkComboBreak,
       tryHitEnemies, tryHitEnemiesMultiHit, tryThrownChainHit,
       updateSuperFlightTrails, superFlightTrails,
@@ -913,6 +925,7 @@
       initCamera, updateCamera, applyCamConfig, updateClockHud,
       setDeadzoneVisible, isDeadzoneVisible, getDeadzoneValues,
       resetCameraToPlayer, getActiveWallX, levelWalls,
+      applyCamZoomBoost,
     } from './src/camera.js';
     // === hud-system（SP/HP/コンボ/グラブゲージ）は src/hud-system.js に分離（Step E-2）===
     import {
@@ -923,6 +936,8 @@
       spawnBanner, updateBanners,
       updateRepulseHud,
     } from './src/hud-system.js';
+    // === rc-hud（RC 危機察知 UI：黄リング + 赤弧 + 先端フラッシュ）===
+    import { initRcHud, updateRcHud } from './src/rc-hud.js';
     // === enemy-system（敵 AI / 状態遷移 / 物理 / mesh 構築）は src/enemy-system.js に分離（Step E-3）===
     import {
       initEnemySystem, buildDummyMesh, spawnDummy, updateEnemies, applyStatusStun,
@@ -2844,6 +2859,8 @@
         gameWidth:  GAME_WIDTH,
         gameHeight: GAME_HEIGHT,
       });
+      // RC 危機察知 UI（ワールド空間 Mesh）：自機追従・軸方向に赤弧成長 + 先端フラッシュ
+      initRcHud({ THREE, scene, players, enemies });
     }
 
     // ============================================================
@@ -3239,6 +3256,7 @@
         else tickStage01();
       }
       updateParticles();
+      updateRcBolts();
       updateSuperFlightTrails(players, enemies);
       players.forEach(p => updateDashTrail(p));
       checkComboBreak({ megaSlow: isMegaComboGrace() });
@@ -3258,7 +3276,9 @@
       updateEnemyPersonalityHud();
       updateDamageNumbers();
       updateBanners();
-      updateRepulseHud();
+      // 旧「危↑」DOM HUD は新 rc-hud（自機追従ワールド UI）に置換のため呼ばない
+      // updateRepulseHud();
+      updateRcHud();
       updateDebug();
       // === debug-invariants：意図しない挙動を自動検知（致命は常時 ON / 警告/情報は SB.DEBUG_INVARIANTS）===
       const _invFrame = getGameFrame();
@@ -3602,6 +3622,11 @@
           processAttackInput(_p);
           processStrongAttackInput(_p);
         }
+        // RC 雷ボルト：hitstop 中もアニメーションを継続（演出が止まらないように）
+        updateRcBolts();
+        // RC ズーム中はカメラも追従させる（画面端で見切れないように center 寄せ）。
+        // hitstop で updateCamera を呼ばないと、ズーム中も camera が止まったまま見切れ続ける。
+        updateCamera();
         render();
         requestAnimationFrame(loop);
         return;
@@ -3698,7 +3723,7 @@
     window.SB = {
       scene, camera, bgCamera, renderer, players, enemies,
       CHARACTER_ASSETS,
-      PHYSICS, CAM_CONFIG, applyCamConfig,
+      PHYSICS, CAM_CONFIG, applyCamConfig, applyCamZoomBoost,
       SP_CONFIG, GUARD_CONFIG, MEGA_CONFIG, ULT_CONFIG, GRAB_CONFIG, UKEMI_CONFIG, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, OUTLINE_CONFIG,
       CHARGE_RING_CONFIG, CHARGE_PARTICLE_CONFIG, HOMING_CONFIG, ATTACKS, STATE, Z_CHAIN, A_CHAIN,
       KEY_CONFIG,

@@ -599,6 +599,16 @@ export function enterEnemyDying(e, ctx) {
   return true;
 }
 
+// 外部公開：RC 成立時など「敵が既に dying でも GC を強制再評価したい」ケース用。
+// 2026-05-27：RC 直前の通常ヒットが敵を kill 済みだと enterEnemyDyingBurst が早期 return し
+// _maybeArmGoreCritical が再評価されない → forceGc:true が反映されず GC 不発になる事象を防ぐ。
+// 既に armed 済みなら上書きしない（演出途中での状態リセット回避）。
+export function forceArmGoreCriticalIfPossible(e) {
+  if (!e) return;
+  if (e.goreCritical && e.goreCritical.armed) return;
+  _maybeArmGoreCritical(e);
+}
+
 // ============================================================
 //  ゴア・クリティカル抽選（基本構造・2026-05-18 導入）
 //   - profile.goreCriticalParts のいずれかが残存
@@ -654,11 +664,13 @@ function _maybeArmGoreCritical(e) {
       if (DBG) console.log(`[GORECRIT] ${gcId} skip: requireGrounded but wasGrounded=${e.lastHitter.wasGrounded}`);
       continue;
     }
-    // 確率
-    const roll = Math.random();
-    if (roll >= GORE_CRITICAL_CONFIG.PROBABILITY) {
-      if (DBG) console.log(`[GORECRIT] ${gcId} skip: prob roll ${roll.toFixed(3)} >= ${GORE_CRITICAL_CONFIG.PROBABILITY}`);
-      continue;
+    // 確率：lastHitter.forceGc=true なら確率スキップで強制成立（RC 成立時など）
+    if (!e.lastHitter.forceGc) {
+      const roll = Math.random();
+      if (roll >= GORE_CRITICAL_CONFIG.PROBABILITY) {
+        if (DBG) console.log(`[GORECRIT] ${gcId} skip: prob roll ${roll.toFixed(3)} >= ${GORE_CRITICAL_CONFIG.PROBABILITY}`);
+        continue;
+      }
     }
     if (DBG) console.log(`[GORECRIT] ARMED! gcId=${gcId}, attackId=${attackId}, lv=${hitLv}, explosionVariant=${v.explosionVariant}, eY=${e.y|0}`);
     // 当選
@@ -685,7 +697,8 @@ function _buildGoreCriticalState(e, profile, variantDef, gcId) {
     timer = GORE_CRITICAL_CONFIG.RED_LERP_FRAMES + GORE_CRITICAL_CONFIG.RED_HOLD_FRAMES;
   } else if (explosionVariant === 'head_launch_delayed') {
     phase = 'crit_head_fly';
-    timer = GORE_CRITICAL_CONFIG.HEAD_LAUNCH_DELAY;
+    // airborneKill：待ち時間ゼロで即爆発（hitstop 明けに弾ける順序にする・2026-05-27）
+    timer = (e.lastHitter && e.lastHitter.airborneKill) ? 1 : GORE_CRITICAL_CONFIG.HEAD_LAUNCH_DELAY;
   } else if (explosionVariant === 'slam_radial_split') {
     phase = 'crit_slam_stick';
     timer = GORE_CRITICAL_CONFIG.SLAM_DELAY;
@@ -780,13 +793,19 @@ function _setupArmedKinematics(e, variant) {
     //     (1) 胴体 KB（1 キャラ分プレイヤーから離す）
     //     (2) mesh.position を新 e.x へ同期 + matrixWorld 更新
     //     (3) _detachBodyBundleNoExplode で body+head+nose を独立化 → velocity 上書き
+    //   2026-05-27 追加：airborneKill（RC 空中撃破）時は y=0 リセットせず、下半身も上半身と同じ vy で飛ばす。
+    //     地上に足が残らない「全部空中爆散」の絵にする。
+    const _airborneKill = !!(e.lastHitter && e.lastHitter.airborneKill);
     let dir = e.fallDir;
     if (dir !== 1 && dir !== -1) dir = (e.lastHitter && e.lastHitter.facing) || 1;
     e.x += dir * GORE_CRITICAL_CONFIG.HEAD_LAUNCH_BODY_KB_X;
     e.knockbackVx = 0;
     e.knockbackVz = 0;
-    e.vy = 0;                 // 残った下半身（stand）は地面に静止
-    e.y = 0;
+    e.vy = 0;
+    if (!_airborneKill) {
+      e.y = 0;                // 地上撃破：下半身は地面に静止
+    }
+    // _airborneKill: e.y そのまま（敵が居る高さで爆散）
     e.launcherAirborne = false;
     if (e.mesh) {
       e.mesh.position.x = e.x;
@@ -806,8 +825,9 @@ function _setupArmedKinematics(e, variant) {
     const bundleName = _detachBodyBundleNoExplode(e, dir);
     if (bundleName && e.flyingParts && e.flyingParts.length > 0) {
       const fp = e.flyingParts[e.flyingParts.length - 1];
-      fp.vx = (Math.random() - 0.5) * 2 * cfg.UPPER_LAUNCH_VX_JITTER;
-      fp.vy = cfg.UPPER_LAUNCH_VY;          // 正＝上向き・抑えめでやや上に
+      // airborneKill：launch をスキップ（爆発で放射散乱させるため待機中は静止）
+      fp.vx = _airborneKill ? 0 : (Math.random() - 0.5) * 2 * cfg.UPPER_LAUNCH_VX_JITTER;
+      fp.vy = _airborneKill ? 0 : cfg.UPPER_LAUNCH_VY;
       fp.vz = 0;
       // 「アッパーの勢いを殺せずに後ろへ倒れ込みながら舞う」回転。
       // 回転軸 = 世界 Z 軸（奥行き）。body の Y 軸（直立）が自機反対側に倒れ込む方向に回す。
@@ -824,12 +844,16 @@ function _setupArmedKinematics(e, variant) {
         if (mat && mat.color) mat.color.setRGB(1, 0.05, 0.05);
       }
     }
-    // 下半身（stand）も浮かせる：上半身より控えめな vy + 弱い縦回転で「両半身とも空中で爆散」の絵に。
-    const standName2 = _detachOneNamed(e, 'stand', null);
-    if (standName2 && e.flyingParts && e.flyingParts.length > 0) {
-      const sp = e.flyingParts[e.flyingParts.length - 1];
-      sp.vx = (Math.random() - 0.5) * 2 * cfg.LOWER_LAUNCH_VX_JITTER;
-      sp.vy = cfg.LOWER_LAUNCH_VY;
+    // 下半身も浮かせる：part 名が enemy 種別で異なる（enem01/midboss01='stand' = 単一 mesh /
+    //   enem02 ジャンパー='legs' = 4本足の Array）。両形態を扱う：
+    //   - 単一 mesh: _detachOneNamed で 1 個 detach
+    //   - 配列: _detachArrayNamed で各要素を個別 detach（4本それぞれ独立飛行）
+    //   2026-05-27：airborneKill 時は下半身も上半身と同じ vy にして「足だけ地面に残る」絵を防ぐ
+    const lowerVy = _airborneKill ? cfg.UPPER_LAUNCH_VY : cfg.LOWER_LAUNCH_VY;
+    const _applyLowerParams = (sp) => {
+      // airborneKill：launch スキップ（待機中静止 → 爆発時に放射散乱）
+      sp.vx = _airborneKill ? 0 : (Math.random() - 0.5) * 2 * cfg.LOWER_LAUNCH_VX_JITTER;
+      sp.vy = _airborneKill ? 0 : lowerVy;
       sp.vz = 0;
       sp.angVx = 0;
       sp.angVy = 0;
@@ -840,6 +864,19 @@ function _setupArmedKinematics(e, variant) {
       sp._worldAxisSpeed = -dir * cfg.LOWER_LAUNCH_ANG_X;
       for (const mat of (sp._materials || [])) {
         if (mat && mat.color) mat.color.setRGB(1, 0.05, 0.05);
+      }
+    };
+    // 試行 1：単一 mesh の 'stand'
+    const standOk = _detachOneNamed(e, 'stand', null);
+    if (standOk && e.flyingParts.length > 0) {
+      _applyLowerParams(e.flyingParts[e.flyingParts.length - 1]);
+    } else {
+      // 試行 2：配列の 'legs'（複数本）
+      const legsCount = _detachArrayNamed(e, 'legs');
+      if (legsCount && e.flyingParts.length >= legsCount) {
+        for (let i = e.flyingParts.length - legsCount; i < e.flyingParts.length; i++) {
+          _applyLowerParams(e.flyingParts[i]);
+        }
       }
     }
   } else if (variant === 'slam_radial_split') {
@@ -1103,6 +1140,28 @@ function _detachBodyBundle(e, hitFacing) {
 }
 
 // 内部ヘルパ：1 パーツを「指定 velocity（null ならランダム）」で分離
+// parts[name] が配列（例：enem02 の legs = 4本足の Array）の場合は配列内の各 mesh を
+// 個別 detach。戻り値は配列で detach した数 (>0) ／ null（取れなかった or 単一 mesh）。
+function _detachArrayNamed(e, name) {
+  const parts = e.mesh && e.mesh.userData && e.mesh.userData.parts;
+  if (!parts) return null;
+  const arr = parts[name];
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  let count = 0;
+  // 元配列をスナップショットしてから順に detach（detach は parent から外すので元配列を破壊しない方が無難）
+  const snapshot = arr.slice();
+  for (const m of snapshot) {
+    if (!m || m.parent !== e.mesh) continue;
+    // 単一 mesh の detach 経路を流用するため、一時的に parts に名前付きで差し込む
+    const tmpKey = `__tmp_${name}_${count}`;
+    parts[tmpKey] = m;
+    const ok = _detachOneNamed(e, tmpKey, null);
+    delete parts[tmpKey];
+    if (ok) count++;
+  }
+  return count > 0 ? count : null;
+}
+
 function _detachOneNamed(e, name, sharedVelocity) {
   const parts = e.mesh && e.mesh.userData && e.mesh.userData.parts;
   if (!parts) return null;
@@ -1174,6 +1233,34 @@ function _updateFlyingParts(e) {
   if (!e.flyingParts || e.flyingParts.length === 0) return;
   const alive = [];
   for (const p of e.flyingParts) {
+    // 強制削除タイマー（airborneKill 等で「爆発から N F 後に必ず消す」用）：
+    //   後半 1/3 で線形フェード → 0 で scene 除去。settle/fade 経路より優先。
+    if (p._forceRemoveTimer !== undefined) {
+      p._forceRemoveTimer--;
+      const fadeStart = 10;  // 残 10F から透過フェード
+      if (p._forceRemoveTimer <= fadeStart) {
+        const opa = Math.max(0, p._forceRemoveTimer / fadeStart);
+        if (p._materials) {
+          for (const mat of p._materials) {
+            if (!mat) continue;
+            mat.transparent = true;
+            mat.opacity = opa;
+          }
+        } else if (p.mesh.material) {
+          p.mesh.material.transparent = true;
+          p.mesh.material.opacity = opa;
+        }
+      }
+      if (p._forceRemoveTimer <= 0) {
+        if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
+        if (p._materials) {
+          for (const mat of p._materials) if (mat && mat.dispose) mat.dispose();
+        } else if (p.mesh.material && p.mesh.material.dispose) {
+          p.mesh.material.dispose();
+        }
+        continue;
+      }
+    }
     // 物理進行
     p.x += p.vx;
     p.y += p.vy;
@@ -1414,15 +1501,55 @@ function _triggerFinalExplosion(e) {
       // 胴体バンドル（body+head+nose）と下半身（stand）を分裂・逆回転で後方へ
       _explodeSplitBackBlast(e);
     } else if (variant === 'head_launch_delayed') {
-      // gc_04：頭は既に flyingParts として上空 / 画面外。胴体側 mesh を削除して共用爆発を地上で発火。
-      //   飛行中の頭部 part も同時に scene から削除（爆発と同時に消失）。
+      // gc_04：通常は既に launch 済みの parts を全消去して共用爆発のみ。
+      //   airborneKill 時は「爆発 → 上半身が大きく上昇、下半身も少し遅れて上昇」の
+      //   旧 gc_04 launch を爆発トリガーで再現（順序のみ変更）。
+      const _airborneKill = !!(e.lastHitter && e.lastHitter.airborneKill);
       if (e.mesh && e.mesh.parent) e.mesh.parent.remove(e.mesh);
-      spawnDeathExplosion(e.x, e.y + 80, e.z);
+      // airborneKill（RC ルート）：直前の RC + GC armed で既に長い hitstop が走っているため、
+      //   爆発側の追加 hitstop はスキップ（「2 回ストップ」感を抑える・2026-05-27）。
+      spawnDeathExplosion(e.x, e.y + 80, e.z, { skipHitstop: _airborneKill });
       if (e.flyingParts) {
-        for (const fp of e.flyingParts) {
-          if (fp.mesh && fp.mesh.parent) fp.mesh.parent.remove(fp.mesh);
+        if (_airborneKill) {
+          // 爆発のタイミングで launch velocity を後付け：旧 gc_04 と同じ「上半身泣き別れ + 下半身追従」の絵。
+          //   - 上半身（name='body+upper'）：UPPER_LAUNCH_VY + 縦回転
+          //   - それ以外（脚等）：LOWER_LAUNCH_VY + 弱い縦回転
+          let dirRef = e.fallDir;
+          if (dirRef !== 1 && dirRef !== -1) dirRef = (e.lastHitter && e.lastHitter.facing) || 1;
+          const cfg2 = GORE_CRITICAL_CONFIG;
+          for (const fp of e.flyingParts) {
+            const isUpper = (fp.name === 'body+upper');
+            if (isUpper) {
+              // 上半身：強く上空へ「すっ飛ぶ」（contrast 重視で boost）
+              fp.vx = (Math.random() - 0.5) * 2 * cfg2.UPPER_LAUNCH_VX_JITTER;
+              fp.vy = 32;
+              fp.vz = 0;
+              fp.angVx = 0; fp.angVy = 0; fp.angVz = 0;
+              fp._worldAxisRot   = new _THREE_REF.Vector3(0, 0, 1);
+              fp._worldAxisSpeed = -dirRef * cfg2.UPPER_LAUNCH_ANG_X;
+              fp._critGravMult   = cfg2.UPPER_LAUNCH_GRAV_MULT;
+              fp._critAirDecay   = 1.0;
+            } else {
+              // 下半身：そこまで浮かない（少しだけポンと跳ねる感じ）
+              fp.vx = (Math.random() - 0.5) * 2 * cfg2.LOWER_LAUNCH_VX_JITTER;
+              fp.vy = 6;
+              fp.vz = 0;
+              fp.angVx = 0; fp.angVy = 0; fp.angVz = 0;
+              fp._worldAxisRot   = new _THREE_REF.Vector3(0, 0, 1);
+              fp._worldAxisSpeed = -dirRef * cfg2.LOWER_LAUNCH_ANG_X;
+              fp._critGravMult   = cfg2.LOWER_LAUNCH_GRAV_MULT;
+              fp._critAirDecay   = 1.0;
+            }
+            // airborneKill：爆発から 60F (1.0s) で強制削除する timer をセット。
+            // 自然 fall + bounce + fade を待たず、空中でフェード消滅させる。
+            fp._forceRemoveTimer = 60;
+          }
+        } else {
+          for (const fp of e.flyingParts) {
+            if (fp.mesh && fp.mesh.parent) fp.mesh.parent.remove(fp.mesh);
+          }
+          e.flyingParts = [];
         }
-        e.flyingParts = [];
       }
     } else if (variant === 'slam_radial_split') {
       // gc_05：上半身パーツは放射飛行中・下半身は地面突き刺し中。全部消して共用爆発を地上で発火。
@@ -2672,9 +2799,12 @@ export function updateEnemies(ctx) {
                 e._jdDiveGrace   = 0;      // 前回 dive の残値をクリア
                 e._jdHoldY       = e.y;
                 e._jdAimTimer    = atk.aimFrames ?? 80;
-                const _p = _players && _players[0];
-                e._jdTargetX  = _p ? _p.x : e.x;
-                e._jdTargetZ  = _p ? _p.z : e.z;
+                // 2026-05-27：AOE 初期位置を敵自身の足元に。以前はプレイヤー位置に
+                // 即ワープしていたため「ジャンパーから離れた地点に AOE が湧く」絵だった
+                e._jdTargetX  = e.x;
+                e._jdTargetZ  = e.z;
+                // 寄せ込み期間：強 lerp でプレイヤーまで素早く詰めるフェーズの残 F
+                e._jdAimApproachFrames = 15;
                 _spawnJdMarkers(e, atk, e._jdTargetX, e._jdTargetZ);
               }
             } else if (_jdp === 'aim') {
@@ -2694,13 +2824,17 @@ export function updateEnemies(ctx) {
               e.vy = 0;
               const t = --e._jdAimTimer / (atk.aimFrames ?? 80);  // 1.0→0.0
               _updateJdRing(e, atk, Math.max(0, t));
-              // aim 中はプレイヤーを追尾（AOE・リングも一緒に移動）lerp 0.05 で遅れ追従
+              // aim 中はプレイヤーを追尾（AOE・リングも一緒に移動）
               // 2026-05-26：敵実体も _jdTargetX/Z に同期させて「実体が AOE 真上に居る」絵に統一
-              //   （旧：敵 x/z は凍結で AOE だけ動く → RC 判定や視認性で違和感が出ていた）
+              // 2026-05-27：寄せ込み期間（最初 15F）は強 lerp 0.25 でプレイヤー位置まで
+              //   素早く詰める。それ以降は既存の 0.05 でゆっくり追従。
+              //   AOE 初期位置はジャンパー足元 → 寄せ込みでプレイヤーへ → 追従、の三段階。
               const _aimP = _players && _players[0];
               if (_aimP) {
-                e._jdTargetX += (_aimP.x - e._jdTargetX) * 0.05;
-                e._jdTargetZ += (_aimP.z - e._jdTargetZ) * 0.05;
+                const _lerp = (e._jdAimApproachFrames > 0) ? 0.25 : 0.05;
+                if (e._jdAimApproachFrames > 0) e._jdAimApproachFrames--;
+                e._jdTargetX += (_aimP.x - e._jdTargetX) * _lerp;
+                e._jdTargetZ += (_aimP.z - e._jdTargetZ) * _lerp;
                 e.x = e._jdTargetX;
                 e.z = e._jdTargetZ;
                 if (e._jdAoeMesh) {
@@ -2749,6 +2883,37 @@ export function updateEnemies(ctx) {
                 e._jdDiveGrace   = 0;
                 e.repulseWindow  = false;
                 if (e.mesh) e.mesh.scale.y = 0.60;  // 着地しゃがみポーズ
+                // === RC チャレンジ失敗時の強制ヒット（2026-05-27）===
+                //   AOE 内に居座って RC も回避も成立しなかった場合、必ず敵の攻撃を食らわせる。
+                //   仕様：
+                //     - 敵を player 直上へワープして「外しても掴まれる」絵を作る
+                //     - 0.2s（12F）ヒットストップで重みを出す
+                //     - ガード中でも atk_lv 6 強制で guard クラッシュ
+                //   AOE 半径外まで逃げ切ったプレイヤーは免除（既存挙動）。
+                if (!e.hitDelivered) {
+                  const _p = _players && _players[0];
+                  if (_p && _p.hp > 0 && _p.state !== STATE.dying && _p.state !== STATE.dead) {
+                    const _aoeR = atk.aoeRadius ?? 120;
+                    const _ddx = _p.x - e._jdTargetX;
+                    const _ddz = _p.z - e._jdTargetZ;
+                    if (Math.hypot(_ddx, _ddz) <= _aoeR) {
+                      // プレイヤー直上へワープ（被弾位置の視認性向上）
+                      e.x = _p.x;
+                      e.z = _p.z;
+                      e.y = _p.y + 40;
+                      if (e.mesh) e.mesh.position.set(e.x, e.y, e.z);
+                      // 強制ヒット用 attack：hitbox を実質無限化 + atk_lv 6 で guard 抜け
+                      const _forceAtk = { ...atk,
+                        atk_lv: 6,
+                        hitboxRangeX: 9999, hitboxRangeY: 9999, hitboxRangeZ: 9999,
+                      };
+                      tryHitPlayer(e, _forceAtk);
+                      e.hitDelivered = true;
+                      // 0.2s 時止め（12F at 60fps）
+                      triggerHitstop(12);
+                    }
+                  }
+                }
               }
             } else {
               // フォールバック：_jdPhase が null のまま active に入った場合

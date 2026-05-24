@@ -29,6 +29,10 @@ const PROXIMITY_TRIGGER_RANGE = 400;  // 地雷モード：プレイヤー接近
 const PROXIMITY_TRIGGER_RANGE_SQ = PROXIMITY_TRIGGER_RANGE * PROXIMITY_TRIGGER_RANGE;  // 毎フレーム判定用（sqrt 回避）
 // 攻撃ヒット時の壊れ物用ヒットストップ（attack.hitstop が無い場合のフォールバック）
 const HIT_DEFAULT_HITSTOP = 6;
+// 壊れ物 hit 専用 hitstop の上限（2026-05-27）：attack.hitstop が大きい技（SP2 系 12F 等）でも
+// コンテナ叩きでは軽い反応に抑え、後続の本命ヒット（RC や敵への通常ヒット）を主役にする。
+// 6F 程度に抑えれば「叩いた感」は出つつ RC の溜め+ズームが食われない。
+const BREAKABLE_HITSTOP_MAX = 6;
 // 複数 hp 壊れ物（OC コンテナ等）：1 ヒット登録ごとの無敵 F。
 //   tryHitBreakables は攻撃の hit 窓中ほぼ毎フレーム呼ばれるため、
 //   これが無いと 1 振りで hp を一気に削り切ってしまう。連撃の間隔より短く取る。
@@ -170,9 +174,16 @@ export function tryHitBreakables(p, attack) {
     }
     if (_applyBreakableHit(b)) any = true;
   }
-  // ヒットストップ：1 つでも当たれば攻撃側 hitstop（or 既定 6F）を発火
-  if (any && _triggerHitstop) {
-    _triggerHitstop(attack.hitstop ?? HIT_DEFAULT_HITSTOP);
+  // ヒットストップ：壊れ物への hit は最大 BREAKABLE_HITSTOP_MAX で抑える。
+  //   attack.hitstop が大きい技（SP2 短押し 12F 等）でも、コンテナ叩きで
+  //   その本来の溜めを消費せず、後続の本命ヒット（RC・敵ヒット）を主役に保つ。
+  // RC 技（attack.repulseBox 持ち）：hitstop を完全スキップ。
+  //   repulse ウィンドウ末端（elapsed ≈ repulseFrameEnd）で箱ヒットが発生すると、
+  //   hitstop 中は updateRepulseDetection が走らないため RC ウィンドウが消費され
+  //   hitstop 明けに elapsed が repulseFrameEnd を超えて RC 不発になる事象を防ぐ。
+  if (any && _triggerHitstop && !attack.repulseBox) {
+    const _raw = attack.hitstop ?? HIT_DEFAULT_HITSTOP;
+    _triggerHitstop(Math.min(_raw, BREAKABLE_HITSTOP_MAX));
   }
   return any;
 }

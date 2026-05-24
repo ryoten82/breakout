@@ -482,6 +482,8 @@ export const ATTACKS = {
     //   頭上に大きく広く。攻撃の物理 hitbox とは独立。
     //   敵 e02_atk_02 aim 中ピーク Y ≈ 747wu に対し余裕を持って Y 上限 1600wu まで拾う。
     repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
+    // SP2 系は単体ターゲット化（2026-05-27）：RC の主役性保持・周辺巻き添え抑止
+    singleTarget: true,
   },
   // 空中版：単発打ち上げ（多段は触感的に苦しかったため単発化・2026-05-14）
   //   ヒットストップは重め維持で必殺技コマンド入力余地を確保
@@ -515,6 +517,7 @@ export const ATTACKS = {
     repulseAxis:  'aerial',           // 空中 SP2 も RC（aerial 軸）対応：地上版と揃える（2026-05-26）
     // RC 受付ボックス（Y 上方向拡張・2026-05-27）：地上版と統一
     repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
+    singleTarget: true,
   },
   // 地上短押し版（弱形態・単発アッパー・2026-05-26）：
   //   ↑+K を短押し（< SP2_HOLD_FRAMES）で地上発動した時の専用 ID。
@@ -553,6 +556,7 @@ export const ATTACKS = {
     repulseAxis:  'aerial',
     // RC 受付ボックス（Y 上方向拡張・2026-05-27）：地上長押し版と統一
     repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
+    singleTarget: true,
     // RC 判定 active 期間（2026-05-26）：攻撃判定（1-5F）の後、6-10F で 5F 限定 active。
     // 「攻撃当たり判定 → RC 判定」と段階を分けることで、AOE タイミングに左右されず
     // 押下の意図を素直に拾える。フィールドなしの attack は duration 中ずっと active（後方互換）。

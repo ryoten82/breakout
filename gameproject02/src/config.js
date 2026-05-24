@@ -790,10 +790,15 @@ export const REPULSE_CONFIG = {
   MAX_WARP_DISTANCE: 350,   // この距離を超えるとワープせず成立しない（2026-05-27：200→350・aim 中ラグ + 退避動作許容）
   WARP_FRONT_OFFSET: 80,    // ワープ後の敵 X：プレイヤー facing 前方への距離
   WARP_Y_OFFSET:     120,   // ワープ後の敵 Y：プレイヤー頭上（attack hit 想定位置）
-  CAM_ZOOM_BOOST:    0.15,  // 一時的なカメラズーム加算
-  CAM_ZOOM_FRAMES:   14,    // ズーム持続 F
+  CAM_ZOOM_BOOST:    0.20,  // 一時的なカメラズーム加算（0.20 ≒ 20% 拡大）
+  CAM_ZOOM_FRAMES:   48,    // ズーム持続 F 合計（hold 18 + decay 30）
+  CAM_ZOOM_HOLD:     18,    // 最大ズーム据え置き F（0.3s）／残りは線形減衰
   SHAKE_AMOUNT:      6,
   SHAKE_FRAMES:      8,
+  SLOW_FRAMES:       14,    // RC 成立直後のスロー継続 F（megaSlow 機構を流用・DIVISOR=3）
+  HITSTOP_FRAMES:    18,    // RC 成立直後のヒットストップ（0.3s）
+  DARKEN_ALPHA:      0.35,  // 画面暗転オーバーレイの最大不透明度（ズームと同じカーブで連動）
+  BOLT_COUNT:        6,     // 雷ボルトの本数（縦長 box・spawnTrailDot 使用）
 };
 
 // ============================================================
