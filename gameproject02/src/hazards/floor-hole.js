@@ -183,6 +183,10 @@ function _enemyHole(e) {
 
 function _dropEnemy(e, holeRect) {
   e._inHole = true;
+  // 攻撃トークンを先に解放してから isAlive=false に。順序が逆だと
+  //   debug-invariants が「token が dead enemy を参照」を毎 F 警告し続ける（St2 で頻発）。
+  const SB = (typeof window !== 'undefined') ? window.SB : null;
+  if (SB && SB.releaseEnemyTokens) SB.releaseEnemyTokens(e);
   e.isAlive = false;     // updateEnemies スキップ → y クランプ無効化
   e.aiEnabled = false;
   e.knockbackVx = 0;

@@ -2371,6 +2371,13 @@ function _clearAllTokens(ctx, e) {
   }
 }
 
+// 外部モジュール（hazards 等）からトークン解放するためのエクスポート版。
+//   floor-hole などが「敵を removed 扱いにする」前に呼ぶ。呼ばないと
+//   debug-invariants が「token が dead enemy を参照」を毎 F 警告し続ける。
+export function releaseEnemyTokens(ctx, e) {
+  _clearAllTokens(ctx, e);
+}
+
 // 攻撃開始：トークン取得 + enemy_attacking への遷移をまとめる
 // （通常の chase 発動と cunning の punish-dodge 連携で共用）
 function _beginEnemyAttack(e, atkId, ctx) {

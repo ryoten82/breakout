@@ -946,7 +946,7 @@
       initEnemySystem, buildDummyMesh, spawnDummy, updateEnemies, applyStatusStun,
       enterEnemyDying, killEnemy, initEnemyGoreBlack,
       enterEnemyExplode, handleEnemyDyingHit, detachOnePart, enterEnemyDyingBurst,
-      jumpEnemy, igniteEnemy,
+      jumpEnemy, igniteEnemy, releaseEnemyTokens,
     } from './src/enemy-system.js';
     // === breakables（壊れ物プロップの破壊・パーツ飛び散り）===
     import {
@@ -3936,6 +3936,10 @@
       BURN_CONFIG,
       OC_FLAGS: { ignite: false, spread: false, chainBlast: false },
       igniteEnemy,
+      // 外部モジュール（hazards 等）からトークン解放したい場合：SB.releaseEnemyTokens(e)
+      //   floor-hole が敵を removed 扱いにする前に呼ぶ。呼ばないと
+      //   debug-invariants が "token が dead enemy を参照" を毎 F 警告し続ける
+      releaseEnemyTokens: (e) => releaseEnemyTokens(hitCtx, e),
       oc: { show: showOCSelection, apply: _applyOCEffect, gem: (x, z) => spawnOcGem(x ?? 0, z ?? 0) },
       // ステージクリア演出が OC 完了を待つために使う
       isOcActive: () => isOcGemActive() || _ocPending || _ocOpenTimer > 0,
