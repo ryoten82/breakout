@@ -17,6 +17,10 @@ export const ENEMY_TEMPLATES = {
   // tier06：中ボス級。死亡は特殊化せず通常ゴアスクラップ範囲内。
   // 演出の派手さ／バリエは別所で開発中の「ゴア・クリティカル」が担う。
   tier06: { maxHp: 60 },
+  // boss01：Stage1 本ボス CRUSHER（仕様：chars/boss01.md）。
+  // 完全 SA・3 段フェーズ・HP ゲートで境界停止 + メガクラ流用。
+  // 仮値 HP 1800（midboss01 × 6・要実 DPS 計測）。実装スタブ段階。
+  boss01: { maxHp: 1800, enemyType: 'boss01', personality: 'berserker', atkCooldown: 120 },
 };
 
 // ウェーブ間隔は「最終スポーン → 次 triggerX ≒ 1200wu（約 1 画面）」で設計。
@@ -84,9 +88,9 @@ export const STAGE01_WAVES = [
     section: 'S3',
     triggerX: 5700,
     spawns: [
-      { type: 'tier01', x: 6000, variant: 'walkin_right' },
-      { type: 'tier01', x: 6100, variant: 'walkin_right' },
-      { type: 'tier06', x: 6200, variant: 'fall' },          // 中ボス級は降臨感
+      // 本ボス CRUSHER（実装スタブ段階）。実装テスト時は単体・本実装でフェーズ単位の増援を予定。
+      // 仕様：chars/boss01.md / 議論：discussions/boss01-stage1-design.md
+      { type: 'boss01', x: 6200, variant: 'fall' },
     ],
   },
 ];

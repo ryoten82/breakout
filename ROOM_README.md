@@ -1,51 +1,50 @@
-# 背景部屋（stage-room）
+# 敵 AI 部屋（enemy-ai-room）
 
-SCRAP BLITZ のステージ周りを **議論 → データ → 実装** まで一気通貫で扱う部屋。
-Phase 3 ゲームプレイ本流（zealous-hertz worktree）とは独立に動かす。
+SCRAP BLITZ の敵 AI 仕様を **議論 → データ → 実装** まで一気通貫で扱う部屋。
+Phase 3 本流（敵 AI ステートマシン拡張・ボス・ステージとの統合）に直結する。
 
 ## この部屋の役割（三層構造）
 
 | 層 | 場所 | 内容 |
 |---|---|---|
-| **議論層** | `stage-layout-room.md` | 個別ステージの構想・敵配置案・ギミック案・楽しさ言語化（叩き台・継続記録） |
-| **データ層** | `stages/stageNN/` | 議論が固まったステージのレイアウト確定版・ウェーブ構成 |
-| **実装層** | `gameproject02/src/stages/`, `gameproject02/src/props/` | Three.js による背景プロップ・装飾・ギミックの実コード |
+| **議論層** | `discussions/*.md` | 性格軸・役割軸・統率喪失・AI ステート遷移・敵種別固有 AI などの叩き台 |
+| **データ層** | `data/personalities.json` 等（議論が固まったら） | 性格プロファイル（weight 表）・役割定義・敵種別 × 性格対応表 |
+| **実装層** | `gameproject02/src/ai/` 等（実装着手時） | personality engine / role handler / leader linkage の実コード |
 
 外部参照：
-- `spec-room/discussions/stage-construction-workflow.md` — **どう作るか**（ツール・ワークフロー）
-- `spec-room/archive/prop-catalog-and-naming.md` — **何を置けるか**（プロップ命名規約）
+- `chars/enem01.md` — 敵共通仕様（`aiPhase` ステート機械の正本）
+- `chars/common01.md` — 状態系の正本
+- `memory/project_scrapblitz_enemy_tier_naming.md` — tier 体系
+- `stage-room` — ステージ別の敵配置・性格混成比率（連携先）
+- `chip-ideas` — チップで AI 性向を変える効果系（連携先）
 
 ## セッション開始時に Claude が読むもの
 
-1. `HANDOFF.md`（前セッションからの引継ぎ）
-2. `stage-layout-room.md`（議論層の本体）
-3. `stages/` 配下の確定データ（存在すれば）
+1. `HANDOFF.md`（前セッションからの引継ぎ・存在すれば）
+2. `discussions/` 配下（議論層の本体）
+3. `data/` 配下の確定データ（存在すれば）
 4. memory：
    - `project_scrapblitz.md`（プロジェクト全体像）
-   - `project_scrapblitz_visual_doctrine.md`（廃工場テーマ・配色）
-   - `project_scrapblitz_stage_room.md`（本部屋のメタ情報・最新スコープ）
-5. 仕様書 `plans/buzzing-juggling-sedgewick.md` の §16 / §11 / §1.5
+   - `project_scrapblitz_enemy_ai_room.md`（本部屋のメタ情報・最新スコープ）
+   - `handoff_scrapblitz_2026-05-20_phase3-gore-scrap.md`（既存 aiPhase 実装）
+5. 仕様書 `chars/enem01.md` / `chars/common01.md`
 
 ## 前提（確定済みの土台）
 
-- **Phase 2.4 完了済み**（2026-05-18）。Phase 3 入り
-- **ビジュアル方針**：廃工場テーマ＋嘘パース／SOR4 風 45 度斜め平行線床／柱組クロスブレース＋警告色
-- **配色**：METEO 赤・敵緑
-- **CR 一本化**・**ランダム性は敵配置/OC/チップドロップのみ**・**手触りファースト**
+- **Phase 3 入り済み**。`aiPhase = idle / chase / attack / retreat / hitstun` ステートマシン実装済
+- **retreat フェーズ既存**：攻撃 recover 後 40F / 被弾→wait01 復帰後 30F の後方退却
+- **死亡フロー（ゴア・スクラップ）実装済**：reacting → stunned → final/burst → exploded
+- **DEBUG_AI HUD**（数字キー 8）で aiPhase 可視化済
 
-## 衝突回避ルール（zealous-hertz 本流との並走）
+## 衝突回避ルール（他 worktree との並走）
 
-stage-room と zealous-hertz は同一の `gameproject02/index.html` を編集し得るため、衝突を以下で抑える：
-
-1. **stage-room 側の実装は原則 新規 ES モジュールとして作る**
-   - 背景プロップ → `gameproject02/src/props/<theme>/<name>.js`
-   - ステージ実装 → `gameproject02/src/stages/<stageNN>/<role>.js`
-2. `index.html` への手入れは **エントリ追加のみ**（`<script type="module" src="src/stages/index.js"></script>` 等の最小差分）
-3. 既存 index.html 内インライン装飾（`buildBackWallPillars()` 等）の props/ への移管は、zealous-hertz と同時編集していないタイミングで実施
-4. 定期的に main 経由マージ（`setup_worktree_workflow.md` のハンドオフ手順）
+1. 敵 AI 実装は原則 **新規 ES モジュール**として作る：`gameproject02/src/ai/<role>.js`
+2. 既存 `hit-engine.js` / `enemy-spawn.js` への手入れは、フック追加のみで本流ロジックは温存
+3. ボス AI は本部屋で議論、実装は実装系 worktree と相談
+4. ステージ別出現テーブルは stage-room 側に責務を持たせる（本部屋は性格プロファイルまで）
 
 ## 編集ポリシー
 
-- `stage-layout-room.md` の編集は **本 worktree でのみ**（spec-room 側は移行済みマーカーのみ・編集禁止）
-- 仕様書本体（`plans/buzzing-juggling-sedgewick.md`）への昇格は、Stage 設計が固まってから main 経由で
-- 他部屋の議論ファイル（チップ・OC 等）は触らない
+- `discussions/*.md` の編集は **本 worktree でのみ**
+- 仕様書本体（`chars/enem01.md`）への昇格は、設計が固まってから main 経由で
+- 他部屋（chip-ideas / oc-ideas / stage-room）の議論ファイルは触らない

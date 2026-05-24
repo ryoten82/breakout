@@ -545,6 +545,203 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.20,
     pitchActive:   +0.35,
   },
+
+  // -------------------------------------------------------
+  // boss01（CRUSHER）攻撃 — Stage 3 大ボス・完全 SA・両腕ジャガーノート + 隠しミサイルポッド
+  // -------------------------------------------------------
+  // 全攻撃 stub（命中ロジックは未実装 / wind・recover の予兆だけでも動作確認用）
+  // 仕様：chars/boss01.md §攻撃カタログ
+  //
+  // boss1_atk_01〜03：Phase 1 AOE 3 種
+  // boss1_atk_04    ：Phase 2 派生（二段薙ぎ払い）
+  // boss1_atk_05    ：Phase 3 必殺技（CRUSHER STOMP / RC 対象）
+  // boss1_atk_06    ：Phase 3 大技（DOUBLE RUSH TACKLE / RC 対象外・SA 崩しトリガー）
+  // boss1_atk_01：クラッシャー振り下ろし（両拳叩きつけ）
+  //   art-reference 統合：両腕ジャガーノート系・武器なし素手の縦軸 AOE
+  boss1_atk_01: {
+    name:           'クラッシャー振り下ろし（両拳叩きつけ）',
+    kind:           'swing',
+    attackCategory: 'melee',
+    windFrames:     40,
+    activeFrames:   12,
+    recoverFrames:  30,
+    cooldownFrames: 90,
+    lungeVx:        4,
+    hitboxRangeX:   200,
+    hitboxRangeY:   180,
+    hitboxRangeZ:   140,
+    damage:         14,
+    atk_lv:         4,
+    knockback:      28,
+    hitstop:        7,
+    shake:          8,
+    hitColor:       0xffaa33,
+    pitchWind:     -0.32,
+    pitchActive:   +0.48,
+  },
+  // boss1_atk_02：横薙ぎフック（片腕大振り）
+  //   art-reference 統合：素手フック・横軸 AOE 広範囲
+  boss1_atk_02: {
+    name:           '横薙ぎフック',
+    kind:           'swing',
+    attackCategory: 'melee',
+    windFrames:     35,
+    activeFrames:   18,
+    recoverFrames:  35,
+    cooldownFrames: 100,
+    lungeVx:        2,
+    hitboxRangeX:   320,
+    hitboxRangeY:   140,
+    hitboxRangeZ:   140,
+    damage:         14,
+    atk_lv:         4,
+    knockback:      32,
+    hitstop:        7,
+    shake:          10,
+    hitColor:       0xffaa33,
+    pitchWind:     -0.28,
+    pitchActive:   +0.18,
+  },
+  // boss1_atk_03：地響きスマッシュ（拳を地面に叩きつけ → パンチ衝撃波）
+  //   art-reference 統合：「パンチ衝撃波で間合いを埋める」コンセプトをここに集約
+  boss1_atk_03: {
+    name:           '地響きスマッシュ',
+    kind:           'swing',  // TODO: 専用 kind='shockwave_aoe' を別セッションで設計
+    attackCategory: 'melee',
+    windFrames:     45,
+    activeFrames:   20,
+    recoverFrames:  40,
+    cooldownFrames: 110,
+    lungeVx:        0,
+    hitboxRangeX:   260,
+    hitboxRangeY:   80,
+    hitboxRangeZ:   260,
+    damage:         16,
+    atk_lv:         5,
+    knockback:      36,
+    hitstop:        8,
+    shake:          12,
+    hitColor:       0xff8822,
+    pitchWind:     -0.42,
+    pitchActive:   +0.55,
+  },
+  // boss1_atk_04：横薙ぎフック × 2 連（Phase 2 派生）
+  //   D 案再編 2026-05-26：atk_02 のモーション/値を流用して 2 連発射する派生形
+  //   ★ 量産パターンの第一号：「基本技 × 2 連」で派生を作る → モーション 1 つで派生種数を増やせる
+  //   将来的に他の基本技も同様の 2 連派生を量産可能（atk_01×2 / atk_03×2 等）
+  //   実装注：本来は parent: 'boss1_atk_02', repeat: 2 の宣言型が理想だが、
+  //           現状はフィールドコピー + multiHit で表現（リファクタは別セッション）
+  boss1_atk_04: {
+    name:           '横薙ぎフック × 2 連',
+    kind:           'swing',
+    attackCategory: 'melee',
+    // ↓ atk_02 流用部分（モーション・range は同一に保つ）
+    hitboxRangeX:   320,
+    hitboxRangeY:   140,
+    hitboxRangeZ:   140,
+    atk_lv:         4,
+    hitColor:       0xffaa33,
+    // ↓ 2 連用に振る舞いだけ変える
+    windFrames:     28,           // 1 連目のタメは短縮（連打感）
+    activeFrames:   50,           // 2 振り分（25F × 2）
+    recoverFrames:  40,           // 連発後の硬直
+    cooldownFrames: 130,
+    lungeVx:        3,
+    damage:         14,           // 1 発分（multiHit で 2 回適用される）
+    knockback:      28,
+    hitstop:        6,            // 連打感のため通常より短め
+    shake:          9,
+    pitchWind:     -0.28,
+    pitchActive:   +0.20,
+    multiHit:       true,
+    hitSlots: [
+      { frame: 5,  damage: 14, atk_lv: 4, knockback: 28 },   // 1 連目（往）
+      { frame: 30, damage: 14, atk_lv: 4, knockback: 32 },   // 2 連目（戻し・KB やや強化）
+    ],
+  },
+  // MISSILE BARRAGE（Phase 2 通常技・背中ミサイルポッド使用）
+  //   D 案再編 2026-05-26：Phase 2 移行で背中装甲が強制で外れ・ここからミサイル攻撃が解禁
+  //   発射 wind 中は前向き固定 → 背中弱点が完全露出（背面回り込みのチャンス）
+  //   RC 対象外（必殺は atk_07 に集約）
+  //   TODO: projectile system 新設タイミングで多弾頭追尾ミサイルへ差し替え（kind='missile_barrage'）
+  //         multilock 系（CANNON/VIPER）と共通基盤で実装
+  boss1_atk_05: {
+    name:           'MISSILE BARRAGE',
+    kind:           'swing',  // 暫定（projectile system 未実装のため AOE 一閃で挙動確認）。本実装で 'missile_barrage' へ
+    attackCategory: 'melee',
+    windFrames:     80,           // 背中装甲開閉ギミック内蔵想定
+    activeFrames:   25,
+    recoverFrames:  50,
+    cooldownFrames: 360,          // 約 6 秒
+    lungeVx:        0,
+    hitboxRangeX:   500,          // 全画面想定（弾幕に置き換わるまでの暫定）
+    hitboxRangeY:   200,
+    hitboxRangeZ:   320,
+    damage:         18,
+    atk_lv:         5,
+    knockback:      36,
+    hitstop:        9,
+    shake:          14,
+    hitColor:       0xff7733,
+    pitchWind:     -0.40,
+    pitchActive:   +0.50,
+  },
+  // DOUBLE RUSH TACKLE（Phase 2/3 大技・RC 対象外・SA 崩しトリガー）
+  //   D 案再編 2026-05-26：Phase 2 解禁・Phase 3 でも継続使用
+  //   recover 中は SA 解除 → 背中弱点も同時露出（狙い目その 1）
+  //   溜め → 反対画面端タックル → 振り返り → 反対端タックル（計 2 往復）→ 大 recover 硬直
+  boss1_atk_06: {
+    name:           'DOUBLE RUSH TACKLE',
+    kind:           'slash_rush',  // TODO: 専用 kind='boss_double_tackle' を別セッションで設計
+    attackCategory: 'melee',
+    windFrames:     60,           // 溜め動作（大きく予兆）
+    activeFrames:   80,           // 暫定：active 中に画面端往復処理（実装は別途）
+    recoverFrames:  90,           // 大きな recover 硬直（SA 崩しトリガー対象）
+    cooldownFrames: 480,          // 約 8 秒
+    dashSpeed:      8.0,
+    dashMaxDist:    1600,         // 画面端到達想定
+    hitboxRangeX:   220,
+    hitboxRangeY:   180,
+    hitboxRangeZ:   140,
+    multiHit:       true,
+    hitSlots: [
+      { frame: 10, damage: 18, atk_lv: 5, knockback: 36 },  // 往復1 開始
+      { frame: 50, damage: 18, atk_lv: 5, knockback: 36 },  // 往復2 開始（暫定値）
+    ],
+    hitstop:        9,
+    shake:          12,
+    hitColor:       0xff8833,
+    pitchWind:     -0.25,
+    pitchActive:   +0.40,
+    saBreakOnRecover: true,  // recover 中は SA 解除（プレイヤーが反撃可能）
+  },
+  // OVERDRIVE PUNCH（Phase 3 必殺技・リパルスカウンター対象）
+  //   D 案再編 2026-05-26：CRUSHER の本質である拳に原点回帰
+  //   両腕を頭上で組んでタメ → 超高速ストレートパンチ（ゼロ距離タメ突き）
+  //   SF2 真昇龍系のタメ感。Phase 2 でミサイル避け（遠距離）に慣れたプレイヤーの逆を突く
+  //   弾き対象は「拳のコア部分」が active 入りする瞬間
+  boss1_atk_07: {
+    name:           'OVERDRIVE PUNCH',
+    kind:           'swing',       // TODO: 専用 kind='boss_overdrive_thrust' で ゼロ距離タメ突き演出
+    attackCategory: 'melee',
+    windFrames:     90,            // 最長タメ（重み演出）
+    activeFrames:   8,             // 瞬発
+    recoverFrames:  50,
+    cooldownFrames: 480,           // 約 8 秒
+    lungeVx:        12,            // ゼロ距離タメ突き（前方踏み込み大）
+    hitboxRangeX:   260,
+    hitboxRangeY:   180,
+    hitboxRangeZ:   140,
+    damage:         34,
+    atk_lv:         6,
+    knockback:      54,
+    hitstop:        14,
+    shake:          20,
+    hitColor:       0xff3322,
+    pitchWind:     -0.55,
+    pitchActive:   +0.70,
+    repulseAxis:   'ground',       // リパルスカウンター対象（弾き = 確定クリ + 100% gc）
+  },
 };
 
 // ============================================================
@@ -619,6 +816,44 @@ export const MIDBOSS_SHIELD_CONFIG = {
   BREAK_HITSTOP:   14,    // 盾破壊の強ヒットストップ F
   BREAK_SHAKE:     12,    // 盾破壊のシェイク強度
   BANNER_FRAMES:   60,    // "SHIELD BREAK!" バナー表示 F（約 1 秒）
+};
+
+// ============================================================
+//  #section boss01-config — boss01（CRUSHER）本ボス設定（仕様：chars/boss01.md）
+//  - 完全 SA・3 段フェーズ・HP ゲートで境界停止 + メガクラ流用移行演出
+//  - 仮値（要実 DPS 計測）。実装は別セッション（フェーズ移行ロジック等）
+//  - window.SB.BOSS01_CONFIG で実機調整
+// ============================================================
+export const BOSS01_CONFIG = {
+  // HP（仮値・midboss01=300 × 6 = 1800）
+  MAX_HP:                 1800,
+  // フェーズ境界 HP（HP ゲートで必ず 1 残して停止 → メガクラ移行発火）
+  PHASE_1_TO_2_GATE_HP:   1080,  // Phase 1 → 2 境界（40% 削った地点）
+  PHASE_2_TO_3_GATE_HP:    360,  // Phase 2 → 3 境界（80% 削った地点）
+  // Phase 3 逆境スイッチ
+  PHASE_3_WIND_MULT:      0.90,  // wind を -10%
+  PHASE_3_COOLDOWN_MULT:  0.80,  // 攻撃間隔 -20%
+  PHASE_3_MOVE_MULT:      1.20,  // 移動速度 +20%
+  // Phase 2 高速化（Phase 1 同攻撃を高速化）
+  PHASE_2_WIND_MULT:      0.80,  // wind を -20%
+  PHASE_2_COOLDOWN_MULT:  0.75,  // cooldown を -25%
+  // メガクラ移行演出（プレイヤーメガクラ流用・色変更）
+  PHASE_TRANSITION_COLOR: 0xff3322,  // 赤系
+  PHASE_TRANSITION_FRAMES: 90,        // メガクラ duration 流用想定
+  // SA 崩しトリガー
+  SA_BREAK_ON_RC:         true,   // リパルスカウンター成功で完全 SA 崩し
+  SA_BREAK_ON_ULT:        true,   // ULT 命中で SA 崩し（試験的）
+  SA_BREAK_STUN_FRAMES:   45,     // SA 崩し時のスタン F
+  // サイズ（メッシュスケール）
+  MESH_SCALE:             4.0,   // midboss01 比 4 倍（80m 相当）
+  // === 移動/接近パラメータ（D 案 Phase 1 基本行動 2026-05-26）===
+  //   重い・遅い・大柄 → 接近・攻撃距離・速度を boss 用に上書き
+  //   DUMMY_ATK_CONFIG を直接いじらず、isBoss 分岐で本値を使う
+  APPROACH_RANGE:         700,   // この距離以下で接近開始（DUMMY=400 / 大柄なので広め）
+  ATTACK_RANGE:           260,   // 基本拳の発動圏（DUMMY=130 / 拳が大きいので広め）
+  APPROACH_SPEED:         1.0,   // 接近速度 wu/F（DUMMY=1.4 / 重いので遅い）
+  Z_CHASE_FACTOR:         0.4,   // Z 追従速度のプレイヤー比（DUMMY=0.6 / 鈍重）
+  DASH_CHASE_SPEED:       3.5,   // 遠距離復帰のダッシュ速度（DUMMY=5.5 / 重量級なので控えめ）
 };
 
 // ============================================================

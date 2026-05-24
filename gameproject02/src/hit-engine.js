@@ -38,7 +38,7 @@ import {
   PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG, MIDBOSS_SHIELD_CONFIG, REPULSE_CONFIG,
 } from './config.js';
 import { resolveAttackAttr, ATTACKS } from './attacks.js';
-import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak, forceArmGoreCriticalIfPossible } from './enemy-system.js';
+import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak, forceArmGoreCriticalIfPossible, triggerBossPhaseTransition } from './enemy-system.js';
 import { spawnDamageNumber, spawnBanner } from './hud-system.js';
 
 let _THREE = null;
@@ -703,8 +703,27 @@ export function tryHitEnemies(p, attack, ctx) {
       e.shieldHp = Math.max(0, e.shieldHp - _shieldDmg);
       if (_shieldFrontBlock) _finalDamage = 0;   // 前面接地：本体完全防御
     }
+    // ボス HP ゲート（boss01 / chars/boss01.md）：フェーズ境界 HP で必ず 1 残してダメージ停止 → 移行発火
+    //   - 上振れダメージ（クリ・コンボ・OC）で Phase をスキップする事故を防ぐ
+    //   - 移行演出中は本体に追加ダメージ通さない
+    let _bossGateTriggered = false;
+    if (e.isBoss && _finalDamage > 0) {
+      if (e.bossPhaseTransitioning) {
+        _finalDamage = 0;   // 移行中はノーダメージ（仕切り直し）
+      } else {
+        const gates = e.bossPhaseGateHP;   // [Phase1終了HP, Phase2終了HP, 0]
+        const phaseIdx = (e.bossPhase ?? 1) - 1;
+        const nextGate = gates ? (gates[phaseIdx] ?? 0) : 0;
+        if (nextGate > 0 && e.hp - _finalDamage <= nextGate) {
+          // 境界を越える削り → 境界 +1 で停止し移行発火（実 hp は gate+1 まで残す）
+          _finalDamage = Math.max(0, e.hp - (nextGate + 1));
+          _bossGateTriggered = true;
+        }
+      }
+    }
     // ヒット
     e.hp = Math.max(0, e.hp - _finalDamage);
+    if (_bossGateTriggered) triggerBossPhaseTransition(e, ctx);
     // 与ダメージ数値ポップ（本体ダメージ＝橙/白、盾ダメージ＝水色を別行で）
     if (_finalDamage > 0) spawnDamageNumber(e.x, e.y + 110, e.z, _finalDamage, { crit: _isCrit });
     if (_shieldDmg > 0)   spawnDamageNumber(e.x, e.y + 150, e.z, _shieldDmg, { shield: true });
@@ -1269,9 +1288,25 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     }
     // ヒット適用（中間）。クリティカル判定は最終ヒット（tryHitEnemies 経由）に集約し、
     //   多段の中間ヒットは通常表示（毎ティック抽選で過剰クリにしない）。
-    const _midDamage = attack.damagePerHit ?? 5;
+    let _midDamage = attack.damagePerHit ?? 5;
+    // ボス HP ゲート（マルチヒット経路）：本体経路と同条件でクランプ
+    let _bossGateTriggered = false;
+    if (e.isBoss && _midDamage > 0) {
+      if (e.bossPhaseTransitioning) {
+        _midDamage = 0;
+      } else {
+        const gates = e.bossPhaseGateHP;
+        const phaseIdx = (e.bossPhase ?? 1) - 1;
+        const nextGate = gates ? (gates[phaseIdx] ?? 0) : 0;
+        if (nextGate > 0 && e.hp - _midDamage <= nextGate) {
+          _midDamage = Math.max(0, e.hp - (nextGate + 1));
+          _bossGateTriggered = true;
+        }
+      }
+    }
     e.hp = Math.max(0, e.hp - _midDamage);
-    spawnDamageNumber(e.x, e.y + 110, e.z, _midDamage, {});
+    if (_bossGateTriggered) triggerBossPhaseTransition(e, ctx);
+    if (_midDamage > 0) spawnDamageNumber(e.x, e.y + 110, e.z, _midDamage, {});
     // 最終ヒッター記録（マルチヒットでも毎発上書き：最終ヒットの attackId が記録される）
     // 中間ヒットの lv は便宜上 attack.atk_lv（最終ヒットの想定値）を使う
     const _midLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
