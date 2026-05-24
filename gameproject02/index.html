@@ -663,6 +663,20 @@
   <div id="oc-flash"></div>
   <!-- リパルスカウンター受付インジケータ -->
   <div id="repulse-hud"></div>
+  <!-- 自動遷移時：module defer 実行前にスタート画面 / デバッグ HUD を即適用 -->
+  <script>
+    (function(){
+      if (!sessionStorage.getItem('_sbAutoTransition')) return;
+      // スタート画面を非表示
+      document.write('<style>#start-screen-overlay{display:none!important}</style>');
+      // デバッグ HUD が非表示だった場合も引継ぎ
+      if (sessionStorage.getItem('_sbDbgHidden') === '1') {
+        var ids = ['hud','sp-hud','debug-hud','debug','build-info','fps','state-hud',
+                   'clock-hud','gamespeed-hud','dummy-hp','inv-hud-badge','combo-history-panel'];
+        document.write('<style>' + ids.map(function(id){return '#'+id}).join(',') + '{display:none!important}</style>');
+      }
+    })();
+  </script>
   <!-- 開始画面：モード選択 → markPlayStart 発火 → フェードアウト -->
   <div id="start-screen-overlay">
     <div class="start-title">SCRAP BLITZ</div>
@@ -2805,6 +2819,7 @@
             _cp.hp    = Math.min(_mh, _cHp + _mh * 0.30);  // 引継ぎ + 30% 回復
           }
           if (_cp && !isNaN(_cSp)) _cp.sp = _cSp;
+          sessionStorage.removeItem('_sbDbgHidden');  // inline script 側で使用済み
         } catch (_) { /* ignore */ }
       }
     }

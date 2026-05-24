@@ -21,7 +21,8 @@ const FLOOR_Y = 0;
 const FUSE_FRAMES        = 120;   // 点火 → 爆発までの時間（2 秒）
 const CANISTER_IGNITE_VY = 12;    // 点火時の小ジャンプ初速（≒ ↑J 食らった程度）
 const EXPLOSION_RANGE    = 400;   // AoE 半径
-const EXPLOSION_DAMAGE   = 50;    // 敵・プレイヤー共通ダメージ
+const EXPLOSION_DAMAGE        = 50;   // 敵へのダメージ
+const EXPLOSION_DAMAGE_PLAYER = 20;   // プレイヤーへのダメージ
 const EXPLOSION_HITSTOP  = 12;    // 爆発時のヒットストップ
 const FUSE_BLINK_MIN     = 2;     // 爆発直前の点滅周期（F）
 const FUSE_BLINK_MAX     = 12;    // 点火直後の点滅周期（F）
@@ -380,7 +381,7 @@ function _explode(mesh) {
       const atkLv = mesh.userData.testAtkLv ?? 4;
       _damagePlayer(
         p,
-        { damage: dmg, atk_lv: atkLv, knockback: 30, launchVy: EXPLOSION_LAUNCH_VY },
+        { damage: EXPLOSION_DAMAGE_PLAYER, atk_lv: atkLv, knockback: 30, launchVy: EXPLOSION_LAUNCH_VY },
         { x: cx, y: cy, z: cz },
       );
     }
