@@ -2246,7 +2246,7 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-25 SP 獲得調整（通常×0.7 / 必殺×0.5 / 死体殴り半額）/ St3 地雷撤去 / St3 boss01 化 / タイマー freeze グレーアウト / 赤・紫コンテナ AoE 保護 / OC ジェム homing / アイテム壁クランプ / 死亡爆発 hitstop×0.7 / OC SP_RUSH・REGEN_UP レア化';
+    const LAST_UPDATE = '2026-05-25 HP/SP ステージ引継ぎ（HP+30% ボーナス）/ OC 調整 / アイテム壁クランプ / 死亡爆発 hitstop×0.7 / SP 獲得調整';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
@@ -2789,6 +2789,24 @@
       // 自動遷移 / URL 直接指定：モード選択を挟まず即起動
       _initStageById(SELECTED_STAGE);
       _skipStartOverlay();
+      // 自動遷移時：前ステージの HP/SP を引継ぎ + HP 30% 回復ボーナス
+      if (_IS_AUTO_TRANSITION) {
+        try {
+          const _cp = players[0];
+          const _cHp    = parseFloat(sessionStorage.getItem('_sbCarryHp')    ?? '');
+          const _cMaxHp = parseFloat(sessionStorage.getItem('_sbCarryMaxHp') ?? '');
+          const _cSp    = parseFloat(sessionStorage.getItem('_sbCarrySp')    ?? '');
+          sessionStorage.removeItem('_sbCarryHp');
+          sessionStorage.removeItem('_sbCarryMaxHp');
+          sessionStorage.removeItem('_sbCarrySp');
+          if (_cp && !isNaN(_cHp)) {
+            const _mh = !isNaN(_cMaxHp) ? _cMaxHp : _cp.maxHp;
+            _cp.maxHp = _mh;
+            _cp.hp    = Math.min(_mh, _cHp + _mh * 0.30);  // 引継ぎ + 30% 回復
+          }
+          if (_cp && !isNaN(_cSp)) _cp.sp = _cSp;
+        } catch (_) { /* ignore */ }
+      }
     }
 
     // 互換用エイリアス（既存コードで dummy を直接参照していた所が残っていれば動く保険）

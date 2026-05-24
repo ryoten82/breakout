@@ -93,6 +93,13 @@ function _beginClearPresentation(nextStageId) {
       // → URL を汚さないので、後で F5 した時は stage01 から再スタートできる
       try {
         sessionStorage.setItem('_sbAutoTransition', nextStageId);
+        // HP/SP 引継ぎ：次ステージ開始時に復元（HP は +30% ボーナス込みで適用）
+        const _p = window.SB?.players?.[0];
+        if (_p) {
+          sessionStorage.setItem('_sbCarryHp',    String(_p.hp));
+          sessionStorage.setItem('_sbCarryMaxHp', String(_p.maxHp));
+          sessionStorage.setItem('_sbCarrySp',    String(_p.sp));
+        }
       } catch (_) { /* ignore */ }
       window.location.reload();
     }, FADE_OUT_MS);
