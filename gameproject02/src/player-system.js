@@ -64,6 +64,7 @@ let _enemies = null;
 let _processMegaCrashUltInput = null;
 let _applyBodyEmissive = null;
 let _getEnemyHitboxMesh = null;
+let _hideAllEnemyHitboxes = null;
 let _guardShield = null;
 let _specialHitboxMesh = null;
 let _PART_REST = null;
@@ -93,6 +94,7 @@ export function initPlayerSystem(deps) {
   _processMegaCrashUltInput = deps.processMegaCrashUltInput;
   _applyBodyEmissive = deps.applyBodyEmissive;
   _getEnemyHitboxMesh = deps.getEnemyHitboxMesh;
+  _hideAllEnemyHitboxes = deps.hideAllEnemyHitboxes;
   _guardShield = deps.guardShield;
   _specialHitboxMesh = deps.specialHitboxMesh;
   _PART_REST = deps.PART_REST;
@@ -1409,6 +1411,9 @@ export function updatePlayer(p) {
   }
 
   // === 敵攻撃の当たり判定可視化 ===
+  // プール内の全 hitbox を先に hide：enemies.splice で配列縮小すると
+  //   プール側の N 番 mesh が visible=true のまま空間に取り残されるため、毎フレーム必ずリセットする
+  if (_hideAllEnemyHitboxes) _hideAllEnemyHitboxes();
   for (let i = 0; i < _enemies.length; i++) {
     const e = _enemies[i];
     const mesh = _getEnemyHitboxMesh(i);

@@ -1903,6 +1903,14 @@
       }
       return _enemyHitboxPool[idx];
     }
+    // プール内の全 hitbox mesh を hide。
+    //   enemies.splice で配列が縮んだ後、プール側 N 番が visible=true のまま
+    //   取り残される問題への対処。可視化ループの前に呼んで毎フレーム必ずリセット。
+    function _hideAllEnemyHitboxes() {
+      for (let i = 0; i < _enemyHitboxPool.length; i++) {
+        _enemyHitboxPool[i].visible = false;
+      }
+    }
 
     // === ホーミング対象表示矢印（デバッグ）===
     //   comboTarget 設定中、対象敵の頭上に下向き三角を浮かす
@@ -2237,7 +2245,7 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-27 通しプレイ準備：St1 W4 boss→tier05 / テスト用 HP コンテナ撤去 / ボス前 HP 確定 crate を赤色（preset:hp）';
+    const LAST_UPDATE = '2026-05-27 fix：敵 hitbox 取り残し（enemies.splice 後に visible=true のまま残る赤箱）+ floor-hole の attackToken リーク';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
@@ -2654,6 +2662,7 @@
       processMegaCrashUltInput,
       applyBodyEmissive,
       getEnemyHitboxMesh: _getEnemyHitboxMesh,
+      hideAllEnemyHitboxes: _hideAllEnemyHitboxes,
       guardShield, specialHitboxMesh,
       PART_REST, PART_ANIMS,
     });
@@ -3661,7 +3670,8 @@
         // updatePlayer がスキップされるため、hitstop 中は敵攻撃 hitbox を強制非表示にする。
         // （updatePlayer の hitbox 可視化は updateEnemies より前に走るため、
         //   hitstop 開始フレームの hitbox 状態が freeze されて残り続けるのを防ぐ）
-        for (let _i = 0; _i < enemies.length; _i++) _getEnemyHitboxMesh(_i).visible = false;
+        // プール全体を hide：enemies.splice で配列が縮んだ後の取り残し（visible=true のまま消えない赤箱）も解消
+        _hideAllEnemyHitboxes();
         for (const _p of players) {
           // ガードシールド：updatePlayer がスキップされるため hitstop 中も同期を維持
           syncGuardShield(_p);
