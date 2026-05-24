@@ -1,11 +1,12 @@
 # Stage 1 — CRUSHER（廃工場）テストプレイ用 最小構成 仕様
 
-> ⚠️ **構造改編に伴う注記（2026-05-18）**：
-> Act 構造の確定（memory `project_scrapblitz_act_scale_aesthetic.md`）により、本ファイルが扱う「廃工場内部・柱組装飾」は**概念上 Act 1 / Stage 2（工場内部）の素材**となった。
-> ファイル名は `stage01/layout.md` のままだが、移管準備中のため**仮置き状態**。物理的な移管（index.html インライン関数の props/ 切り出し含む）は zealous-hertz と被らない別タスクで実施予定（[`../stage02/README.md`](../stage02/README.md)）。
-> 現状この最小構成実装はテストプレイ用途で**そのまま動作する**。
+> ⚠️ **構造改編に伴う注記（2026-05-19 更新）**：
+> Act 構造の確定（memory `project_scrapblitz_act_scale_aesthetic.md`）により、本ファイルが扱う「廃工場内部・柱組装飾」は**Act 1 / Stage 2（工場内部）の素材**となった。
+> ファイル名は `stage01/layout.md` のままだが、内容は **Stage 2 テスト用確定版** として 2026-05-19 から扱う（[`../stage02/README.md`](../stage02/README.md)）。
+> 起動：URL `?stage=stage02` → 本仕様で動く。
+> 物理的な移管（index.html インライン関数の props/ 切り出し、本 md の `stage02/layout.md` への移動）は zealous-hertz と被らない別タスクで実施予定。それまで本ファイルが Stage 2 の仕様を表す。
 >
-> **ステータス**：最小構成 仕様確定（2026-05-18）。実装は stage-room worktree で着手済み。
+> **ステータス**：Stage 2 テスト用確定（2026-05-19）。実装は stage-room worktree で着手済み・プレイ可能。
 > 議論の派生・揺れは `stage-layout-room.md` 側に残し、本ファイルは「実装が参照する確定版」。
 
 ## ゴール
@@ -23,24 +24,74 @@
 
 | # | 名前 | X 範囲 | 役割 | 進行ロック |
 |---|---|---|---|---|
-| S1 | 搬入口 | 0 〜 1200 | 操作練習帯。短いがウェーブ 1 個 | あり（W1） |
-| S2 | 主工場フロア | 1200 〜 3000 | 中盤。ウェーブ 2 個 + 装飾密度ピーク | あり（W2 / W3） |
-| S3 | ボス前広場 | 3000 〜 4000 | 最終ウェーブ。STAGE CLEAR トリガー | あり（W4） |
+| S1 | 搬入口 | 0 〜 1700 | 操作練習帯。短いがウェーブ 1 個 | あり（W1） |
+| S2 | 主工場フロア | 1700 〜 5100 | 中盤。ウェーブ 2 個 + 装飾密度ピーク | あり（W2 / W3） |
+| S3 | ボス前広場 | 5100 〜 6500 | 最終ウェーブ。STAGE CLEAR トリガー | あり（W4） |
+
+> ※ 2026-05-23：ウェーブ間隔を 1 画面（≒1200wu）確保するため全体を拡張（総長 4000→6500wu）。
 
 セクション境界は装飾の切れ目（柱組の警告色帯）で視覚的に伝える。プレイヤー側に「ここからは戻れない」とは伝えない（戻れる）。
 
 ## ウェーブ構成（合計 4 ウェーブ）
 
 > **命名規約**：`tier01..tier06` は**敵の強度ティア**。プレイヤー攻撃の `lv01..lv06`（ヒットレベル）とは別軸（2026-05-18 切り分け）。
+> **性格軸**：brave / cunning / coward（chars/enem01.md §性格軸 × 攻撃頻度分布 参照）。stage01 は基本動作習得ステージなので **brave 中心**で構成。
 
-| W# | セクション | トリガー x | 敵編成 | 備考 |
-|---|---|---|---|---|
-| W1 | S1 | x ≥ 800 | tier01 ×2 | チュートリアル相当。倒したら次へ |
-| W2 | S2 | x ≥ 1600 | tier01 ×3 + tier03 ×1 | 数の圧。tier03 は既存 AI を使い回す |
-| W3 | S2 | x ≥ 2500 | tier01 ×2 + tier05 ×1 | 中型混じり。tier05 が実装済みなら使う |
-| W4 | S3 | x ≥ 3400 | tier01 ×2 + tier06 ×1 | 最終。tier06 は中ボス級（死亡は通常ゴアスクラップ範囲・特殊化しない／演出幅は別所開発のゴア・クリティカルで）。**全滅で STAGE CLEAR** |
+### Stage 1 編成仕様（2026-05-19 確定）
+
+**性格分布カーブ**：brave 80% / cunning 20% / coward 0%（キャリア・leaderless は stage02 以降）
+
+| W# | セクション | trig x | spawnPattern | 敵編成（tier × 性格）| 学習目標 |
+|---|---|---|---|---|---|
+| W1 | S1 | 800 | **simultaneous** | brave tier01 × 2 | 基本振りに慣れる |
+| W2 | S2 | 2300 | **staggered**（30F おき）| brave tier01 × 3 + brave tier03 × 1 | 突進タックル初登場 |
+| W3 | S2 | 4000 | **encircle**（前 2 + 後 1）| brave tier01 × 2 + **cunning tier01 × 1 後方湧き** + tier05 | cunning 初導入・読み合い学習 |
+| W4 | S3 | 5700 | **ambush**（待ち構え演出）| brave tier01 × 2 + cunning tier01 × 1 + tier06 | 卒業試験。**全滅で STAGE CLEAR** |
 
 ※ tier03/tier05/tier06 は既存 tier01 のパラメータ差替えで代用してよい（敵 AI 拡張は Phase 3 本流の zealous-hertz 側マター）。
+
+### spawn パターン定義（共通仕様・全 stage 共有）
+
+| パターン | 内容 | 演出 |
+|---|---|---|
+| `simultaneous` | triggerX 通過で全員一斉 spawn（既存）| プレーンな登場 |
+| `staggered` | 一定間隔で順次 spawn（spawnInterval F おき or 個別 delay）| じわじわ増援・「次が来るぞ」のプレッシャー |
+| `encircle` | プレイヤーの**前後左右**に同時 spawn（Z 軸の奥/手前も活用）| **進行方向を逆走して対応**する判断要求 |
+| `ambush` | triggerX 時に既に画面端や物陰にいた設定で出現演出付き | 「待ち構えていた」感・予感のドラマ |
+| `reinforcement` | 一部撃破後に追加 spawn（threshold で発火）| 「終わったと思ったら…」のサプライズ |
+
+### wave データ拡張フォーマット（waves.js 用・実装時の出発点）
+
+```js
+{
+  id: 'W3',
+  section: 'S2',
+  triggerX: 4000,
+  spawnPattern: 'encircle',
+  spawns: [
+    { type: 'tier01', personality: 'brave',   x: 4300, z:   0, delay:  0 },
+    { type: 'tier01', personality: 'brave',   x: 4400, z: -60, delay:  0 },
+    { type: 'tier01', personality: 'cunning', xRel: -200, z: 60, delay: 30, entryFx: 'shadow' },
+    { type: 'tier05', personality: 'brave',   x: 4500, z:   0, delay: 45 },
+  ],
+}
+```
+
+**拡張フィールド**：
+- `personality`：性格軸（brave / cunning / coward）
+- `delay`：個別出現遅延（F・wave トリガーからの相対）
+- `z`：奥行き配置（-80 = 奥 / +80 = 手前）
+- `xRel`（任意）：プレイヤー位置からの相対 X（後方湧きで負値）
+- `entryFx`（任意）：登場演出（`normal` / `shadow` / `crash` / `fadein`）
+
+### 出現演出（entryFx）
+
+| fx | 演出 | 推奨パターン |
+|---|---|---|
+| `normal` | フェードイン（既存）| simultaneous |
+| `shadow` | 床に影が先に表示 → 上から落下 | ambush（上空待機）|
+| `crash` | 壁・床破壊エフェクトと共に出現 | ambush（物陰から）|
+| `fadein` | 半透明から実体化 | reinforcement |
 
 ## 進行ロックの仕様（SOR 方式・最小版）
 

@@ -23,6 +23,7 @@
 //    plyrLiftVy / plyrLiftVx                          : プレイヤー自身が浮く
 //    aerialHop / aerialHopVy / aerialHopVx            : 空中ヒット時のホップ
 //    lungeVx / lungeDecay                             : 踏み込み（前進量）
+//    lungeDelay / windupBackVx                        : 踏み込み開始 F の遅延 / 発生前の引き
 //    kb_vy_lv5 / kb_vy_lv6 / kb_vx_mult_lv*           : 被弾ベクトル上書き（lv 別）
 //    isSpecial / isStepAttack / showHitbox            : 系統フラグ
 //    hitColor / hitCount / hitstop / shake / partsAnim : 演出
@@ -302,7 +303,8 @@ export const ATTACKS = {
   // tiltX: 擬似アニメ用 rotation.x 目標値（YXZ 順・+前傾 / -後傾）— 正式アニメ実装まで
   c01_atk_01_step: {
     label:        'c01_atk_01_step (METEO ステップJ・スライディング)',
-    duration:     14, hitFrame: 4, hitDuration: 4, cancelWindow: 14,  // 20/10 → 14/14（硬直短縮＋キャンセル受付拡大）
+    // 2026-05-19：発生前硬直 +8F（ダッシュ攻撃の差し合いリスク付与）
+    duration:     22, hitFrame: 12, hitDuration: 4, cancelWindow: 14,
     damage:       8,
     rangeX:       150, rangeZ: 70, rangeY: 60,
     knockback:    18, hitstop: 5, shake: 4,
@@ -353,7 +355,8 @@ export const ATTACKS = {
   // ============================================================
   c01_sp_01: {
     label:        'c01_sp_01 (METEO 波動コマンド・弱ビーム・連続ヒット)',
-    duration:     30, hitFrame: 14, hitDuration: 6, cancelWindow: 14,
+    // 2026-05-19：発生前硬直 +10F（敵に対するリスク付与・発生に重み）
+    duration:     40, hitFrame: 24, hitDuration: 6, cancelWindow: 14,
     // === 連続ヒット：3 段（フレーム 14 / 19 / 24）===
     // ビームの「ジリジリ」感を多段で表現。最終ヒットで吹き飛び（atk_lv 3）
     isMultiHit:     true,
@@ -374,10 +377,12 @@ export const ATTACKS = {
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
-    // 踏み込み：発動瞬間に前進、敵の懐に潜り込む（2026-05-18）
-    // 2026-05-18 微調整：lungeVx 28→20（70%）、selfRecoilVx 12→2.4（20%）
+    // 踏み込み（2026-05-20 改：金剛灼火イメージ）：発動直後は windupBackVx で少し下がり、
+    //   lungeDelay フレームで初めて前進開始 → 踏み込みと攻撃発生（最初のヒット14F）をほぼ同時に。
     lungeVx:      20,                    // 20 / 0.15 ≈ 133wu 総距離（約 1.3 キャラ分）
     lungeDecay:   0.85,
+    lungeDelay:   12,                    // この elapsed F で踏み込み開始（最初のヒット 14F の直前）
+    windupBackVx:  5,                    // 発生前の小さな引き（facing 逆へ・約 28wu）
     targetOvershootGuard: true,          // comboTarget の手前 50wu で X クランプ（貫通防止）
     // 攻撃発生時の自己ノックバック（軽い反動）：hitFrame で後方にわずかに押される
     selfRecoilVx: 2.4,
@@ -387,12 +392,20 @@ export const ATTACKS = {
   // METEO 固有の挙動（VIPER 等は別の傾向にする予定）。pickSpecialAttackId で地上/空中を分岐
   c01_sp_01_air: {
     label:        'c01_sp_01_air (METEO 波動コマンド・空中版・パイルバンカー連続ヒット)',
-    duration:     26, hitFrame: 10, hitDuration: 6, cancelWindow: 22,  // cw 14→22（空中SPキャンセル受付拡張・2026-05-20）
-    // === 連続ヒット：3 段（フレーム 10 / 14 / 18）===
+    // 2026-05-19：発生前硬直 +10F（敵に対するリスク付与・発生に重み）
+    duration:     36, hitFrame: 20, hitDuration: 6, cancelWindow: 22,
+    // === 連続ヒット：3 段（フレーム 20 / 24 / 28）===
     // パイルバンカーの「ドリル」感を多段で表現。最終ヒットで叩きつけ or 超吹き飛ばし
     isMultiHit:     true,
     multiHitCount:  3,
     hitInterval:    4,    // ドリル感のためインターバル短め
+    // 多段の空中保持：中間ヒットで空中の敵をプレイヤー側へ寄せ、落下で最終段を取りこぼさない
+    multiHitVacuum: true,
+    // 空中滞空：撃った反動で直 軽く浮き上がる。沈みは入れない。
+    //   airStartVy で発射時に上方初速 → airGravFactor 緩めの正重力で減速 → ふわっと浮く弧。
+    //   通常重力で落ちると敵を取りこぼし、ビタ止まりだと無機質なため、その中間の手触り。
+    airStartVy:    3,      // 発射時の上方初速（反動で直浮き上がる）
+    airGravFactor: 0.2,    // 緩い正重力（上昇を減速・軽い浮きに収める）
     damagePerHit:   4,
     damageLastHit:  8,    // 最終 1 発：8 ダメ + atk_lv 5/6 dispatch
     damage:         16,   // 互換用（4×2 + 8 = 16 総合・旧 14 から微増）
@@ -414,9 +427,11 @@ export const ATTACKS = {
     hitColor:     0x44ccff,
     hitCount:     22,
     launcher:     false,
-    // 攻撃発生フレームで後方斜め上にホップ（パイルバンカー射出の反動表現）
-    // 空中コンボの締めとして「後方に下がって距離を取る」イメージ
+    // 後方斜め上にホップ（パイルバンカー射出の反動表現）。空中コンボの締めとして
+    //   「後方に下がって距離を取る」イメージ。aerialHopFrame で最終段(28F)の後に出す
+    //   → 連続ヒット中に自分が後退して取りこぼすのを防ぐ。
     aerialHop:    true,
+    aerialHopFrame: 30,     // 後方ホップの発火 F（最終ヒット 28F の直後）
     aerialHopVy:  14,       // 上昇成分（通常 AERIAL_HOP_V=9 より少し強め）
     aerialHopVx:  -10,      // 後方成分（負値 = facing と逆方向へ反動）
     partsAnim:    'strong_punch_r',
@@ -462,6 +477,7 @@ export const ATTACKS = {
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
+    repulseAxis:  'aerial',   // リパルスカウンター：対空軸（e02_atk_02 などに合わせる）
   },
   // 空中版：単発打ち上げ（多段は触感的に苦しかったため単発化・2026-05-14）
   //   ヒットストップは重め維持で必殺技コマンド入力余地を確保
@@ -499,7 +515,8 @@ export const ATTACKS = {
   //   旧名 c01_sp_04 / c01_sp_04_max は 2026-05-20 リネーム（_NN 連番化で stage3+ 追加に備える）
   c01_sp_04_01: {
     label:        'c01_sp_04_01 (METEO 溜めパンチ・stage1・地上版)',
-    duration:     36, hitFrame: 16, hitDuration: 6, cancelWindow: 16,
+    // 2026-05-19：発生前硬直 +8F（溜め技は溜めで補えるがリスク付与）
+    duration:     44, hitFrame: 24, hitDuration: 6, cancelWindow: 16,
     damage:       28,
     rangeX:       360, rangeZ: 260,   // Z 130→260（2026-05-15 二倍化）
     rangeY:       130,
@@ -526,7 +543,8 @@ export const ATTACKS = {
   // 空中版：地上版とほぼ同等の触感で、空中で J 長押し→離しでディスパッチされる
   c01_sp_04_01_air: {
     label:        'c01_sp_04_01_air (METEO 溜めパンチ・stage1・空中版)',
-    duration:     36, hitFrame: 16, hitDuration: 6, cancelWindow: 25,  // cw 16→25（空中SPキャンセル受付拡張・2026-05-20）
+    // 2026-05-19：発生前硬直 +8F
+    duration:     44, hitFrame: 24, hitDuration: 6, cancelWindow: 25,
     damage:       28,
     rangeX:       360, rangeZ: 260,   // Z 130→260（2026-05-15 二倍化）
     rangeY:       130,
@@ -555,7 +573,8 @@ export const ATTACKS = {
   // 将来 stage3+ を OC/チップで足す場合は c01_sp_04_03, c01_sp_04_04 ... と _NN を増やして対応。
   c01_sp_04_02: {
     label:        'c01_sp_04_02 (METEO 溜めパンチ・stage2 MAX・地上版)',
-    duration:     40, hitFrame: 18, hitDuration: 7, cancelWindow: 16,   // 振りはやや重く（+4F）／ヒット猶予広め
+    // 2026-05-19：発生前硬直 +8F
+    duration:     48, hitFrame: 26, hitDuration: 7, cancelWindow: 16,
     damage:       40,                       // 28 → 40：MAX 報酬
     rangeX:       500, rangeZ: 300,         // Z 150→300（2026-05-15 二倍化）・前方リーチ強調
     rangeY:       170,                      // 上方向もやや拡張
@@ -583,7 +602,8 @@ export const ATTACKS = {
   },
   c01_sp_04_02_air: {
     label:        'c01_sp_04_02_air (METEO 溜めパンチ・stage2 MAX・空中版)',
-    duration:     40, hitFrame: 18, hitDuration: 7, cancelWindow: 25,  // cw 16→25（空中SPキャンセル受付拡張・2026-05-20）
+    // 2026-05-19：発生前硬直 +8F
+    duration:     48, hitFrame: 26, hitDuration: 7, cancelWindow: 25,
     damage:       40,
     rangeX:       500, rangeZ: 300,   // Z 150→300（2026-05-15 二倍化）
     rangeY:       170,

@@ -14,7 +14,7 @@ let _arenaRightWall = null;  // ロック中だけ levelWalls に積む一時的
 // - 敵脱走防止の右壁を levelWalls に push（プレイヤーも越えられない）
 // - カメラ右端は arenaRightX をベースに DEAD_ZONE 分手前に設定
 //   （カメラが壁より少し手前で止まり、壁が画面右端に張り付いて見える）
-export function lockArena(arenaRightX, deadzoneX = 380) {
+export function lockArena(arenaRightX, deadzoneX = 180) {
   const wallX = arenaRightX;
   const camLimit = arenaRightX - deadzoneX;
   _isLocked = true;
@@ -25,7 +25,7 @@ export function lockArena(arenaRightX, deadzoneX = 380) {
 }
 
 // 旧 API：後方互換。playerX 起点で固定幅のアリーナを作る用途
-export function lockAtPlayer(playerX, deadzoneX = 380, arenaHalfWidth = 600) {
+export function lockAtPlayer(playerX, deadzoneX = 180, arenaHalfWidth = 600) {
   lockArena(playerX + deadzoneX + arenaHalfWidth, deadzoneX);
 }
 

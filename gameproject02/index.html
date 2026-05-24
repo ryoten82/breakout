@@ -169,17 +169,7 @@
       pointer-events: none;
     }
 
-    #phase {
-      position: absolute;
-      top: var(--sp-lg); right: var(--sp-lg);
-      padding: var(--sp-sm) var(--sp-lg);
-      background: rgba(40, 0, 40, 0.55);
-      border-right: var(--hud-accent-w) solid #ff00aa;
-      font-size: var(--fs-sm);
-      color: #ff88cc;
-      pointer-events: none;
-    }
-    /* デバッグ：最新更新日時 / リロード時刻（キャッシュ確認用） */
+    /* デバッグ：現在フェーズ / 最新更新日時 / リロード時刻（キャッシュ確認用） */
     #build-info {
       position: absolute;
       top: 56px;
@@ -204,7 +194,7 @@
 
     #fps {
       position: absolute;
-      top: 66px; right: var(--sp-lg);
+      top: var(--sp-lg); right: var(--sp-lg);   /* 右上隅（旧 PHASE バッジ跡地・build-info の上）*/
       padding: var(--sp-xs) var(--sp-lg);
       background: rgba(0, 0, 0, 0.45);
       border-right: var(--hud-accent-w) solid #446655;
@@ -285,7 +275,7 @@
     #sp-label {
       font-family: 'Courier New', monospace;
       font-size: var(--fs-md);
-      color: #00ddff;
+      color: #22cc88;
       letter-spacing: var(--ls-wide);
     }
     /* SP ストック数（ゲージの左に表示・カウントアップ・2倍サイズ） */
@@ -358,8 +348,8 @@
     #sp-bar-bg {
       width: 400px;
       height: 20px;
-      background: rgba(0, 30, 60, 0.7);
-      border: 2px solid #006688;
+      background: rgba(0, 40, 24, 0.7);
+      border: 2px solid #008855;
       border-radius: 3px;
       overflow: hidden;
       position: relative;
@@ -370,7 +360,7 @@
       top: 0;
       height: 100%;
       width: 0%;
-      background: #00ddff;
+      background: #22cc88;   /* エメラルドグリーン（pickup SP タンクと色同期）*/
       transition: width 0.05s linear, background 0.1s linear;
     }
     /* メガクラ用画面暗転オーバーレイ */
@@ -383,24 +373,6 @@
       transition: none;  /* JS で都度上書きする */
       z-index: 50;
     }
-    /* デバッグ：敵攻撃カウントダウン（敵頭上・Phase 2.4・3,2,1 で攻撃発動）*/
-    #enemy-atk-cd {
-      position: absolute;
-      transform: translate(-50%, -50%);
-      pointer-events: none;
-      z-index: 81;
-      font-family: 'Courier New', monospace;
-      font-size: 56px;
-      font-weight: bold;
-      text-shadow: 0 0 10px #000, 3px 3px 0 #000;
-      white-space: nowrap;
-      display: none;
-      line-height: 1;
-    }
-    #enemy-atk-cd.cd-3 { color: #ffee44; }
-    #enemy-atk-cd.cd-2 { color: #ff8844; }
-    #enemy-atk-cd.cd-1 { color: #ff4444; }
-
     /* デバッグ：グラブ用ゲージ（敵の頭上・本番では非表示予定）*/
     #grab-gauge {
       position: absolute;
@@ -477,6 +449,173 @@
       letter-spacing: 4px;
       text-shadow: 2px 2px 0 #000;
     }
+    /* リパルスカウンター受付インジケータ（aim フェーズ中に「危 ↑」を点滅表示） */
+    #repulse-hud {
+      display: none;
+      position: absolute;
+      top: 50%;
+      right: 140px;
+      transform: translateY(-50%);
+      font-size: 52px;
+      font-weight: 900;
+      color: #ff2222;
+      text-shadow: 0 0 20px #ff4444, 3px 3px 0 #000;
+      letter-spacing: 4px;
+      pointer-events: none;
+      z-index: 120;
+    }
+    /* OC ジェム取得の画面フラッシュ（oc-overlay より手前で光らせる） */
+    #oc-flash {
+      position: absolute;
+      inset: 0;
+      background: #e6d2ff;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 215;
+    }
+    /* OVERCLOCK カード選択オーバーレイ */
+    #oc-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.82);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      z-index: 210;
+    }
+    .oc-header {
+      font-family: 'Courier New', monospace;
+      font-size: 64px;
+      font-weight: bold;
+      color: #ff8800;
+      letter-spacing: 12px;
+      text-shadow: 0 0 24px #ff6600, 3px 3px 0 #000;
+      margin-bottom: 8px;
+    }
+    .oc-subtitle {
+      font-family: 'Courier New', monospace;
+      font-size: 18px;
+      color: #aaa;
+      letter-spacing: 4px;
+      margin-bottom: 40px;
+    }
+    #oc-cards {
+      display: flex;
+      gap: 32px;
+    }
+    .oc-card {
+      background: rgba(16, 20, 28, 0.97);
+      border: 2px solid #444;
+      border-radius: 6px;
+      padding: 28px 32px;
+      width: 200px;
+      cursor: pointer;
+      transition: border-color 0.12s, transform 0.1s, box-shadow 0.12s;
+      text-align: center;
+    }
+    /* キーボード操作とマウス操作の両方で focusIdx を同期するため、
+       :hover の見た目強調は廃止し --focused だけを active 表現とする
+       （旧仕様だと :hover と --focused が別カードに付いて 2 つアクティブに見えた） */
+    .oc-card--focused {
+      border-color: #ff8800;
+      transform: translateY(-4px) scale(1.03);
+      box-shadow: 0 8px 24px rgba(255,136,0,0.4);
+      outline: 2px solid #ffaa44;
+    }
+    /* 選択確定：強フラッシュ → 実機復帰前の一発演出 */
+    @keyframes oc-card-select-flash {
+      0%   { box-shadow: 0 8px 24px rgba(255,136,0,0.4);   border-color:#ff8800; transform: translateY(-4px) scale(1.03); }
+      18%  { box-shadow: 0 0 80px 30px rgba(255,240,170,1); border-color:#ffffff; transform: scale(1.14); }
+      100% { box-shadow: 0 0 40px 12px rgba(255,200,90,0.6); border-color:#ffcc44; transform: scale(1.06); }
+    }
+    .oc-card--selected {
+      animation: oc-card-select-flash 0.42s ease-out forwards;
+      background: rgba(58, 48, 22, 0.98);
+      outline: none;
+    }
+    .oc-card--dimmed {
+      opacity: 0.12;
+      transition: opacity 0.18s ease-out;
+    }
+    .oc-card-label {
+      font-family: 'Courier New', monospace;
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 3px;
+      margin-bottom: 10px;
+    }
+    .oc-card-desc {
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      color: #bbb;
+      letter-spacing: 1px;
+    }
+
+    /* 開始画面オーバーレイ（初回キー入力で消える・markPlayStart トリガー） */
+    #start-screen-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(5, 10, 20, 0.92);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      z-index: 250;
+      pointer-events: none;
+      opacity: 1;
+      transition: opacity 0.45s ease;
+    }
+    #start-screen-overlay.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #start-screen-overlay .start-title {
+      font-family: 'Courier New', monospace;
+      font-size: 64px;
+      font-weight: bold;
+      color: #ffee44;
+      letter-spacing: 12px;
+      text-shadow: 0 0 24px #ff8844, 4px 4px 0 #000;
+      margin-bottom: 28px;
+    }
+    #start-screen-overlay .start-msg {
+      font-family: 'Courier New', monospace;
+      font-size: 18px;
+      color: #cccccc;
+      line-height: 1.7;
+      text-align: center;
+      letter-spacing: 1px;
+      margin-bottom: 36px;
+      max-width: 720px;
+      padding: 0 24px;
+    }
+    #start-screen-overlay .start-msg .warn {
+      color: #ffaa66;
+    }
+    #start-screen-overlay .start-modes {
+      display: flex;
+      gap: 32px;
+    }
+    #start-screen-overlay .start-mode-btn {
+      pointer-events: auto;   /* オーバーレイは pointer-events:none なのでボタンで再有効化 */
+      font-family: 'Courier New', monospace;
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 4px;
+      color: #88ddff;
+      background: rgba(20, 30, 48, 0.92);
+      border: 2px solid #4488bb;
+      padding: 20px 40px;
+      cursor: pointer;
+      text-shadow: 2px 2px 0 #000;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    #start-screen-overlay .start-mode-btn:hover {
+      background: rgba(40, 72, 112, 0.96);
+      border-color: #88ddff;
+      color: #ffffff;
+    }
 
     /* ULT 用画面暗転オーバーレイ（メガクラより少し濃い） */
     #ult-darken {
@@ -498,6 +637,28 @@
     <div class="pause-text">PAUSED</div>
     <div class="pause-hint">ESC で再開</div>
   </div>
+  <!-- OVERCLOCK カード選択オーバーレイ -->
+  <div id="oc-overlay">
+    <div class="oc-header">OVERCLOCK</div>
+    <div class="oc-subtitle">技術を解放せよ</div>
+    <div id="oc-cards"></div>
+  </div>
+  <!-- OC ジェム取得の画面フラッシュ -->
+  <div id="oc-flash"></div>
+  <!-- リパルスカウンター受付インジケータ -->
+  <div id="repulse-hud"></div>
+  <!-- 開始画面：モード選択 → markPlayStart 発火 → フェードアウト -->
+  <div id="start-screen-overlay">
+    <div class="start-title">SCRAP BLITZ</div>
+    <div class="start-msg">
+      モードを選択してください。<br>
+      <span class="warn">⚠ 自動でログを収集するので連続プレイ時は注意してください。</span>
+    </div>
+    <div class="start-modes">
+      <button class="start-mode-btn" id="mode-play">通しプレイ</button>
+      <button class="start-mode-btn" id="mode-actiontest">アクションテスト</button>
+    </div>
+  </div>
   <!-- デバッグ：時計 HUD（時間の停止/スロー視認用） -->
   <div id="clock-hud">
     <svg width="64" height="64" viewBox="-32 -32 64 64">
@@ -517,8 +678,6 @@
   <div id="hud-layer">
   <!-- デバッグ：グラブゲージ（敵頭上に投影） -->
   <div id="grab-gauge"><div id="grab-gauge-fill"></div></div>
-  <!-- デバッグ：敵攻撃カウントダウン（敵頭上に投影）-->
-  <div id="enemy-atk-cd"></div>
   <div id="hud">
     <div class="title">SCRAP BLITZ</div>
     <div id="hk-move">WASD / 矢印キー: 移動</div>
@@ -533,6 +692,8 @@
     <div id="hk-ult">I / R2 / J+K+L: ULT（超必殺技）</div>
     <div id="hk-pause" class="small">ESC / START: 一時停止</div>
     <div class="small">Phase 3 — 敵 AI ステート明示化 + status_stun + 死亡フロー</div>
+    <div class="small">破壊物：CR 常時 + HP リンゴ10/バーガー4/肉1% + SP15% 抽選（接触で自動回収）</div>
+    <div class="small">チップ：白C / 緑U / 青R / 紫E / 橙L（Legendary は茶柱）ボスから 3+α 確定</div>
   </div>
 
   <!-- デバッグメニュー（右下・数字キートグル群を分離・2026-05-20）-->
@@ -554,14 +715,14 @@
   <div id="sp-hud">
     <div class="title">必殺技コマンド</div>
     <div id="hk-sp1">K（中立 / ← / →）: SP1（波動・プラズマカノン）</div>
-    <div id="hk-sp2">↑ + K: SP2（対空キャノン）</div>
+    <div id="hk-sp2">↑ + K: SP2（対空キャノン・「危↑」中に使うとリパルスカウンター）</div>
     <div id="hk-sp3">↓ + K: SP3（急降下踏みつけ）</div>
     <div id="hk-sp4">J 長押し: SP4（チャージパンチ・2 段階）</div>
   </div>
 
   <div id="debug">x: 0  z: 0  y: 0</div>
-  <div id="phase">PHASE 2.2: SP / STRONG / DASH</div>
   <div id="build-info">
+    <span class="lbl">PHASE</span><br>--<br>
     <span class="lbl">UPDATE</span><br>--<br>
     <span class="lbl">LOAD</span><br>--
   </div>
@@ -602,7 +763,7 @@
 
   <div id="dummy-hp" style="
     position: absolute;
-    bottom: var(--sp-xl); right: var(--sp-xl);
+    top: 30px; left: calc(50% + 80px);
     font-family: 'Courier New', monospace;
     font-size: var(--fs-md);
     color: #ff8888;
@@ -705,12 +866,12 @@
     import { ATTACKS, ATTACK_ATTRS, resolveAttackAttr, getHitWindowEnd, Z_CHAIN, A_CHAIN } from './src/attacks.js';
     // === CONFIG 群は src/config.js に分離（Step C-1 中核 + C-2 周辺・ESM import）===
     import {
-      PHYSICS, SP_CONFIG, ULT_CONFIG, GRAB_CONFIG, MEGA_CONFIG,
-      SPECIAL_CONFIG, SAME_ATK_CONFIG, HOMING_CONFIG, GUARD_CONFIG,
-      ENEMY_AI, DUMMY_ATK_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE,
+      PHYSICS, SP_CONFIG, ULT_CONFIG, GRAB_CONFIG, MEGA_CONFIG, UKEMI_CONFIG,
+      SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, HOMING_CONFIG, GUARD_CONFIG,
+      ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, REPULSE_CONFIG,
       CAM_CONFIG, PIXEL_SHADER, OUTLINE_CONFIG,
       CHARGE_RING_CONFIG, CHARGE_PARTICLE_CONFIG,
-      COMBO_LEVELS, getComboLevel, SLOWMO, KEY_CONFIG,
+      COMBO_LEVELS, getComboLevel, SLOWMO, KEY_CONFIG, OVERCLOCK_CARDS,
     } from './src/config.js';
     // === damage-system は src/damage-system.js に分離（Step D-1・ESM import）===
     import {
@@ -750,21 +911,63 @@
       setDeadzoneVisible, isDeadzoneVisible, getDeadzoneValues,
       resetCameraToPlayer, getActiveWallX, levelWalls,
     } from './src/camera.js';
-    // === hud-system（SP/HP/コンボ/グラブゲージ/敵CD）は src/hud-system.js に分離（Step E-2）===
+    // === hud-system（SP/HP/コンボ/グラブゲージ）は src/hud-system.js に分離（Step E-2）===
     import {
       initHudSystem,
-      updateSPGauge, updateHpHud, updateGrabGauge, updateEnemyAtkCountdown, updateEnemyAiPhaseHud, updateStatusStunHud,
+      updateSPGauge, updateHpHud, updateGrabGauge, updateEnemyAiPhaseHud, updateStatusStunHud,
+      updateEnemyPersonalityHud,
+      spawnDamageNumber, updateDamageNumbers,
+      spawnBanner, updateBanners,
+      updateRepulseHud,
     } from './src/hud-system.js';
     // === enemy-system（敵 AI / 状態遷移 / 物理 / mesh 構築）は src/enemy-system.js に分離（Step E-3）===
     import {
       initEnemySystem, buildDummyMesh, spawnDummy, updateEnemies, applyStatusStun,
       enterEnemyDying, killEnemy, initEnemyGoreBlack,
       enterEnemyExplode, handleEnemyDyingHit, detachOnePart, enterEnemyDyingBurst,
+      jumpEnemy,
     } from './src/enemy-system.js';
+    // === breakables（壊れ物プロップの破壊・パーツ飛び散り）===
+    import {
+      initBreakables, registerBreakable, tryHitBreakables, updateBreakables, getBreakables,
+      getFlyingPartsCount, hitBreakableExternal, findBreakableHitBy,
+    } from './src/breakables.js';
+    // === oc-gem（OC コンテナ破壊で出現する紫ジェム → OC 選択トリガー）===
+    import { initOcGem, spawnOcGem, updateOcGem, isOcGemActive } from './src/oc-gem.js';
+    // === cr-system（CR ドロップ＆回収・14-F テスト版）===
+    import { initCrSystem, updateCrSystem, getCrTotal, dropCR, CR_CONFIG, collectAllCR } from './src/cr-system.js';
+    import { initItemSystem, updateItemSystem, dropItem, rollAndDropFromContainer, resetItemSystem, dropBossChips } from './src/item-system.js';
+    import { ITEM_CONFIG, ITEM_KIND, CONTAINER_LOOT_TABLE, CHIP_RARITY, CHIP_DROP_TABLE_NORMAL, CHIP_DROP_TABLE_RARE_PLUS, BOSS_CHIP_DROP_CONFIG } from './src/config.js';
+    // === debug-invariants（意図しない挙動の自動検知・致命検知は常時 ON）===
+    import {
+      setKnownStates as _invSetKnownStates,
+      checkPlayer as _invCheckPlayer,
+      checkEnemy as _invCheckEnemy,
+      checkBreakable as _invCheckBreakable,
+      checkAttackToken as _invCheckAttackToken,
+      clearFrameWarnings as _invClearFrameWarnings,
+      getInvariantState as _invGetState,
+      dumpInvariants as _invDump,
+      clearInvariantHistory as _invClearHistory,
+      summarizeInvariants as _invSummarize,
+      invariantWatch as _invWatch,
+      markPlayStart as _invMarkPlayStart,
+      markInput as _invMarkInput,
+      setWatchPaused as _invSetPaused,
+      shouldWatch as _invShouldWatch,
+      dumpNewSinceLastCheck as _invDumpNew,
+    } from './src/debug-invariants.js';
+    // === damage-area（ダメージ範囲可視化：共通モジュール・AoE 攻撃や爆発範囲に転用可）===
+    import {
+      initDamageArea, addStaticArea, updateAreaPosition, removeArea,
+      spawnExpandPulse, updateAreas,
+    } from './src/fx/damage-area.js';
     // === stages（背景部屋・stage-room worktree 由来）===
     import {
       initStage01, tickStage01, getStage01DebugState,
+      initStage02, tickStage02, getStage02DebugState,
       initStage03, tickStage03, getStage03DebugState,
+      initActionTest, tickActionTest, getActionTestDebugState,
     } from './src/stages/index.js';
     // Stage 1 外周ヤード書割（プロト・オプトイン）：window.STAGE01_EXTERIOR = true で起動
     import { initExterior as initStage01Exterior } from './src/stages/stage01/exterior.js';
@@ -787,7 +990,7 @@
       processGuardInput, dirMatchesForFacing,
       processSpecialInput,
       processStrongAttackInput,
-      updateComboHoming, updatePlayer,
+      updateComboHoming, updatePlayer, syncGuardShield,
       getGameFrame, chargeRingState,
     } from './src/player-system.js';
     // === ステート定数・被弾持続F・KB ベクトル定数は src/states.js に分離（Step B・ESM import）===
@@ -845,10 +1048,10 @@
     //    #section cancel-jump       — tryCancelJump
     //    #section update-player     — updatePlayer（毎フレームのプレイヤー処理本体）
     //    #section update-enemies    — updateEnemies（敵の状態遷移・物理 / 敵 AI ループ）
-    //    #section enemy-ai-dummy    — ENEMY_AI / DUMMY_ATK_CONFIG（Phase 2.4 ダミー敵）
+    //    #section enemy-ai-dummy    — ENEMY_AI / DUMMY_ATK_CONFIG / ENEMY_ATTACKS（雑魚敵 AI）
     //    #section camera-update     — updateCamera / applyCamConfig
     //    #section hud-update        — updateSPGauge / updateHpHud / updateDebug /
-    //                                 updateClockHud / updateGrabGauge / updateEnemyAtkCountdown
+    //                                 updateClockHud / updateGrabGauge
     //    #section main-update       — update() メインディスパッチ
     //    #section render            — render / renderOutlineMask / アウトラインシェーダ
     //    #section debug-tools       — toggleHitbox / updateHitboxDebug / HUD ハイライト
@@ -1163,7 +1366,7 @@
     // ============================================================
     //  GROUND PLANE
     // ============================================================
-    const groundGeom = new THREE.PlaneGeometry(12000, 2400);
+    const groundGeom = new THREE.PlaneGeometry(16000, 2400);
     const groundMat = new THREE.MeshToonMaterial({
       map:   makeGridTexture(),
       color: 0xb8aa90,  // 廃工場床：くすんだ温色（旧 0xaaaadd 青味から変更・2026-05-20）
@@ -1186,7 +1389,7 @@
       const group = new THREE.Group();
       const pillarMat = new THREE.MeshToonMaterial({ color: 0x1a1a35 });
 
-      for (let i = -5000; i <= 5000; i += 800) {
+      for (let i = -8000; i <= 8000; i += 800) {
         const h = 600 + Math.random() * 800;
         const w = 200 + Math.random() * 200;
         const pillar = new THREE.Mesh(
@@ -1227,7 +1430,7 @@
       const braceMat  = new THREE.MeshToonMaterial({ color: 0x554433 });   // 錆色クロスブレース
       const panelMat  = new THREE.MeshToonMaterial({ color: 0x333844 });   // 背面パネル（廃工場感）
       const Z_BACK = -380;
-      const X_MIN = -3600, X_MAX = 3600, X_STEP = 600;
+      const X_MIN = -3600, X_MAX = 7800, X_STEP = 600;
       const PILLAR_H = 500;
 
       // === 背面パネル（壁面の "面" を作る・柱より少し奥に配置）===
@@ -1808,8 +2011,15 @@
       hp:               HP_CONFIG.MAX,
       maxHp:            HP_CONFIG.MAX,
       invincibleFrames: 0,    // 被弾直後の追加無敵F（damagePlayer でセット）
+      recoverGrace:     false,// 起き上がり後グレース中フラグ（攻撃ヒットで解除）
       kbVx:             0,    // 被弾中の水平 KB（敵の knockbackVx と命名分離）
       kbVy:             0,    // 被弾中の垂直 KB（down_front_* 用）
+      // === 受け身（ukemi）===
+      ukemiBuffer:      0,    // ジャンプ受け身の入力バッファ残F
+      ukemiAttempted:   false,// 当該ノックバックで受け身入力を消費済か（1被弾1回・連打対策）
+      ukemiInvuln:      false,// 受け身上昇中の無敵フラグ
+      ukemiFlashTimer:  0,    // 受け身成立の白フラッシュ残F
+      _ukemiJumpPrev:   false,// ジャンプキー押下エッジ検出用
       deadTimer:        0,    // dead state の残F
       // === 危機状態（HP 20% 以下で体から火花が散る）===
       inCrisis:         false,
@@ -2004,7 +2214,9 @@
 
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
-    const LAST_UPDATE = '2026-05-19 gc_03 triggers から c01_sp_ult01 除外：ULT 発動で gc_03 が誤発火するのを防止（ULT 演出と gc は将来別途検討）';
+    const LAST_UPDATE = '2026-05-25 pickup 拾い不可猶予（着地 or 1 秒）でドロップ広がり保証';
+    // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
+    const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     {
       const _buildInfoEl = document.getElementById('build-info');
       if (_buildInfoEl) {
@@ -2018,6 +2230,8 @@
           return s;
         };
         _buildInfoEl.replaceChildren(
+          mkLabel('PHASE'), document.createElement('br'),
+          document.createTextNode(CURRENT_PHASE), document.createElement('br'),
           mkLabel('UPDATE'), document.createElement('br'),
           document.createTextNode(LAST_UPDATE), document.createElement('br'),
           mkLabel('LOAD'), document.createElement('br'),
@@ -2049,6 +2263,7 @@
 
     // 一時停止トグルの共通エントリ（ESC / PAD START 両方から呼ぶ）
     function togglePause(source = 'KB') {
+      if (_ocPending) return;  // OC カード選択中は ESC で閉じない
       if (!PAUSE_CONFIG.allowFullPause) {
         // マルチプレイ時はここで別 UI（時間止めずにメニュー表示）を将来実装
         return;
@@ -2056,18 +2271,290 @@
       PAUSE_CONFIG.paused = !PAUSE_CONFIG.paused;
       const overlay = document.getElementById('pause-overlay');
       if (overlay) overlay.classList.toggle('show', PAUSE_CONFIG.paused);
+      // invariant 監視と連動：pause 中は監視停止 / 復帰で再開
+      _invSetPaused(PAUSE_CONFIG.paused);
       console.log(`[PAUSE] ${PAUSE_CONFIG.paused ? 'PAUSED' : 'RESUMED'} (${source})`);
     }
 
-    // 敵 AI ローテーション：攻撃許可トークン（1 体だけ enemy_attacking 遷移可能）
+    // ============================================================
+    //  OVERCLOCK（OC コンテナ破壊 → ジェム取得 → カード選択・試験実装）
+    // ============================================================
+    let _ocPending        = false; // カード選択中（true の間メインループを停止）
+    let _ocOpenTimer      = 0;     // ジェム取得フラッシュ後、OC 選択画面を開くまでの残 F
+    const _ocMods         = {};    // 適用済み変更の undo 用ベース値保存
+    let   _ocCards        = [];   // 現在表示中の OC カード配列（キー入力選択用）
+    let   _ocFocusIdx     = 0;    // フォーカス中カードの index（0 or 1）
+    const _ocPadPrev      = { left: false, right: false, select: false };  // rising-edge
+    let   _ocInputDelay   = 0;    // 開いた直後の誤入力防止タイマー（60F = 1 秒）
+    let   _ocSelecting    = false; // 選択フラッシュ演出中（再入力ロック）
+    let   _ocFlashTimer   = null;  // _selectOC の確定フラッシュ setTimeout ID（クリーンアップ用）
+
+    // OC ジェム取得：画面フラッシュ → 少し見せてから OC 選択画面へ
+    function _onOcGemAcquired() {
+      _triggerOcFlash();
+      _ocOpenTimer = 14;
+    }
+
+    // 画面全体の取得フラッシュ（#oc-flash を一瞬光らせて CSS フェードアウト）
+    function _triggerOcFlash() {
+      const f = document.getElementById('oc-flash');
+      if (!f) return;
+      f.style.transition = 'none';
+      f.style.opacity = '0.92';
+      requestAnimationFrame(() => {
+        f.style.transition = 'opacity 0.5s ease-out';
+        f.style.opacity = '0';
+      });
+    }
+
+    // SKIP カード（OVERCLOCK_CARDS には入れず UI 時点で末尾に常設）。
+    // 選択時は _applyOCEffect で何もしないルートに分岐する。
+    const _OC_SKIP_CARD = { id: 'SKIP', label: 'SKIP', desc: '今回の OC をスルー', color: '#888888' };
+
+    function showOCSelection() {
+      // OVERCLOCK_CARDS から 2 枚をランダム抽出 + SKIP を末尾に固定
+      const shuffled = [...OVERCLOCK_CARDS].sort(() => Math.random() - 0.5);
+      _ocCards = [...shuffled.slice(0, 2), _OC_SKIP_CARD];
+
+      const overlay  = document.getElementById('oc-overlay');
+      const cardsEl  = document.getElementById('oc-cards');
+      if (!overlay || !cardsEl) return;
+
+      cardsEl.innerHTML = '';
+      _ocCards.forEach((card, i) => {
+        const div = document.createElement('div');
+        div.className = 'oc-card';
+        div.innerHTML =
+          `<div class="oc-card-label" style="color:${card.color}">${card.label}</div>` +
+          `<div class="oc-card-desc">${card.desc}</div>`;
+        div.addEventListener('click', () => _selectOC(card.id));
+        // マウスホバー時にキー focusIdx を同期 → ホバー先と --focused が常に一致し
+        // 「2 つアクティブに見える」表示バグを解消（D-2）
+        div.addEventListener('mouseenter', () => {
+          if (!_ocPending || _ocSelecting) return;
+          _ocFocusIdx = i;
+          _updateOcFocus();
+        });
+        cardsEl.appendChild(div);
+      });
+
+      _ocFocusIdx = 0;
+      _updateOcFocus();
+      overlay.style.display = 'flex';
+      PAUSE_CONFIG.paused = true;
+      _invSetPaused(true);
+      _ocInputDelay = 60;  // 開いた直後 1 秒間は決定・方向入力を無効（直前の連打誤爆防止）
+      _ocPadPrev.left = false; _ocPadPrev.right = false; _ocPadPrev.select = false;
+      _ocSelecting = false;
+      _ocPending = true;
+      // 入力はメインループの inp() rising-edge に一本化（旧 keydown ハンドラは廃止）
+    }
+
+    function _updateOcFocus() {
+      const cards = document.querySelectorAll('.oc-card');
+      cards.forEach((el, i) => el.classList.toggle('oc-card--focused', i === _ocFocusIdx));
+    }
+
+    function _selectOC(cardId) {
+      if (_ocSelecting) return;   // フラッシュ演出中の二重選択を弾く
+      _ocSelecting = true;
+      // 選択カードを強フラッシュ、非選択カードはディム
+      const idx = _ocCards.findIndex(c => c.id === cardId);
+      const cardEls = document.querySelectorAll('.oc-card');
+      cardEls.forEach((el, i) => {
+        el.classList.remove('oc-card--focused');
+        if (i === idx) el.classList.add('oc-card--selected');
+        else           el.classList.add('oc-card--dimmed');
+      });
+      // フラッシュを見せてから効果適用 → オーバーレイを閉じて実機へ復帰
+      // タイマー ID を保持し、二重起動・ステージ遷移時に clearTimeout で取り消せるようにする
+      if (_ocFlashTimer) clearTimeout(_ocFlashTimer);
+      _ocFlashTimer = setTimeout(() => {
+        _ocFlashTimer = null;
+        _applyOCEffect(cardId);
+        const overlay = document.getElementById('oc-overlay');
+        if (overlay) overlay.style.display = 'none';
+        PAUSE_CONFIG.paused = false;
+        _invSetPaused(false);
+        _ocPending   = false;
+        _ocSelecting = false;
+        console.log('[OC] 発動:', cardId);
+      }, 480);
+    }
+
+    // OC 選択画面の強制クリーンアップ（ステージ遷移などで OC が中断される場合に呼ぶ）。
+    // 現状は reload 方式のため明示呼び出し箇所は無し（タイマーは page unload で破棄される）。
+    // ただし将来 in-place 遷移を導入した時の保険として用意。
+    function _disposeOCSelection() {
+      if (_ocFlashTimer) { clearTimeout(_ocFlashTimer); _ocFlashTimer = null; }
+      _ocOpenTimer = 0;
+      const overlay = document.getElementById('oc-overlay');
+      if (overlay) overlay.style.display = 'none';
+      _ocPending   = false;
+      _ocSelecting = false;
+      _ocInputDelay = 0;
+    }
+
+    function _applyOCEffect(cardId) {
+      // SKIP は何も適用せず閉じる（リスクなし・リターンなし）
+      if (cardId === 'SKIP') {
+        console.log('[OC] SKIP（適用なし）');
+        return;
+      }
+      switch (cardId) {
+        case 'POWER_UP':
+          if (!_ocMods.powerUp) {
+            _ocMods.powerUp = {};
+            for (const id of Object.keys(ATTACKS)) {
+              _ocMods.powerUp[id] = ATTACKS[id].damage;
+              ATTACKS[id].damage  = +(ATTACKS[id].damage * 1.3).toFixed(1);
+            }
+          }
+          break;
+        case 'SP_RUSH':
+          if (!_ocMods.spRush) {
+            _ocMods.spRush = SP_CONFIG.GAIN_ON_HIT;
+            SP_CONFIG.GAIN_ON_HIT = SP_CONFIG.GAIN_ON_HIT * 2;
+          }
+          break;
+        case 'REGEN_UP':
+          if (!_ocMods.regenUp) {
+            _ocMods.regenUp = SP_CONFIG.REGEN_RATE;
+            SP_CONFIG.REGEN_RATE = SP_CONFIG.REGEN_RATE * 3;
+          }
+          break;
+        case 'SP_FULL':
+          for (const p of players) { p.sp = SP_CONFIG.MAX; }
+          break;
+      }
+    }
+
+    // 攻撃カテゴリトークン（カテゴリ別に独立した1枠・同時攻撃制御）
     // - null = 誰も持っていない（次に取れる敵が攻撃発動）
     // - 敵 e への参照 = 現在 e が攻撃中・他敵は待機
     // - 解放タイミング：recover 終了 / wind キャンセル / 被弾 / 敵 OFF / ULT 終了
-    let enemyAttackToken = null;
+    let _tok_melee      = null;
+    let _tok_aerial     = null;
+    // let _tok_projectile = null;  // 将来の長距離敵用（未使用時はコメントアウト）
 
     // enemy-system 初期化（spawnDummy / updateEnemies が使う依存を注入）
     initEnemySystem({ THREE, scene, players, enemies });
     initEnemyGoreBlack(THREE);  // 黒フェード目標色（gore-scrap）の初期化
+    // damage-area 初期化（ダメージ範囲リング・パルスの共通基盤）
+    initDamageArea({ scene, THREE });
+    // debug-invariants 初期化（STATE 値セットを登録して state 妥当性検査を有効化）
+    _invSetKnownStates(STATE);
+    // 開始画面オーバーレイの制御：初回入力で dismiss + markPlayStart 発火
+    // ESC pause メニューから再開した時は別経路（既存 togglePause が _invSetPaused を呼ぶ）
+    let _startScreenShown = true;
+    // モード選択メニュー表示中フラグ：true の間はキー/クリックで自動 dismiss しない
+    //   （通しプレイ / アクションテストのボタン押下のみで閉じる）
+    let _modeMenuActive = false;
+    function _dismissStartScreen() {
+      if (!_startScreenShown) return;
+      _startScreenShown = false;
+      const ov = document.getElementById('start-screen-overlay');
+      if (ov) {
+        ov.classList.add('hide');
+        // 0.45s フェード後に display:none で完全に消す（操作妨害なし）
+        setTimeout(() => { if (ov) ov.style.display = 'none'; }, 500);
+      }
+      _invMarkPlayStart();
+    }
+    // 自動遷移直後の開始画面スキップロジックは SELECTED_STAGE 判定の後（下方）に移動した
+    // （TDZ 違反回避：_IS_AUTO_TRANSITION はそこで定義される）
+    // 既存リスナーと並行（input-system.js とは独立）
+    window.addEventListener('keydown', () => {
+      if (_startScreenShown && !_modeMenuActive) _dismissStartScreen();
+      else if (!_startScreenShown && _invWatch.active) _invMarkInput();
+    });
+    window.addEventListener('mousedown', () => {
+      if (_startScreenShown && !_modeMenuActive) _dismissStartScreen();
+      else if (!_startScreenShown && _invWatch.active) _invMarkInput();
+    });
+    // HUD バッジ：右下に [INV: N] 表示・致命カウントは赤・クリックで dump 出力
+    (function _initInvHud() {
+      const el = document.createElement('div');
+      el.id = 'inv-hud-badge';
+      el.style.cssText = [
+        'position:absolute', 'bottom:8px', 'right:8px',
+        'padding:4px 10px',
+        'background:rgba(20,20,40,0.85)',
+        'color:#aaccff', 'font-family:monospace', 'font-size:11px',
+        'border:1px solid rgba(100,160,255,0.5)',
+        'border-radius:3px',
+        'cursor:pointer', 'z-index:200',
+        'pointer-events:auto',
+      ].join(';');
+      el.textContent = 'INV　デバッグ用監視中　： 0';
+      el.title = 'クリックで履歴を console に出力';
+      el.addEventListener('click', () => {
+        console.log('[INV-HUD] dump latest 30:', _invDump(30));
+        console.log('[INV-HUD] summary:', _invSummarize());
+      });
+      const layer = document.getElementById('hud-layer') || document.body;
+      layer.appendChild(el);
+      // 毎秒バッジ更新（performance 配慮で毎フレームではなく setInterval）
+      setInterval(() => {
+        const s = _invSummarize();
+        const fatal = s.byLevel.fatal || 0;
+        const warn  = s.byLevel.warn  || 0;
+        el.textContent = `INV　デバッグ用監視中　： ${s.total}${fatal ? ` 🔴${fatal}` : ''}${warn ? ` 🟡${warn}` : ''}`;
+        // 致命があれば赤縁
+        el.style.borderColor = fatal > 0 ? 'rgba(255,80,80,0.9)' : 'rgba(100,160,255,0.5)';
+        el.style.color       = fatal > 0 ? '#ff8888' : '#aaccff';
+      }, 1000);
+    })();
+    // breakables 初期化（壊れ物プロップ：crate / canister の破壊と飛び散り）
+    // 依存：triggerHitstop（ヒット時の hitstop）/ damagePlayer / killEnemy（爆発で AoE ダメージ）
+    initBreakables({
+      scene, THREE,
+      triggerHitstop, damagePlayer, killEnemy,
+      enemies, players,
+      // 範囲可視化（canister 点火時 + 爆発時に呼ぶ）
+      damageArea: { addStaticArea, updateAreaPosition, removeArea, spawnExpandPulse },
+      // 被弾中プレイヤーで proximity 点火を誘発しないための判定
+      isHitstunState,
+      // OC コンテナ破壊 → 破壊位置に OC ジェムを出現させる
+      onOcContainerBreak: (x, y, z) => spawnOcGem(x, z),
+      // crate / 非地雷 canister 破壊：
+      //   (1) CR コイン常時ドロップ（手触り維持・従来量）
+      //   (2) lootOverride 指定があれば確定 item ドロップ（テーブル抽選を経由しない）
+      //   (3) lootTable 指定があれば専用テーブルで抽選（ボス前 'pre_boss_hp' 等）
+      //   (4) なければ kind 既定テーブル（仕様 §18：apple 10 / burger 4 / meat 1 / sp 15 / miss 70）
+      onContainerLoot: (kind, x, y, z, lootOverride, lootTable) => {
+        if (kind === 'crate')         dropCR(x, z, 80, { countMin: 2, countMax: 3 });
+        else if (kind === 'canister') dropCR(x, z, 80, { countMin: 4, countMax: 6 });
+        if (lootOverride) { dropItem(lootOverride, x, z, 80); return; }
+        rollAndDropFromContainer(lootTable || kind, x, z, 80);
+      },
+    });
+
+    // OC ジェム初期化（コンテナ破壊 → ジェム出現 → 滞在 → 取得フラッシュ → OC 選択）
+    initOcGem({ scene, THREE, onAcquire: _onOcGemAcquired });
+
+    // cr-system 初期化（CR ドロップ＆回収・14-F テスト版）
+    initCrSystem({
+      scene, THREE, players, hudLayerEl: document.getElementById('hud-layer'),
+      spawnEffect: (x, y, z) => spawnHitParticles(x, y, z, 0xffdd33, 10, { type: 'omni' }),
+    });
+
+    // item-system 初期化（HP/SP タンク pickup・仕様書 §18）
+    //   spawnEffect は (x,y,z,color) で受けて kind ごとに色を変える
+    //   onPickupSE は kind 別 SE を将来鳴らすための窓口。今は no-op（音源未配線）
+    initItemSystem({
+      scene, THREE, players,
+      spawnEffect: (x, y, z, color) => spawnHitParticles(x, y, z, color, 12, { type: 'omni' }),
+      onPickupSE: (kind) => {
+        // TODO: 種別 SE 配線（音源待ち）
+        //   HP 系 → se_item_heal / SP → se_item_sp / CR → se_item_cr
+        //   チップ → se_item_chip / レジェンダリーチップ → se_item_legendary（特別 SE 確定）
+        // kind 値： 'hp_apple' | 'hp_burger' | 'hp_meat' | 'sp_tank' | 'chip_*'
+        if (kind === 'chip_legendary') {
+          // TODO: 専用 SE（特別な音）+ 全画面フラッシュ等の演出も検討
+        }
+      },
+    });
 
     // player-system 初期化（ガード/特殊技/チャージ等）
     //   inp / spawnChargeParticle / clearChargeParticles / chargeReadyRing は既に
@@ -2089,28 +2576,86 @@
     // Phase 3-A：3 体は練習用に instantRespawn=true（HP 0 で即復活ループ・既存挙動互換）
     // 死亡フローをテストする場合は `SB.killEnemy(SB.enemies[0])` か個別に `e.instantRespawn=false` 後にダメージ
     //
-    // ステージ選択：
-    //   URL クエリ ?stage=stage03 で Stage 3 起動（リロードまたいで保持）
-    //   コンソールで切替する場合は `location.search = '?stage=stage03'` で URL ごと変更
-    //   window.STAGE01_ENABLED = false で完全 OFF（demo 敵のみ）
+    // ステージ選択（2026-05-19 改修：sessionStorage 経由の自動遷移）：
+    //   - 自動遷移（ステージクリア後）：sessionStorage._sbAutoTransition に次ステージ ID を保存して reload
+    //     起動時にこれを取り出してから削除（1 回限り）→ F5 で続行されない
+    //   - URL クエリ ?stage=stage01/02/03 で切替（直接指定・ブックマーク等）→ 尊重
+    //   - 何もなければ stage01 から（F5 リロードもここに来る）
+    //   - window.STAGE01_ENABLED = false で完全 OFF（demo 敵のみ）
     const STAGE01_ENABLED = (window.STAGE01_ENABLED !== false);
+    const _validStages = new Set(['stage01', 'stage02', 'stage03', 'actionTest']);
+    // 自動遷移直後フラグ（1 回限り消費）
+    let _autoTransitionStage = null;
+    try {
+      _autoTransitionStage = sessionStorage.getItem('_sbAutoTransition');
+      if (_autoTransitionStage) sessionStorage.removeItem('_sbAutoTransition');
+    } catch (_) { /* ignore */ }
     const _stageURLParam = new URLSearchParams(window.location.search).get('stage');
-    const SELECTED_STAGE = (_stageURLParam === 'stage03' || window.STAGE === 'stage03') ? 'stage03' : 'stage01';
-    if (!STAGE01_ENABLED) {
-      spawnDummy(280, 300, { atkCooldown:  60, instantRespawn: true });   // 一番近い：最初に攻撃
-      spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: true });   // 中：2 番目に攻撃
-      spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: true });   // 一番遠い：3 番目に攻撃
-    } else if (SELECTED_STAGE === 'stage03') {
-      initStage03({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
-    } else {
-      initStage01({ spawnDummy, players, enemies, scene, THREE });
+    const _candidate = _autoTransitionStage || _stageURLParam || window.STAGE;
+    const SELECTED_STAGE = _validStages.has(_candidate) ? _candidate : 'stage01';
+    // stage runner（wave-runner）が「現在ステージ」を参照できるようグローバルに公開
+    // → URL ベースから SELECTED_STAGE 参照に切替（sessionStorage 経由で URL に依存しないため）
+    const _IS_AUTO_TRANSITION = !!_autoTransitionStage;
+
+    // 選択されたステージを実際に初期化する（モード選択ボタン or 即時起動から呼ぶ）。
+    //   stage01 外周書割（exterior）も stage01 起動時にここで併せて適用する。
+    let _activeStageId = null;
+    let _stageInited = false;
+    function _initStageById(id) {
+      _activeStageId = id;
+      window.__SB_SELECTED_STAGE = id;
+      if (id === 'actionTest') {
+        initActionTest({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
+      } else if (id === 'stage03') {
+        initStage03({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
+      } else if (id === 'stage02') {
+        initStage02({ spawnDummy, players, enemies, scene, THREE });
+      } else {
+        initStage01({ spawnDummy, players, enemies, scene, THREE });
+        if (window.STAGE01_EXTERIOR !== false) {
+          initStage01Exterior({ scene, THREE, backWallPillars, bgElements, ground });
+        }
+      }
+      _stageInited = true;
+    }
+    // オーバーレイを即閉じ + markPlayStart（モード選択を挟まない経路用）
+    function _skipStartOverlay() {
+      _startScreenShown = false;
+      const _ov = document.getElementById('start-screen-overlay');
+      if (_ov) _ov.style.display = 'none';
+      _invMarkPlayStart();
     }
 
-    // Stage 1 外周ヤード書割（プロト・Stage 1 のみ・デフォルト ON）
-    // Stage 3（中央プラント）は工場内部テーマなので exterior 適用しない
-    // 内部装飾に戻したい時は window.STAGE01_EXTERIOR = false; をリロード前に設定
-    if (SELECTED_STAGE === 'stage01' && window.STAGE01_EXTERIOR !== false) {
-      initStage01Exterior({ scene, THREE, backWallPillars, bgElements, ground });
+    // 開始画面でモード選択を出すか：プレーンな初回ロードのみ。
+    //   自動遷移・URL ?stage= 指定・window.STAGE 指定はメニューを挟まず直接起動。
+    const _showModeMenu = STAGE01_ENABLED && !_IS_AUTO_TRANSITION
+      && !_stageURLParam && !window.STAGE;
+
+    if (!STAGE01_ENABLED) {
+      // デモ敵のみ（ステージ無し）
+      spawnDummy(280, 300, { atkCooldown:  60, instantRespawn: true });
+      spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: true });
+      spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: true });
+      window.__SB_SELECTED_STAGE = 'stage01';
+      _skipStartOverlay();
+    } else if (_showModeMenu) {
+      // 開始画面のモード選択：ボタン押下でステージ init → オーバーレイを閉じる
+      _modeMenuActive = true;
+      window.__SB_SELECTED_STAGE = 'stage01';  // 暫定（選択で上書きされる）
+      const _pickMode = (id) => {
+        if (_stageInited) return;
+        _modeMenuActive = false;
+        _initStageById(id);
+        _dismissStartScreen();
+      };
+      const _btnPlay = document.getElementById('mode-play');
+      const _btnTest = document.getElementById('mode-actiontest');
+      if (_btnPlay) _btnPlay.addEventListener('click', () => _pickMode('stage01'));
+      if (_btnTest) _btnTest.addEventListener('click', () => _pickMode('actionTest'));
+    } else {
+      // 自動遷移 / URL 直接指定：モード選択を挟まず即起動
+      _initStageById(SELECTED_STAGE);
+      _skipStartOverlay();
     }
 
     // 互換用エイリアス（既存コードで dummy を直接参照していた所が残っていれば動く保険）
@@ -2138,14 +2683,19 @@
     // hit-engine 初期化（依存注入：THREE / scene / DOM / players）
     initHitEngine({ THREE, scene, comboEl, comboNumEl, players });
 
-    // hit-engine 関数群に渡す共有 ctx（enemyAttackToken は index.html のグローバル let、gameFrameCounter は player-system.js 内）
+    // hit-engine 関数群に渡す共有 ctx（attackTokens は index.html のグローバル let 群、gameFrameCounter は player-system.js 内）
     const hitCtx = {
       enemies,
-      enemyAttackToken: {
-        get: () => enemyAttackToken,
-        set: (v) => { enemyAttackToken = v; },
+      attackTokens: {
+        melee:  { get: () => _tok_melee,  set: v => { _tok_melee  = v; } },
+        aerial: { get: () => _tok_aerial, set: v => { _tok_aerial = v; } },
       },
       getFrame: () => getGameFrame(),
+      // 壊れ物プロップへの並行ヒット判定（依存注入で循環 import 回避）
+      breakablesHitFn: tryHitBreakables,
+      // ピンボール衝突で使う：壊れ物検索 + 強制ヒット / 演出ヘルパ
+      breakablesApi: { findBreakableHitBy, hitBreakableExternal },
+      spawnHitParticles, triggerHitstop, triggerShake,
     };
 
     // attack-engine 初期化
@@ -2186,7 +2736,7 @@
         for (const e of enemies) {
           e.frozenByUlt = false;
         }
-        enemyAttackToken = null;  // ULT 終了で攻撃トークンも全解放（次の敵が即攻撃可）
+        _tok_melee = null; _tok_aerial = null;  // ULT 終了で攻撃トークンも全解放（次の敵が即攻撃可）
       },
     });
 
@@ -2235,8 +2785,6 @@
 
     // hud-system 初期化（DOM refs はここで一括解決）
     {
-      const _enemyAtkCdTemplate = document.getElementById('enemy-atk-cd');
-      if (_enemyAtkCdTemplate) _enemyAtkCdTemplate.style.display = 'none';
       initHudSystem({
         THREE,
         players, enemies,
@@ -2301,7 +2849,7 @@
       // 敵 1 体モード（テスト用：enemies[1] 以降を非アクティブ化）
       if (e.code === 'Digit5') {
         TEST_CONFIG.singleEnemyMode = !TEST_CONFIG.singleEnemyMode;
-        enemyAttackToken = null;  // モード切替時にトークン解放（停止した敵が持ち続けないように）
+        _tok_melee = null; _tok_aerial = null;  // モード切替時にトークン解放（停止した敵が持ち続けないように）
         const _hkSingleEl = document.getElementById('hk-single-enemy');
         if (_hkSingleEl) {
           _hkSingleEl.textContent = `5: 敵 1 体モード [${TEST_CONFIG.singleEnemyMode ? 'ON' : 'OFF'}]`;
@@ -2412,7 +2960,7 @@
         spawnDummy(480, 300, { atkCooldown: 150, instantRespawn: _imm, maxHp: _maxHp });
         spawnDummy(680, 300, { atkCooldown: 240, instantRespawn: _imm, maxHp: _maxHp });
         // 攻撃トークン解放（旧敵が保持していた場合の保険）
-        enemyAttackToken = null;
+        _tok_melee = null; _tok_aerial = null;
         console.log('[RESPAWN]', `3 体（instantRespawn=${_imm}, maxHp=${_maxHp}）`);
       }
       // 敵 aiPhase 頭上ラベル ON/OFF（Phase 3 デバッグ）
@@ -2624,9 +3172,25 @@
     function update() {
       players.forEach(updatePlayer);
       updateEnemies(hitCtx);
-      // ステージ tick：選択されたステージのみ走らせる
-      if (SELECTED_STAGE === 'stage03') tickStage03();
-      else tickStage01();
+      // 壊れ物プロップ：フラッシュ進行・飛び散りパーツ物理
+      updateBreakables();
+      // OC ジェム：湧き上がり → 滞在 → 取得演出
+      updateOcGem();
+      // OC ジェム取得フラッシュ後、ディレイ経過で OC 選択画面を開く
+      if (_ocOpenTimer > 0 && --_ocOpenTimer === 0) showOCSelection();
+      // CR ドロップ：散らばり物理 + 磁力吸い寄せ + 回収（14-F テスト版）
+      updateCrSystem();
+      // アイテム pickup（HP/SP タンク）：CR と同じパイプライン
+      updateItemSystem();
+      // ダメージ範囲可視化（リング寿命・パルス拡張）
+      updateAreas();
+      // ステージ tick：init 済みのステージのみ走らせる（モード選択中は未 init）
+      if (_stageInited) {
+        if (_activeStageId === 'stage03') tickStage03();
+        else if (_activeStageId === 'stage02') tickStage02();
+        else if (_activeStageId === 'actionTest') tickActionTest();
+        else tickStage01();
+      }
       updateParticles();
       updateSuperFlightTrails(players, enemies);
       players.forEach(p => updateDashTrail(p));
@@ -2642,10 +3206,20 @@
       players.forEach(maybeReleaseMegaInvincibility);
       updateClockHud();
       updateGrabGauge();
-      updateEnemyAtkCountdown();
       updateEnemyAiPhaseHud();
       updateStatusStunHud();
+      updateEnemyPersonalityHud();
+      updateDamageNumbers();
+      updateBanners();
+      updateRepulseHud();
       updateDebug();
+      // === debug-invariants：意図しない挙動を自動検知（致命は常時 ON / 警告/情報は SB.DEBUG_INVARIANTS）===
+      const _invFrame = getGameFrame();
+      for (const _p of players)  _invCheckPlayer(_p, _invFrame);
+      for (const _e of enemies)  _invCheckEnemy(_e, _invFrame);
+      for (const _b of getBreakables()) _invCheckBreakable(_b, _invFrame);
+      for (const _tok of Object.values(hitCtx.attackTokens)) _invCheckAttackToken(_tok.get(), _invFrame);
+      _invClearFrameWarnings(_invFrame);
     }
 
 
@@ -2918,6 +3492,24 @@
       }
 
       pollGamepad();
+      // OC 選択中のゲームパッド入力（ポーズ中でも走らせる）
+      if (_ocPending && !_ocSelecting) {
+        if (_ocInputDelay > 0) _ocInputDelay--;
+        // 左右移動キー（A/D・矢印）とゲームパッド D-pad を統合判定
+        const _left   = inp('ArrowLeft')  || inp('KeyA');
+        const _right  = inp('ArrowRight') || inp('KeyD');
+        const _sel    = inp('Space') || inp('KeyJ') || inp('KeyK');
+        if (_ocInputDelay <= 0) {
+          const _n = _ocCards.length;   // 通常 3（OC 2 + SKIP）。将来 4 枚化等にも追従
+          if (_left  && !_ocPadPrev.left)   { _ocFocusIdx = (_ocFocusIdx - 1 + _n) % _n; _updateOcFocus(); }
+          if (_right && !_ocPadPrev.right)  { _ocFocusIdx = (_ocFocusIdx + 1) % _n;       _updateOcFocus(); }
+          if (_sel   && !_ocPadPrev.select) { _selectOC(_ocCards[_ocFocusIdx].id); }
+        }
+        // delay 中も prev を更新しておく（delay 終了直後に押しっぱなしで即発火しないよう）
+        _ocPadPrev.left   = _left;
+        _ocPadPrev.right  = _right;
+        _ocPadPrev.select = _sel;
+      }
       updateHudHighlight();
       updateHitboxDebug();
       // 一時停止：update を完全スキップ・render のみ継続（時間停止）
@@ -2932,7 +3524,13 @@
       // ← hitstop 中に派生 K 入力できないと、ユーザーの「間が空く」体感が出る
       if (fxState.hitstopTimer > 0) {
         fxState.hitstopTimer--;
+        // updatePlayer がスキップされるため、hitstop 中は敵攻撃 hitbox を強制非表示にする。
+        // （updatePlayer の hitbox 可視化は updateEnemies より前に走るため、
+        //   hitstop 開始フレームの hitbox 状態が freeze されて残り続けるのを防ぐ）
+        for (let _i = 0; _i < enemies.length; _i++) _getEnemyHitboxMesh(_i).visible = false;
         for (const _p of players) {
+          // ガードシールド：updatePlayer がスキップされるため hitstop 中も同期を維持
+          syncGuardShield(_p);
           if (isHitstunState(_p)) continue;
           processMegaCrashUltInput(_p);
           processSpecialInput(_p);
@@ -3037,7 +3635,7 @@
       scene, camera, bgCamera, renderer, players, enemies,
       CHARACTER_ASSETS,
       PHYSICS, CAM_CONFIG, applyCamConfig,
-      SP_CONFIG, GUARD_CONFIG, MEGA_CONFIG, ULT_CONFIG, GRAB_CONFIG, SPECIAL_CONFIG, SAME_ATK_CONFIG, OUTLINE_CONFIG,
+      SP_CONFIG, GUARD_CONFIG, MEGA_CONFIG, ULT_CONFIG, GRAB_CONFIG, UKEMI_CONFIG, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, OUTLINE_CONFIG,
       CHARGE_RING_CONFIG, CHARGE_PARTICLE_CONFIG, HOMING_CONFIG, ATTACKS, STATE, Z_CHAIN, A_CHAIN,
       KEY_CONFIG,
       PIXEL_SHADER,  // ピクセルシェーダー設定（P キーで ENABLED トグル / RT_W・RT_H で解像度調整）
@@ -3052,15 +3650,109 @@
       // 壁システム（コンソールから状態確認用・levelWalls に push して静的壁追加可能）
       getActiveWallX, levelWalls,
       // ステージ デバッグ：window.SB.stage() で現在ステージの内部状態を覗ける
-      stage: () => SELECTED_STAGE === 'stage03' ? getStage03DebugState() : getStage01DebugState(),
+      stage: () => {
+        if (_activeStageId === 'actionTest') return getActionTestDebugState();
+        if (_activeStageId === 'stage03') return getStage03DebugState();
+        if (_activeStageId === 'stage02') return getStage02DebugState();
+        return getStage01DebugState();
+      },
+      // ステージ デバッグ詳細：各ステージの内部状態を個別に覗く / 手動 tick / 選択中ステージ ID
+      stageDbg: {
+        get selected() { return _activeStageId; },
+        s1: getStage01DebugState,
+        s2: getStage02DebugState,
+        s3: getStage03DebugState,
+        sAT: getActionTestDebugState,
+        tickS1: tickStage01,
+        tickS2: tickStage02,
+        tickS3: tickStage03,
+        tickAT: tickActionTest,
+      },
+      // 敵スポーン（コンソールから直接呼べる）。stages から呼ばれる同じ関数
+      // 例: SB.spawnDummy(1500, 0, { maxHp: 80, instantRespawn: false })
+      spawnDummy,
+      // 壊れ物プロップのデバッグ API（参照・強制ヒット・状態確認）
+      //   SB.breakables.list()         → 配置中の breakable mesh 一覧
+      //   SB.breakables.flyingCount()  → 飛び散り中のパーツ数
+      //   SB.breakables.hit(p, atk)    → プレイヤー attack 範囲でヒット判定（通常経路）
+      //   SB.breakables.kill(mesh)     → 範囲判定なしで強制ヒット（外部スクリプト用）
+      breakables: {
+        list:        getBreakables,
+        flyingCount: getFlyingPartsCount,
+        hit:         tryHitBreakables,
+        kill:        hitBreakableExternal,
+        find:        findBreakableHitBy,
+      },
       // ダッシュ（例: SB.startDash(SB.players[0], 1, 0) で右ダッシュ強制発動）
       startDash,
       // Phase 2.4 被ダメージシステム
       HP_CONFIG, damagePlayer, revivePlayer, isHitstunState, resetCombo,
-      DUMMY_ATK_CONFIG, ENEMY_AI, tryHitPlayer,
+      // デバッグ：1 行でプレイヤーに被弾発火（やられステート開発支援）
+      //   SB.debugHit({ lv: 1 })                      → 地上 lv1 ヒット（後方から）
+      //   SB.debugHit({ lv: 4, fromX: -100 })         → lv4 打ち上げ、左から
+      //   SB.debugHit({ lv: 1, jumpFirst: true })     → 一度ジャンプさせてから空中 lv1（fall_loop 検証用）
+      debugHit: (opts = {}) => {
+        const p = players[0];
+        if (!p) return false;
+        const lv         = opts.lv ?? 1;
+        const knockback  = opts.knockback ?? 30;
+        const damage     = opts.damage ?? 3;
+        const launchVy   = opts.launchVy;
+        const fromX      = (opts.fromX !== undefined) ? opts.fromX : (p.x + 100);
+        if (opts.jumpFirst) { p.y = 120; p.vy = 0; p.isGrounded = false; }
+        p.invincibleFrames = 0; p.invincible = false;
+        const atk = { damage, atk_lv: lv, knockback };
+        if (launchVy !== undefined) atk.launchVy = launchVy;
+        return damagePlayer(p, atk, { x: fromX, y: p.y, z: p.z });
+      },
+      // デバッグ：敵にジャンプさせる（空中被弾の同期検証用）
+      //   SB.debugEnemyJump()                    → enemies[0] が垂直ジャンプ
+      //   SB.debugEnemyJump({ idx: 1, vx: 6 })   → 2 体目を前進ジャンプ
+      //   SB.debugEnemyJump({ dash: true })      → ダッシュジャンプ版
+      debugEnemyJump: (opts = {}) => {
+        const e = enemies[opts.idx ?? 0];
+        if (!e) return false;
+        return jumpEnemy(e, opts);
+      },
+      jumpEnemy,
+      spawnDamageNumber,   // デバッグ：SB.spawnDamageNumber(x,y,z,amount,{crit}) で数値ポップ生成
+      spawnBanner,         // デバッグ：SB.spawnBanner('TEST') でバナー表示テスト
+      REPULSE_CONFIG,      // デバッグ：SB.REPULSE_CONFIG でパラメータ確認・調整
+      // デバッグ：ゲーム更新を手動で N フレーム進める（rAF 停止＝タブ非可視時の検証用）
+      gameStep: (n = 1) => { for (let i = 0; i < n; i++) update(); },
+      DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_AI, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, tryHitPlayer,
+      // CR ドロップ：SB.dropCR(x,z) で手動ばらまき / SB.getCrTotal() で所持確認 / SB.CR_CONFIG で調整
+      dropCR, getCrTotal, CR_CONFIG,
+      // アイテム pickup：SB.dropItem('hp_apple',x,z) / SB.rollAndDropFromContainer('crate',x,z)
+      //   ITEM_CONFIG.HP_APPLE.HEAL_RATIO 等で実機調整可能。CONTAINER_LOOT_TABLE で確率調整。
+      dropItem, rollAndDropFromContainer, ITEM_CONFIG, ITEM_KIND, CONTAINER_LOOT_TABLE,
+      // チップドロップ：SB.dropBossChips(x,z) でボス確定 3+α 個ドロップ
+      //   レアリティ調整：SB.CHIP_RARITY / SB.CHIP_DROP_TABLE_NORMAL / SB.BOSS_CHIP_DROP_CONFIG
+      dropBossChips, CHIP_RARITY, CHIP_DROP_TABLE_NORMAL, CHIP_DROP_TABLE_RARE_PLUS, BOSS_CHIP_DROP_CONFIG,
       TEST_CONFIG, PAUSE_CONFIG, GAME_SPEED,
       // Phase 3：敵 aiPhase 頭上ラベル ON/OFF（数字キー 8）
       DEBUG_AI: false,
+      // 意図しない挙動を自動検知（致命は常時 ON / 警告・情報は本フラグで切替）
+      //   SB.DEBUG_INVARIANTS = true でコンソールに [INV-P/E/B/T] 警告を出す
+      DEBUG_INVARIANTS: false,
+      // invariant API：状態確認・履歴取得・サマリ・履歴クリア
+      //   SB.invariantState()        現状（フラグ ON/OFF・今フレームの警告件数）
+      //   SB.dumpInvariants(50)      最新 50 件の履歴（snapshot 込み）
+      //   SB.summarizeInvariants()   レベル別・タグ別の集計
+      //   SB.clearInvariantHistory() 履歴を全消去
+      invariantState:        _invGetState,
+      dumpInvariants:        _invDump,
+      summarizeInvariants:   _invSummarize,
+      clearInvariantHistory: _invClearHistory,
+      // 監視セッション管理（/loop 自動取得用・コンテキスト消費抑制）
+      //   SB.invariantWatch          { active, playStartTime, lastInputTime, ... }
+      //   SB.invariantShouldWatch()  /loop が監視継続すべきか判定（false なら即終了）
+      //   SB.invariantDumpNew()      前回以降の新規警告のみ取得（差分・節約）
+      //   SB.markPlayStart()         明示的に監視開始（タイトル画面 PLAY ボタン等から）
+      invariantWatch:        _invWatch,
+      invariantShouldWatch:  _invShouldWatch,
+      invariantDumpNew:      _invDumpNew,
+      markPlayStart:         _invMarkPlayStart,
       // Phase 3-B：mortal モード（数字キー 9）。ON で HP 0 が即復活 → 死亡フローへ
       MORTAL_MODE: false,
       // Phase 3：ステータス系（status_stun）。コンソールから付与テスト：
@@ -3084,11 +3776,23 @@
       //   SB.GORE_CONFIG.PART_BREAK_PROB = 0.4             // ヒット時の抽選確率（既定 1.0）
       //   SB.handleEnemyDyingHit(SB.enemies[0], x, y, z, 1) // ヒット模擬（パーティクル＋抽選）
       detachOnePart: (e, facing) => detachOnePart(e, facing),
-      enterEnemyExplode: (e, facing) => enterEnemyExplode(e, facing),
+      enterEnemyExplode: (e, facing) => enterEnemyExplode(e, hitCtx, facing),
       handleEnemyDyingHit,
       // Phase 3-C：lv06 即きりもみ→爆散（黒フェードを飛ばす直行ルート・コンソール強制発火用）
       //   SB.enterEnemyDyingBurst(SB.enemies[0])   // テストで強制発火（通常は lv06 攻撃ヒット時に自動）
       enterEnemyDyingBurst: (e, facing) => enterEnemyDyingBurst(e, hitCtx, facing),
+      // OVERCLOCK（OC コンテナ破壊 → ジェム出現 → 滞在 → 取得フラッシュ → 選択画面）
+      //   SB.oc.show()          → カード選択を強制発動（デバッグ用）
+      //   SB.oc.gem(x, z)       → 任意座標に OC ジェムを出現（フロー確認用）
+      //   SB.OVERCLOCK_CARDS    → カードテーブル確認
+      OVERCLOCK_CARDS,
+      oc: { show: showOCSelection, apply: _applyOCEffect, gem: (x, z) => spawnOcGem(x ?? 0, z ?? 0) },
+      // ステージクリア演出が OC 完了を待つために使う
+      isOcActive: () => isOcGemActive() || _ocPending || _ocOpenTimer > 0,
+      // GAME CLEAR でフィールド上の全コインを強制マグネット吸引
+      collectAllCR,
+      // ステージボスの撃破時に OC ジェムを直接 spawn（wave-runner から呼ぶ）
+      spawnOcGem: (x, z) => spawnOcGem(x ?? 0, z ?? 0),
     };
     console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / pad / mega crash / ult) loaded.');
     console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG / SB.KEY_CONFIG');

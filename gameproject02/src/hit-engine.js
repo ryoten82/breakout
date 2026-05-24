@@ -26,6 +26,7 @@ import {
   ENEMY_DOWN_SUPER_FRAMES, ENEMY_DOWN_RAKKA_FRAMES, ENEMY_DOWN_BOUND_FRAMES,
   ENEMY_DOWN_BURST_START_FRAMES,
   ENEMY_KB01_FRAMES, ENEMY_KB02_FRAMES, ENEMY_KB_AIR_FRAMES, ENEMY_KB03_FRAMES,
+  ENEMY_STAGGER_FRAMES, ENEMY_BLOCK_HIT_FRAMES,
   ENEMY_AIRBORNE_Y_THRESHOLD,
   KB_BURST_VY, KB_BURST_VX, KB_BURST_VX_DECAY, KB_BURST_SPIN_RATE, KB_BURST_GRAV_MULT,
   KB_LV03_VY, KB_LV03_VX_MULT,
@@ -34,10 +35,11 @@ import {
 } from './states.js';
 import {
   COMBO_LEVELS, getComboLevel,
-  PHYSICS, SP_CONFIG, HOMING_CONFIG, DUMMY_ATK_CONFIG, SPECIAL_CONFIG, SAME_ATK_CONFIG,
+  PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG, MIDBOSS_SHIELD_CONFIG, REPULSE_CONFIG,
 } from './config.js';
 import { resolveAttackAttr } from './attacks.js';
-import { handleEnemyDyingHit, enterEnemyDyingBurst } from './enemy-system.js';
+import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak } from './enemy-system.js';
+import { spawnDamageNumber, spawnBanner } from './hud-system.js';
 
 let _THREE = null;
 let _scene = null;
@@ -489,13 +491,15 @@ export function updateSuperFlightTrails(...entitySets) {
 //  敵被弾判定（Step D-2c-1）
 //
 //  index.html から ctx を受け取って動作：
-//    ctx = { enemies, enemyAttackToken: { get, set } }
+//    ctx = { enemies, attackTokens: { melee, aerial, ... } }
 //
-//  enemyAttackToken は index.html 側のグローバル let を保持するため
+//  attackTokens は index.html 側のグローバル let 群を保持するため
 //  関数引数経由で getter/setter を渡す。
 // ============================================================
 export function tryHitEnemies(p, attack, ctx) {
-  const { enemies, enemyAttackToken } = ctx;
+  const { enemies, attackTokens, breakablesHitFn } = ctx;
+  // 並行して壊れ物プロップにも同じ攻撃 range を当てる（依存注入：循環 import 回避）
+  if (breakablesHitFn) breakablesHitFn(p, attack);
   const facing = p.facing;
   let anyHit = false;
   for (const e of enemies) {
@@ -512,6 +516,7 @@ export function tryHitEnemies(p, attack, ctx) {
     }
     if (e.ultBurstInvincible) { if (_DBG_SP2AIR) console.log('[SP2AIR] skip ultBurstInvincible'); continue; }
     if (e.lateralCombatInvincible) { if (_DBG_SP2AIR) console.log('[SP2AIR] skip lateralCombatInvincible'); continue; }
+    if (e.dodgeInvuln) continue;  // #14-B：バックステップ回避の前半無敵
     const dx = e.x - p.x;
     const dz = e.z - p.z;
     if (_DBG_SP2AIR) console.log(`[SP2AIR] candidate state=${e.state} dx=${dx.toFixed(0)} dz=${dz.toFixed(0)} dy=${(e.y-p.y).toFixed(0)} pY=${p.y.toFixed(0)} eY=${e.y.toFixed(0)} facing=${facing} eyAbove=${e.y > 10}`);
@@ -566,13 +571,58 @@ export function tryHitEnemies(p, attack, ctx) {
       return Math.max(v, SAME_ATK_CONFIG.MIN_KB_RATIO);
     })();
     const _scaledDamage = Math.max(SAME_ATK_CONFIG.MIN_DAMAGE, Math.round(attack.damage * _sameAtkDmgScale));
-    // ヒット
-    e.hp = Math.max(0, e.hp - _scaledDamage);
-    // 最終ヒッター記録（ゴア・クリティカル抽選で参照・enterEnemyDying 内で profile lookup に使う）
-    // lv は実効値（敵が空中なら atk_lv_air、地上なら atk_lv）。variants の atk_lv マッチで使う
+    // 実効 atk_lv：敵が空中なら atk_lv_air、地上なら atk_lv（variants マッチ・ガード判定・stagger に共用）
     const _hitLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
       ? attack.atk_lv_air
       : (attack.atk_lv ?? 1);
+    // ガード成立判定（#14-B）：enemy_guard 中・前面・atk_lv ≤ guardStrength のヒットはガードで軽減。
+    //   guardStrength 超 / 背面はガード崩れ → 通常 dispatch（下流の lv 振り分け）に流す。
+    //   e.guardStrength が未設定の場合は 3（enem01/enem02 相当）
+    const _hitFromFront = (Math.sign(p.x - e.x) === e.facing) || (p.x === e.x);
+    const _guarded = (e.state === STATE.enemy_guard) && _hitFromFront && _hitLv <= (e.guardStrength ?? 3);
+    // midboss01 盾判定（盾未破壊のときのみ）：
+    //   前面接地ヒット → 本体完全防御だが盾 HP は削れる。
+    //   背面 or プレイヤー空中（上から）ヒット → 本体に通常ダメージ + 盾 HP を大きく削る。
+    const _shieldActive     = (e.enemyType === 'midboss01') && !e.shieldBroken;
+    const _hitFromAbove     = !p.isGrounded;   // プレイヤーが浮いている＝上から
+    const _shieldFrontBlock = _shieldActive && _hitFromFront && !_hitFromAbove;
+    // クリティカル判定：カウンターヒット（敵の攻撃発生中 wind/active）は確定。
+    //   それ以外は基礎確率。ガード成立時はクリ無効。敵 state は直後に上書きされるため先に判定。
+    const _isCounterHit = (e.state === STATE.enemy_attacking &&
+                           (e.atkPhase === 'wind' || e.atkPhase === 'active'));
+    // リパルスカウンター判定：aim フェーズ中（repulseWindow=true）の敵に、軸が一致する SP を当てた場合。
+    //   確定クリ＋即死（雑魚）＋専用バナー＋パーティクル。SP コスト消費なし（腕前ゲート不要）。
+    const _repulseMatch = e.repulseWindow && attack.repulseAxis &&
+      ENEMY_ATTACKS[e.curAtkId]?.repulseAxis === attack.repulseAxis;
+    if (_repulseMatch) e.repulseWindow = false;   // ウィンドウ消費（1 回限り）
+    const _isCrit = !_guarded && (_repulseMatch || _isCounterHit || (Math.random() < CRIT_CONFIG.BASE_CHANCE));
+    let _finalDamage = _isCrit
+      ? Math.round(_scaledDamage * CRIT_CONFIG.DAMAGE_MULT)
+      : _scaledDamage;
+    if (_repulseMatch) _finalDamage = Math.max(_finalDamage, e.hp);   // 雑魚は即死保証
+    if (_guarded) _finalDamage = Math.max(1, Math.round(_finalDamage * ENEMY_REACT_CONFIG.GUARD_DAMAGE_MULT));
+    // midboss01 盾ダメージ振り分け：盾 HP を削り、前面接地ヒットは本体ダメージを 0 にする。
+    //   盾削りはクリ補正前の素ダメージ基準（クリ補正は本体専用）。
+    let _shieldDmg = 0;
+    if (_shieldActive) {
+      const _SC = MIDBOSS_SHIELD_CONFIG;
+      const _chipMult = _shieldFrontBlock ? _SC.CHIP_FRONT_MULT : _SC.CHIP_BACK_MULT;
+      _shieldDmg = Math.max(1, Math.round(_scaledDamage * _chipMult));
+      e.shieldHp = Math.max(0, e.shieldHp - _shieldDmg);
+      if (_shieldFrontBlock) _finalDamage = 0;   // 前面接地：本体完全防御
+    }
+    // ヒット
+    e.hp = Math.max(0, e.hp - _finalDamage);
+    // 与ダメージ数値ポップ（本体ダメージ＝橙/白、盾ダメージ＝水色を別行で）
+    if (_finalDamage > 0) spawnDamageNumber(e.x, e.y + 110, e.z, _finalDamage, { crit: _isCrit });
+    if (_shieldDmg > 0)   spawnDamageNumber(e.x, e.y + 150, e.z, _shieldDmg, { shield: true });
+    // リパルスカウンター成立演出（バナー＋紫パーティクルバースト）
+    if (_repulseMatch) {
+      const _RC = REPULSE_CONFIG;
+      spawnBanner('REPULSE!', { frames: _RC.BANNER_FRAMES, color: '#cc88ff', fontSize: 62 });
+      spawnHitParticles(e.x, e.y + 100, e.z, _RC.FLASH_COLOR, _RC.FLASH_COUNT, { type: 'omni' });
+    }
+    // 最終ヒッター記録（ゴア・クリティカル抽選で参照・enterEnemyDying 内で profile lookup に使う）
     // wasGrounded：被弾"前"の接地状態を記録（gc 抽選の requireGrounded 判定で使用）。
     //   この時点ではまだ攻撃の vy/knockback が dispatch されてないので、ここで取れば「打ち上げ前」の値が取れる。
     e.lastHitter = { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: _hitLv, wasGrounded: e.y <= ENEMY_AIRBORNE_Y_THRESHOLD };
@@ -588,8 +638,68 @@ export function tryHitEnemies(p, attack, ctx) {
         continue;
       }
     }
+    // ガード成立（#14-B）：通常 dispatch をスキップして enemy_block_hit へ。
+    //   ダメージは上で軽減済み・軽 KB・青パーティクル。コンボカウントは増やさない（防御は中立）。
+    if (_guarded) {
+      e.hitFlashTimer = 5;
+      e.frozenByUlt   = false;
+      e.fallDir       = (e.x !== p.x) ? Math.sign(e.x - p.x) : p.facing;
+      e.state         = STATE.enemy_block_hit;
+      e.downTimer     = ENEMY_BLOCK_HIT_FRAMES;
+      e.knockbackVx   = e.fallDir * ENEMY_REACT_CONFIG.GUARD_KB_VX;
+      e.kbDecay       = 0.8;
+      applyHitInitialPitch(e);
+      spawnHitParticles(e.x + e.facing * 50, e.y + 90, e.z, 0x66ccff, 12);  // 青＝ガード
+      triggerHitstop(3);
+      anyHit = true;
+      continue;
+    }
+    // midboss01 盾破壊：盾 HP がこのヒットで 0 到達 → SHIELD BREAK → enraged_intro。
+    //   ダメージ（本体/盾）は上で適用済み。通常 dispatch をスキップ（state は確定済み）。
+    if (_shieldActive && e.shieldHp === 0 && !e.shieldBroken) {
+      triggerShieldBreak(e, ctx);
+      bumpCombo(e);   // 「割った」達成感のためコンボ加点
+      spawnHitParticles(e.x, e.y + 100, e.z, 0xffdd44, 28, { type: 'omni' });
+      anyHit = true;
+      continue;
+    }
+    // midboss01 前面ブロック（盾はまだ割れていない）：のけぞらせず軽後退のみ。
+    //   コンボ加点なし（防御は中立）・通常 dispatch スキップ＝本体被弾モーションに入らない。
+    if (_shieldFrontBlock) {
+      e.hitFlashTimer    = 4;
+      e.frozenByUlt      = false;
+      e.shieldBlockTimer = Math.max((e.shieldBlockTimer ?? 0), 10);  // ガードドーム表示
+      e.knockbackVx      = Math.sign(e.x - p.x || p.facing) * (ENEMY_REACT_CONFIG.GUARD_KB_VX * 0.5);
+      e.kbDecay          = 0.8;
+      // ガードカウンターカウント（累積が閾値に達したら即反撃フラグ）
+      e.shieldBlockCount  = (e.shieldBlockCount ?? 0) + 1;
+      e._blockDecayTimer  = 0;   // ブロックが続いている間は減衰しない
+      if (e.shieldBlockCount >= (MIDBOSS_SHIELD_CONFIG.GUARD_COUNTER_THRESHOLD ?? 3)) {
+        e.guardCounterArmed = true;
+      }
+      spawnHitParticles(e.x + e.facing * 60, e.y + 100, e.z, 0xaaccff, 10);  // 盾ヒット火花
+      triggerHitstop(3);
+      triggerShake(2, 6);
+      anyHit = true;
+      continue;
+    }
+    // スーパーアーマー：berserker のアクティブフェーズ中のみ（wind/recover は無効）
+    if (e.superArmor > 0 && e.atkPhase === 'active' && (e.saHp ?? 0) > 0) {
+      e.saHp--;
+      if (e.saHp > 0) {   // 装甲残り有り → 通常リアクションをスキップ
+        e.hitFlashTimer = 6;
+        spawnHitParticles(e.x, e.y + 100, e.z, 0xff8800, 14, { type: 'omni' });  // 橙：SA 吸収
+        anyHit = true;
+        continue;
+      }
+      // SA 破壊（最後の 1 枚剥がれ）→ 通常被弾反応へ落下
+      spawnHitParticles(e.x, e.y + 120, e.z, 0xff4400, 22, { type: 'omni' });
+      triggerHitstop(4);
+    }
     e.hitFlashTimer = 7;
     e.frozenByUlt   = false;  // ULT 凍結解除（ヒットを受けた敵だけ時間が進み始める）
+    // 連続被弾累積（#14-B）：閾値超で次の小フリンチが enemy_stagger に降格（中ボス以降で主に発火）
+    e.accumStagger = (e.accumStagger ?? 0) + 1;
     // 被弾時：倒れ方向を記録。IDLEのみ向きスナップ（FALL/DOWN/RISE中は回転競合のため不変）
     e.fallDir = (e.x !== p.x) ? Math.sign(e.x - p.x) : p.facing;
     if (e.state === STATE.wait01) {
@@ -778,6 +888,15 @@ export function tryHitEnemies(p, attack, ctx) {
       e.state === STATE.down_rakka_loop ||
       e.state === STATE.down_bound_start ||
       e.state === STATE.enemy_attacking ||  // Phase 2.4：敵 AI 攻撃中もカウンター被弾を受け付ける
+      // 移動中（walk_fwd/back/dash）の敵も被弾を受け付ける（#14：被弾 state へ正しく遷移）
+      e.state === STATE.walk_fwd || e.state === STATE.walk_back || e.state === STATE.dash ||
+      // 防御/よろめき行動中（#14-B）。enemy_guard はガード成立判定、他は被弾再ディスパッチ可
+      e.state === STATE.enemy_dodge || e.state === STATE.enemy_guard ||
+      e.state === STATE.enemy_stagger || e.state === STATE.enemy_block_hit ||
+      e.state === STATE.enraged_intro ||  // 興奮モーション中も被弾可（ロアを潰せる・#14-C）
+      // 自発ジャンプ中の敵も被弾を受け付ける（空中ヒット → knockback_air01 等・プレイヤーと同期）
+      e.state === STATE.jump_start || e.state === STATE.jump_loop || e.state === STATE.jump_end ||
+      e.state === STATE.jump_d_start || e.state === STATE.jump_d_loop || e.state === STATE.jump_d_end ||
       // 壁バウンス中の super 飛行は通常ダウンへの再ディスパッチを許可（2026-05-18）
       (e.state === STATE.down_super_loop && e.isWallBounce)
     ) {
@@ -785,9 +904,13 @@ export function tryHitEnemies(p, attack, ctx) {
       if (e.state === STATE.enemy_attacking) {
         e.atkPhase     = null;
         e.atkTimer     = 0;
-        e.atkCooldown  = DUMMY_ATK_CONFIG.cooldownFrames;
+        e.atkCooldown  = (ENEMY_ATTACKS[e.curAtkId] ?? ENEMY_ATTACKS.e01_atk_01).cooldownFrames;
         e.hitDelivered = false;
-        if (enemyAttackToken.get() === e) enemyAttackToken.set(null);  // トークン解放
+        if (attackTokens) {
+          const _cat = e.curAtkCategory ?? 'melee';
+          const _tok = attackTokens[_cat];
+          if (_tok && _tok.get() === e) _tok.set(null);  // トークン解放
+        }
       }
       // === atk_lv 駆動の被弾ステート振り分け ===
       // 再発火許可ステート：
@@ -860,12 +983,23 @@ export function tryHitEnemies(p, attack, ctx) {
         e.downTimer = Math.round(ENEMY_KB_AIR_FRAMES * (attack.kbTimeMult ?? 1.0));
         e.kbFromMega = false;  // 通常ヒット時はメガクラフラグをクリア
       } else if (lv === 2) {
-        e.state    = STATE.knockback02;
-        e.downTimer = Math.round(ENEMY_KB02_FRAMES * (attack.kbTimeMult ?? 1.0));
+        // #14-B：連続被弾の累積が閾値超なら小フリンチを enemy_stagger に降格
+        if (e.accumStagger > e.staggerThreshold) {
+          e.state    = STATE.enemy_stagger;
+          e.downTimer = ENEMY_STAGGER_FRAMES;
+        } else {
+          e.state    = STATE.knockback02;
+          e.downTimer = Math.round(ENEMY_KB02_FRAMES * (attack.kbTimeMult ?? 1.0));
+        }
       } else {
-        // lv01 / それ以外（未指定）地上 → knockback01
-        e.state    = STATE.knockback01;
-        e.downTimer = Math.round(ENEMY_KB01_FRAMES * (attack.kbTimeMult ?? 1.0));
+        // lv01 / それ以外（未指定）地上 → knockback01（accumStagger 閾値超で enemy_stagger）
+        if (e.accumStagger > e.staggerThreshold) {
+          e.state    = STATE.enemy_stagger;
+          e.downTimer = ENEMY_STAGGER_FRAMES;
+        } else {
+          e.state    = STATE.knockback01;
+          e.downTimer = Math.round(ENEMY_KB01_FRAMES * (attack.kbTimeMult ?? 1.0));
+        }
       }
       applyHitInitialPitch(e);
     }
@@ -924,9 +1058,11 @@ export function tryHitEnemies(p, attack, ctx) {
       // カウンタも空中敵相手では加算しない（次に地上敵を殴った時にリセットされた状態に近い扱い）
       if (!targetAirborne) p.aerialHopCount = count + 1;
     }
-    // 演出
-    triggerHitstop(attack.hitstop);
-    triggerShake(attack.shake, attack.shake * 2 + 4);
+    // 演出（クリティカルはヒットストップ・シェイクを上乗せ）
+    const _hitstop = (attack.hitstop ?? 0) + (_isCrit ? CRIT_CONFIG.HITSTOP_BONUS : 0);
+    const _shake   = (attack.shake ?? 0) + (_isCrit ? CRIT_CONFIG.SHAKE_BONUS : 0);
+    triggerHitstop(_hitstop);
+    triggerShake(_shake, _shake * 2 + 4);
     // ヒット演出：攻撃ごとに色・パーティクル数を変える（差別化）
     const hitColor = attack.hitColor ?? 0xffee44;
     const hitCount = attack.hitCount ?? 10;
@@ -972,6 +1108,8 @@ export function tryHitEnemies(p, attack, ctx) {
 //  Step D-2c-2 で分離。gameFrameCounter は ctx.getFrame() 経由で参照。
 // ============================================================
 export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
+  // multiHit の最初のヒットだけ壊れ物にも当てる（連打で何度も破壊シーケンス起動を防ぐ）
+  if (!isLastHit && ctx.breakablesHitFn) ctx.breakablesHitFn(p, attack);
   const { enemies } = ctx;
   const facing = p.facing;
   const _DBG = window.SB?.DEBUG_MULTIHIT && p.attackId === 'c01_sp_01_air';
@@ -980,6 +1118,16 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     if (_DBG) {
       for (const e of enemies) if (e.isAlive) console.log(`[MH FINAL pre] e.state=${e.state} y=${e.y.toFixed(0)} dx=${(e.x-p.x).toFixed(0)} sfCount=${e.superFlightCount}`);
     }
+    const _DBG_SP2 = window.SB?.DEBUG_SP2 && p.attackId === 'c01_sp_02';
+    if (_DBG_SP2) {
+      for (const e of enemies) {
+        if (!e.isAlive) { console.log('[SP2 LAST] skip: !isAlive'); continue; }
+        const dx = e.x - p.x, dz = e.z - p.z, dy = e.y - p.y;
+        const alreadyHit = p.multiHitNextHit && p.multiHitNextHit.has(e);
+        const spCount = (e.specialHitBy && typeof e.specialHitBy.get === 'function') ? (e.specialHitBy.get('c01_sp_02') ?? 0) : 0;
+        console.log(`[SP2 LAST] state=${e.state} dx=${dx.toFixed(0)} dz=${dz.toFixed(0)} dy=${dy.toFixed(0)} pY=${p.y.toFixed(0)} eY=${e.y.toFixed(0)} alreadyHit=${alreadyHit} spCount=${spCount} dyingInv=${e.dyingInvincible} dodgeInvuln=${e.dodgeInvuln}`);
+      }
+    }
     const savedDamage = attack.damage;
     const savedHitstop = attack.hitstop;
     attack.damage = attack.damageLastHit ?? (attack.damagePerHit * 2);
@@ -987,6 +1135,7 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
       attack.hitstop = attack.hitstopLastHit;
     }
     const hit = tryHitEnemies(p, attack, ctx);
+    if (_DBG_SP2) console.log(`[SP2 LAST] tryHitEnemies returned hit=${hit}`);
     attack.damage = savedDamage;
     attack.hitstop = savedHitstop;
     if (_DBG) {
@@ -1031,8 +1180,11 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
       const _lv = (attack.atk_lv_down !== undefined) ? attack.atk_lv_down : (attack.atk_lv ?? 1);
       if (_lv !== 5 && _lv !== 7) continue;
     }
-    // ヒット適用（中間）
-    e.hp = Math.max(0, e.hp - (attack.damagePerHit ?? 5));
+    // ヒット適用（中間）。クリティカル判定は最終ヒット（tryHitEnemies 経由）に集約し、
+    //   多段の中間ヒットは通常表示（毎ティック抽選で過剰クリにしない）。
+    const _midDamage = attack.damagePerHit ?? 5;
+    e.hp = Math.max(0, e.hp - _midDamage);
+    spawnDamageNumber(e.x, e.y + 110, e.z, _midDamage, {});
     // 最終ヒッター記録（マルチヒットでも毎発上書き：最終ヒットの attackId が記録される）
     // 中間ヒットの lv は便宜上 attack.atk_lv（最終ヒットの想定値）を使う
     const _midLv = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD && attack.atk_lv_air !== undefined)
@@ -1075,6 +1227,7 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     if (!_preserveState) {
       e.state    = STATE.knockback01;
       e.downTimer = flinchFrames;
+      e.dodgeInvuln = false;  // dodge 中被弾：state が切り替わるので無敵フラグも解除（最終段が抜けるバグ対策）
       applyHitInitialPitch(e);
     }
     // 中間ノックバック：敵を facing 方向に少し押して「引き連れる」形にする
@@ -1083,6 +1236,17 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     const iKbVx = attack.intermediateKnockbackVx ?? Math.max(6, Math.floor((attack.knockback ?? 40) * 0.12));
     e.knockbackVx = facing * iKbVx;
     e.kbDecay     = attack.intermediateKbDecay ?? 0.92;  // 緩い減衰で「ライドアロング」
+    // 多段ヒットの空中保持（multiHitVacuum）：空中の敵を毎ヒット プレイヤー側へ寄せ、
+    //   落下・横ズレで最終段を取りこぼさない（ドリルで「つかんで」いるイメージ）。
+    if (attack.multiHitVacuum && e.y > ENEMY_AIRBORNE_Y_THRESHOLD) {
+      e.vy = 0;                       // 落下を止めて次ヒットまで滞空
+      e.peakHangTimer = 0;
+      e.launcherAirborne = false;
+      e.knockbackVx = 0;              // 中間ノックバックの押し出しを打ち消す
+      e.y += (p.y - e.y) * 0.5;       // 高さをプレイヤーへ寄せる
+      e.z += (p.z - e.z) * 0.4;
+      e.x += ((p.x + facing * 90) - e.x) * 0.4;  // 前方保持距離へ寄せる
+    }
     // 演出：中間ヒットでも hitstop / shake をやや重めに（攻撃の手応えを優先）
     const hitColor = attack.hitColor ?? 0xffee44;
     spawnHitParticles(e.x, e.y + 60, e.z, hitColor,
@@ -1110,7 +1274,7 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
 //  - 衝突したら受け手を atk_lv 3（down_front_start）にし、投げ手はその場で停止
 //  - ヒットストップ強め（FF 風）・1 回当てたら投擲弾フラグ消費
 //
-//  Step D-2c-3 で分離。enemyAttackToken は ctx 経由。
+//  Step D-2c-3 で分離。attackTokens は ctx 経由。
 // ============================================================
 const THROW_CHAIN_CONFIG = {
   hitRangeX:    80,   // 衝突判定距離（X 軸）
@@ -1126,7 +1290,7 @@ const THROW_CHAIN_CONFIG = {
 };
 
 export function tryThrownChainHit(thrower, ctx) {
-  const { enemies, enemyAttackToken } = ctx;
+  const { enemies, attackTokens } = ctx;
   if (!thrower.thrownProjectile) return;
   if (!thrower.isAlive) return;
   // 着地したら投擲弾フラグ解除
@@ -1177,7 +1341,9 @@ export function tryThrownChainHit(thrower, ctx) {
     other.atkTimer    = 0;
     other.atkCooldown = 30;
     other.hitDelivered = false;
-    if (enemyAttackToken.get() === other) enemyAttackToken.set(null);
+    const _cat2 = other.curAtkCategory ?? 'melee';
+    const _tok2 = attackTokens && attackTokens[_cat2];
+    if (_tok2 && _tok2.get() === other) _tok2.set(null);
     applyHitInitialPitch(other);
 
     // 投げ手：投擲弾フラグ消費 + 軽くストップ（連鎖防止・1 ヒットで消費）

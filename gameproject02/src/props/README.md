@@ -11,7 +11,8 @@ src/props/
 │   ├── floor-tile.js      # 45 度斜め平行線床（makeGridTexture 移管先）
 │   ├── conveyor.js        # コンベア
 │   ├── press.js           # プレス機
-│   └── drum.js            # ドラム缶
+│   ├── crate.js           # 黄色コンテナ（壊れ物・即爆散）
+│   └── gas-canister.js    # ガスボンベ（壊れ物・点火→爆発）
 ├── shared/                 # テーマ非依存（破壊エフェクト共通形状等）
 └── ...
 ```

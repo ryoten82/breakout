@@ -1,10 +1,9 @@
 // Stage 3 ランナー — プロト第一手（核機能のみ）
 // 仕様：stages/stage03/deep-design.md
-//
-// MVP として：
-//   - 4 mob waves + 1 BOSS の発火・進行ロック・全滅検知
-//   - セクション境界マーカー（central-plant.js）
-//   - 既存 stage01 の汎用モジュール（progress-lock / wave-hud / clear）を流用
+// ロジック本体は ../wave-runner.js（共通）。本ファイルは stage03 固有の装飾と
+// boss wave 用の spawn opts 拡張だけを与える薄いアダプタ。
+// Section A（下りエレベーター降下戦）は elevator.js に分離し、
+// isElevatorActive() が true の間 wave 進行を抑制する。
 //
 // 別タスクで追加予定：
 //   - 量産ライン（雑魚モデルをグレーアウト＋コンベア）
@@ -13,119 +12,97 @@
 //   - ボス intro 演出シーケンス（6 秒・暗→バツン→ブザー→赤→WARNING→せり上がり）
 
 import { STAGE03_WAVES, ENEMY_TEMPLATES, STAGE03_META } from './waves.js';
-import { lockArena, release as releaseLock } from '../stage01/progress-lock.js';
-import { initWaveHud, updateWaveHud } from '../stage01/wave-hud.js';
-import { triggerStageClear, isStageCleared } from '../stage01/clear.js';
 import { addCentralPlant } from './central-plant.js';
 import { addSfBackdrop } from './sf-backdrop.js';
-import { levelWalls } from '../../camera.js';
+import { createWaveRunner } from '../wave-runner.js';
+import { placeBreakables } from '../../props/place-props.js';
+import { initElevator, tickElevator, isElevatorActive, getElevatorDebugState } from './elevator.js';
+import { initBossIntro, startBossIntro, tickBossIntro, isBossIntroActive, getBossIntroDebugState } from './boss-intro.js';
 
-let _spawnDummy = null;
+// BOSS wave の triggerX（イントロ起動判定用にキャッシュ）
+const _BOSS_TRIGGER_X = STAGE03_WAVES.find(w => w.isBoss)?.triggerX ?? Infinity;
+
+// stage03 デコ生成で確保する参照（boss-intro が台座「せり上がり」に使う）
+let _platformGroup = null;
 let _players = null;
-let _enemies = null;
+let _bossIntroStarted = false;
 
-let _nextWaveIndex = 0;
-let _activeWave = null;
-let _activeWaveEnemies = [];
-let _started = false;
+// 壊れ物配置：序盤コンテナ → 後半ボンベ＋地雷。OC コンテナはボス前（D 区画）に固定 1 個。
+// 地雷はボンベと効果が似るため x 位置を重ねない（地雷 x と canister x は別系列）。
+const _STAGE3_PROPS = [
+  // W2–W3 合間（序盤：コンテナ）
+  { type: 'crate',        x: 2050, z: -20 },
+  { type: 'crate',        x: 2200, z:  25 },
+  { type: 'crate',        x: 2350, z:   0 },
+  { type: 'canister',     x: 2600, z: -15 },
+  // W3–W4 合間（ボンベ＋地雷の導入・密度緩和でボンベは 1 個）
+  { type: 'canister',     x: 3750, z: -20 },
+  { type: 'crate',        x: 4000, z:   0 },
+  { type: 'mine',         x: 4200, z: -30 },
+  { type: 'mine',         x: 4350, z:  30 },
+  // W4–BOSS（D 区画）：地雷散布＋ボス前 OC コンテナ。mine と canister は x で 250+ 離す。
+  { type: 'mine',         x: 5100, z: -20 },
+  { type: 'mine',         x: 5300, z:  25 },
+  { type: 'oc-container', x: 5550, z:   0 },
+  { type: 'canister',     x: 5800, z: -20 },
+  { type: 'mine',         x: 6050, z:  30 },
+];
+
+const _runner = createWaveRunner({
+  waves: STAGE03_WAVES,
+  meta: STAGE03_META,
+  enemyTpl: ENEMY_TEMPLATES,
+  decorate: (deps) => {
+    if (deps.scene && deps.THREE) {
+      addSfBackdrop({
+        scene: deps.scene,
+        THREE: deps.THREE,
+        backWallPillars: deps.backWallPillars,
+        bgElements: deps.bgElements,
+        ground: deps.ground,
+      });
+      const cp = addCentralPlant(deps.scene, deps.THREE);
+      _platformGroup = cp && cp.platformGroup;
+      placeBreakables(deps.scene, deps.THREE, _STAGE3_PROPS);
+    }
+  },
+  spawnOptsForWave: (wave) => ({ _isBossWave: wave.isBoss === true }),
+});
 
 export function initStage03(deps) {
-  _spawnDummy = deps.spawnDummy;
   _players = deps.players;
-  _enemies = deps.enemies;
-  initWaveHud();
-  // ステージ範囲の静的壁を登録（左端 x=0 / 右端 x=6000）
-  const hasLeft  = levelWalls.some(w => w.side === 'left'  && w.x === STAGE03_META.worldXMin);
-  const hasRight = levelWalls.some(w => w.side === 'right' && w.x === STAGE03_META.worldXMax);
-  if (!hasLeft)  levelWalls.push({ side: 'left',  x: STAGE03_META.worldXMin });
-  if (!hasRight) levelWalls.push({ side: 'right', x: STAGE03_META.worldXMax });
-  // SF 背景骨格（既存柱組を非表示にして青系パネル＋LED に差し替え＋床も SF 化）
-  if (deps.scene && deps.THREE) {
-    addSfBackdrop({
-      scene: deps.scene,
-      THREE: deps.THREE,
-      backWallPillars: deps.backWallPillars,
-      bgElements: deps.bgElements,
-      ground: deps.ground,
-    });
-    // セクション境界マーカー
-    addCentralPlant(deps.scene, deps.THREE);
-  }
-  _nextWaveIndex = 0;
-  _activeWave = null;
-  _activeWaveEnemies = [];
-  _started = true;
-  updateWaveHud(0, STAGE03_META.totalWaves, false);
-}
-
-function isEnemyDead(e) {
-  return !e || e.removed === true || e.isAlive === false;
-}
-
-function spawnWave(wave) {
-  _activeWaveEnemies = [];
-  for (const s of wave.spawns) {
-    const tpl = ENEMY_TEMPLATES[s.type] || {};
-    const opts = {
-      maxHp: tpl.maxHp,
-      instantRespawn: false,
-      _stageEnemyType: s.type,
-      _isBossWave: wave.isBoss === true,
-    };
-    const e = _spawnDummy(s.x, s.z ?? 0, opts);
-    _activeWaveEnemies.push(e);
-  }
+  _bossIntroStarted = false;
+  _runner.init(deps);
+  // Section A：下りエレベーター降下戦を起動（ステージ開始時点で乗車済み）
+  initElevator(deps);
+  // ボス登場演出：台座参照を渡して埋設状態に初期化（イントロまで地中）
+  initBossIntro({ scene: deps.scene, THREE: deps.THREE, platformGroup: _platformGroup });
 }
 
 export function tickStage03() {
-  if (!_started) return;
-  if (!_players || _players.length === 0) return;
-  const p = _players[0];
-  if (!p) return;
-
-  // 1) 未発火ウェーブの triggerX 到達チェック
-  if (!_activeWave && _nextWaveIndex < STAGE03_WAVES.length) {
-    const wave = STAGE03_WAVES[_nextWaveIndex];
-    if (p.x >= wave.triggerX) {
-      _activeWave = wave;
-      // アリーナ右端 = ウェーブの最右端スポーン + 余白
-      const maxEnemyX = wave.spawns.reduce((m, s) => Math.max(m, s.x), 0);
-      lockArena(maxEnemyX + 200);
-      // TODO: BOSS の場合はここで boss-intro シーケンスを呼ぶ（別タスク）
-      spawnWave(wave);
-      updateWaveHud(_nextWaveIndex + 1, STAGE03_META.totalWaves, true);
-    }
+  // Section A：下りエレベーター降下戦中は通常ウェーブ進行を抑制
+  if (isElevatorActive()) {
+    tickElevator();
+    return;
   }
-
-  // 2) 発火中ウェーブの全滅判定
-  if (_activeWave) {
-    const allDead = _activeWaveEnemies.every(isEnemyDead);
-    if (allDead) {
-      const wasLastWave = (_nextWaveIndex === STAGE03_WAVES.length - 1);
-      _activeWave = null;
-      _activeWaveEnemies = [];
-      _nextWaveIndex++;
-      releaseLock();
-      if (wasLastWave) {
-        if (!isStageCleared()) triggerStageClear();
-        updateWaveHud(STAGE03_META.totalWaves, STAGE03_META.totalWaves, false);
-      } else {
-        updateWaveHud(_nextWaveIndex, STAGE03_META.totalWaves, false);
-      }
-    }
+  // BOSS triggerX 到達でボス登場演出を一度だけ起動
+  const p = _players && _players[0];
+  if (!_bossIntroStarted && p && p.x >= _BOSS_TRIGGER_X) {
+    _bossIntroStarted = true;
+    startBossIntro();
   }
+  // 演出中は wave-runner を止める（BOSS spawn を遅延 → 演出後に通常 trigger）
+  if (isBossIntroActive()) {
+    tickBossIntro();
+    return;
+  }
+  _runner.tick();
 }
 
-// デバッグ用：window.SB.stage03() で内部状態を覗ける
 export function getStage03DebugState() {
   return {
-    nextWaveIndex: _nextWaveIndex,
-    activeWaveId: _activeWave ? _activeWave.id : null,
-    activeEnemyStates: _activeWaveEnemies.map(e => ({
-      x: e?.x, hp: e?.hp, isAlive: e?.isAlive, dying: e?.dying,
-      dyingPhase: e?.dyingPhase, removed: e?.removed,
-    })),
-    playerX: _players?.[0]?.x,
-    started: _started,
+    elevator: getElevatorDebugState(),
+    bossIntro: getBossIntroDebugState(),
+    ..._runner.getDebug(),
   };
 }
