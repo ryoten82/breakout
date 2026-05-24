@@ -112,12 +112,13 @@ export const SP_CONFIG = {
   MAX_STOCKS:       5,     // 最大ストック数（Marvel vs Capcom 方式の LEVEL）
   INITIAL_STOCKS:   0,     // 戦闘開始時のストック数（2026-05-27 3→0：必殺技は溜めてから）
   REGEN_RATE:       0.01,  // フレームごとの自然回復量（攻撃優先設計：逃げ回りだけでは遅い）
-  // ヒット獲得量（2026-05-27 半減 + 攻撃インスタンス単位化）
-  //   - 通常技（c01_atk_*）：1.5（旧 3 の半分）
-  //   - 必殺技（c01_sp_*）：0.5（さらに少なく・必殺技はそれ自体で見せ場が完結するため）
-  //   - hit-engine 側で 1 攻撃インスタンスにつき 1 回のみ加算（複数敵巻き込みでも一定量）
-  GAIN_ON_HIT:          1.5,
-  GAIN_ON_HIT_SPECIAL:  0.5,
+  // ヒット獲得量
+  //   - 通常技・特殊技（c01_atk_*）：通常の 70%
+  //   - 必殺技（c01_sp_*）：通常の 50%（それ自体が見せ場のため控えめ）
+  //   - 死体殴り（e.dying=true）：各値の 50%（hit-engine 側で乗算）
+  //   - hit-engine 側で 1 攻撃インスタンスにつき 1 回のみ加算
+  GAIN_ON_HIT:          1.05,   // 旧 1.5 × 0.70
+  GAIN_ON_HIT_SPECIAL:  0.25,   // 旧 0.5  × 0.50
   GAIN_ON_TAKEN:    3,     // 被弾1発あたりの獲得量
   GAIN_ON_GUARDED:  2,     // ガード成立1発あたりの獲得量
   MEGA_CRASH_COST:  20,    // メガクラッシュ消費（= 1 ストック）
@@ -1432,16 +1433,18 @@ export const KEY_CONFIG = {
 //  - 効果は ATTACKS / SP_CONFIG などのランタイム値を直接書き換え
 //  - id で applyOCEffect が分岐。color は選択 UI のアクセントカラー
 // ============================================================
+// rarity: チップと同じ 5 段階（'common'|'uncommon'|'rare'|'epic'|'legendary'）。
+// weight: 出現重み（デフォルト 10）。小さいほど出づらい。現テストでは weight のみ機能する。
 export const OVERCLOCK_CARDS = [
-  { id: 'POWER_UP',  label: 'POWER UP',  desc: '攻撃力 ×1.3',     color: '#ff5533' },
-  { id: 'SP_RUSH',   label: 'SP RUSH',   desc: 'SP 獲得 ×2',      color: '#22aaff' },
-  { id: 'REGEN_UP',  label: 'REGEN UP',  desc: 'SP 回復 ×3',      color: '#44dd88' },
-  { id: 'SP_FULL',   label: 'SP FULL',   desc: 'SP ゲージ即時満タン', color: '#ffcc22' },
+  { id: 'POWER_UP',  label: 'POWER UP',  desc: '攻撃力 ×1.3',        color: '#ff5533', rarity: 'common',    weight: 10 },
+  { id: 'SP_RUSH',   label: 'SP RUSH',   desc: 'SP 獲得 ×2',         color: '#22aaff', rarity: 'rare',      weight:  5 },
+  { id: 'REGEN_UP',  label: 'REGEN UP',  desc: 'SP 回復 ×3',         color: '#44dd88', rarity: 'epic',      weight:  3 },
+  { id: 'SP_FULL',   label: 'SP FULL',   desc: 'SP ゲージ即時満タン', color: '#ffcc22', rarity: 'uncommon',  weight: 10 },
   // ===== 延焼ビルド（積層型・取得順を強制：点火 → 延焼 → 連鎖爆発）=====
   //  - 点火を取らないと「延焼」「連鎖爆発」はプールに出ない
   //  - 延焼を取らないと「連鎖爆発」はプールに出ない
   //  - フィルタは index.html showOCSelection 内の _filterOcPool が担当
-  { id: 'IGNITE',      label: '点火',     desc: '必殺技 / ゴアクリ撃破で敵に延焼を付与', color: '#ff7733' },
-  { id: 'SPREAD',      label: '延焼',     desc: '延焼中の敵から周囲へ炎が広がる',         color: '#ff5522' },
-  { id: 'CHAIN_BLAST', label: '連鎖爆発', desc: '延焼中の敵が倒れると爆発し周囲を延焼',   color: '#ff2200' },
+  { id: 'IGNITE',      label: '点火',     desc: '必殺技 / ゴアクリ撃破で敵に延焼を付与', color: '#ff7733', rarity: 'common',    weight: 10 },
+  { id: 'SPREAD',      label: '延焼',     desc: '延焼中の敵から周囲へ炎が広がる',         color: '#ff5522', rarity: 'uncommon',  weight: 10 },
+  { id: 'CHAIN_BLAST', label: '連鎖爆発', desc: '延焼中の敵が倒れると爆発し周囲を延焼',   color: '#ff2200', rarity: 'rare',      weight: 10 },
 ];

@@ -478,7 +478,7 @@ export function spawnDeathExplosion(x, y, z, opts) {
   // skipHitstop: RC airborneKill gc_04 のように、直前に長い hitstop が走っているケースで
   //   爆発側の hitstop を抑制すると「ヒットストップ → 短い再生 → またヒットストップ」の
   //   違和感を消せる（2026-05-27）。
-  if (!opts?.skipHitstop) triggerHitstop(10);
+  if (!opts?.skipHitstop) triggerHitstop(7);
   triggerShake(16, 26);
 }
 
@@ -1181,9 +1181,11 @@ export function tryHitEnemies(p, attack, ctx) {
     // SP 獲得：attack.noSpGain で個別オプトアウト可（ULT 等の自己回復ループ防止用）
     //   攻撃インスタンスにつき 1 回のみ加算（複数敵巻き込みでも一定量・2026-05-27 仕様）
     //   通常技 / 必殺技で gain 量を切り替え（c01_sp_* は SPECIAL）
+    //   死体殴り（e.dying）は半額
     if (!attack.noSpGain && !p._spGainCounted) {
       const _isSpecial = typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_');
-      const _gain = _isSpecial ? SP_CONFIG.GAIN_ON_HIT_SPECIAL : SP_CONFIG.GAIN_ON_HIT;
+      const _base = _isSpecial ? SP_CONFIG.GAIN_ON_HIT_SPECIAL : SP_CONFIG.GAIN_ON_HIT;
+      const _gain = e.dying ? _base * 0.5 : _base;
       p.sp = Math.min(SP_CONFIG.MAX, p.sp + _gain);
       p._spGainCounted = true;
     }
@@ -1398,9 +1400,11 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     // コンボ +1（ヒットごと）
     bumpCombo(e);
     // SP 獲得：攻撃インスタンスにつき 1 回（多段技でも 1 回・複数敵巻き込みでも 1 回）
+    //   死体殴り（e.dying）は半額
     if (!attack.noSpGain && !p._spGainCounted) {
       const _isSpecial = typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_');
-      const _gain = _isSpecial ? SP_CONFIG.GAIN_ON_HIT_SPECIAL : SP_CONFIG.GAIN_ON_HIT;
+      const _base = _isSpecial ? SP_CONFIG.GAIN_ON_HIT_SPECIAL : SP_CONFIG.GAIN_ON_HIT;
+      const _gain = e.dying ? _base * 0.5 : _base;
       p.sp = Math.min(SP_CONFIG.MAX, p.sp + _gain);
       p._spGainCounted = true;
     }

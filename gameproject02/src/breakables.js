@@ -151,9 +151,14 @@ export function tryHitBreakables(p, attack) {
   if (!breakables.length) return false;
   let any = false;
   const facing = p.facing;
+  // ULT / メガクラは AoE が広く画面外の重要コンテナを壊す恐れがある。
+  // noAoeBreak フラグ（赤コンテナ・OC コンテナ）はこれらの攻撃ではスキップ。
+  const _isAoe = typeof p.attackId === 'string' &&
+    (p.attackId.startsWith('c01_sp_ult') || p.attackId.startsWith('c01_sp_mega'));
   for (const b of breakables) {
     // 既に点火中（fuseTimer 動作中）でも追加ヒットは無視
     if (!b.userData.alive || b.userData.dying) continue;
+    if (_isAoe && b.userData.noAoeBreak) continue;
     const dx = b.position.x - p.x;
     const dz = b.position.z - p.z;
     const bCenterY = b.position.y + b.userData.aabb.hh;

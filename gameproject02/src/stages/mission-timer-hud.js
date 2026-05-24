@@ -13,7 +13,7 @@ function ensureHud() {
   el.id = 'mission-timer-hud';
   el.style.cssText = [
     'position:fixed',
-    'top:8px',
+    'top:84px',
     'left:50%',
     'transform:translateX(-50%)',
     `font-size:${cfg.HUD_FONT_SIZE_PX}px`,
@@ -36,10 +36,7 @@ function ensureHud() {
 }
 
 function _formatTime(sec) {
-  const s = Math.max(0, Math.ceil(sec));
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}:${String(r).padStart(2, '0')}`;
+  return String(Math.max(0, Math.ceil(sec)));
 }
 
 export function showMissionTimer() {
@@ -53,24 +50,25 @@ export function hideMissionTimer() {
 export function updateMissionTimerHud(secondsLeft, frozen) {
   const el = ensureHud();
   const cfg = MISSION_TIMER_CONFIG;
-  el.textContent = _formatTime(secondsLeft) + (frozen ? '  ❚❚' : '');
+  el.textContent = _formatTime(secondsLeft);
   // 色 / 点滅切替
   let color = cfg.HUD_COLOR_NORMAL;
   let borderRgba = '255,238,68';
-  if (!frozen && secondsLeft <= cfg.CRITICAL_THRESHOLD_SEC) {
+  if (frozen) {
+    // ボス戦突入でグレーアウト・点滅なし
+    color = '#888888';
+    borderRgba = '120,120,120';
+    el.style.animation = '';
+  } else if (secondsLeft <= cfg.CRITICAL_THRESHOLD_SEC) {
     color = cfg.HUD_COLOR_CRITICAL;
     borderRgba = '255,68,68';
     el.style.animation = 'mission-timer-blink 0.5s infinite alternate';
-  } else if (!frozen && secondsLeft <= cfg.WARN_THRESHOLD_SEC) {
+  } else if (secondsLeft <= cfg.WARN_THRESHOLD_SEC) {
     color = cfg.HUD_COLOR_WARN;
     borderRgba = '255,136,68';
     el.style.animation = '';
   } else {
     el.style.animation = '';
-  }
-  if (frozen) {
-    color = '#88ccff';
-    borderRgba = '136,204,255';
   }
   el.style.color = color;
   el.style.borderColor = `rgba(${borderRgba}, 0.65)`;

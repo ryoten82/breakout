@@ -174,7 +174,7 @@
     /* デバッグ：現在フェーズ / 最新更新日時 / リロード時刻（キャッシュ確認用） */
     #build-info {
       position: absolute;
-      top: 56px;
+      top: 140px;
       right: var(--sp-lg);
       padding: 6px 12px;
       background: rgba(20, 30, 0, 0.75);
@@ -410,20 +410,19 @@
     /* デバッグ：時計 HUD（中央上・時間の停止/スローを視認するため）*/
     #clock-hud {
       position: absolute;
-      top: 24px;
-      left: 50%;
-      transform: translateX(-50%);
+      top: 14px;
+      left: calc(50% + 90px);  /* タイマー右端のすぐ右に並べる（build-info と被らない）*/
       pointer-events: none;
       z-index: 60;
       opacity: 0.9;
     }
     #clock-hud svg { display: block; }
-    /* デバッグ：ゲーム速度 HUD（時計の真下・GAME_SPEED.scale を表示）*/
+    /* デバッグ：ゲーム速度 HUD（時計の真下）*/
     #gamespeed-hud {
       position: absolute;
-      top: 92px;             /* 時計 top:24 + 高さ64 + 余白4 */
-      left: 50%;
-      transform: translateX(-50%);
+      top: 82px;
+      left: calc(50% + 90px);
+      transform: none;
       pointer-events: none;
       z-index: 60;
       font-family: 'Courier New', monospace;
@@ -2247,7 +2246,7 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-27 ミッション制限時間：St1/St2/St3 各 300 秒 / 画面上中央 HUD / 0 で強制 GAMEOVER / St3 ボス突入で freeze';
+    const LAST_UPDATE = '2026-05-25 SP 獲得調整（通常×0.7 / 必殺×0.5 / 死体殴り半額）/ St3 地雷撤去 / St3 boss01 化 / タイマー freeze グレーアウト / 赤・紫コンテナ AoE 保護 / OC ジェム homing / アイテム壁クランプ / 死亡爆発 hitstop×0.7 / OC SP_RUSH・REGEN_UP レア化';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
@@ -2362,10 +2361,24 @@
       });
     }
 
+    // weight 付き非復元抽選（pool から n 枚）
+    function _weightedSample(pool, n) {
+      const rem = [...pool];
+      const result = [];
+      while (result.length < n && rem.length > 0) {
+        const total = rem.reduce((s, c) => s + (c.weight ?? 10), 0);
+        let r = Math.random() * total;
+        for (let j = 0; j < rem.length; j++) {
+          r -= (rem[j].weight ?? 10);
+          if (r <= 0) { result.push(rem.splice(j, 1)[0]); break; }
+        }
+      }
+      return result;
+    }
+
     function showOCSelection() {
-      // フィルタ済みプールから 2 枚をランダム抽出 + SKIP を末尾に固定
-      const shuffled = [..._filterOcPool()].sort(() => Math.random() - 0.5);
-      _ocCards = [...shuffled.slice(0, 2), _OC_SKIP_CARD];
+      // フィルタ済みプールから weight に従い 2 枚を非復元抽選 + SKIP を末尾に固定
+      _ocCards = [..._weightedSample(_filterOcPool(), 2), _OC_SKIP_CARD];
 
       const overlay  = document.getElementById('oc-overlay');
       const cardsEl  = document.getElementById('oc-cards');
@@ -2627,7 +2640,7 @@
     });
 
     // OC ジェム初期化（コンテナ破壊 → ジェム出現 → 滞在 → 取得フラッシュ → OC 選択）
-    initOcGem({ scene, THREE, onAcquire: _onOcGemAcquired });
+    initOcGem({ scene, THREE, onAcquire: _onOcGemAcquired, getPlayers: () => players });
 
     // cr-system 初期化（CR ドロップ＆回収・14-F テスト版）
     initCrSystem({
@@ -3116,6 +3129,22 @@
           }
         }
         console.log('[ENEMY_AI] enabled =', ENEMY_AI.enabled);
+      }
+      // デバッグ UI 一括 ON/OFF：- キー（通常プレイ向けクリーンビュー）
+      // 非表示対象：操作ガイド / デバッグパネル / 座標表示 / ビルド情報 / FPS / state バー
+      if (e.code === 'Minus' && !e.repeat) {
+        const _DBG_IDS = ['hud', 'sp-hud', 'debug-hud', 'debug', 'build-info', 'fps', 'state-hud',
+                          'clock-hud', 'gamespeed-hud', 'dummy-hp', 'inv-hud-badge', 'combo-history-panel'];
+        const _anyVisible = _DBG_IDS.some(id => {
+          const _el = document.getElementById(id);
+          return _el && _el.style.display !== 'none';
+        });
+        const _nextDisplay = _anyVisible ? 'none' : '';
+        for (const _id of _DBG_IDS) {
+          const _el = document.getElementById(_id);
+          if (_el) _el.style.display = _nextDisplay;
+        }
+        console.log('[DEBUG_UI]', _anyVisible ? 'OFF（クリーンビュー）' : 'ON');
       }
     });
 

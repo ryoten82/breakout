@@ -18,8 +18,8 @@ export const ENEMY_TEMPLATES = {
   tier03: { maxHp: 80 },
   tier05: { maxHp: 120 },
   tier06: { maxHp: 60 },  // 中ボス級（特殊化なし）
-  // midboss01（シールドガーダー）：BOSS wave 仮配置（2026-05-24）。HP/性格/atkCooldown は action-test 既定に準拠
-  midboss01: { enemyType: 'midboss01', maxHp: 250, personality: 'berserker', atkCooldown: 75 },
+  // boss01（CRUSHER）：Stage3 本ボス。仕様は chars/boss01.md。
+  boss01: { maxHp: 1800, enemyType: 'boss01', personality: 'berserker', atkCooldown: 120 },
 };
 
 // ウェーブ間隔は「最終スポーン → 次 triggerX ≒ 1200wu（約 1 画面）」で設計（2026-05-23 拡張）。
@@ -70,13 +70,13 @@ export const STAGE03_WAVES = [
       { type: 'tier01', x: 4900, z: -40, variant: 'walkin_left' },  // +1（挟み）
     ],
   },
-  // BOSS：仮 midboss01（シールドガーダー）。boss-intro が台座せり上がりを演出するので
+  // BOSS：boss01（CRUSHER）。boss-intro が台座せり上がりを演出するので
   // variant は 'ground' のまま（spawn 時点で既に台座が立ち上がっている）
   {
     id: 'BOSS', section: 'E', triggerX: 6100,
     isBoss: true,
     spawns: [
-      { type: 'midboss01', x: 6300 },
+      { type: 'boss01', x: 6300 },
     ],
   },
 ];

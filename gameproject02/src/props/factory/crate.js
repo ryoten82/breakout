@@ -61,6 +61,8 @@ export function createCrate({ THREE, preset } = {}) {
 
   g.userData.kind = 'breakable-crate';
   g.userData.size = { w: W, h: H, d: D };
+  // 赤コンテナ（HP 回復）は ULT/メガクラの AoE で画面外から壊れないよう保護
+  if (preset) g.userData.noAoeBreak = true;
   return g;
 }
 

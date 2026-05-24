@@ -52,9 +52,10 @@ export function createOcContainer({ THREE }) {
 
   for (const child of g.children) child.castShadow = true;
 
-  g.userData.kind = 'breakable-oc-container';
-  g.userData.size = { w: W, h: H, d: D };
-  g.userData.hp   = 3;   // 3 発殴って破壊
+  g.userData.kind       = 'breakable-oc-container';
+  g.userData.size       = { w: W, h: H, d: D };
+  g.userData.hp         = 3;   // 3 発殴って破壊
+  g.userData.noAoeBreak = true; // ULT/メガクラの AoE で画面外から壊れないよう保護
   return g;
 }
 
