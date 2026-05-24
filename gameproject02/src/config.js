@@ -534,6 +534,152 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.20,
     pitchActive:   +0.35,
   },
+
+  // -------------------------------------------------------
+  // boss01（CRUSHER 暫定）攻撃 — Stage1 本ボス・完全 SA・AOE 多彩
+  // -------------------------------------------------------
+  // 全攻撃 stub（命中ロジックは未実装 / wind・recover の予兆だけでも動作確認用）
+  // 仕様：chars/boss01.md §攻撃カタログ
+  //
+  // boss1_atk_01〜03：Phase 1 AOE 3 種
+  // boss1_atk_04    ：Phase 2 派生（二段薙ぎ払い）
+  // boss1_atk_05    ：Phase 3 必殺技（CRUSHER STOMP / RC 対象）
+  // boss1_atk_06    ：Phase 3 大技（DOUBLE RUSH TACKLE / RC 対象外・SA 崩しトリガー）
+  boss1_atk_01: {
+    name:           'クラッシャー振り下ろし',
+    kind:           'swing',
+    attackCategory: 'melee',
+    windFrames:     40,
+    activeFrames:   12,
+    recoverFrames:  30,
+    cooldownFrames: 90,
+    lungeVx:        4,
+    hitboxRangeX:   200,
+    hitboxRangeY:   180,
+    hitboxRangeZ:   140,
+    damage:         14,
+    atk_lv:         4,
+    knockback:      28,
+    hitstop:        7,
+    shake:          8,
+    hitColor:       0xffaa33,
+    pitchWind:     -0.32,
+    pitchActive:   +0.48,
+  },
+  boss1_atk_02: {
+    name:           '横薙ぎなぎ払い',
+    kind:           'swing',
+    attackCategory: 'melee',
+    windFrames:     35,
+    activeFrames:   18,
+    recoverFrames:  35,
+    cooldownFrames: 100,
+    lungeVx:        2,
+    hitboxRangeX:   320,
+    hitboxRangeY:   140,
+    hitboxRangeZ:   140,
+    damage:         14,
+    atk_lv:         4,
+    knockback:      32,
+    hitstop:        7,
+    shake:          10,
+    hitColor:       0xffaa33,
+    pitchWind:     -0.28,
+    pitchActive:   +0.18,
+  },
+  boss1_atk_03: {
+    name:           '地響き衝撃波',
+    kind:           'swing',  // TODO: 専用 kind='shockwave_aoe' を別セッションで設計
+    attackCategory: 'melee',
+    windFrames:     45,
+    activeFrames:   20,
+    recoverFrames:  40,
+    cooldownFrames: 110,
+    lungeVx:        0,
+    hitboxRangeX:   260,
+    hitboxRangeY:   80,
+    hitboxRangeZ:   260,
+    damage:         16,
+    atk_lv:         5,
+    knockback:      36,
+    hitstop:        8,
+    shake:          12,
+    hitColor:       0xff8822,
+    pitchWind:     -0.42,
+    pitchActive:   +0.55,
+  },
+  boss1_atk_04: {
+    name:           '二段薙ぎ払い',
+    kind:           'swing',
+    attackCategory: 'melee',
+    windFrames:     28,
+    activeFrames:   22,
+    recoverFrames:  40,
+    cooldownFrames: 130,
+    lungeVx:        3,
+    hitboxRangeX:   360,
+    hitboxRangeY:   140,
+    hitboxRangeZ:   140,
+    damage:         15,
+    atk_lv:         4,
+    knockback:      30,
+    hitstop:        7,
+    shake:          11,
+    hitColor:       0xffaa33,
+    pitchWind:     -0.30,
+    pitchActive:   +0.20,
+  },
+  // CRUSHER STOMP（Phase 3 必殺技・リパルスカウンター対象）
+  // 大ジャンプ → 落下叩きつけ → 全画面衝撃波
+  boss1_atk_05: {
+    name:           'CRUSHER STOMP',
+    kind:           'swing',  // TODO: 専用 kind='boss_smash_aoe' で大ジャンプ → 落下 → 衝撃波
+    attackCategory: 'melee',
+    windFrames:     55,
+    activeFrames:   25,
+    recoverFrames:  60,
+    cooldownFrames: 480,  // 約 8 秒（Phase 3 で控えめに発動）
+    lungeVx:        0,
+    hitboxRangeX:   500,  // 全画面想定
+    hitboxRangeY:   200,
+    hitboxRangeZ:   320,
+    damage:         28,
+    atk_lv:         6,
+    knockback:      50,
+    hitstop:        12,
+    shake:          18,
+    hitColor:       0xff4422,
+    pitchWind:     -0.50,
+    pitchActive:   +0.65,
+    repulseAxis:   'ground',  // リパルスカウンター対象（弾き = 確定クリ + 100% gc）
+  },
+  // DOUBLE RUSH TACKLE（Phase 3 大技・RC 対象外・SA 崩しトリガー）
+  // 溜め → 反対画面端タックル → 振り返り → 反対端タックル（計 2 往復）→ 大 recover 硬直
+  boss1_atk_06: {
+    name:           'DOUBLE RUSH TACKLE',
+    kind:           'slash_rush',  // TODO: 専用 kind='boss_double_tackle' を別セッションで設計
+    attackCategory: 'melee',
+    windFrames:     60,           // 溜め動作（大きく予兆）
+    activeFrames:   80,           // 暫定：active 中に画面端往復処理（実装は別途）
+    recoverFrames:  90,           // 大きな recover 硬直（SA 崩しトリガー対象）
+    cooldownFrames: 480,          // 約 8 秒
+    dashSpeed:      8.0,
+    dashMaxDist:    1600,         // 画面端到達想定
+    hitboxRangeX:   220,
+    hitboxRangeY:   180,
+    hitboxRangeZ:   140,
+    multiHit:       true,
+    hitSlots: [
+      { frame: 10, damage: 18, atk_lv: 5, knockback: 36 },  // 往復1 開始
+      { frame: 50, damage: 18, atk_lv: 5, knockback: 36 },  // 往復2 開始（暫定値）
+    ],
+    hitstop:        9,
+    shake:          12,
+    hitColor:       0xff8833,
+    pitchWind:     -0.25,
+    pitchActive:   +0.40,
+    saBreakOnRecover: true,  // recover 中は SA 解除（プレイヤーが反撃可能）
+  },
 };
 
 // ============================================================
@@ -608,6 +754,36 @@ export const MIDBOSS_SHIELD_CONFIG = {
   BREAK_HITSTOP:   14,    // 盾破壊の強ヒットストップ F
   BREAK_SHAKE:     12,    // 盾破壊のシェイク強度
   BANNER_FRAMES:   60,    // "SHIELD BREAK!" バナー表示 F（約 1 秒）
+};
+
+// ============================================================
+//  #section boss01-config — boss01（CRUSHER）本ボス設定（仕様：chars/boss01.md）
+//  - 完全 SA・3 段フェーズ・HP ゲートで境界停止 + メガクラ流用移行演出
+//  - 仮値（要実 DPS 計測）。実装は別セッション（フェーズ移行ロジック等）
+//  - window.SB.BOSS01_CONFIG で実機調整
+// ============================================================
+export const BOSS01_CONFIG = {
+  // HP（仮値・midboss01=300 × 6 = 1800）
+  MAX_HP:                 1800,
+  // フェーズ境界 HP（HP ゲートで必ず 1 残して停止 → メガクラ移行発火）
+  PHASE_1_TO_2_GATE_HP:   1080,  // Phase 1 → 2 境界（40% 削った地点）
+  PHASE_2_TO_3_GATE_HP:    360,  // Phase 2 → 3 境界（80% 削った地点）
+  // Phase 3 逆境スイッチ
+  PHASE_3_WIND_MULT:      0.90,  // wind を -10%
+  PHASE_3_COOLDOWN_MULT:  0.80,  // 攻撃間隔 -20%
+  PHASE_3_MOVE_MULT:      1.20,  // 移動速度 +20%
+  // Phase 2 高速化（Phase 1 同攻撃を高速化）
+  PHASE_2_WIND_MULT:      0.80,  // wind を -20%
+  PHASE_2_COOLDOWN_MULT:  0.75,  // cooldown を -25%
+  // メガクラ移行演出（プレイヤーメガクラ流用・色変更）
+  PHASE_TRANSITION_COLOR: 0xff3322,  // 赤系
+  PHASE_TRANSITION_FRAMES: 90,        // メガクラ duration 流用想定
+  // SA 崩しトリガー
+  SA_BREAK_ON_RC:         true,   // リパルスカウンター成功で完全 SA 崩し
+  SA_BREAK_ON_ULT:        true,   // ULT 命中で SA 崩し（試験的）
+  SA_BREAK_STUN_FRAMES:   45,     // SA 崩し時のスタン F
+  // サイズ（メッシュスケール）
+  MESH_SCALE:             4.0,   // midboss01 比 4 倍（80m 相当）
 };
 
 // ============================================================
