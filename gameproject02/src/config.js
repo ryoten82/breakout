@@ -846,6 +846,14 @@ export const BOSS01_CONFIG = {
   SA_BREAK_STUN_FRAMES:   45,     // SA 崩し時のスタン F
   // サイズ（メッシュスケール）
   MESH_SCALE:             4.0,   // midboss01 比 4 倍（80m 相当）
+  // === 移動/接近パラメータ（D 案 Phase 1 基本行動 2026-05-26）===
+  //   重い・遅い・大柄 → 接近・攻撃距離・速度を boss 用に上書き
+  //   DUMMY_ATK_CONFIG を直接いじらず、isBoss 分岐で本値を使う
+  APPROACH_RANGE:         700,   // この距離以下で接近開始（DUMMY=400 / 大柄なので広め）
+  ATTACK_RANGE:           260,   // 基本拳の発動圏（DUMMY=130 / 拳が大きいので広め）
+  APPROACH_SPEED:         1.0,   // 接近速度 wu/F（DUMMY=1.4 / 重いので遅い）
+  Z_CHASE_FACTOR:         0.4,   // Z 追従速度のプレイヤー比（DUMMY=0.6 / 鈍重）
+  DASH_CHASE_SPEED:       3.5,   // 遠距離復帰のダッシュ速度（DUMMY=5.5 / 重量級なので控えめ）
 };
 
 // ============================================================

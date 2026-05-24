@@ -2609,14 +2609,22 @@ export function updateEnemies(ctx) {
         } else {
           // === ダッシュ追跡（14-D-4）+ idle / chase 判定 + 接近・攻撃発動 ===
           const C = DUMMY_ATK_CONFIG;
+          // boss01 専用パラメータ上書き（D 案 Phase 1 基本行動 2026-05-26）
+          //   重い・遅い・大柄 → APPROACH/ATTACK_RANGE 広め、APPROACH_SPEED 遅め
+          //   boss 以外は従来通り DUMMY_ATK_CONFIG を使う
+          const _approachRange = e.isBoss ? BOSS01_CONFIG.APPROACH_RANGE : C.approachRange;
+          const _attackRange   = e.isBoss ? BOSS01_CONFIG.ATTACK_RANGE   : C.attackRange;
+          const _approachSpd0  = e.isBoss ? BOSS01_CONFIG.APPROACH_SPEED : C.approachSpeed;
+          const _zChaseFactor  = e.isBoss ? BOSS01_CONFIG.Z_CHASE_FACTOR : C.zChaseFactor;
+          const _dashChaseSpd0 = e.isBoss ? BOSS01_CONFIG.DASH_CHASE_SPEED : C.dashChaseSpeed;
           // 遭遇フラグ：一度でも approachRange 内に入ったら立てる
-          if (!e.encountered && adx < C.approachRange) e.encountered = true;
+          if (!e.encountered && adx < _approachRange) e.encountered = true;
           // ダッシュ追跡の状態更新（遭遇済みのみ）：自機が approachRange 外へ離れたら
           //   ワンテンポ置いてダッシュ開始。dashChaseStop まで詰めたら終了。
           if (e.encountered) {
             if (e.dashChasing) {
               if (adx <= C.dashChaseStop) e.dashChasing = false;
-            } else if (adx > C.approachRange) {
+            } else if (adx > _approachRange) {
               if (e.dashChaseBeat < 0)      e.dashChaseBeat = C.dashChaseBeat;  // 武装
               else if (e.dashChaseBeat > 0) e.dashChaseBeat--;                  // ワンテンポ消化
               else { e.dashChasing = true; e.dashChaseBeat = -1; }              // ダッシュ開始
@@ -2629,10 +2637,10 @@ export function updateEnemies(ctx) {
             // ダッシュ追跡中：自機方向へ高速移動（state=dash は移動量反映ブロックが付与）
             e.aiPhase = 'chase';
             _chaseDash = true;
-            const _ds = C.dashChaseSpeed * (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
+            const _ds = _dashChaseSpd0 * (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
             e.x += Math.sign(dx) * _ds;
             if (adz > 80) {
-              const _zSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * C.zChaseFactor;
+              const _zSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * _zChaseFactor;
               e.z += Math.sign(dz) * Math.min(_zSpd, adz);
             }
           } else if (e.dashChaseBeat >= 0) {
@@ -2641,7 +2649,7 @@ export function updateEnemies(ctx) {
           } else {
             // === 通常 idle / chase 判定 + 接近・攻撃発動 ===
             // X 距離のみで判定（Z は chase 中に追従する。X 近・Z 遠でも idle にしない）
-            const inRange = (adx < C.approachRange);
+            const inRange = (adx < _approachRange);
             if (!inRange) {
               e.aiPhase = 'idle';
             } else {
@@ -2657,7 +2665,9 @@ export function updateEnemies(ctx) {
                 e.shieldBlockCount  = 0;
                 e._blockDecayTimer  = 0;
               }
-              const basicCanAttack = _isGuardCounter || (adz < 100 && e.atkCooldown <= 0 && _attackRelay <= 0 &&
+              // 攻撃発動 Z 距離条件：boss は hitboxRangeZ が大きいので緩和
+              const _atkZThresh = e.isBoss ? 160 : 100;
+              const basicCanAttack = _isGuardCounter || (adz < _atkZThresh && e.atkCooldown <= 0 && _attackRelay <= 0 &&
                 e.y <= ENEMY_AIRBORNE_Y_THRESHOLD && (!playerInHitstun || e.punishesHitstun));
               const atkId = basicCanAttack
                 ? (_isGuardCounter ? 'mb01_atk_gc' : _selectEnemyAtk(e, adx))
@@ -2673,7 +2683,7 @@ export function updateEnemies(ctx) {
                 }
               } else {
                 // 接近移動（歩き速度・X / Z 両軸）。興奮中は接近速度上昇（#14-C）
-                const _appSpd = C.approachSpeed * (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
+                const _appSpd = _approachSpd0 * (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
                 if (e.enemyType === 'enem02') {
                   // enem02 後方待機型：自分から前線に詰めない。
                   //   極端に遠い場合（> approachRange × 1.5）のみゆっくり詰め（攻撃圏に入るため）。
@@ -2684,7 +2694,7 @@ export function updateEnemies(ctx) {
                     e.x += Math.sign(dx) * _appSpd * 0.4;
                   }
                 } else {
-                  if (adx > C.attackRange) {
+                  if (adx > _attackRange) {
                     e.x += Math.sign(dx) * _appSpd;
                   }
                 }
@@ -2694,7 +2704,7 @@ export function updateEnemies(ctx) {
                 const _laneDz = (e.personality === 'cunning') ? LANE_HOMING_DEADZONE : 80;
                 const _dzGoal = _goalZ - e.z;
                 if (Math.abs(_dzGoal) > _laneDz) {
-                  const _zSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * C.zChaseFactor;
+                  const _zSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * _zChaseFactor;
                   e.z += Math.sign(_dzGoal) * Math.min(_zSpd, Math.abs(_dzGoal));
                 }
                 // 攻撃圏内だが token 不可 / cooldown 中 → その場で待機（ジリジリ感）
@@ -2744,8 +2754,10 @@ export function updateEnemies(ctx) {
           } else {
             // 通常攻撃の溜め：プレイヤーへ追従（向き合わせ + X/Z 詰め）
             // 距離が attackRange より外なら少しずつ追う（溜め中の追跡速度は控えめ）
-            if (adx > DUMMY_ATK_CONFIG.attackRange * 0.75) {
-              e.x += Math.sign(dx) * DUMMY_ATK_CONFIG.approachSpeed * 0.6;
+            const _windAtkRange = e.isBoss ? BOSS01_CONFIG.ATTACK_RANGE   : DUMMY_ATK_CONFIG.attackRange;
+            const _windAppSpd   = e.isBoss ? BOSS01_CONFIG.APPROACH_SPEED : DUMMY_ATK_CONFIG.approachSpeed;
+            if (adx > _windAtkRange * 0.75) {
+              e.x += Math.sign(dx) * _windAppSpd * 0.6;
             }
             // Z 追従：active で当てるため、溜め中にプレイヤー Z へしっかり寄せる。
             if (adz > 30) {
@@ -2754,8 +2766,10 @@ export function updateEnemies(ctx) {
             }
           }
           // approachRange を完全に超えたらキャンセルして wait01 復帰（jump_dive は発動後キャンセルしない）
+          //   boss は APPROACH_RANGE が広いので個別判定
+          const _windCancelRange = e.isBoss ? BOSS01_CONFIG.APPROACH_RANGE : DUMMY_ATK_CONFIG.approachRange;
           if (atk.kind !== 'jump_dive' &&
-              (adx > DUMMY_ATK_CONFIG.approachRange || adz > DUMMY_ATK_CONFIG.approachRange)) {
+              (adx > _windCancelRange || adz > _windCancelRange)) {
             e.state         = STATE.wait01;
             e.atkPhase      = null;
             e.atkCooldown   = 30;
