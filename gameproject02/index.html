@@ -2,8 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <!-- title は LAST_UPDATE / CURRENT_PHASE から起動時に動的設定される（タブ識別用） -->
-  <title>SCRAP BLITZ</title>
+  <title>SCRAP BLITZ - Phase 2.2</title>
   <style>
     /* === HUD デザイントークン（仕様書 §22）===
        全 HUD の px 値はこの :root 変数を参照する。
@@ -612,10 +611,12 @@
       text-shadow: 2px 2px 0 #000;
       transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     }
-    #start-screen-overlay .start-mode-btn:hover {
+    #start-screen-overlay .start-mode-btn:hover,
+    #start-screen-overlay .start-mode-btn.start-mode-btn--focused {
       background: rgba(40, 72, 112, 0.96);
-      border-color: #88ddff;
+      border-color: #ffee44;
       color: #ffffff;
+      box-shadow: 0 0 16px rgba(255, 220, 80, 0.55), 0 0 4px rgba(255, 255, 255, 0.4) inset;
     }
 
     /* ULT 用画面暗転オーバーレイ（メガクラより少し濃い） */
@@ -658,7 +659,6 @@
     <div class="start-modes">
       <button class="start-mode-btn" id="mode-play">通しプレイ</button>
       <button class="start-mode-btn" id="mode-actiontest">アクションテスト</button>
-      <button class="start-mode-btn" id="mode-bosstest">ボステスト</button>
     </div>
   </div>
   <!-- デバッグ：時計 HUD（時間の停止/スロー視認用） -->
@@ -870,7 +870,7 @@
     import {
       PHYSICS, SP_CONFIG, ULT_CONFIG, GRAB_CONFIG, MEGA_CONFIG, UKEMI_CONFIG,
       SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, HOMING_CONFIG, GUARD_CONFIG,
-      ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, REPULSE_CONFIG,
+      ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, REPULSE_CONFIG,
       CAM_CONFIG, PIXEL_SHADER, OUTLINE_CONFIG,
       CHARGE_RING_CONFIG, CHARGE_PARTICLE_CONFIG,
       COMBO_LEVELS, getComboLevel, SLOWMO, KEY_CONFIG, OVERCLOCK_CARDS,
@@ -971,7 +971,6 @@
       initStage02, tickStage02, getStage02DebugState,
       initStage03, tickStage03, getStage03DebugState,
       initActionTest, tickActionTest, getActionTestDebugState,
-      initBossTest, tickBossTest, getBossTestDebugState,
     } from './src/stages/index.js';
     // Stage 1 外周ヤード書割（プロト・オプトイン）：window.STAGE01_EXTERIOR = true で起動
     import { initExterior as initStage01Exterior } from './src/stages/stage01/exterior.js';
@@ -2219,12 +2218,12 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-26 AI部屋 再開（enemy-ai-room マージ取り込み / Stage1 ボス設計セッション開始）';
+    const LAST_UPDATE = '2026-05-26 開始画面モード選択にキーボード/パッド対応（←→で移動・Space/J/K/Enterで決定）+ タブ名同期インフラ';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
     // LAST_UPDATE と同時に更新する運用（feedback_last_update_hud.md §1.5）
-    const TAB_LABEL = 'AI部屋';
+    const TAB_LABEL = '実装部屋';
     document.title = TAB_LABEL;
     {
       const _buildInfoEl = document.getElementById('build-info');
@@ -2364,6 +2363,16 @@
       cards.forEach((el, i) => el.classList.toggle('oc-card--focused', i === _ocFocusIdx));
     }
 
+    // モード選択メニュー：キー/パッド操作中のフォーカスをボタン要素に反映（OC と同パターン）
+    //   _modeMenuOptions（picker 登録時に作られる stageId 配列）と同インデックスで .start-mode-btn を辿る。
+    //   HTML のボタン順は左→右と一致している前提。
+    function _updateModeMenuFocus() {
+      const btns = document.querySelectorAll('#start-screen-overlay .start-mode-btn');
+      btns.forEach((el, i) => {
+        el.classList.toggle('start-mode-btn--focused', i === _modeMenuFocusIdx);
+      });
+    }
+
     function _selectOC(cardId) {
       if (_ocSelecting) return;   // フラッシュ演出中の二重選択を弾く
       _ocSelecting = true;
@@ -2459,6 +2468,14 @@
     // モード選択メニュー表示中フラグ：true の間はキー/クリックで自動 dismiss しない
     //   （通しプレイ / アクションテストのボタン押下のみで閉じる）
     let _modeMenuActive = false;
+    // モード選択メニュー：キーボード / ゲームパッド操作用の状態
+    //   _modeMenuOptions が並び順（左→右）。_modeMenuFocusIdx は現在フォーカス位置。
+    //   _modeMenuPickFn は実選択ハンドラ（モード選択ブロックで実体を代入）。
+    let _modeMenuOptions = [];
+    let _modeMenuFocusIdx = 0;
+    let _modeMenuPickFn = null;
+    let _modeMenuInputDelay = 0;
+    const _modeMenuPadPrev = { left: false, right: false, select: false };
     function _dismissStartScreen() {
       if (!_startScreenShown) return;
       _startScreenShown = false;
@@ -2592,7 +2609,7 @@
     //   - 何もなければ stage01 から（F5 リロードもここに来る）
     //   - window.STAGE01_ENABLED = false で完全 OFF（demo 敵のみ）
     const STAGE01_ENABLED = (window.STAGE01_ENABLED !== false);
-    const _validStages = new Set(['stage01', 'stage02', 'stage03', 'actionTest', 'bossTest']);
+    const _validStages = new Set(['stage01', 'stage02', 'stage03', 'actionTest']);
     // 自動遷移直後フラグ（1 回限り消費）
     let _autoTransitionStage = null;
     try {
@@ -2615,8 +2632,6 @@
       window.__SB_SELECTED_STAGE = id;
       if (id === 'actionTest') {
         initActionTest({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
-      } else if (id === 'bossTest') {
-        initBossTest({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
       } else if (id === 'stage03') {
         initStage03({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
       } else if (id === 'stage02') {
@@ -2650,21 +2665,38 @@
       window.__SB_SELECTED_STAGE = 'stage01';
       _skipStartOverlay();
     } else if (_showModeMenu) {
-      // 開始画面のモード選択：ボタン押下でステージ init → オーバーレイを閉じる
+      // 開始画面のモード選択：ボタン押下 or キー/パッド操作でステージ init → オーバーレイを閉じる
       _modeMenuActive = true;
       window.__SB_SELECTED_STAGE = 'stage01';  // 暫定（選択で上書きされる）
       const _pickMode = (id) => {
         if (_stageInited) return;
         _modeMenuActive = false;
+        _modeMenuPickFn = null;
         _initStageById(id);
         _dismissStartScreen();
       };
+      _modeMenuPickFn = _pickMode;
       const _btnPlay = document.getElementById('mode-play');
       const _btnTest = document.getElementById('mode-actiontest');
-      const _btnBoss = document.getElementById('mode-bosstest');
-      if (_btnPlay) _btnPlay.addEventListener('click', () => _pickMode('stage01'));
-      if (_btnTest) _btnTest.addEventListener('click', () => _pickMode('actionTest'));
-      if (_btnBoss) _btnBoss.addEventListener('click', () => _pickMode('bossTest'));
+      // 並び順（DOM 左→右）と stageId を対応付け（左右キー / マウス hover で共用）
+      // 将来 mode-XXX ボタンを HTML に増やしたらこの配列にエントリ追加するだけで連動する。
+      const _modeBtnEntries = [
+        { el: _btnPlay, id: 'stage01' },
+        { el: _btnTest, id: 'actionTest' },
+      ].filter(e => e.el);
+      _modeMenuOptions = _modeBtnEntries.map(e => e.id);
+      _modeMenuFocusIdx = 0;
+      _modeMenuInputDelay = 8;   // メニュー表示直後の暴発防止（押しっぱなしフレーム避け）
+      _updateModeMenuFocus();
+      // クリック + マウス hover でフォーカス追従（hover とキー操作の整合：OC と同パターン）
+      _modeBtnEntries.forEach((entry, i) => {
+        entry.el.addEventListener('click', () => _pickMode(entry.id));
+        entry.el.addEventListener('mouseenter', () => {
+          if (!_modeMenuActive) return;
+          _modeMenuFocusIdx = i;
+          _updateModeMenuFocus();
+        });
+      });
     } else {
       // 自動遷移 / URL 直接指定：モード選択を挟まず即起動
       _initStageById(SELECTED_STAGE);
@@ -3204,7 +3236,6 @@
         if (_activeStageId === 'stage03') tickStage03();
         else if (_activeStageId === 'stage02') tickStage02();
         else if (_activeStageId === 'actionTest') tickActionTest();
-        else if (_activeStageId === 'bossTest')   tickBossTest();
         else tickStage01();
       }
       updateParticles();
@@ -3508,6 +3539,23 @@
       }
 
       pollGamepad();
+      // モード選択メニュー中のキーボード / ゲームパッド入力（ポーズ中でも走らせる）
+      //   左右で stage01 / actionTest / bossTest をフォーカス遷移、決定（Space/J/K + パッド）で確定
+      if (_modeMenuActive && _modeMenuPickFn && _modeMenuOptions.length > 0) {
+        if (_modeMenuInputDelay > 0) _modeMenuInputDelay--;
+        const _mLeft   = inp('ArrowLeft')  || inp('KeyA');
+        const _mRight  = inp('ArrowRight') || inp('KeyD');
+        const _mSelect = inp('Space') || inp('KeyJ') || inp('KeyK') || inp('Enter');
+        if (_modeMenuInputDelay <= 0) {
+          const _mN = _modeMenuOptions.length;
+          if (_mLeft   && !_modeMenuPadPrev.left)   { _modeMenuFocusIdx = (_modeMenuFocusIdx - 1 + _mN) % _mN; _updateModeMenuFocus(); }
+          if (_mRight  && !_modeMenuPadPrev.right)  { _modeMenuFocusIdx = (_modeMenuFocusIdx + 1) % _mN;       _updateModeMenuFocus(); }
+          if (_mSelect && !_modeMenuPadPrev.select) { _modeMenuPickFn(_modeMenuOptions[_modeMenuFocusIdx]); }
+        }
+        _modeMenuPadPrev.left   = _mLeft;
+        _modeMenuPadPrev.right  = _mRight;
+        _modeMenuPadPrev.select = _mSelect;
+      }
       // OC 選択中のゲームパッド入力（ポーズ中でも走らせる）
       if (_ocPending && !_ocSelecting) {
         if (_ocInputDelay > 0) _ocInputDelay--;
@@ -3668,7 +3716,6 @@
       // ステージ デバッグ：window.SB.stage() で現在ステージの内部状態を覗ける
       stage: () => {
         if (_activeStageId === 'actionTest') return getActionTestDebugState();
-        if (_activeStageId === 'bossTest')   return getBossTestDebugState();
         if (_activeStageId === 'stage03') return getStage03DebugState();
         if (_activeStageId === 'stage02') return getStage02DebugState();
         return getStage01DebugState();
@@ -3680,12 +3727,10 @@
         s2: getStage02DebugState,
         s3: getStage03DebugState,
         sAT: getActionTestDebugState,
-        sBT: getBossTestDebugState,
         tickS1: tickStage01,
         tickS2: tickStage02,
         tickS3: tickStage03,
         tickAT: tickActionTest,
-        tickBT: tickBossTest,
       },
       // 敵スポーン（コンソールから直接呼べる）。stages から呼ばれる同じ関数
       // 例: SB.spawnDummy(1500, 0, { maxHp: 80, instantRespawn: false })
@@ -3739,7 +3784,7 @@
       REPULSE_CONFIG,      // デバッグ：SB.REPULSE_CONFIG でパラメータ確認・調整
       // デバッグ：ゲーム更新を手動で N フレーム進める（rAF 停止＝タブ非可視時の検証用）
       gameStep: (n = 1) => { for (let i = 0; i < n; i++) update(); },
-      DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_AI, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG, tryHitPlayer,
+      DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_AI, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, tryHitPlayer,
       // CR ドロップ：SB.dropCR(x,z) で手動ばらまき / SB.getCrTotal() で所持確認 / SB.CR_CONFIG で調整
       dropCR, getCrTotal, CR_CONFIG,
       // アイテム pickup：SB.dropItem('hp_apple',x,z) / SB.rollAndDropFromContainer('crate',x,z)
