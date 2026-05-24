@@ -648,36 +648,37 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.30,
     pitchActive:   +0.20,
   },
-  // MISSILE STORM（Phase 3 必殺技・リパルスカウンター対象）
-  //   art-reference 統合：「背中の隠しミサイルポッドが Phase 3 移行で露出 → 散布」が CRUSHER 戦の最大の見せ場
-  //   旧案「CRUSHER STOMP（大ジャンプ落下叩きつけ）」は廃案 — 叩きつけは atk_01/03 で十分
-  //   弾き対象は「ミサイル発射のトリガー音/光」（背中ポッドが点火する瞬間）
+  // MISSILE BARRAGE（Phase 2 通常技・背中ミサイルポッド使用）
+  //   D 案再編 2026-05-26：Phase 2 移行で背中装甲が強制で外れ・ここからミサイル攻撃が解禁
+  //   発射 wind 中は前向き固定 → 背中弱点が完全露出（背面回り込みのチャンス）
+  //   RC 対象外（必殺は atk_07 に集約）
   //   TODO: projectile system 新設タイミングで多弾頭追尾ミサイルへ差し替え（kind='missile_barrage'）
   //         multilock 系（CANNON/VIPER）と共通基盤で実装
   boss1_atk_05: {
-    name:           'MISSILE STORM',
+    name:           'MISSILE BARRAGE',
     kind:           'swing',  // 暫定（projectile system 未実装のため AOE 一閃で挙動確認）。本実装で 'missile_barrage' へ
     attackCategory: 'melee',
-    windFrames:     55,
+    windFrames:     80,           // 背中装甲開閉ギミック内蔵想定
     activeFrames:   25,
-    recoverFrames:  60,
-    cooldownFrames: 480,  // 約 8 秒（Phase 3 で控えめに発動）
+    recoverFrames:  50,
+    cooldownFrames: 360,          // 約 6 秒
     lungeVx:        0,
-    hitboxRangeX:   500,  // 全画面想定
+    hitboxRangeX:   500,          // 全画面想定（弾幕に置き換わるまでの暫定）
     hitboxRangeY:   200,
     hitboxRangeZ:   320,
-    damage:         28,
-    atk_lv:         6,
-    knockback:      50,
-    hitstop:        12,
-    shake:          18,
-    hitColor:       0xff4422,
-    pitchWind:     -0.50,
-    pitchActive:   +0.65,
-    repulseAxis:   'ground',  // リパルスカウンター対象（弾き = 確定クリ + 100% gc）
+    damage:         18,
+    atk_lv:         5,
+    knockback:      36,
+    hitstop:        9,
+    shake:          14,
+    hitColor:       0xff7733,
+    pitchWind:     -0.40,
+    pitchActive:   +0.50,
   },
-  // DOUBLE RUSH TACKLE（Phase 3 大技・RC 対象外・SA 崩しトリガー）
-  // 溜め → 反対画面端タックル → 振り返り → 反対端タックル（計 2 往復）→ 大 recover 硬直
+  // DOUBLE RUSH TACKLE（Phase 2/3 大技・RC 対象外・SA 崩しトリガー）
+  //   D 案再編 2026-05-26：Phase 2 解禁・Phase 3 でも継続使用
+  //   recover 中は SA 解除 → 背中弱点も同時露出（狙い目その 1）
+  //   溜め → 反対画面端タックル → 振り返り → 反対端タックル（計 2 往復）→ 大 recover 硬直
   boss1_atk_06: {
     name:           'DOUBLE RUSH TACKLE',
     kind:           'slash_rush',  // TODO: 専用 kind='boss_double_tackle' を別セッションで設計
@@ -702,6 +703,33 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.25,
     pitchActive:   +0.40,
     saBreakOnRecover: true,  // recover 中は SA 解除（プレイヤーが反撃可能）
+  },
+  // OVERDRIVE PUNCH（Phase 3 必殺技・リパルスカウンター対象）
+  //   D 案再編 2026-05-26：CRUSHER の本質である拳に原点回帰
+  //   両腕を頭上で組んでタメ → 超高速ストレートパンチ（ゼロ距離タメ突き）
+  //   SF2 真昇龍系のタメ感。Phase 2 でミサイル避け（遠距離）に慣れたプレイヤーの逆を突く
+  //   弾き対象は「拳のコア部分」が active 入りする瞬間
+  boss1_atk_07: {
+    name:           'OVERDRIVE PUNCH',
+    kind:           'swing',       // TODO: 専用 kind='boss_overdrive_thrust' で ゼロ距離タメ突き演出
+    attackCategory: 'melee',
+    windFrames:     90,            // 最長タメ（重み演出）
+    activeFrames:   8,             // 瞬発
+    recoverFrames:  50,
+    cooldownFrames: 480,           // 約 8 秒
+    lungeVx:        12,            // ゼロ距離タメ突き（前方踏み込み大）
+    hitboxRangeX:   260,
+    hitboxRangeY:   180,
+    hitboxRangeZ:   140,
+    damage:         34,
+    atk_lv:         6,
+    knockback:      54,
+    hitstop:        14,
+    shake:          20,
+    hitColor:       0xff3322,
+    pitchWind:     -0.55,
+    pitchActive:   +0.70,
+    repulseAxis:   'ground',       // リパルスカウンター対象（弾き = 確定クリ + 100% gc）
   },
 };
 
