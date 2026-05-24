@@ -547,6 +547,7 @@ export function processStrongAttackInput(p) {
   //   - 地上：c01_sp_02_short（大昇り単発・粉塵昇竜の自機上昇感を残した形態）
   //   - 空中：c01_sp_02_air（控えめ単発・コンボ降下しない調整）
   //   - 旧 ホールド分岐コード（updateSp2Hold / SP2_HOLD_FRAMES）は実装は残置・本入口だけ即発に戻す
+  //   - c01_sp_02（粉塵昇竜・多段）は OC / 強化版として将来再利用予定（定義は attacks.js に残置）
   if (upHeld) {
     const id = p.isGrounded ? 'c01_sp_02_short' : 'c01_sp_02_air';
     _logSp2Snapshot(p, id);  // タイミング検証ログ（window.SB.DEBUG_SP2_LOG で ON/OFF）

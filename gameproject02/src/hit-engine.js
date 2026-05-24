@@ -1258,6 +1258,10 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     if (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop) continue;
     // dyingInvincible（ゴア・クリティカル armed 等）は中間ヒット対象外（追撃禁止・2026-05-18）
     if (e.dyingInvincible) continue;
+    // RC 対象敵への通常ヒット抑止（2026-05-27）：tryHitEnemies と同条件で multi-hit にも適用。
+    //   c01_sp_02（粉塵昇竜・多段）など repulseBox 持ち多段技で、ジャンパー aim 中の敵に
+    //   中間ヒットが先行ダメージを入れて RC 経路の airborneKill GC を妨害するのを防ぐ。
+    if (attack.repulseBox && e.repulseWindow) continue;
     // 同一敵への hitInterval ガード
     const nextHitFrame = p.multiHitNextHit.get(e) ?? -Infinity;
     if (gameFrame < nextHitFrame) continue;
