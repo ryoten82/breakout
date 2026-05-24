@@ -16,7 +16,7 @@ const RISE_FRAMES  = 24;    // 出現：下から湧き上がる
 const DWELL_FRAMES = 100;   // 滞在：その場でホバー（約 1.7 秒）
 const SHRINK_FRAMES = 10;   // 取得後：縮んで消える
 const SPAWN_Y      = 50;    // 湧き出し開始の高さ
-const HOVER_Y      = 140;   // ホバー中心の高さ
+const HOVER_Y      = 300;   // ホバー中心の高さ（プレイヤー頭上）
 
 export function initOcGem({ scene, THREE, onAcquire, getPlayers }) {
   _scene = scene;

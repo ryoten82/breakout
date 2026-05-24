@@ -1444,7 +1444,7 @@ export const OVERCLOCK_CARDS = [
   //  - 点火を取らないと「延焼」「連鎖爆発」はプールに出ない
   //  - 延焼を取らないと「連鎖爆発」はプールに出ない
   //  - フィルタは index.html showOCSelection 内の _filterOcPool が担当
-  { id: 'IGNITE',      label: '点火',     desc: '必殺技 / ゴアクリ撃破で敵に延焼を付与', color: '#ff7733', rarity: 'common',    weight: 10 },
+  { id: 'IGNITE',      label: '点火',     desc: '必殺技命中 / 敵爆発時に周囲へ延焼を付与', color: '#ff7733', rarity: 'common',    weight: 10 },
   { id: 'SPREAD',      label: '延焼',     desc: '延焼中の敵から周囲へ炎が広がる',         color: '#ff5522', rarity: 'uncommon',  weight: 10 },
   { id: 'CHAIN_BLAST', label: '連鎖爆発', desc: '延焼中の敵が倒れると爆発し周囲を延焼',   color: '#ff2200', rarity: 'rare',      weight: 10 },
 ];
