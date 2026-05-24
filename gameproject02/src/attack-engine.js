@@ -933,6 +933,7 @@ export function tryGrabActivate(p) {
     if (e.dyingInvincible)                continue;
     // キャラ×敵種の掴み制限（将来は p.charId で分岐：BASTION なら midboss01 も掴める等）
     if (e.enemyType === 'midboss01') continue;
+    if (e.isBoss) continue;            // 大ボスはグラブ免疫
     // === 敵の被掴み可状態 ===
     // - wait01：立ち/歩き（意思はあるがまだ攻撃モーションに入っていない）
     // - enemy_attacking かつ atkPhase === 'wind'：カウントダウン中（攻撃意思を見せている段階）

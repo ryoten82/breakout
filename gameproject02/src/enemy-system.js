@@ -364,29 +364,7 @@ export function buildBoss01Mesh() {
   stand.castShadow = true;
   group.add(stand);
 
-  // 左腕クラッシャー（大型）
-  const larm = new _THREE.Mesh(new _THREE.BoxGeometry(32 * SCALE, 110 * SCALE, 32 * SCALE), bodyMat);
-  larm.position.set(-78 * SCALE, 100 * SCALE, 0);
-  larm.castShadow = true;
-  group.add(larm);
-
-  const lcrusher = new _THREE.Mesh(new _THREE.BoxGeometry(50 * SCALE, 45 * SCALE, 50 * SCALE), crusherMat);
-  lcrusher.position.set(-78 * SCALE, 38 * SCALE, 0);
-  lcrusher.castShadow = true;
-  group.add(lcrusher);
-
-  // 右腕クラッシャー（大型）
-  const rarm = new _THREE.Mesh(new _THREE.BoxGeometry(32 * SCALE, 110 * SCALE, 32 * SCALE), bodyMat);
-  rarm.position.set(78 * SCALE, 100 * SCALE, 0);
-  rarm.castShadow = true;
-  group.add(rarm);
-
-  const rcrusher = new _THREE.Mesh(new _THREE.BoxGeometry(50 * SCALE, 45 * SCALE, 50 * SCALE), crusherMat);
-  rcrusher.position.set(78 * SCALE, 38 * SCALE, 0);
-  rcrusher.castShadow = true;
-  group.add(rcrusher);
-
-  // 肩部アクセント（警告色）
+  // 肩部アクセント（警告色）— ピボットより先に追加して奥に描画
   const lshoulder = new _THREE.Mesh(new _THREE.BoxGeometry(38 * SCALE, 32 * SCALE, 38 * SCALE), accentMat);
   lshoulder.position.set(-60 * SCALE, 160 * SCALE, 0);
   lshoulder.castShadow = true;
@@ -397,7 +375,34 @@ export function buildBoss01Mesh() {
   rshoulder.castShadow = true;
   group.add(rshoulder);
 
-  group.userData.parts = { body, head, stand };
+  // 左腕クラッシャー — ピボットGroup（肩頂点 = y:155*SCALE）で回転させることで腕振りアニメを実現
+  // arm center offset from pivot: y = 100 - 155 = -55、crusher: 38 - 155 = -117
+  const lArmPivot = new _THREE.Group();
+  lArmPivot.position.set(-78 * SCALE, 155 * SCALE, 0);
+  const larm = new _THREE.Mesh(new _THREE.BoxGeometry(32 * SCALE, 110 * SCALE, 32 * SCALE), bodyMat);
+  larm.position.set(0, -55 * SCALE, 0);
+  larm.castShadow = true;
+  lArmPivot.add(larm);
+  const lcrusher = new _THREE.Mesh(new _THREE.BoxGeometry(50 * SCALE, 45 * SCALE, 50 * SCALE), crusherMat);
+  lcrusher.position.set(0, -117 * SCALE, 0);
+  lcrusher.castShadow = true;
+  lArmPivot.add(lcrusher);
+  group.add(lArmPivot);
+
+  // 右腕クラッシャー — 同上
+  const rArmPivot = new _THREE.Group();
+  rArmPivot.position.set(78 * SCALE, 155 * SCALE, 0);
+  const rarm = new _THREE.Mesh(new _THREE.BoxGeometry(32 * SCALE, 110 * SCALE, 32 * SCALE), bodyMat);
+  rarm.position.set(0, -55 * SCALE, 0);
+  rarm.castShadow = true;
+  rArmPivot.add(rarm);
+  const rcrusher = new _THREE.Mesh(new _THREE.BoxGeometry(50 * SCALE, 45 * SCALE, 50 * SCALE), crusherMat);
+  rcrusher.position.set(0, -117 * SCALE, 0);
+  rcrusher.castShadow = true;
+  rArmPivot.add(rcrusher);
+  group.add(rArmPivot);
+
+  group.userData.parts = { body, head, stand, lArmPivot, rArmPivot };
   group.userData.baseColors = { body: 0x554444, head: 0xcc4422 };
 
   // HP バー（本ボス：幅広・高位置）
@@ -1906,6 +1911,35 @@ function _explodeSplitBackBlast(e) {
 }
 
 // ============================================================
+//  ボス腕アニメーション（フェーズ別に lArmPivot / rArmPivot を LERP 制御）
+//  bossAnim フィールド（config.js の ENEMY_ATTACKS 各エントリ）を参照し、
+//  wind/active/recover それぞれの目標 rotation.x/z に向けてスムーズに補間する。
+// ============================================================
+function _updateBossAnim(e) {
+  const parts = e.mesh?.userData?.parts;
+  if (!parts?.lArmPivot || !parts?.rArmPivot) return;
+  const lp = parts.lArmPivot;
+  const rp = parts.rArmPivot;
+
+  // 攻撃フェーズに応じたターゲット決定
+  let lTx = 0, lTz = 0, rTx = 0, rTz = 0;
+  if (e.state === STATE.enemy_attacking && e.curAtkId && e.atkPhase) {
+    const ph = ENEMY_ATTACKS[e.curAtkId]?.bossAnim?.[e.atkPhase];
+    if (ph) {
+      lTx = ph.lArm?.x ?? 0;  lTz = ph.lArm?.z ?? 0;
+      rTx = ph.rArm?.x ?? 0;  rTz = ph.rArm?.z ?? 0;
+    }
+  }
+  // それ以外（wait01 / hitstun / dying 等）は rest（0）へ戻す
+
+  const LSPD = 0.25;
+  lp.rotation.x += (lTx - lp.rotation.x) * LSPD;
+  lp.rotation.z += (lTz - lp.rotation.z) * LSPD;
+  rp.rotation.x += (rTx - rp.rotation.x) * LSPD;
+  rp.rotation.z += (rTz - rp.rotation.z) * LSPD;
+}
+
+// ============================================================
 //  攻撃選択（14-D-2・enem01.md §距離別攻撃選択 + §性格軸 レイヤー1）
 //   - 近距離（attackRange 以内）= 基本振り e01_atk_01
 //   - 中距離（attackRange 〜 dashTackleRange）= 突進タックル e01_atk_02
@@ -3282,6 +3316,9 @@ export function updateEnemies(ctx) {
       e.pitchAngle = 0;
       e.mesh.rotation.x = 0;
     }
+
+    // ボス専用：腕ピボットアニメーション（攻撃フェーズ別）
+    if (e.isBoss) _updateBossAnim(e);
 
     // 転がり中は腰ピボット補正（敵・プレイヤー共用ヘルパ）。それ以外は素の座標。
     if (e.state === STATE.down_roll_start || e.state === STATE.down_roll_loop) {

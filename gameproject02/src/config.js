@@ -578,6 +578,11 @@ export const ENEMY_ATTACKS = {
     hitColor:       0xffaa33,
     pitchWind:     -0.32,
     pitchActive:   +0.48,
+    bossAnim: {
+      wind:    { lArm: { x: -1.0, z:  0.0 }, rArm: { x: -1.0, z:  0.0 } }, // 両腕を背後に振り上げ
+      active:  { lArm: { x: +0.8, z:  0.0 }, rArm: { x: +0.8, z:  0.0 } }, // 両拳を前方へ叩き下ろし
+      recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
+    },
   },
   // boss1_atk_02：横薙ぎフック（片腕大振り）
   //   art-reference 統合：素手フック・横軸 AOE 広範囲
@@ -601,6 +606,11 @@ export const ENEMY_ATTACKS = {
     hitColor:       0xffaa33,
     pitchWind:     -0.28,
     pitchActive:   +0.18,
+    bossAnim: {
+      wind:    { lArm: { x: -0.2, z: -0.3 }, rArm: { x: -0.2, z: +1.1 } }, // 右腕を外側に引いてタメ
+      active:  { lArm: { x:  0.0, z: +0.2 }, rArm: { x:  0.0, z: -0.7 } }, // 右腕を内側へ薙ぎ払い
+      recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
+    },
   },
   // boss1_atk_03：地響きスマッシュ（拳を地面に叩きつけ → パンチ衝撃波）
   //   art-reference 統合：「パンチ衝撃波で間合いを埋める」コンセプトをここに集約
@@ -624,6 +634,11 @@ export const ENEMY_ATTACKS = {
     hitColor:       0xff8822,
     pitchWind:     -0.42,
     pitchActive:   +0.55,
+    bossAnim: {
+      wind:    { lArm: { x: -1.4, z:  0.0 }, rArm: { x: -1.4, z:  0.0 } }, // 両腕を大きく振り上げ
+      active:  { lArm: { x: +1.0, z:  0.0 }, rArm: { x: +1.0, z:  0.0 } }, // 地面に叩きつけ（最大前傾）
+      recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
+    },
   },
   // boss1_atk_04：横薙ぎフック × 2 連（Phase 2 派生）
   //   D 案再編 2026-05-26：atk_02 のモーション/値を流用して 2 連発射する派生形
@@ -653,6 +668,11 @@ export const ENEMY_ATTACKS = {
     shake:          9,
     pitchWind:     -0.28,
     pitchActive:   +0.20,
+    bossAnim: {
+      wind:    { lArm: { x: -0.2, z: -0.3 }, rArm: { x: -0.2, z: +1.0 } }, // atk_02 と同じ初動
+      active:  { lArm: { x:  0.0, z: +0.2 }, rArm: { x:  0.0, z: -0.6 } }, // 薙ぎ払い（2連分で往復感）
+      recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
+    },
     multiHit:       true,
     hitSlots: [
       { frame: 5,  damage: 14, atk_lv: 4, knockback: 28 },   // 1 連目（往）
@@ -685,6 +705,11 @@ export const ENEMY_ATTACKS = {
     hitColor:       0xff7733,
     pitchWind:     -0.40,
     pitchActive:   +0.50,
+    bossAnim: {
+      wind:    { lArm: { x: -0.4, z: -0.5 }, rArm: { x: -0.4, z: +0.5 } }, // 両腕を広げミサイルポッド強調
+      active:  { lArm: { x: -0.4, z: -0.5 }, rArm: { x: -0.4, z: +0.5 } }, // 発射中も開いたまま
+      recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
+    },
   },
   // DOUBLE RUSH TACKLE（Phase 2/3 大技・RC 対象外・SA 崩しトリガー）
   //   D 案再編 2026-05-26：Phase 2 解禁・Phase 3 でも継続使用
@@ -713,6 +738,11 @@ export const ENEMY_ATTACKS = {
     hitColor:       0xff8833,
     pitchWind:     -0.25,
     pitchActive:   +0.40,
+    bossAnim: {
+      wind:    { lArm: { x: +0.3, z: +0.2 }, rArm: { x: +0.3, z: -0.2 } }, // 両腕を前に突き出してタックル構え
+      active:  { lArm: { x: +0.6, z: +0.3 }, rArm: { x: +0.6, z: -0.3 } }, // 突進中・腕で薙ぎ払い
+      recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
+    },
     saBreakOnRecover: true,  // recover 中は SA 解除（プレイヤーが反撃可能）
   },
   // OVERDRIVE PUNCH（Phase 3 必殺技・リパルスカウンター対象）
@@ -740,6 +770,11 @@ export const ENEMY_ATTACKS = {
     hitColor:       0xff3322,
     pitchWind:     -0.55,
     pitchActive:   +0.70,
+    bossAnim: {
+      wind:    { lArm: { x: -1.6, z: +0.3 }, rArm: { x: -1.6, z: -0.3 } }, // 両腕を頭上で組んでタメ（最大仰け反り）
+      active:  { lArm: { x:  0.0, z: +0.1 }, rArm: { x: +1.2, z: -0.1 } }, // 右腕を最大前方へ突き出し（必殺の一撃）
+      recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
+    },
     repulseAxis:   'ground',       // リパルスカウンター対象（弾き = 確定クリ + 100% gc）
   },
 };
