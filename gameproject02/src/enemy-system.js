@@ -45,7 +45,7 @@ import {
   KB_LV06_VY, KB_LV06_VX_MULT,
   applyRollHipPivot,
 } from './states.js';
-import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG, BURN_CONFIG } from './config.js';
+import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG, BURN_CONFIG, BOSS_MEGA_CONFIG } from './config.js';
 import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, spawnBlastSphere, spawnLaunchSmoke, fxState } from './hit-engine.js';
 import { spawnBanner, spawnDamageNumber } from './hud-system.js';
 import { tryPinballHit } from './pinball.js';
@@ -75,20 +75,26 @@ let _attackRelay = 0;
 // コンボ中に連続タックルで割り込まれる状況を防ぐ。
 let _globalTackleRelay = 0;
 
-let _addRectArea        = null;
-let _updateAreaPosition = null;
-let _updateAreaScale    = null;
-let _removeArea         = null;
+let _addStaticArea         = null;
+let _addRectArea           = null;
+let _addSemicircleArea     = null;
+let _updateAreaPosition    = null;
+let _updateAreaScale       = null;
+let _removeArea            = null;
+let _triggerBossMegaCrashFX = null;  // fx-system から注入
 
 export function initEnemySystem(deps) {
   _THREE = deps.THREE;
   _scene = deps.scene;
   _players = deps.players;
   _enemies = deps.enemies;
-  _addRectArea        = deps.addRectArea        ?? null;
-  _updateAreaPosition = deps.updateAreaPosition ?? null;
-  _updateAreaScale    = deps.updateAreaScale    ?? null;
-  _removeArea         = deps.removeArea         ?? null;
+  _addStaticArea          = deps.addStaticArea         ?? null;
+  _addRectArea            = deps.addRectArea           ?? null;
+  _addSemicircleArea      = deps.addSemicircleArea     ?? null;
+  _updateAreaPosition     = deps.updateAreaPosition    ?? null;
+  _updateAreaScale        = deps.updateAreaScale       ?? null;
+  _removeArea             = deps.removeArea            ?? null;
+  _triggerBossMegaCrashFX = deps.triggerBossMegaCrashFX ?? null;
 }
 
 // ============================================================
@@ -510,6 +516,10 @@ export function spawnDummy(x, z, opts = {}) {
     guardStrength:    opts.guardStrength ?? (_enemyType === 'midboss01' ? 4 : 3),
     // ===== boss01 専用フィールド（仕様：chars/boss01.md / TODO: フェーズ移行ロジック実装は別セッション）=====
     isBoss:            (_enemyType === 'boss01'),
+    // ボス大柄補正：e.x はボス中心だが体幅が大きいため
+    // tryHitEnemies の rangeX/Z 判定に加算して「体端に当たる」を正しく検出する
+    hitReceiveExpandX: (_enemyType === 'boss01') ? BOSS01_CONFIG.BODY_HALF_X : 0,
+    hitReceiveExpandZ: (_enemyType === 'boss01') ? BOSS01_CONFIG.BODY_HALF_Z : 0,
     bossPhase:         (_enemyType === 'boss01') ? 1 : 0,  // 1 / 2 / 3
     bossPhaseGateHP:   (_enemyType === 'boss01')
                          ? [BOSS01_CONFIG.PHASE_1_TO_2_GATE_HP, BOSS01_CONFIG.PHASE_2_TO_3_GATE_HP, 0]
@@ -517,6 +527,8 @@ export function spawnDummy(x, z, opts = {}) {
     bossPhaseTransitioning: false,  // フェーズ移行演出中フラグ
     bossFullSA:        (_enemyType === 'boss01'),  // 完全 SA フラグ（boss01 は常時 true）
     bossSAStunTimer:   0,           // SA 崩しスタン残 F（RC 成功 / ULT 命中 / 大技 recover で立つ）
+    bossSAHitCount:    0,           // SA 吸収済みヒット数（THRESHOLD 到達で knockback01・リセット）
+    bossSADecayTimer:  0,           // 最終ヒットからの経過 F（DECAY_FRAMES 超でカウントリセット）
     // 盾システム（midboss01 専用）：本体 HP と独立した盾 HP。0 で盾破壊。
     //   midboss01 以外は shieldBroken=true（最初から盾なし扱い）で hit-engine 側分岐を 1 条件に。
     shieldMaxHp:      (_enemyType === 'midboss01') ? MIDBOSS_SHIELD_CONFIG.SHIELD_MAX_HP : 0,
@@ -916,10 +928,27 @@ export function triggerBossPhaseTransition(e, ctx) {
   e.state     = STATE.wait01;
   e.aiPhase   = 'idle';
   e.downTimer = 0;
-  // 視覚演出（MVP・将来メガクラ流用差し替え予定）
-  spawnHitParticles(e.x, e.y + 200, e.z, BOSS01_CONFIG.PHASE_TRANSITION_COLOR, 48, { type: 'omni' });
-  triggerHitstop(14);
-  triggerShake(16, 36);
+  // ── ボスメガクラ演出 ──────────────────────────────────────────────
+  // 視覚：赤球体拡大（fx-system）
+  _triggerBossMegaCrashFX?.(e.x, e.y, e.z);
+  // AoE ヒット判定：ボス中心から半径 BOSS_MEGA_CONFIG.RADIUS 内のプレイヤーにダメージ
+  if (_players?.length) {
+    const _bmAtk = {
+      damage:       BOSS_MEGA_CONFIG.DAMAGE,
+      atk_lv:       BOSS_MEGA_CONFIG.ATK_LV,
+      knockback:    BOSS_MEGA_CONFIG.KNOCKBACK,
+      hitstop:      BOSS_MEGA_CONFIG.HITSTOP,
+      hitboxRangeX: BOSS_MEGA_CONFIG.RADIUS,
+      hitboxRangeY: 400,
+      hitboxRangeZ: BOSS_MEGA_CONFIG.RADIUS,
+      hitColor:     0xff2200,
+      shake:        BOSS_MEGA_CONFIG.SHAKE,
+    };
+    tryHitPlayer(e, _bmAtk);
+  }
+  triggerHitstop(BOSS_MEGA_CONFIG.HITSTOP);
+  triggerShake(BOSS_MEGA_CONFIG.SHAKE, 42);
+  spawnHitParticles(e.x, e.y + 80, e.z, 0xff3300, 60, { type: 'omni' });
   spawnBanner(`PHASE ${e.bossPhase}!`, { frames: 70, color: '#ff5544', fontSize: 64 });
   return true;
 }
@@ -2338,97 +2367,306 @@ function _updateBossAnim(e) {
 
 // ボス攻撃 AOE 二重表示管理
 //
-// ① 背景矩形（_bossAoeId）：攻撃範囲全体を半透明で常時表示
-// ② カーソルバー（_bossAoeBar）：wind フェーズ中にボス側から先端へ走り、
-//    先端に到達（wind 終了）＝ active 発生を視覚的に告知
+// 攻撃ごとに aoeDisplay.shape で形状を切り替える：
+//   rect       : ① 背景矩形 + ② カーソルバー（wind 中に先端へ走る）
+//   semicircle : ① 半円（弧状）のみ。カーソルバーなし（sweep 感を形で表現）
 //
-// サイズ：hitboxRangeX × AoE_SCALE（視認性確保のため1.6倍）/ hitboxRangeY × AoE_SCALE
+// サイズ：aoeDisplay.w / aoeDisplay.h（固定値）を優先。未定義時は hitboxRange * _AOE_SCALE。
 // プロパティ：_bossAoePrevPhase / _bossAoeId / _bossAoeBar
-const _AOE_SCALE     = 1.6;  // 実ヒットボックスより視覚的に大きく表示（見やすさ優先）
-const _CURSOR_W_FRAC = 0.12; // カーソルバー幅 = 表示幅の 12%
+const _AOE_SCALE     = 1.6;  // aoeDisplay 未定義時のフォールバック倍率
+const _CURSOR_W_FRAC = 0.12; // rect カーソルバー幅 = 表示幅の 12%
 
 function _aoeCleanAll(e) {
   if (e._bossAoeId  != null) { _removeArea(e._bossAoeId);  e._bossAoeId  = null; }
   if (e._bossAoeBar != null) { _removeArea(e._bossAoeBar); e._bossAoeBar = null; }
+  // missiles 用：スポーン済みサークル群を一括除去
+  if (e._bossAoeMissileIds?.length) {
+    for (const id of e._bossAoeMissileIds) _removeArea(id);
+    e._bossAoeMissileIds = [];
+  }
 }
 
 function _updateBossAoe(e) {
-  if (!_addRectArea || !_removeArea || !_updateAreaPosition) return;
+  if (!_removeArea || !_updateAreaPosition) return;
 
   // dying 強制クリーン
   if (e.dying) { _aoeCleanAll(e); return; }
 
-  const prevPhase = e._bossAoePrevPhase ?? null;
-  const curPhase  = (e.state === STATE.enemy_attacking) ? e.atkPhase : null;
+  const prevPhase    = e._bossAoePrevPhase ?? null;
+  const curPhase     = (e.state === STATE.enemy_attacking) ? e.atkPhase : null;
   const phaseChanged = prevPhase !== curPhase;
-  const atk = e.curAtkId ? ENEMY_ATTACKS[e.curAtkId] : null;
-  const rx  = (atk?.hitboxRangeX ?? 0) * _AOE_SCALE;
-  const ry  = (atk?.hitboxRangeY ?? 0) * _AOE_SCALE;
-  const facing = e.facing ?? 1;
+  const atk          = e.curAtkId ? ENEMY_ATTACKS[e.curAtkId] : null;
+  const facing       = e.facing ?? 1;
+
+  // aoeDisplay から表示サイズ・形状を取得（未定義なら hitboxRange から計算）
+  const disp   = atk?.aoeDisplay;
+  const shape  = disp?.shape ?? 'rect';
+  const rx     = disp?.w      ?? (atk?.hitboxRangeX ?? 0) * _AOE_SCALE;
+  const ry     = disp?.h      ?? (atk?.hitboxRangeY ?? 0) * _AOE_SCALE;
+  const radius = disp?.radius ?? rx;   // semicircle 用半径
 
   // ── フェーズ変化処理 ──────────────────────────────────────────
   if (phaseChanged) {
-    // wind 開始：① 背景矩形 + ② カーソルバー（幅0 スタート）をスポーン
-    if (curPhase === 'wind' && atk && rx > 0) {
-      _aoeCleanAll(e);  // 念のため前回残骸をクリア
-      const bgCx = e.x + facing * (rx / 2);
-      const cy   = ry / 2;
-      const cw   = Math.max(10, rx * _CURSOR_W_FRAC);  // カーソルバー固定幅
-
-      e._bossAoeId = _addRectArea({          // ① 背景（薄い）
-        x: bgCx, y: cy, z: e.z,
-        width: rx, height: ry,
-        color: 0xff6600, opacity: 0.25,
-      });
-      e._bossAoeBar = _addRectArea({         // ② カーソルバー（明るい）
-        x: e.x + facing * (cw / 2), y: cy, z: e.z + 1,
-        width: cw, height: ry,
-        color: 0xffcc00, opacity: 0.85,
-      });
-    }
-    // active 移行：カーソルを除去→背景を赤点滅に差し替え
-    if (curPhase === 'active' && atk && rx > 0) {
+    if (curPhase === 'wind' && atk && (rx > 0 || radius > 0)) {
       _aoeCleanAll(e);
-      const bgCx = e.x + facing * (rx / 2);
-      const cy   = ry / 2;
-      e._bossAoeId = _addRectArea({
-        x: bgCx, y: cy, z: e.z,
-        width: rx, height: ry,
-        color: 0xff2200, opacity: 0.55,
-        blink: true, blinkPeriodFn: () => 4,
-      });
+
+      if (shape === 'semicircle') {
+        // 半円：cy = radius にすることで下端が y=0（床面）になる（0.5 だと床下に潜る）
+        const cy = radius;
+        e._bossAoeId = _addSemicircleArea?.({
+          x: e.x, y: cy, z: e.z + 2,
+          radius, facing,
+          color: 0xff6600, opacity: 0.30,
+        }) ?? null;
+      } else if (shape === 'circle') {
+        // 床面リング：フルサイズで即表示（scale アニメなし → ガビガビ回避）
+        // thickness を radius の 40% に設定して太く視認性確保
+        e._bossAoeId = _addStaticArea?.({
+          x: e.x, y: 0, z: e.z,
+          radius, color: 0xff6600, opacity: 0.40,
+          thickness: radius * 0.40,
+        }) ?? null;
+      } else if (shape === 'missiles') {
+        // ミサイル着弾 AOE：wind 中に 1 発ずつ逐次スポーン
+        e._bossAoeMissileIds       = [];
+        e._bossAoeMissilePositions = [];   // active 移行時に赤点滅で再スポーンするための位置記録
+        const count   = disp?.count ?? 9;
+        const wFrames = atk.windFrames ?? 120;
+        e._bossAoeMissileSpawnInterval = Math.max(1, Math.floor(wFrames / count));
+        e._bossAoeMissileRemaining     = count;
+        e._bossAoeMissileTimer         = e._bossAoeMissileSpawnInterval; // 最初の 1 発を即スポーン
+      } else if (shape === 'overdrive_track') {
+        // 追尾サークル：boss 位置にスポーン（per-frame で player 方向へ進める）
+        const p0 = _players?.[0];
+        e._odTargetX    = p0?.x ?? e.x;
+        e._odTargetZ    = p0?.z ?? e.z;
+        e._odBossStartX = e.x;
+        e._odBossStartZ = e.z;
+        const mRadius = disp?.radius ?? 180;
+        e._bossAoeId = _addStaticArea?.({
+          x: e.x, y: 0, z: e.z,
+          radius: mRadius, color: 0xff8800, opacity: 0.40,
+          thickness: mRadius * 0.18,
+          blink: true, blinkPeriodFn: () => 10,
+        }) ?? null;
+      } else if (shape === 'tackle_corridor') {
+        // 全画面幅の突進危険ゾーン（wind：橙・遅め点滅）
+        const wallL = getActiveWallX('left');
+        const wallR = getActiveWallX('right');
+        const cw    = wallR - wallL;
+        const cx    = (wallR + wallL) / 2;
+        const ch    = disp?.h ?? ry;
+        e._bossAoeId = _addRectArea?.({
+          x: cx, y: ch / 2, z: e.z,
+          width: cw, height: ch,
+          color: 0xff6600, opacity: 0.22,
+          blink: true, blinkPeriodFn: () => 15,
+        }) ?? null;
+      } else {
+        // 矩形：① 背景 + ② カーソルバー
+        const bgCx = e.x + facing * (rx / 2);
+        const cy   = ry / 2;
+        const cw   = Math.max(10, rx * _CURSOR_W_FRAC);
+        e._bossAoeId = _addRectArea?.({
+          x: bgCx, y: cy, z: e.z,
+          width: rx, height: ry,
+          color: 0xff6600, opacity: 0.25,
+        }) ?? null;
+        e._bossAoeBar = _addRectArea?.({
+          x: e.x + facing * (cw / 2), y: cy, z: e.z + 1,
+          width: cw, height: ry,
+          color: 0xffcc00, opacity: 0.85,
+        }) ?? null;
+      }
     }
-    // recover / 終了：全除去
+
+    // active 移行：カーソル除去 → 赤点滅に差し替え
+    if (curPhase === 'active' && atk && (rx > 0 || radius > 0)) {
+      _aoeCleanAll(e);
+
+      if (shape === 'semicircle') {
+        const cy = radius;
+        e._bossAoeId = _addSemicircleArea?.({
+          x: e.x, y: cy, z: e.z + 2,
+          radius, facing,
+          color: 0xff2200, opacity: 0.65,
+          blink: true, blinkPeriodFn: () => 4,
+        }) ?? null;
+      } else if (shape === 'circle') {
+        // active：赤点滅。厚みは wind と統一
+        e._bossAoeId = _addStaticArea?.({
+          x: e.x, y: 0, z: e.z,
+          radius, color: 0xff2200, opacity: 0.65,
+          thickness: radius * 0.40,
+          blink: true, blinkPeriodFn: () => 4,
+        }) ?? null;
+      } else if (shape === 'overdrive_track') {
+        // active 移行：target 位置で赤点滅に差し替え（コンボ開始）
+        const mRadius = disp?.radius ?? 180;
+        const tx = e._odTargetX ?? e.x;
+        const tz = e._odTargetZ ?? e.z;
+        _aoeCleanAll(e);
+        e._bossAoeId = _addStaticArea?.({
+          x: tx, y: 0, z: tz,
+          radius: mRadius, color: 0xff2200, opacity: 0.60,
+          thickness: mRadius * 0.18,
+          blink: true, blinkPeriodFn: () => 4,
+        }) ?? null;
+      } else if (shape === 'tackle_corridor') {
+        // active 移行：全画面幅 rect を赤点滅に差し替え
+        const wallL = getActiveWallX('left');
+        const wallR = getActiveWallX('right');
+        const cw    = wallR - wallL;
+        const cx    = (wallR + wallL) / 2;
+        const ch    = disp?.h ?? ry;
+        _aoeCleanAll(e);
+        e._bossAoeId = _addRectArea?.({
+          x: cx, y: ch / 2, z: e.z,
+          width: cw, height: ch,
+          color: 0xff2200, opacity: 0.50,
+          blink: true, blinkPeriodFn: () => 4,
+        }) ?? null;
+      } else if (shape === 'missiles') {
+        // active 移行：wind でスポーンした橙サークルを赤点滅サークルに差し替え
+        const positions = e._bossAoeMissilePositions ?? [];
+        _aoeCleanAll(e);   // 橙サークルを除去（_bossAoeMissileIds がクリアされる）
+        const mRadius = disp?.radius ?? 120;
+        e._bossAoeMissileIds = [];
+        for (const pos of positions) {
+          const id = _addStaticArea?.({
+            x: pos.x, y: 0, z: pos.z,
+            radius: mRadius, color: 0xff2200, opacity: 0.65,
+            thickness: mRadius * 0.35,
+            blink: true, blinkPeriodFn: () => 4,
+          }) ?? null;
+          if (id != null) e._bossAoeMissileIds.push(id);
+        }
+      } else {
+        const bgCx = e.x + facing * (rx / 2);
+        const cy   = ry / 2;
+        e._bossAoeId = _addRectArea?.({
+          x: bgCx, y: cy, z: e.z,
+          width: rx, height: ry,
+          color: 0xff2200, opacity: 0.55,
+          blink: true, blinkPeriodFn: () => 4,
+        }) ?? null;
+      }
+    }
+
+    // recover / 終了：全除去（missiles の場合は位置記録もリセット）
     const leaving = (curPhase === 'recover' || curPhase === null)
                  && (prevPhase === 'wind' || prevPhase === 'active');
-    if (leaving) _aoeCleanAll(e);
+    if (leaving) { _aoeCleanAll(e); e._bossAoeMissilePositions = null; }
 
     e._bossAoePrevPhase = curPhase;
   }
 
-  // ── 毎フレーム更新 ────────────────────────────────────────────
-  if (!atk || rx <= 0) return;
-  const cy = ry / 2;
+  // ── 毎フレーム更新（ボス移動追従）────────────────────────────
+  if (!atk) return;
 
-  // wind 中：背景はボス追従、カーソルは先端へ走る
-  if (curPhase === 'wind') {
-    // 背景追従
+  if (shape === 'overdrive_track') {
+    // wind 中：boss 出発点 → target へ線形移動（t = wind 消費率）
+    if (curPhase === 'wind' && e._bossAoeId != null) {
+      const windF = atk.windFrames ?? 135;
+      const t     = Math.max(0, Math.min(1, 1 - e.atkTimer / windF));
+      const sx    = e._odBossStartX ?? e.x;
+      const sz    = e._odBossStartZ ?? e.z;
+      const tx    = e._odTargetX    ?? e.x;
+      const tz    = e._odTargetZ    ?? e.z;
+      _updateAreaPosition(e._bossAoeId, sx + (tx - sx) * t, undefined, sz + (tz - sz) * t);
+    }
+    // active 中：target 固定（移動しない）
+  } else if (shape === 'tackle_corridor') {
+    // 全画面幅 rect：Z はボス追従、X はカメラ連動のため毎フレーム再計算
     if (e._bossAoeId != null) {
+      const wallL = getActiveWallX('left');
+      const wallR = getActiveWallX('right');
+      const cx    = (wallR + wallL) / 2;
+      const ch    = disp?.h ?? ry;
+      _updateAreaPosition(e._bossAoeId, cx, ch / 2, e.z);
+    }
+  } else if (shape === 'missiles') {
+    // wind 中：タイマーで 1 発ずつランダム着弾サークルをスポーン
+    if (curPhase === 'wind' && (e._bossAoeMissileRemaining ?? 0) > 0) {
+      e._bossAoeMissileTimer = (e._bossAoeMissileTimer ?? 0) + 1;
+      const interval = e._bossAoeMissileSpawnInterval ?? 13;
+      if (e._bossAoeMissileTimer >= interval) {
+        e._bossAoeMissileTimer = 0;
+        e._bossAoeMissileRemaining--;
+        const mRadius = disp?.radius ?? 120;
+        // ランダム着弾位置（ボスX中心に左右±500、Z±150 で散らす）
+        const sx  = e.x + (Math.random() - 0.5) * 1000;
+        const sz  = e.z + (Math.random() - 0.5) * 300;
+        (e._bossAoeMissilePositions ??= []).push({ x: sx, z: sz });
+        const id = _addStaticArea?.({
+          x: sx, y: 0, z: sz,
+          radius: mRadius, color: 0xff6600, opacity: 0.40,
+          thickness: mRadius * 0.35,
+          blink: true, blinkPeriodFn: () => 10,
+        }) ?? null;
+        if (id != null) (e._bossAoeMissileIds ??= []).push(id);
+      }
+    }
+  } else if (shape === 'semicircle') {
+    // 半円：cy = radius（下端が床面 y=0）
+    const cy = radius;
+    if (curPhase === 'wind'   && e._bossAoeId != null)
+      _updateAreaPosition(e._bossAoeId, e.x, cy, e.z + 2);
+    if (curPhase === 'active' && e._bossAoeId != null)
+      _updateAreaPosition(e._bossAoeId, e.x, cy, e.z + 2);
+  } else if (shape === 'circle') {
+    // 床面リング：ボス中心追従のみ（スケールアニメなし）
+    // y は addStaticArea 側が 0.5 に固定するため undefined で渡す（0 だと床面 z-fighting）
+    if (e._bossAoeId != null)
+      _updateAreaPosition(e._bossAoeId, e.x, undefined, e.z);
+  } else {
+    if (rx <= 0) return;
+    const cy = ry / 2;
+    // wind 中：背景はボス追従、カーソルは先端へ走る
+    if (curPhase === 'wind') {
+      if (e._bossAoeId != null)
+        _updateAreaPosition(e._bossAoeId, e.x + facing * (rx / 2), cy, e.z);
+      if (e._bossAoeBar != null) {
+        const windFrames = atk.windFrames ?? 30;
+        const progress   = Math.max(0, Math.min(1, 1 - (e.atkTimer / windFrames)));
+        const cw         = Math.max(10, rx * _CURSOR_W_FRAC);
+        const curCx      = e.x + facing * (progress * rx);
+        _updateAreaPosition(e._bossAoeBar, curCx, cy, e.z + 1);
+      }
+    }
+    if (curPhase === 'active' && e._bossAoeId != null)
       _updateAreaPosition(e._bossAoeId, e.x + facing * (rx / 2), cy, e.z);
-    }
-    // カーソルバー：progress に応じて先端へ移動しスケール拡縮
-    if (e._bossAoeBar != null) {
-      const windFrames = atk.windFrames ?? 30;
-      const progress   = Math.max(0, Math.min(1, 1 - (e.atkTimer / windFrames)));
-      const cw         = Math.max(10, rx * _CURSOR_W_FRAC);
-      // カーソルの中心 = ボス内端 + 進捗 × (全幅 - カーソル幅/2)
-      const curCx = e.x + facing * (progress * rx - cw * 0.5 + cw * 0.5);
-      _updateAreaPosition(e._bossAoeBar, curCx, cy, e.z + 1);
-    }
   }
-  // active 中：背景のみボス追従（ダッシュ突進などで動く場合）
-  if (curPhase === 'active' && e._bossAoeId != null) {
-    _updateAreaPosition(e._bossAoeId, e.x + facing * (rx / 2), cy, e.z);
+}
+
+// ============================================================
+//  ボス胴体コリジョン — プレイヤーがボス本体に貫通できないよう毎フレーム押し出す
+//  ※ 水平（X 軸）のみ。ジャンプ回避は不可能な高さのため Y チェックは省略。
+//  ※ 攻撃判定（hitbox）とは独立した純粋な「壁」処理。
+// ============================================================
+const _BOSS_COLL_GAP = 8;   // 壁端からの余白（px）
+
+function _updateBossCollision(e) {
+  if (!_players?.length || e.dying) return;
+  const halfX = BOSS01_CONFIG.BODY_HALF_X;
+  const halfZ = BOSS01_CONFIG.BODY_HALF_Z;
+
+  for (const p of _players) {
+    const adz = Math.abs(p.z - e.z);
+    if (adz > halfZ) continue;           // Z 方向が外れていればスキップ
+
+    const dx  = p.x - e.x;
+    const adx = Math.abs(dx);
+    if (adx >= halfX + _BOSS_COLL_GAP) continue;   // 当たっていない
+
+    // 近い側へ押し出す（左右どちらが近いかで分岐）
+    if (dx >= 0) {
+      p.x = e.x + halfX + _BOSS_COLL_GAP;
+      if ((p.vx ?? 0) < 0) p.vx = 0;   // 押し込み方向の速度を消す
+    } else {
+      p.x = e.x - halfX - _BOSS_COLL_GAP;
+      if ((p.vx ?? 0) > 0) p.vx = 0;
+    }
   }
 }
 
@@ -2609,7 +2847,18 @@ function _beginEnemyAttack(e, atkId, ctx) {
   e.atkTimer       = atk.windFrames;
   e.atkPitchTarget = atk.pitchWind;
   e.atkDashDist    = 0;
-  e.atkSlotIdx     = 0;   // slash_rush 複数ヒットインデックスをリセット
+  e.atkSlotIdx     = 0;       // slash_rush 複数ヒットインデックスをリセット
+  e._tacklePass    = 1;       // boss_double_tackle パス番号（1:初回 / 2:折り返し）
+  e._tackleHitDone = false;   // 現パスでのヒット済みフラグ
+  e._odInitDone    = false;   // boss_overdrive アクティブ初期化済みフラグ
+  e._odSlotIdx     = 0;       // 現コンボスロットインデックス
+  e._odSlotPhase   = null;    // 'wind' | 'active'
+  e._odSlotTimer   = 0;       // 現スロットの残フレーム
+  e._odSlotAxis    = null;    // RC 軸（hud / hit-engine で参照）
+  e._odTargetX     = null;    // 追尾サークルのターゲット X
+  e._odTargetZ     = null;    // 追尾サークルのターゲット Z
+  e._odBossStartX  = null;    // wind 開始時の boss X（サークル出発点）
+  e._odBossStartZ  = null;
   e.saHp           = (e.superArmor > 0) ? e.superArmor : 0;   // SA を攻撃ごとにリセット
   e.hitDelivered   = false;
   e.aiPhase        = 'attack';
@@ -2646,6 +2895,14 @@ export function updateEnemies(ctx) {
   for (const e of _enemies) {
     if (!e.isAlive) continue;
     _updateLaneZ(e);  // cunning の Z レーン振り直し（14-D-3・密集回避）
+    // boss01 SA ヒットカウンター減衰（コンボが切れたらカウントリセット）
+    if (e.bossFullSA && e.bossSADecayTimer > 0) {
+      e.bossSADecayTimer--;
+      if (e.bossSADecayTimer <= 0) {
+        e.bossSAHitCount  = 0;
+        e.bossSADecayTimer = 0;
+      }
+    }
     // boss01 フェーズ移行タイマー（triggerBossPhaseTransition で開始・カウントダウンで自動解除）
     //   移行中は AI 攻撃停止（_selectEnemyAtk で null 返す）+ HP 削れない（hit-engine 側でクランプ）
     if (e.bossPhaseTransitioning) {
@@ -3297,7 +3554,8 @@ export function updateEnemies(ctx) {
           const dz = p0.z - e.z;
           const adx = Math.abs(dx);
           const adz = Math.abs(dz);
-          if (dx !== 0) {
+          // ボスは攻撃開始時の向きを全フェーズで固定（振り向き禁止）
+          if (dx !== 0 && !e.isBoss) {
             e.facing = dx > 0 ? 1 : -1;
             e.mesh.rotation.y = e.facing * Math.PI / 2;
           }
@@ -3585,6 +3843,109 @@ export function updateEnemies(ctx) {
               e.atkPitchTarget  = 0;
               e.atkSlotIdx      = 0;
               e.recoverSaTimer  = atk.recoverSaFrames ?? 0;  // recover 前半 SA
+            }
+          } else if (atk.kind === 'boss_double_tackle') {
+            // 画面端往復タックル：壁到達で即反転 → 2 パス目 → recover
+            const wallL = Math.max(PHYSICS.STAGE_LEFT, getActiveWallX('left'));
+            const wallR = Math.min(PHYSICS.STAGE_RIGHT, getActiveWallX('right'));
+            const _step = atk.dashSpeed ?? 10;
+            const _nx   = Math.min(wallR, Math.max(wallL, e.x + e.facing * _step));
+            const _moved = Math.abs(_nx - e.x);
+            e.x = _nx;
+            e.atkDashDist += _moved;
+            _setMeshChargeColor(e, 1.0, 0xff8833);  // 突進中オレンジ発光
+            // パスごとに 1 ヒット
+            if (!e._tackleHitDone) {
+              if (tryHitPlayer(e, atk)) {
+                e._tackleHitDone = true;
+                e.slashHitFlash  = 6;
+              }
+            }
+            // 壁到達 / dashMaxDist / タイムアウト → 折り返し or recover
+            const _passEnd = _moved < _step * 0.5
+                          || e.atkDashDist >= (atk.dashMaxDist ?? 1800)
+                          || e.atkTimer <= 0;
+            if (_passEnd) {
+              if ((e._tacklePass ?? 1) < 2) {
+                // 1 パス目完了 → 即反転して 2 パス目
+                e._tacklePass++;
+                e.facing        = -e.facing;
+                e.mesh.rotation.y = e.facing * Math.PI / 2;
+                e.atkDashDist   = 0;
+                e._tackleHitDone = false;
+                e.atkTimer      = atk.activeFrames;  // タイムアウトリセット
+              } else {
+                // 2 パス目完了 → recover
+                e.atkPhase       = 'recover';
+                e.atkTimer       = atk.recoverFrames;
+                e.atkPitchTarget = 0;
+                e.recoverSaTimer = atk.recoverSaFrames ?? 0;
+                _setMeshChargeColor(e, 0);
+              }
+            }
+          } else if (atk.kind === 'boss_overdrive') {
+            // 追尾 4 連コンボ：各スロットに wind（RC 受付）→ hit → active（後隙）
+            const slots = atk.comboSlots ?? [];
+
+            if (!e._odInitDone) {
+              // アクティブ初回：target 位置へスナップ + スロット 0 開始
+              e._odInitDone = true;
+              if (e._odTargetX != null) e.x = e._odTargetX;
+              // facing をプレイヤー方向に更新
+              const p0 = _players?.[0];
+              if (p0) {
+                e.facing = (p0.x >= e.x) ? 1 : -1;
+                if (e.mesh) e.mesh.rotation.y = e.facing * Math.PI / 2;
+              }
+              if (slots.length === 0) {
+                e.atkPhase = 'recover'; e.atkTimer = atk.recoverFrames; return;
+              }
+              e._odSlotIdx   = 0;
+              e._odSlotPhase = 'wind';
+              e._odSlotTimer = slots[0].windF ?? 20;
+              e._odSlotAxis  = slots[0].repulseAxis ?? null;
+              e.repulseWindow = true;
+            }
+
+            e._odSlotTimer = Math.max(0, (e._odSlotTimer ?? 1) - 1);
+            const slot = slots[e._odSlotIdx ?? 0];
+
+            if (!slot) {
+              e.atkPhase = 'recover'; e.atkTimer = atk.recoverFrames;
+              e.repulseWindow = false; e._odSlotAxis = null;
+            } else if (e._odSlotPhase === 'wind') {
+              if (e._odSlotTimer <= 0) {
+                // wind 終了 → ヒット判定 + active（後隙）へ
+                e._odSlotPhase  = 'active';
+                e._odSlotTimer  = slot.activeF ?? 10;
+                e.repulseWindow = false;
+                e._odSlotAxis   = null;
+                const _hitAtk = Object.assign({}, atk, slot);  // スロット値で damage/knockback 上書き
+                tryHitPlayer(e, _hitAtk);
+                e.slashHitFlash = 6;
+              }
+            } else {
+              // active（後隙）終了 → 次スロットへ or recover
+              if (e._odSlotTimer <= 0) {
+                const nextIdx = (e._odSlotIdx ?? 0) + 1;
+                if (nextIdx >= slots.length) {
+                  e.atkPhase       = 'recover';
+                  e.atkTimer       = atk.recoverFrames;
+                  e.atkPitchTarget = 0;
+                } else {
+                  e._odSlotIdx    = nextIdx;
+                  e._odSlotPhase  = 'wind';
+                  const ns        = slots[nextIdx];
+                  e._odSlotTimer  = ns.windF ?? 20;
+                  e._odSlotAxis   = ns.repulseAxis ?? null;
+                  e.repulseWindow = true;
+                }
+              }
+            }
+            // タイムアウト保険
+            if (e.atkTimer <= 0 && e.atkPhase === 'active') {
+              e.atkPhase = 'recover'; e.atkTimer = atk.recoverFrames;
+              e.repulseWindow = false; e._odSlotAxis = null;
             }
           } else {
             // その場振り：active 中ずっとヒット判定（1 ヒットのみ）
@@ -3922,7 +4283,7 @@ export function updateEnemies(ctx) {
     }
 
     // ボス専用：腕ピボットアニメーション + AOE 表示管理（攻撃フェーズ別）
-    if (e.isBoss) { _updateBossAnim(e); _updateBossAoe(e); }
+    if (e.isBoss) { _updateBossAnim(e); _updateBossAoe(e); _updateBossCollision(e); }
 
     // 転がり中は腰ピボット補正（敵・プレイヤー共用ヘルパ）。それ以外は素の座標。
     if (e.state === STATE.down_roll_start || e.state === STATE.down_roll_loop) {

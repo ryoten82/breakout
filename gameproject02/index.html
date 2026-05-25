@@ -236,7 +236,7 @@
     }
     #hp-bar {
       position: absolute;
-      right: 0;           /* 右端起点：右→左に溜まる（SP と作法統一）*/
+      left: 0;            /* 左端起点：右から減る（ジャンル標準・雑魚バー・ボスバーと統一）*/
       top: 0;
       height: 100%;
       width: 100%;
@@ -359,7 +359,7 @@
     }
     #sp-bar {
       position: absolute;
-      right: 0;          /* 右端起点：右→左に溜まる（HP と作法統一）*/
+      left: 0;           /* 左端起点：左→右に溜まる（HP と作法統一）*/
       top: 0;
       height: 100%;
       width: 0%;
@@ -685,6 +685,95 @@
     html.dbg-hidden #dummy-hp,
     html.dbg-hidden #inv-hud-badge,
     html.dbg-hidden #combo-history-panel { display: none !important; }
+
+    /* === ボス HP ゲージ（ボスステージ専用・画面下部中央）=== */
+    #boss-hp-gauge {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      align-items: center;
+      gap: 12px;
+      width: 1280px;
+      pointer-events: none;
+    }
+    #boss-hp-gauge.visible { display: flex; }
+    #boss-hp-icon {
+      width: 76px;
+      height: 76px;
+      flex-shrink: 0;
+      background: rgba(160, 25, 8, 0.92);
+      border: 3px solid #ff6644;
+      box-shadow: 0 0 16px rgba(255, 60, 20, 0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Courier New', monospace;
+      font-size: 10px;
+      font-weight: bold;
+      color: #ffddcc;
+      letter-spacing: 1px;
+      text-shadow: 1px 1px 0 #000;
+      text-align: center;
+      line-height: 1.4;
+    }
+    #boss-hp-bar-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    #boss-hp-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 0 4px;
+    }
+    #boss-hp-name-label {
+      font-family: 'Courier New', monospace;
+      font-size: 18px;
+      font-weight: bold;
+      color: #ff9977;
+      letter-spacing: 4px;
+      text-shadow: 0 0 10px rgba(255, 100, 50, 0.65);
+    }
+    #boss-hp-phase-label {
+      font-family: 'Courier New', monospace;
+      font-size: 15px;
+      color: #cc8866;
+      letter-spacing: 2px;
+    }
+    #boss-hp-bar-frame {
+      width: 100%;
+      height: 40px;
+      background: rgba(8, 0, 0, 0.88);
+      border: 3px solid #881800;
+      box-shadow: 0 0 14px rgba(180, 40, 10, 0.45), inset 0 1px 6px rgba(0,0,0,0.6);
+      position: relative;
+      overflow: hidden;
+    }
+    #boss-hp-fill {
+      position: absolute;
+      top: 0; left: 0; bottom: 0;  /* 左端起点：左→右に減る（ジャンル標準・雑魚バーと同方向）*/
+      width: 100%;
+      background: linear-gradient(180deg, #ff6633 0%, #dd2200 50%, #aa1400 100%);
+      transition: width 0.08s linear;
+    }
+    #boss-hp-phase-marks {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      display: none;  /* デフォルト非表示・デバッグ時のみ表示 */
+    }
+    html:not(.dbg-hidden) #boss-hp-phase-marks { display: block; }
+    .boss-hp-phase-mark {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 3px;
+      background: rgba(255, 210, 120, 0.80);
+      box-shadow: 0 0 5px rgba(255, 200, 80, 0.5);
+    }
   </style>
 </head>
 <body>
@@ -922,6 +1011,20 @@
       min-height: 36px;
     "></div>
   </div>
+  <!-- ボス HP ゲージ（ボスステージ専用・画面下部中央） -->
+  <div id="boss-hp-gauge">
+    <div id="boss-hp-icon">BOSS</div>
+    <div id="boss-hp-bar-wrap">
+      <div id="boss-hp-label-row">
+        <span id="boss-hp-name-label">BOSS</span>
+        <span id="boss-hp-phase-label">PHASE 1</span>
+      </div>
+      <div id="boss-hp-bar-frame">
+        <div id="boss-hp-fill"></div>
+        <div id="boss-hp-phase-marks"></div>
+      </div>
+    </div>
+  </div>
   </div><!-- /#hud-layer -->
   </div><!-- /#game-frame -->
 
@@ -940,7 +1043,7 @@
     import { ATTACKS, ATTACK_ATTRS, resolveAttackAttr, getHitWindowEnd, Z_CHAIN, A_CHAIN } from './src/attacks.js';
     // === CONFIG 群は src/config.js に分離（Step C-1 中核 + C-2 周辺・ESM import）===
     import {
-      PHYSICS, SP_CONFIG, ULT_CONFIG, GRAB_CONFIG, MEGA_CONFIG, UKEMI_CONFIG,
+      PHYSICS, SP_CONFIG, ULT_CONFIG, GRAB_CONFIG, MEGA_CONFIG, BOSS_MEGA_CONFIG, UKEMI_CONFIG,
       SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, HOMING_CONFIG, GUARD_CONFIG,
       ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, REPULSE_CONFIG,
       CAM_CONFIG, PIXEL_SHADER, OUTLINE_CONFIG,
@@ -1039,7 +1142,7 @@
     } from './src/debug-invariants.js';
     // === damage-area（ダメージ範囲可視化：共通モジュール・AoE 攻撃や爆発範囲に転用可）===
     import {
-      initDamageArea, addStaticArea, addRectArea, updateAreaPosition, updateAreaScale, removeArea,
+      initDamageArea, addStaticArea, addRectArea, addSemicircleArea, updateAreaPosition, updateAreaScale, removeArea,
       spawnExpandPulse, updateAreas,
     } from './src/fx/damage-area.js';
     // === stages（背景部屋・stage-room worktree 由来）===
@@ -1064,6 +1167,7 @@
     import {
       initFxSystem,
       updateMegaCrashFX, updateChargeRingFX, updateHomingArrowFX, updateUltFX,
+      updateBossMegaCrashFX, triggerBossMegaCrashFX,
     } from './src/fx-system.js';
     // === player-system（ガード / 必殺 / コンボホーミング / updatePlayer）は src/player-system.js に分離（Step E-4a/b）===
     import {
@@ -2008,6 +2112,21 @@
       scene.add(mesh);
       return mesh;
     })();
+    // === ボスフェーズ移行メガクラ球体（赤・大型）===
+    const bossMegaRing = (() => {
+      const geo = new THREE.SphereGeometry(1, 32, 24);
+      const mat = new THREE.MeshBasicMaterial({
+        color:       BOSS_MEGA_CONFIG.RING_COLOR,
+        transparent: true,
+        opacity:     0,
+        side:        THREE.DoubleSide,
+        depthWrite:  false,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.visible = false;
+      scene.add(mesh);
+      return mesh;
+    })();
     let megaRingProgress = 0;   // 0〜1：リング拡大進度（0=未発動 / 1=完了）
     let megaSlowFrames   = 0;   // メガクラスローモーション残フレーム
     let megaSlowCounter  = 0;
@@ -2306,7 +2425,7 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-26 ボス攻撃 AOE 二重表示（背景矩形＋先端へ走るカーソルバー）';
+    const LAST_UPDATE = '2026-05-26 ボスSA カウンター制（5発吸収→6発目knockback01・コンボ切れリセット）';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
@@ -2603,7 +2722,7 @@
     // let _tok_projectile = null;  // 将来の長距離敵用（未使用時はコメントアウト）
 
     // enemy-system 初期化（spawnDummy / updateEnemies が使う依存を注入）
-    initEnemySystem({ THREE, scene, players, enemies, addRectArea, updateAreaPosition, updateAreaScale, removeArea });
+    initEnemySystem({ THREE, scene, players, enemies, addStaticArea, addRectArea, addSemicircleArea, updateAreaPosition, updateAreaScale, removeArea, triggerBossMegaCrashFX });
     initEnemyGoreBlack(THREE);  // 黒フェード目標色（gore-scrap）の初期化
     // damage-area 初期化（ダメージ範囲リング・パルスの共通基盤）
     initDamageArea({ scene, THREE });
@@ -3002,6 +3121,7 @@
       ultDome, ultDarkenEl,
       homingArrowMesh,
       chargeReadyRing,
+      bossMegaRing,
       fxRefs,
     });
 
@@ -3393,7 +3513,59 @@
     //  #section hud-update — SP ゲージ / デバッグ HUD / グラブゲージ / 時計 / コンボ HUD
     // ============================================================
 
+    // ボス HP ゲージ：ボスが存在するステージでのみ表示
+    {
+      const _bossGaugeEl      = document.getElementById('boss-hp-gauge');
+      const _bossGaugeFillEl  = document.getElementById('boss-hp-fill');
+      const _bossGaugeNameEl  = document.getElementById('boss-hp-name-label');
+      const _bossGaugePhaseEl = document.getElementById('boss-hp-phase-label');
+      const _bossGaugeMarksEl = document.getElementById('boss-hp-phase-marks');
+      let _bossGaugeLastBoss  = null;  // フェーズマーク初期化の重複を防ぐ
 
+      window.updateBossHpGauge = function updateBossHpGauge() {
+        // 複数体いる場合（dying中+リスポーン直後など）は HP 比率が最も低い＝実際に戦っている側を選ぶ
+        let boss = null;
+        for (const e of enemies) {
+          if (!e.isBoss || !e.isAlive) continue;
+          if (!boss || (e.hp / e.maxHp) < (boss.hp / boss.maxHp)) boss = e;
+        }
+        if (!boss) {
+          _bossGaugeEl.classList.remove('visible');
+          _bossGaugeLastBoss = null;
+          return;
+        }
+        // 表示開始
+        if (!_bossGaugeEl.classList.contains('visible')) {
+          _bossGaugeEl.classList.add('visible');
+        }
+        // ボス名（現状 boss01 固定）
+        const bossName = 'CRUSHER';
+        if (_bossGaugeNameEl.textContent !== bossName) {
+          _bossGaugeNameEl.textContent = bossName;
+        }
+        // フェーズラベル
+        const phaseText = `PHASE ${boss.bossPhase ?? 1}`;
+        if (_bossGaugePhaseEl.textContent !== phaseText) {
+          _bossGaugePhaseEl.textContent = phaseText;
+        }
+        // HP フィル（割合）
+        const ratio = Math.max(0, Math.min(1, boss.hp / boss.maxHp));
+        _bossGaugeFillEl.style.width = `${(ratio * 100).toFixed(2)}%`;
+        // フェーズ境界ライン（初回 or ボス入れ替わり時のみ生成）
+        if (boss !== _bossGaugeLastBoss && boss.bossPhaseGateHP?.length) {
+          _bossGaugeMarksEl.innerHTML = '';
+          for (const gateHp of boss.bossPhaseGateHP) {
+            if (!gateHp) continue;   // 末尾の 0 はスキップ
+            const pct = (gateHp / boss.maxHp) * 100;
+            const mark = document.createElement('div');
+            mark.className = 'boss-hp-phase-mark';
+            mark.style.left = `${pct.toFixed(2)}%`;
+            _bossGaugeMarksEl.appendChild(mark);
+          }
+          _bossGaugeLastBoss = boss;
+        }
+      };
+    }
 
     // ============================================================
     //  #section main-update — 毎フレームの集中ディスパッチ
@@ -3433,7 +3605,9 @@
       updateCamera();
       updateSPGauge();
       updateHpHud();
+      updateBossHpGauge();
       updateMegaCrashFX();
+      updateBossMegaCrashFX();
       updateChargeRingFX();
       updateChargeParticles();
       updateHomingArrowFX();

@@ -512,7 +512,8 @@ export function updateRepulseHud() {
   let _axisIcon = null;
   for (const e of _enemies) {
     if (e.repulseWindow && e.curAtkId) {
-      const _axis = ENEMY_ATTACKS[e.curAtkId]?.repulseAxis;
+      // boss_overdrive は _odSlotAxis でスロットごとに軸が変わる
+      const _axis = e._odSlotAxis ?? ENEMY_ATTACKS[e.curAtkId]?.repulseAxis;
       if (_axis) { _axisIcon = REPULSE_CONFIG.AXIS_ICON?.[_axis] ?? '!'; break; }
     }
   }

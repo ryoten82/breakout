@@ -35,7 +35,7 @@ import {
 } from './states.js';
 import {
   COMBO_LEVELS, getComboLevel,
-  PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG, MIDBOSS_SHIELD_CONFIG, REPULSE_CONFIG,
+  PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG, MIDBOSS_SHIELD_CONFIG, REPULSE_CONFIG, BOSS01_CONFIG,
 } from './config.js';
 import { resolveAttackAttr, ATTACKS } from './attacks.js';
 import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak, forceArmGoreCriticalIfPossible, triggerBossPhaseTransition, igniteEnemy, detonateBurn } from './enemy-system.js';
@@ -619,8 +619,9 @@ export function tryHitEnemies(p, attack, ctx) {
     for (const e of enemies) {
       if (!e.isAlive || e.dying || e.dyingInvincible) continue;
       const dx = e.x - p.x, dz = e.z - p.z;
-      if (Math.abs(dx) > attack.rangeX) continue;
-      if (Math.abs(dz) > attack.rangeZ) continue;
+      const _exX = e.hitReceiveExpandX ?? 0, _exZ = e.hitReceiveExpandZ ?? 0;
+      if (Math.abs(dx) > attack.rangeX + _exX) continue;
+      if (Math.abs(dz) > attack.rangeZ + _exZ) continue;
       if (attack.rangeY !== undefined) {
         const dy = e.y - p.y;
         const maxDown = attack.rangeYDown ?? attack.rangeY;
@@ -672,8 +673,11 @@ export function tryHitEnemies(p, attack, ctx) {
     const _isLockedTarget = (e === p.comboTarget);
     const _bonusX = _isLockedTarget ? HOMING_CONFIG.HIT_RANGE_BONUS_X : 0;
     const _bonusZ = _isLockedTarget ? HOMING_CONFIG.HIT_RANGE_BONUS_Z : 0;
-    if (Math.abs(dx) > attack.rangeX + _bonusX) { if (_DBG_SP2AIR) console.log(`[SP2AIR] skip dx>rangeX (${Math.abs(dx).toFixed(0)}>${attack.rangeX})`); continue; }
-    if (Math.abs(dz) > attack.rangeZ + _bonusZ) { if (_DBG_SP2AIR) console.log(`[SP2AIR] skip dz>rangeZ (${Math.abs(dz).toFixed(0)}>${attack.rangeZ})`); continue; }
+    // 大柄ボス補正：ボス中心ではなく体端までの距離で判定（hitReceiveExpandX/Z = 体幅半値）
+    const _expandX = e.hitReceiveExpandX ?? 0;
+    const _expandZ = e.hitReceiveExpandZ ?? 0;
+    if (Math.abs(dx) > attack.rangeX + _bonusX + _expandX) { if (_DBG_SP2AIR) console.log(`[SP2AIR] skip dx>rangeX (${Math.abs(dx).toFixed(0)}>${attack.rangeX})`); continue; }
+    if (Math.abs(dz) > attack.rangeZ + _bonusZ + _expandZ) { if (_DBG_SP2AIR) console.log(`[SP2AIR] skip dz>rangeZ (${Math.abs(dz).toFixed(0)}>${attack.rangeZ})`); continue; }
     // Y軸判定（非対称：上方向 rangeY / 下方向 rangeYDown ≥ rangeY）
     if (attack.rangeY !== undefined) {
       const dy = e.y - p.y;          // 正:敵が上 / 負:敵が下
@@ -883,6 +887,9 @@ export function tryHitEnemies(p, attack, ctx) {
       ? ((e.x !== p.x) ? Math.sign(e.x - p.x) : (Math.random() < 0.5 ? 1 : -1))
       : facing;
     e.knockbackVx   = _kbDir * (attack.knockback * 0.4 * _sameAtkKbScale);
+    // ボス常時SA：水平移動量をほぼゼロにクランプ（重量感を出す）
+    if (e.bossFullSA && !e.bossSAStunTimer)
+      e.knockbackVx = Math.sign(e.knockbackVx) * Math.min(Math.abs(e.knockbackVx), 1.5);
     const resolved = resolveAttackAttr(attack);
     // === 超吹き飛ばし回数上限（down_super_* 中の敵に lv6 攻撃命中）===
     //   FLIGHT_BURST_LIMIT 回到達でバーストダウン化（2026-05-20 仕様統一）。
@@ -998,6 +1005,24 @@ export function tryHitEnemies(p, attack, ctx) {
       const _prev = e.specialHitBy.get(_spBaseIdForMark) ?? 0;
       e.specialHitBy.set(_spBaseIdForMark, _prev + 1);
     }
+    // ── ボス常時SA：カウンター制（5発吸収→6発目でknockback01・コンボ切れでリセット）──
+    // bossSAStunTimer>0（RC 成功 / ULT 命中）時は SA 解除して通常ディスパッチへ。
+    const _bossInSA = e.bossFullSA && !e.bossSAStunTimer;
+    if (_bossInSA) {
+      // ヒットのたびに decay タイマーをリセット（コンボ継続判定）
+      e.bossSADecayTimer = BOSS01_CONFIG.SA_DECAY_FRAMES;
+      e.bossSAHitCount   = (e.bossSAHitCount ?? 0) + 1;
+      if (e.bossSAHitCount <= BOSS01_CONFIG.SA_HIT_THRESHOLD) {
+        // 吸収：リアクションなし（knockbackVx も 0 にしてブレを消す）
+        e.knockbackVx = 0;
+      } else {
+        // 閾値超え：knockback01 発火・カウントリセット
+        e.bossSAHitCount = 0;
+        e.state    = STATE.knockback01;
+        e.downTimer = ENEMY_KB01_FRAMES;
+        applyHitInitialPitch(e);
+      }
+    } else {   // SA 解除中（bossSAStunTimer > 0）は通常ディスパッチ
     const _isAnyDowned = (
       e.state === STATE.down_bas_start ||
       e.state === STATE.down_bas_loop ||
@@ -1208,6 +1233,7 @@ export function tryHitEnemies(p, attack, ctx) {
       e.peakHangTimer    = 0;
       e.launcherAirborne = false;
     }
+    }  // end: _bossInSA else（ここまでが通常ディスパッチ）
     // プレイヤーの空中ホップ：攻撃側に aerialHop:true が立っている技で発動
     // 対象：c01_atk_01_air / 02_air / 03_air / c01_atk_l_01_air（aerialHop 持ち全般）
     // Math.max で「下降中なら浮き直す／上昇中はそのまま」→ cancel jump 直後の上昇vyを潰さない
@@ -1709,7 +1735,9 @@ export function updateRepulseDetection(p, enemies) {
     }
     const eAtk = ENEMY_ATTACKS[e.curAtkId];
     if (!eAtk || !eAtk.repulseTargetBox) continue;
-    if (eAtk.repulseAxis !== atk.repulseAxis) { if (_dbg && _isJd) console.log(`  [RC fail] axis mismatch p=${atk.repulseAxis} e=${eAtk.repulseAxis}`); continue; }
+    // boss_overdrive は _odSlotAxis でスロットごとに軸が変わる（通常は eAtk.repulseAxis）
+    const _eAxis = e._odSlotAxis ?? eAtk.repulseAxis;
+    if (_eAxis !== atk.repulseAxis) { if (_dbg && _isJd) console.log(`  [RC fail] axis mismatch p=${atk.repulseAxis} e=${_eAxis}`); continue; }
     const dx = e.x - p.x, dz = e.z - p.z;
     const xzDist = Math.hypot(dx, dz);
     if (xzDist > REPULSE_CONFIG.MAX_WARP_DISTANCE) { if (_dbg && _isJd) console.log(`  [RC fail] dist=${xzDist.toFixed(0)} > ${REPULSE_CONFIG.MAX_WARP_DISTANCE}`); continue; }

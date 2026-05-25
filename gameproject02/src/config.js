@@ -185,6 +185,21 @@ export const MEGA_CONFIG = {
   RING_COLOR:       0x66ddff,  // 球体シェルの色
 };
 
+// ボスフェーズ移行メガクラ（プレイヤーの MEGA_CONFIG を赤・大型化したもの）
+export const BOSS_MEGA_CONFIG = {
+  RADIUS:        500,       // 拡大半径（ボス体格比：プレイヤー 300 の約1.7倍）
+  EXPAND_FRAMES: 18,        // 拡大フレーム数
+  DARKEN_ALPHA:  0.60,      // 暗転オーバーレイ強度
+  DARKEN_FADE_OUT: 35,
+  RING_COLOR:    0xff2200,  // 赤
+  // AoE ヒット設定
+  DAMAGE:        25,
+  ATK_LV:        5,
+  KNOCKBACK:     45,
+  HITSTOP:       12,
+  SHAKE:         22,
+};
+
 // ============================================================
 //  SPECIAL（必殺技：コマンド技・溜め技）
 //  - ↓↘→+J / ↓↑+J / J長押し0.8秒 で発動
@@ -586,14 +601,14 @@ export const ENEMY_ATTACKS = {
     name:           'クラッシャー振り下ろし（両拳叩きつけ）',
     kind:           'swing',
     attackCategory: 'melee',
-    windFrames:     40,
+    windFrames:     60,
     activeFrames:   12,
     recoverFrames:  30,
     cooldownFrames: 90,
     lungeVx:        4,
-    hitboxRangeX:   200,
-    hitboxRangeY:   180,
-    hitboxRangeZ:   140,
+    hitboxRangeX:   400,
+    hitboxRangeY:   360,
+    hitboxRangeZ:   280,
     damage:         14,
     atk_lv:         4,
     knockback:      28,
@@ -607,6 +622,7 @@ export const ENEMY_ATTACKS = {
       active:  { lArm: { x: 0, z: -0.3 }, rArm: { x: 0, z: +0.3 } }, // 両腕を内側へ叩き下ろし
       recover: { lArm: { x: 0, z:  0.0 }, rArm: { x: 0, z:  0.0 } },
     },
+    aoeDisplay: { shape: 'rect', w: 440, h: 440 },  // 縦長矩形（叩きつけ縦軸）
   },
   // boss1_atk_02：横薙ぎフック（片腕大振り）
   //   art-reference 統合：素手フック・横軸 AOE 広範囲
@@ -614,7 +630,7 @@ export const ENEMY_ATTACKS = {
     name:           '横薙ぎフック',
     kind:           'swing',
     attackCategory: 'melee',
-    windFrames:     35,
+    windFrames:     52,
     activeFrames:   18,
     recoverFrames:  35,
     cooldownFrames: 100,
@@ -635,6 +651,7 @@ export const ENEMY_ATTACKS = {
       active:  { lArm: { x:  0.0, z: +0.2 }, rArm: { x:  0.0, z: +0.7 } }, // 右腕を内側へ薙ぎ払い
       recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
     },
+    aoeDisplay: { shape: 'semicircle', radius: 320 },  // 横薙ぎ弧状（ユーザー指定）
   },
   // boss1_atk_03：地響きスマッシュ（拳を地面に叩きつけ → パンチ衝撃波）
   //   art-reference 統合：「パンチ衝撃波で間合いを埋める」コンセプトをここに集約
@@ -642,14 +659,14 @@ export const ENEMY_ATTACKS = {
     name:           '地響きスマッシュ',
     kind:           'swing',  // TODO: 専用 kind='shockwave_aoe' を別セッションで設計
     attackCategory: 'melee',
-    windFrames:     45,
+    windFrames:     75,
     activeFrames:   20,
     recoverFrames:  40,
     cooldownFrames: 110,
     lungeVx:        0,
-    hitboxRangeX:   260,
-    hitboxRangeY:   80,
-    hitboxRangeZ:   260,
+    hitboxRangeX:   780,
+    hitboxRangeY:   50,   // 地上限定（ジャンプ回避可）。ピーク高度 ≈61 なのでタイミング次第で抜けられる
+    hitboxRangeZ:   780,
     damage:         16,
     atk_lv:         5,
     knockback:      36,
@@ -663,6 +680,7 @@ export const ENEMY_ATTACKS = {
       active:  { lArm: { x: 0, z: -0.5 }, rArm: { x: 0, z: +0.5 } }, // 地面に叩きつけ（最大内側）
       recover: { lArm: { x: 0, z:  0.0 }, rArm: { x: 0, z:  0.0 } },
     },
+    aoeDisplay: { shape: 'circle', radius: 520 },     // 全方位床面リング（地響き衝撃波）
   },
   // boss1_atk_04：横薙ぎフック × 2 連（Phase 2 派生）
   //   D 案再編 2026-05-26：atk_02 のモーション/値を流用して 2 連発射する派生形
@@ -681,7 +699,7 @@ export const ENEMY_ATTACKS = {
     atk_lv:         4,
     hitColor:       0xffaa33,
     // ↓ 2 連用に振る舞いだけ変える
-    windFrames:     28,           // 1 連目のタメは短縮（連打感）
+    windFrames:     42,           // 1 連目のタメは短縮（連打感）
     activeFrames:   50,           // 2 振り分（25F × 2）
     recoverFrames:  40,           // 連発後の硬直
     cooldownFrames: 130,
@@ -697,6 +715,7 @@ export const ENEMY_ATTACKS = {
       active:  { lArm: { x:  0.0, z: +0.2 }, rArm: { x:  0.0, z: +0.6 } }, // 薙ぎ払い（2連分で往復感）
       recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
     },
+    aoeDisplay: { shape: 'semicircle', radius: 320 },  // atk_02 と同形状（2連フック）
     multiHit:       true,
     hitSlots: [
       { frame: 5,  damage: 14, atk_lv: 4, knockback: 28 },   // 1 連目（往）
@@ -713,7 +732,7 @@ export const ENEMY_ATTACKS = {
     name:           'MISSILE BARRAGE',
     kind:           'swing',  // 暫定（projectile system 未実装のため AOE 一閃で挙動確認）。本実装で 'missile_barrage' へ
     attackCategory: 'melee',
-    windFrames:     80,           // 背中装甲開閉ギミック内蔵想定
+    windFrames:     120,          // 背中装甲開閉ギミック内蔵想定
     activeFrames:   25,
     recoverFrames:  50,
     cooldownFrames: 360,          // 約 6 秒
@@ -734,6 +753,7 @@ export const ENEMY_ATTACKS = {
       active:  { lArm: { x: -0.4, z: +0.5 }, rArm: { x: -0.4, z: -0.5 } }, // 発射中も開いたまま
       recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
     },
+    aoeDisplay: { shape: 'missiles', count: 9, radius: 120 },  // ランダム着弾サークル × 9 発
   },
   // DOUBLE RUSH TACKLE（Phase 2/3 大技・RC 対象外・SA 崩しトリガー）
   //   D 案再編 2026-05-26：Phase 2 解禁・Phase 3 でも継続使用
@@ -741,24 +761,22 @@ export const ENEMY_ATTACKS = {
   //   溜め → 反対画面端タックル → 振り返り → 反対端タックル（計 2 往復）→ 大 recover 硬直
   boss1_atk_06: {
     name:           'DOUBLE RUSH TACKLE',
-    kind:           'slash_rush',  // TODO: 専用 kind='boss_double_tackle' を別セッションで設計
+    kind:           'boss_double_tackle',  // 画面端往復タックル（2パス）
     attackCategory: 'melee',
-    windFrames:     60,           // 溜め動作（大きく予兆）
-    activeFrames:   80,           // 暫定：active 中に画面端往復処理（実装は別途）
+    windFrames:     90,           // 溜め動作（大きく予兆）
+    activeFrames:   160,          // 1パスあたりのタイムアウト保険（壁到達で通常はもっと早く折り返す）
     recoverFrames:  90,           // 大きな recover 硬直（SA 崩しトリガー対象）
     cooldownFrames: 480,          // 約 8 秒
-    dashSpeed:      8.0,
-    dashMaxDist:    1600,         // 画面端到達想定
-    hitboxRangeX:   220,
-    hitboxRangeY:   180,
+    dashSpeed:      10.0,         // 突進速度
+    dashMaxDist:    1800,         // 1パスの最大突進距離（フォールバック）
+    hitboxRangeX:   120,          // 突進中の当たり判定（ボディ半幅程度）
+    hitboxRangeY:   200,
     hitboxRangeZ:   140,
-    multiHit:       true,
-    hitSlots: [
-      { frame: 10, damage: 18, atk_lv: 5, knockback: 36 },  // 往復1 開始
-      { frame: 50, damage: 18, atk_lv: 5, knockback: 36 },  // 往復2 開始（暫定値）
-    ],
+    damage:         20,
+    atk_lv:         5,
+    knockback:      42,
     hitstop:        9,
-    shake:          12,
+    shake:          14,
     hitColor:       0xff8833,
     pitchWind:     -0.25,
     pitchActive:   +0.40,
@@ -767,6 +785,7 @@ export const ENEMY_ATTACKS = {
       active:  { lArm: { x: +0.6, z: +0.3 }, rArm: { x: +0.6, z: -0.3 } }, // 突進中・腕で薙ぎ払い
       recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
     },
+    aoeDisplay: { shape: 'tackle_corridor', h: 220 },  // 全画面幅の突進危険ゾーン
     saBreakOnRecover: true,  // recover 中は SA 解除（プレイヤーが反撃可能）
   },
   // OVERDRIVE PUNCH（Phase 3 必殺技・リパルスカウンター対象）
@@ -775,31 +794,36 @@ export const ENEMY_ATTACKS = {
   //   SF2 真昇龍系のタメ感。Phase 2 でミサイル避け（遠距離）に慣れたプレイヤーの逆を突く
   //   弾き対象は「拳のコア部分」が active 入りする瞬間
   boss1_atk_07: {
-    name:           'OVERDRIVE PUNCH',
-    kind:           'swing',       // TODO: 専用 kind='boss_overdrive_thrust' で ゼロ距離タメ突き演出
+    name:           'OVERDRIVE',
+    kind:           'boss_overdrive',   // 追尾 AOE → 4 連コンボ（各スロットに RC）
     attackCategory: 'melee',
-    windFrames:     90,            // 最長タメ（重み演出）
-    activeFrames:   8,             // 瞬発
-    recoverFrames:  50,
+    windFrames:     135,           // 追尾サークルが player 位置へ飛ぶ期間
+    activeFrames:   200,           // 4 コンボスロット全体のタイムアウト保険
+    recoverFrames:  70,
     cooldownFrames: 480,           // 約 8 秒
-    lungeVx:        12,            // ゼロ距離タメ突き（前方踏み込み大）
-    hitboxRangeX:   260,
-    hitboxRangeY:   180,
-    hitboxRangeZ:   140,
-    damage:         34,
-    atk_lv:         6,
-    knockback:      54,
-    hitstop:        14,
-    shake:          20,
+    hitboxRangeX:   280,           // コンボ判定（boss がスナップ後の共通範囲）
+    hitboxRangeY:   200,
+    hitboxRangeZ:   160,
+    hitstop:        8,             // 共通（スロット側で上書き可）
+    shake:          12,
     hitColor:       0xff3322,
     pitchWind:     -0.55,
-    pitchActive:   +0.70,
+    pitchActive:   +0.30,
     bossAnim: {
       wind:    { lArm: { x: 0, z: +1.4 }, rArm: { x: 0, z: -1.4 } }, // 両腕を最大外側に構えてタメ
-      active:  { lArm: { x: 0, z: -0.2 }, rArm: { x: 0, z: +1.2 } }, // 右腕を内側に最大振り下ろし（必殺の一撃）
+      active:  { lArm: { x: 0, z: -0.2 }, rArm: { x: 0, z: +1.2 } }, // コンボ中
       recover: { lArm: { x: 0, z:  0.0 }, rArm: { x: 0, z:  0.0 } },
     },
-    repulseAxis:   'ground',       // リパルスカウンター対象（弾き = 確定クリ + 100% gc）
+    aoeDisplay: { shape: 'overdrive_track', radius: 180 },  // boss→player 追尾サークル
+    repulseTargetBox: { offsetX: 60, offsetY: 0, w: 300, h: 220, d: 200 },  // RC 受付ボックス
+    // ── コンボスロット（順番に発動）──────────────────────────────
+    // windF: RC 受付期間 / activeF: ヒット後の後隙 / repulseAxis: 対応方向
+    comboSlots: [
+      { name: '振り下ろし', damage: 20, atk_lv: 5, knockback: 32, windF: 28, activeF: 14, repulseAxis: 'aerial'  }, // ↑
+      { name: '振り下ろし', damage: 20, atk_lv: 5, knockback: 32, windF: 22, activeF: 12, repulseAxis: 'aerial'  }, // ↑
+      { name: 'アッパー',   damage: 18, atk_lv: 5, knockback: 28, windF: 20, activeF: 12, repulseAxis: 'ground'  }, // ↓
+      { name: 'ストレート', damage: 30, atk_lv: 6, knockback: 55, windF: 22, activeF: 10, repulseAxis: 'frontal' }, // →
+    ],
   },
 };
 
@@ -901,6 +925,9 @@ export const BOSS01_CONFIG = {
   PHASE_3_WIND_MULT:      0.90,  // wind を -10%
   PHASE_3_COOLDOWN_MULT:  0.80,  // 攻撃間隔 -20%
   PHASE_3_MOVE_MULT:      1.20,  // 移動速度 +20%
+  // スーパーアーマー（SA）カウンター制
+  SA_HIT_THRESHOLD:        5,    // この発数まで吸収（無反応）→ +1 発目で knockback01
+  SA_DECAY_FRAMES:        90,    // 最後のヒットから このフレーム無攻撃でカウントリセット
   // Phase 2 高速化（Phase 1 同攻撃を高速化）
   PHASE_2_WIND_MULT:      0.80,  // wind を -20%
   PHASE_2_COOLDOWN_MULT:  0.75,  // cooldown を -25%
@@ -913,6 +940,8 @@ export const BOSS01_CONFIG = {
   SA_BREAK_STUN_FRAMES:   45,     // SA 崩し時のスタン F
   // サイズ（メッシュスケール）
   MESH_SCALE:             3.2,   // 元4.0の80%（64m相当）
+  BODY_HALF_X:            154,   // 胴体の左右半幅（stand 幅 95 × SCALE/2 ≈ 152、余裕2）
+  BODY_HALF_Z:            130,   // 奥行き半幅（stand 奥行き 80 × SCALE/2 ≈ 128）
   // === 移動/接近パラメータ（D 案 Phase 1 基本行動 2026-05-26）===
   //   重い・遅い・大柄 → 接近・攻撃距離・速度を boss 用に上書き
   //   DUMMY_ATK_CONFIG を直接いじらず、isBoss 分岐で本値を使う

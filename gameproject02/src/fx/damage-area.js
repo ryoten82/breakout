@@ -33,7 +33,7 @@ function _makeRingMesh({ radius, color, opacity, thickness }) {
   // RingGeometry は 床面に水平に置けるよう X-Z 平面に向ける（rotation.x = -π/2）
   const inner = radius - (thickness ?? Math.max(6, radius * 0.04));
   const outer = radius;
-  const geom = new _THREE.RingGeometry(Math.max(0, inner), outer, 48);
+  const geom = new _THREE.RingGeometry(Math.max(0, inner), outer, 128);
   const mat = new _THREE.MeshBasicMaterial({
     color: color ?? 0xff3030,
     transparent: true,
@@ -85,6 +85,45 @@ export function addRectArea(opts) {
     depthWrite: false,
   });
   const mesh = new _THREE.Mesh(geom, mat);
+  mesh.position.set(x, y, z);
+  _scene.add(mesh);
+  areas.push({
+    id, mesh,
+    life: opts.life ?? -1,
+    baseOpacity: opacity,
+    blink: !!opts.blink,
+    blinkPeriodFn: opts.blinkPeriodFn || null,
+    frame: 0,
+  });
+  return id;
+}
+
+// カメラ向き半円エリア（横薙ぎフックなど弧状 AOE 予兆）
+// CircleGeometry(1, 48, -PI/2, PI) で右向き D 字を作り scale.x の符号で向き反転。
+// opts: { x, y, z, radius, facing (+1/-1), color, opacity, blink, blinkPeriodFn }
+//   x, y, z : 平面辺の中央（ボス位置）。弧は facing 方向に半径分だけ広がる。
+//   radius  : 表示半径（= 実ヒットボックスとは別の表示専用値）
+export function addSemicircleArea(opts) {
+  if (!_scene || !_THREE) return null;
+  const id = _nextId++;
+  const {
+    x = 0, y = 0, z = 0,
+    radius  = 200,
+    facing  = 1,
+    color   = 0xff4400,
+    opacity = 0.3,
+  } = opts;
+  // thetaStart=-PI/2 → arc が右に開く D 字。facing=-1 なら scale.x 負で左右反転
+  const geom = new _THREE.CircleGeometry(1, 128, -Math.PI / 2, Math.PI);
+  const mat  = new _THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity,
+    side: _THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const mesh = new _THREE.Mesh(geom, mat);
+  mesh.scale.set(facing >= 0 ? radius : -radius, radius, 1);
   mesh.position.set(x, y, z);
   _scene.add(mesh);
   areas.push({

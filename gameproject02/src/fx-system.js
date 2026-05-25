@@ -25,7 +25,7 @@
 // ============================================================
 
 import {
-  MEGA_CONFIG, ULT_CONFIG, CHARGE_RING_CONFIG, HOMING_CONFIG,
+  MEGA_CONFIG, ULT_CONFIG, CHARGE_RING_CONFIG, HOMING_CONFIG, BOSS_MEGA_CONFIG,
 } from './config.js';
 import { ATTACKS } from './attacks.js';
 import { chargeRingState, getGameFrame } from './player-system.js';
@@ -39,6 +39,8 @@ let _ultDarkenEl = null;
 let _homingArrowMesh = null;
 let _chargeReadyRing = null;
 let _fxRefs = null;
+let _bossMegaRing = null;
+let _bossMegaRingProgress = 0;   // 0 = 未発動 / 0<x<1 = 拡大中 / 1 = 完了
 
 export function initFxSystem(deps) {
   _players = deps.players;
@@ -50,6 +52,41 @@ export function initFxSystem(deps) {
   _homingArrowMesh = deps.homingArrowMesh;
   _chargeReadyRing = deps.chargeReadyRing;
   _fxRefs = deps.fxRefs;
+  _bossMegaRing = deps.bossMegaRing ?? null;
+}
+
+// ボスフェーズ移行メガクラ発火（enemy-system から呼ばれるコールバック用）
+export function triggerBossMegaCrashFX(x, y, z) {
+  if (!_bossMegaRing) return;
+  _bossMegaRing.position.set(x, y + 80, z);
+  _bossMegaRing.visible = true;
+  _bossMegaRingProgress = 0.001;
+  // 暗転：プレイヤーメガクラより少し強め
+  if (_megaDarkenEl) {
+    _megaDarkenEl.style.opacity = String(BOSS_MEGA_CONFIG.DARKEN_ALPHA);
+  }
+  if (_fxRefs) {
+    _fxRefs.megaDarken.set(BOSS_MEGA_CONFIG.EXPAND_FRAMES + BOSS_MEGA_CONFIG.DARKEN_FADE_OUT);
+  }
+}
+
+// ============================================================
+//  ボスフェーズ移行メガクラ視覚エフェクト：赤球体拡大
+// ============================================================
+export function updateBossMegaCrashFX() {
+  if (!_bossMegaRing || _bossMegaRingProgress <= 0) return;
+  if (_bossMegaRingProgress < 1) {
+    _bossMegaRingProgress = Math.min(1, _bossMegaRingProgress + 1 / BOSS_MEGA_CONFIG.EXPAND_FRAMES);
+    const radius = _bossMegaRingProgress * BOSS_MEGA_CONFIG.RADIUS;
+    _bossMegaRing.scale.set(radius, radius, radius);
+    const t = _bossMegaRingProgress;
+    _bossMegaRing.material.opacity = (1 - t) * 0.55 + 0.05;  // 0.60 → 0.05
+    if (_bossMegaRingProgress >= 1) {
+      _bossMegaRing.visible = false;
+      _bossMegaRing.material.opacity = 0;
+      _bossMegaRingProgress = 0;
+    }
+  }
 }
 
 // ============================================================
