@@ -15,17 +15,16 @@ export const STAGE02_ENEMY_TEMPLATES = {
   midboss01: { enemyType: 'midboss01', maxHp: 300, personality: 'berserker', atkCooldown: 75 },
 };
 
-// W4：midboss01 + 雑魚 4 体の乱戦構成。シールドガーダーを単体封殺できないよう包囲圧力を追加。
+// W4：midboss01 が右奥から歩いて登場 + 開幕に画面左からスクラッパー3体落下。
 export const STAGE02_WAVES = STAGE01_WAVES.map(w => {
   if (w.id !== 'W4') return w;
   return {
     ...w,
     spawns: [
-      { type: 'midboss01', x: 6200, variant: 'fall' },            // 中ボス：正面から降臨
-      { type: 'tier01',    x: 6050, variant: 'walkin_right' },    // 左側から歩き込み
-      { type: 'tier01',    x: 6350, variant: 'walkin_left' },     // 右側から歩き込み（挟み）
-      { type: 'tier01',    x: 6100, z: -50, variant: 'fall' },    // 奥から落下（奥行き圧力）
-      { type: 'tier01',    x: 6300, z:  50, variant: 'fall' },    // 手前から落下
+      { type: 'midboss01', x: 6600, variant: 'walkin_right' },    // 中ボス：右奥から歩き入り
+      { type: 'tier01',    x: 5850, z: -60, variant: 'fall' },    // 左から落下 A（奥）
+      { type: 'tier01',    x: 5950, z:   0, variant: 'fall' },    // 左から落下 B（中）
+      { type: 'tier01',    x: 5850, z:  60, variant: 'fall' },    // 左から落下 C（手前）
     ],
   };
 });

@@ -1452,10 +1452,10 @@ export const KEY_CONFIG = {
 // rarity: チップと同じ 5 段階（'common'|'uncommon'|'rare'|'epic'|'legendary'）。
 // weight: 出現重み（デフォルト 10）。小さいほど出づらい。現テストでは weight のみ機能する。
 export const OVERCLOCK_CARDS = [
-  { id: 'POWER_UP',  label: 'POWER UP',  desc: '攻撃力 ×1.3',        color: '#ff5533', rarity: 'common',    weight: 10 },
-  { id: 'SP_RUSH',   label: 'SP RUSH',   desc: 'SP 獲得 ×2',         color: '#22aaff', rarity: 'rare',      weight:  5 },
-  { id: 'REGEN_UP',  label: 'REGEN UP',  desc: 'SP 回復 ×3',         color: '#44dd88', rarity: 'epic',      weight:  3 },
-  { id: 'SP_FULL',   label: 'SP FULL',   desc: 'SP ゲージ即時満タン', color: '#ffcc22', rarity: 'uncommon',  weight: 10 },
+  { id: 'POWER_UP',  label: 'POWER UP',  desc: '攻撃力 ×1.3',                           color: '#ff5533', rarity: 'common',    weight: 10 },
+  { id: 'SP_RUSH',   label: 'SP RUSH',   desc: 'SP 獲得 ×2',                             color: '#22aaff', rarity: 'rare',      weight:  5 },
+  { id: 'SP_FULL',   label: 'SP FULL',   desc: 'SP 即時満タン / 上限 +2 本（継続）',     color: '#ffcc22', rarity: 'uncommon',  weight: 10 },
+  { id: 'BERSERK',   label: 'BERSERK',   desc: 'HP50%↓ →×1.2 / HP25%↓ →×1.4',         color: '#ff2244', rarity: 'rare',      weight:  7 },
   // ===== 延焼ビルド（積層型・取得順を強制：点火 → 延焼 → 連鎖爆発）=====
   //  - 点火を取らないと「延焼」「連鎖爆発」はプールに出ない
   //  - 延焼を取らないと「連鎖爆発」はプールに出ない

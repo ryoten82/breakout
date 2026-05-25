@@ -477,6 +477,34 @@
       pointer-events: none;
       z-index: 120;
     }
+    /* プレイヤーバフアイコン（BERSERK 等）— HP バーの左端・右揃えで縦積み */
+    #player-buff-hud {
+      position: absolute;
+      bottom: 130px;
+      left: var(--sp-lg);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      pointer-events: none;
+      z-index: 110;
+    }
+    .pbuff-icon {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px 5px 8px;
+      background: rgba(10, 5, 5, 0.78);
+      border: 2px solid currentColor;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+      font-size: var(--fs-sm);
+      font-weight: bold;
+      letter-spacing: var(--ls-tight);
+      white-space: nowrap;
+    }
+    .pbuff-icon.berserk-1 { color: #ff6644; }
+    .pbuff-icon.berserk-2 { color: #ff2244; text-shadow: 0 0 8px #ff0022; }
+    .pbuff-icon.pbuff-overflow { color: #888888; border-color: #555; font-size: var(--fs-xs); }
     /* OC ジェム取得の画面フラッシュ（oc-overlay より手前で光らせる） */
     #oc-flash {
       position: absolute;
@@ -678,6 +706,8 @@
   <div id="oc-flash"></div>
   <!-- リパルスカウンター受付インジケータ -->
   <div id="repulse-hud"></div>
+  <!-- プレイヤーバフアイコン（BERSERK 等） -->
+  <div id="player-buff-hud"></div>
   <!-- 自動遷移時：module defer 実行前にスタート画面 / デバッグ HUD を即適用 -->
   <script>
     (function(){
@@ -963,7 +993,7 @@
     import {
       initHudSystem,
       updateSPGauge, updateHpHud, updateGrabGauge, updateEnemyAiPhaseHud, updateStatusStunHud,
-      updateEnemyPersonalityHud, updateDetonateTimerHud,
+      updateEnemyPersonalityHud, updateDetonateTimerHud, updatePlayerStatusHud,
       spawnDamageNumber, updateDamageNumbers,
       spawnBanner, updateBanners,
       updateRepulseHud,
@@ -2384,9 +2414,10 @@
         if (c.id === 'SPREAD'      && !window.SB?.OC_FLAGS?.ignite) return false;
         if (c.id === 'CHAIN_BLAST' && !window.SB?.OC_FLAGS?.spread) return false;
         // 既に取得済みのフラグ系（IGNITE/SPREAD/CHAIN_BLAST）は再抽選しない
-        if (c.id === 'IGNITE'      &&  window.SB?.OC_FLAGS?.ignite) return false;
-        if (c.id === 'SPREAD'      &&  window.SB?.OC_FLAGS?.spread) return false;
+        if (c.id === 'IGNITE'      &&  window.SB?.OC_FLAGS?.ignite)     return false;
+        if (c.id === 'SPREAD'      &&  window.SB?.OC_FLAGS?.spread)     return false;
         if (c.id === 'CHAIN_BLAST' &&  window.SB?.OC_FLAGS?.chainBlast) return false;
+        if (c.id === 'BERSERK'     &&  window.SB?.OC_FLAGS?.berserk)    return false;
         return true;
       });
     }
@@ -2524,14 +2555,17 @@
             SP_CONFIG.GAIN_ON_HIT = SP_CONFIG.GAIN_ON_HIT * 2;
           }
           break;
-        case 'REGEN_UP':
-          if (!_ocMods.regenUp) {
-            _ocMods.regenUp = SP_CONFIG.REGEN_RATE;
-            SP_CONFIG.REGEN_RATE = SP_CONFIG.REGEN_RATE * 3;
-          }
-          break;
         case 'SP_FULL':
+          // 即時満タン ＋ 上限 +2 本（累積可・取るたびに上限が伸びる）
+          SP_CONFIG.MAX_STOCKS += 2;
+          SP_CONFIG.MAX        += SP_CONFIG.STOCK_SIZE * 2;
           for (const p of players) { p.sp = SP_CONFIG.MAX; }
+          break;
+        case 'BERSERK':
+          if (!_ocMods.berserk) {
+            _ocMods.berserk = true;
+            window.SB.OC_FLAGS.berserk = true;
+          }
           break;
         // ===== 延焼ビルド =====
         // OC_FLAGS の各フラグは hit-engine（必殺技ヒット時）/ enemy-system（GC arm 時 / 死亡時爆発）から参照される。
@@ -3411,6 +3445,23 @@
       updateStatusStunHud();
       updateEnemyPersonalityHud();
       updateDetonateTimerHud();
+      updatePlayerStatusHud();
+      // BERSERK オーラ：アクティブ tier に応じて足元から赤い粒子を継続放出
+      if (window.SB?.OC_FLAGS?.berserk) {
+        const _bp = players[0];
+        if (_bp && _bp.isAlive) {
+          const _bRatio = _bp.hp / _bp.maxHp;
+          if (_bRatio < 0.50) {
+            const _bTick = getGameFrame();
+            // tier2（25%以下）は毎4F・多め、tier1（50%以下）は毎8F・少なめ
+            const _bInterval = _bRatio < 0.25 ? 4 : 8;
+            if (_bTick % _bInterval === 0) {
+              const _bCount = _bRatio < 0.25 ? 6 : 3;
+              spawnHitParticles(_bp.x, _bp.y + 10, _bp.z, 0xff1133, _bCount, { type: 'omni' });
+            }
+          }
+        }
+      }
       updateDamageNumbers();
       updateBanners();
       // 旧「危↑」DOM HUD は新 rc-hud（自機追従ワールド UI）に置換のため呼ばない
@@ -4023,7 +4074,7 @@
       //   SB.igniteEnemy(SB.enemies[0])         → 強制点火（デバッグ）
       //   SB.OC_FLAGS                           → IGNITE/SPREAD/CHAIN_BLAST 取得状態
       BURN_CONFIG,
-      OC_FLAGS: { ignite: false, spread: false, chainBlast: false },
+      OC_FLAGS: { ignite: false, spread: false, chainBlast: false, berserk: false },
       igniteEnemy,
       // 外部モジュール（hazards 等）からトークン解放したい場合：SB.releaseEnemyTokens(e)
       //   floor-hole が敵を removed 扱いにする前に呼ぶ。呼ばないと
@@ -4041,6 +4092,14 @@
       // ステージボスの撃破時に OC ジェムを直接 spawn（wave-runner から呼ぶ）
       spawnOcGem: (x, z) => spawnOcGem(x ?? 0, z ?? 0),
     };
+    // window.SB.megaSlow を fxRefs.megaSlow に繋ぐ accessor 定義。
+    // hit-engine.js の _triggerRepulseSuccess が window.SB.megaSlow = N と書くと
+    // fxRefs 経由で megaSlowFrames 局所変数に値が届くようになる。
+    Object.defineProperty(window.SB, 'megaSlow', {
+      get: () => fxRefs.megaSlow.get(),
+      set: (v) => fxRefs.megaSlow.set(v),
+      configurable: true,
+    });
     console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / pad / mega crash / ult) loaded.');
     console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG / SB.KEY_CONFIG');
     console.log('[SCRAP BLITZ] Try: SB.SP_CONFIG.MEGA_CRASH_COST = 10');

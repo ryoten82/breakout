@@ -154,6 +154,11 @@ function _rollChipFromTable(table) {
   return table[table.length - 1].kind;
 }
 
+// midboss01 撃破時：チップ 1 枚（レアリティランダム・通常テーブル）をドロップ。
+export function dropSingleRandomChip(x, z, spawnY = 80) {
+  dropItem(_rollChipFromTable(CHIP_DROP_TABLE_NORMAL), x, z, spawnY);
+}
+
 // container 破壊時の追加ロール抽選。CR は呼び出し側で別途 dropCR してから本関数を呼ぶ想定。
 export function rollAndDropFromContainer(containerKind, x, z, spawnY = 80) {
   const table = CONTAINER_LOOT_TABLE[containerKind];

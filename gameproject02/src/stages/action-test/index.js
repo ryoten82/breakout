@@ -34,7 +34,7 @@ const MINES = [
 // 2026-05-25：OC IGNITE 検証用に enem01 スクラッパーへ変更（HP 100 で 3 フェーズ起爆を確認しやすい）。
 //   即リスポーン判定が personality+enemyType の組で alive 検出する都合、1 体で運用。
 const ENEMY_SLOTS = [
-  { personality: 'brave', enemyType: 'enem01', x: 0, z: 150 },  // enem01 スクラッパー
+  { personality: 'berserker', enemyType: 'midboss01', x: 0, z: 150 },  // midboss01 シールドガーダー
 ];
 
 let _built = false;

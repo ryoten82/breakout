@@ -765,6 +765,12 @@ export function tryHitEnemies(p, attack, ctx) {
         }
       }
     }
+    // BERSERK 倍率（HP 残量に応じた逆境ダメージ増幅）
+    if (window.SB?.OC_FLAGS?.berserk && p) {
+      const _bRatio = p.hp / p.maxHp;
+      if      (_bRatio < 0.25) _finalDamage = Math.round(_finalDamage * 1.4);
+      else if (_bRatio < 0.50) _finalDamage = Math.round(_finalDamage * 1.2);
+    }
     // ヒット
     e.hp = Math.max(0, e.hp - _finalDamage);
     if (_bossGateTriggered) triggerBossPhaseTransition(e, ctx);
@@ -1400,6 +1406,12 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
           _bossGateTriggered = true;
         }
       }
+    }
+    // BERSERK 倍率（マルチヒット中間弾にも適用）
+    if (window.SB?.OC_FLAGS?.berserk && p) {
+      const _bRatio = p.hp / p.maxHp;
+      if      (_bRatio < 0.25) _midDamage = Math.round(_midDamage * 1.4);
+      else if (_bRatio < 0.50) _midDamage = Math.round(_midDamage * 1.2);
     }
     e.hp = Math.max(0, e.hp - _midDamage);
     if (_bossGateTriggered) triggerBossPhaseTransition(e, ctx);

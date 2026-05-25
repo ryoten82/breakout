@@ -56,6 +56,7 @@ const _dmgNumbers = [];   // 飛び交うダメージ数値（{ x,y,z,vy,vx,life
 const _dmgNumPool = [];   // DOM 要素プール（_inUse で借用管理）
 let _repulseHudEl = null; // 「危↑」リパルスカウンター受付インジケータ
 let _repulsePulse  = 0;   // 点滅アニメ用カウンタ
+let _playerBuffHudEl = null; // プレイヤーバフアイコンコンテナ
 
 export function initHudSystem(deps) {
   _THREE = deps.THREE;
@@ -78,7 +79,8 @@ export function initHudSystem(deps) {
   _personaProj = new _THREE.Vector3();
   _dmgProj = new _THREE.Vector3();
   _detonateProj = new _THREE.Vector3();
-  _repulseHudEl = deps.repulseHudEl ?? document.getElementById('repulse-hud');
+  _repulseHudEl   = deps.repulseHudEl   ?? document.getElementById('repulse-hud');
+  _playerBuffHudEl = deps.playerBuffHudEl ?? document.getElementById('player-buff-hud');
 }
 
 // ============================================================
@@ -587,6 +589,57 @@ function _buildStatusIcons(e) {
   // 将来: if (e.freezeTimer > 0) html += '<span title="氷結">❄️</span>';
   // 将来: if (e.poisonTimer > 0) html += '<span title="毒">☠️</span>';
   return html;
+}
+
+// ============================================================
+//  プレイヤーバフアイコン（BERSERK 等）
+//  表示ルール：
+//    - 最大 4 件まで縦積み表示
+//    - 下に行くほど opacity を落としてフェード感を演出
+//    - 5 件目以降は「＋N 非表示」として最終行に明示
+// ============================================================
+
+const _BUFF_MAX_VISIBLE = 4;
+// 上から順に opacity（4 段階）
+const _BUFF_OPACITY = [1.0, 0.85, 0.65, 0.45];
+
+function _collectActiveBuffs(p) {
+  const buffs = [];
+  if (window.SB?.OC_FLAGS?.berserk) {
+    const ratio = p.hp / p.maxHp;
+    if (ratio < 0.25) {
+      buffs.push({ cls: 'pbuff-icon berserk-2', label: '⚡ BERSERK ×1.4' });
+    } else if (ratio < 0.50) {
+      buffs.push({ cls: 'pbuff-icon berserk-1', label: '⚡ BERSERK ×1.2' });
+    }
+    // HP50%以上のとき BERSERK はスタンバイ状態（アイコン非表示）
+  }
+  // 将来バフはここに push する
+  return buffs;
+}
+
+export function updatePlayerStatusHud() {
+  if (!_playerBuffHudEl || !_players) return;
+  const p = _players[0];
+  if (!p) { _playerBuffHudEl.innerHTML = ''; return; }
+
+  const buffs = _collectActiveBuffs(p);
+  if (buffs.length === 0) { _playerBuffHudEl.innerHTML = ''; return; }
+
+  const visible   = buffs.slice(0, _BUFF_MAX_VISIBLE);
+  const overflow  = buffs.length - _BUFF_MAX_VISIBLE;
+  // 5件目以降がある場合、最後の枠を overflow 表示に置き換える
+  if (overflow > 0) {
+    visible[_BUFF_MAX_VISIBLE - 1] = {
+      cls:   'pbuff-icon pbuff-overflow',
+      label: `＋${overflow + 1} 非表示`,
+    };
+  }
+
+  _playerBuffHudEl.innerHTML = visible.map((b, i) => {
+    const op = _BUFF_OPACITY[i] ?? 0.45;
+    return `<span class="${b.cls}" style="opacity:${op}">${b.label}</span>`;
+  }).join('');
 }
 
 export function updateDetonateTimerHud() {

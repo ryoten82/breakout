@@ -14,12 +14,13 @@
 // 命名規約：tier01..tier06 は敵の強度ティア（プレイヤー攻撃 lv01..lv06 とは別軸）
 
 export const ENEMY_TEMPLATES = {
-  tier01: { maxHp: 40 },
-  tier03: { maxHp: 80 },
-  tier05: { maxHp: 120 },
-  tier06: { maxHp: 60 },  // 中ボス級（特殊化なし）
+  tier01:    { maxHp: 40 },
+  tier03:    { maxHp: 80 },
+  tier05:    { maxHp: 120 },
+  tier06:    { maxHp: 60 },  // 中ボス級（特殊化なし）
+  midboss01: { enemyType: 'midboss01', maxHp: 300, personality: 'berserker', atkCooldown: 75 },
   // boss01（CRUSHER）：Stage3 本ボス。仕様は chars/boss01.md。
-  boss01: { maxHp: 1800, enemyType: 'boss01', personality: 'berserker', atkCooldown: 120 },
+  boss01:    { maxHp: 1800, enemyType: 'boss01', personality: 'berserker', atkCooldown: 120 },
 };
 
 // ウェーブ間隔は「最終スポーン → 次 triggerX ≒ 1200wu（約 1 画面）」で設計（2026-05-23 拡張）。
@@ -64,10 +65,10 @@ export const STAGE03_WAVES = [
   {
     id: 'W4', section: 'C', triggerX: 4600,
     spawns: [
-      { type: 'tier01', x: 4800, variant: 'fall' },
-      { type: 'tier01', x: 4900, variant: 'walkin_right' },
-      { type: 'tier05', x: 5000, variant: 'fall' },
-      { type: 'tier01', x: 4900, z: -40, variant: 'walkin_left' },  // +1（挟み）
+      { type: 'midboss01', x: 4800, variant: 'fall' },              // シールドガーダー（ボス手前の強敵）
+      { type: 'tier01',    x: 4900, variant: 'walkin_right' },
+      { type: 'tier05',    x: 5000, variant: 'fall' },
+      { type: 'tier01',    x: 4900, z: -40, variant: 'walkin_left' },
     ],
   },
   // BOSS：boss01（CRUSHER）。boss-intro が台座せり上がりを演出するので
