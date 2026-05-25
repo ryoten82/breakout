@@ -71,6 +71,9 @@ const LANE_CLUSTER_DIST    = 220; // 「近接」とみなす実距離
 // 敵同士の攻撃テンポ（14-D-5）：直近の攻撃終了から次の攻撃が始められるまでの全体待ち。
 // 0 になるまで誰も攻撃を開始できない。攻撃完了ごとにばらつき付きで再セットされる。
 let _attackRelay = 0;
+// タックル専用グローバルCD：誰かがタックル開始 → TACKLE_RELAY フレームは全員タックル禁止。
+// コンボ中に連続タックルで割り込まれる状況を防ぐ。
+let _globalTackleRelay = 0;
 
 export function initEnemySystem(deps) {
   _THREE = deps.THREE;
@@ -757,6 +760,8 @@ export function applyStatusStun(e, frames, ctx) {
     e.atkTimer = 0;
     e.hitDelivered = false;
     _clearAllTokens(ctx, e);
+    // タックル赤発光等の charge color が残ってたらリセット
+    if (e._chargeT > 0) { e._chargeT = 0; _setMeshChargeColor(e, 0); }
   }
   e.state           = STATE.status_stun;
   e.statusStunTimer = (typeof frames === 'number' && frames > 0) ? frames : STATUS_STUN_CONFIG.defaultDuration;
@@ -2337,15 +2342,19 @@ function _removeJdMarkers(e) {
   if (e._jdRingMesh) { _scene.remove(e._jdRingMesh); e._jdRingMesh = null; }
 }
 
-// jump_dive 溜め中の黄色発光（t=0:基本色 / t=1:フル黄色）
-// 各パーツの baseColors から補間。リセット時は t=0 で呼ぶ。
-function _setMeshChargeColor(e, t) {
+// 攻撃 wind/active 中の発光（t=0:基本色 / t=1:targetColor フル）
+// 各パーツの baseColors から linear 補間。リセット時は t=0 で呼ぶ。
+// targetColor 省略時は黄色（後方互換：jump_dive 溜め用）。タックルは 0xff2222 を指定。
+function _setMeshChargeColor(e, t, targetColor = 0xffff00) {
   if (!e.mesh) return;
   const _bc = e.mesh.userData.baseColors ?? { body: 0x2d4a22, head: 0x77aa55 };
   const parts = e.mesh.userData.parts;
   // legs が配列の場合に Set で高速 lookup
   const _legSet = (parts?.legs && Array.isArray(parts.legs))
     ? new Set(parts.legs) : null;
+  const tR = ((targetColor >> 16) & 0xff) / 255;
+  const tG = ((targetColor >>  8) & 0xff) / 255;
+  const tB = ( targetColor        & 0xff) / 255;
   e.mesh.traverse((child) => {
     if (!child.isMesh) return;
     const isHead = parts && child === parts.head;
@@ -2354,11 +2363,10 @@ function _setMeshChargeColor(e, t) {
     const bR = ((base >> 16) & 0xff) / 255;
     const bG = ((base >>  8) & 0xff) / 255;
     const bB = ( base        & 0xff) / 255;
-    // 黄色(1,1,0)へ補間
     child.material.color.setRGB(
-      bR + t * (1 - bR),
-      bG + t * (1 - bG),
-      bB * (1 - t),
+      bR + t * (tR - bR),
+      bG + t * (tG - bG),
+      bB + t * (tB - bB),
     );
   });
 }
@@ -2423,7 +2431,8 @@ function _updateLaneZ(e) {
 //   - tryThrownChainHit へ ctx をそのまま渡す
 // ============================================================
 export function updateEnemies(ctx) {
-  if (_attackRelay > 0) _attackRelay--;  // 敵同士の攻撃テンポ待ち（14-D-5）
+  if (_attackRelay > 0) _attackRelay--;             // 敵同士の攻撃テンポ待ち（14-D-5）
+  if (_globalTackleRelay > 0) _globalTackleRelay--; // タックル専用グローバルCD
   for (const e of _enemies) {
     if (!e.isAlive) continue;
     _updateLaneZ(e);  // cunning の Z レーン振り直し（14-D-3・密集回避）
@@ -2991,15 +3000,21 @@ export function updateEnemies(ctx) {
               const _atkZThresh = e.isBoss ? 160 : 100;
               const basicCanAttack = _isGuardCounter || (adz < _atkZThresh && e.atkCooldown <= 0 && _attackRelay <= 0 &&
                 e.y <= ENEMY_AIRBORNE_Y_THRESHOLD && (!playerInHitstun || e.punishesHitstun));
-              const atkId = basicCanAttack
+              let atkId = basicCanAttack
                 ? (_isGuardCounter ? 'mb01_atk_gc' : _selectEnemyAtk(e, adx))
                 : null;
+              // タックル専用グローバルCD：CD 中はタックルを基本振りに差し替え（完全禁止より自然）
+              if (atkId === 'e01_atk_02' && _globalTackleRelay > 0) atkId = 'e01_atk_01';
+              // プレイヤー攻撃中はタックル禁止：コンボへの割り込みを抑制
+              if (atkId === 'e01_atk_02' && p0.state === STATE.attacking) atkId = 'e01_atk_01';
               if (atkId) {
                 const _atkDef = ENEMY_ATTACKS[atkId];
                 const _cat = _atkDef.attackCategory ?? 'melee';
                 const _catTok = ctx.attackTokens[_cat];
                 const tokenAvailable = !_catTok || _catTok.get() === null || _catTok.get() === e;
                 if (tokenAvailable) {
+                  // タックル開始時にグローバルCDをセット
+                  if (atkId === 'e01_atk_02') _globalTackleRelay = ENEMY_ATTACK_RELAY.TACKLE_RELAY;
                   // 攻撃発動（14-D-2：距離で振り/タックル選択）
                   _beginEnemyAttack(e, atkId, ctx);
                 }
@@ -3086,6 +3101,12 @@ export function updateEnemies(ctx) {
               const _wzSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * DUMMY_ATK_CONFIG.zChaseFactor;
               e.z += Math.sign(dz) * Math.min(_wzSpd, adz);
             }
+            // タックル（dash）予兆中は赤発光で通常 swing と区別（2026-05-25 通しプレイ受け）
+            if (atk.kind === 'dash') {
+              const windProg = 1.0 - (e.atkTimer / atk.windFrames);
+              e._chargeT = windProg;
+              _setMeshChargeColor(e, windProg, 0xff2222);
+            }
           }
           // approachRange を完全に超えたらキャンセルして wait01 復帰（jump_dive は発動後キャンセルしない）
           //   boss は APPROACH_RANGE が広いので個別判定
@@ -3123,6 +3144,8 @@ export function updateEnemies(ctx) {
           if (atk.kind === 'dash') {
             // 突進タックル：facing 方向へ dashSpeed で前進。
             //   終了条件＝ヒット成立 / 壁で停止 / dashMaxDist 到達 / activeFrames フォールバック
+            // 突進中は赤フル発光を維持（hitFlash で上書きされる可能性あるため毎F適用）
+            _setMeshChargeColor(e, 1.0, 0xff2222);
             const wallL = Math.max(PHYSICS.STAGE_LEFT,  getActiveWallX('left'));
             const wallR = Math.min(PHYSICS.STAGE_RIGHT, getActiveWallX('right'));
             const step  = atk.dashSpeed;
@@ -3139,6 +3162,8 @@ export function updateEnemies(ctx) {
               e.atkPhase       = 'recover';
               e.atkTimer       = atk.recoverFrames;
               e.atkPitchTarget = 0;
+              e._chargeT       = 0;
+              _setMeshChargeColor(e, 0);  // 赤発光リセット
             }
           } else if (atk.kind === 'hop_strike') {
             // 小ジャンプ攻撃：短いホップで前進→空中でヒット→着地でリカバリー
@@ -3364,7 +3389,7 @@ export function updateEnemies(ctx) {
             e.aiRetreatTimer = Math.round(DUMMY_ATK_CONFIG.retreatFrames * e.retreatMult);
             _clearAllTokens(ctx, e);  // トークン解放
             // 敵同士の攻撃テンポ（14-D-5）：次の攻撃まで「見合う」間をばらつき付きで確保
-            _attackRelay = Math.round(ENEMY_ATTACK_RELAY.BASE *
+            _attackRelay = Math.round(ENEMY_ATTACK_RELAY.BASE * ENEMY_ATTACK_RELAY.DIFF_MULT *
               (1 + (Math.random() * 2 - 1) * ENEMY_ATTACK_RELAY.VARIANCE));
             if (e.mesh) e.mesh.scale.y = 1.0;  // スケール安全リセット
           }

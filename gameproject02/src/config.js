@@ -392,9 +392,9 @@ export const ENEMY_ATTACKS = {
     windFrames:     32,    // 溜め（突進の予兆・読みやすさ重視で長め）
     activeFrames:   60,    // 突進の最大持続F（通常は dashMaxDist 到達で早期終了）
     recoverFrames:  35,    // 突進終了後の硬直（外し時の攻めどころ）
-    cooldownFrames: 90,    // 次の攻撃までのインターバル（基本振りの 2 倍・連発しない）
+    cooldownFrames: 140,   // 2026-05-25 通しプレイ受け：90→140（タックル間隔 1.5→2.3 秒・連発抑制）
     dashSpeed:      9,     // 突進速度（wu/F・仕様 3.5 は遅すぎたため引き上げ・SB で調整可）
-    dashMaxDist:    420,   // 突進の最大移動距離（wu・これか壁で停止）
+    dashMaxDist:    300,   // 2026-05-25 通しプレイ受け：420→300（実効レンジ 560→440wu・リーチ外被弾抑制）
     hitboxRangeX:   140,
     hitboxRangeY:   90,
     hitboxRangeZ:   100,
@@ -771,11 +771,16 @@ export const ENEMY_ATTACKS = {
 //  #section enemy-attack-relay — 敵同士の攻撃テンポ（14-D-5）
 //  - ある敵の攻撃が終わってから、次の敵が攻撃を始められるまでの待ち時間。
 //  - 「敵同士が見合う」間（ま）を作る。VARIANCE で毎回ばらつかせテンポを一定にしない。
-//  - 実際の待ち ＝ BASE ×（1 ± VARIANCE のランダム）。
+//  - 実際の待ち ＝ BASE × DIFF_MULT ×（1 ± VARIANCE のランダム）。
+//  - 難易度調整：window.SB.ENEMY_ATTACK_RELAY.DIFF_MULT を変えるだけで全体テンポが変わる
+//    例）Easy: 1.5 / Normal: 1.0 / Hard: 0.65
 // ============================================================
 export const ENEMY_ATTACK_RELAY = {
-  BASE:     45,   // 攻撃終了 → 次の攻撃可能までの基準F
-  VARIANCE: 0.5,  // 振れ幅（±50%）。実待ち ＝ BASE × [0.5, 1.5]
+  BASE:         90,   // 攻撃終了 → 次の攻撃可能までの基準F（1.5秒平均）
+  VARIANCE:     0.5,  // 振れ幅（±50%）。実待ち ＝ BASE × DIFF_MULT × [0.5, 1.5]
+  DIFF_MULT:    1.0,  // 難易度倍率。大きいほど間が長い（=易しい）
+  TACKLE_RELAY: 240,  // タックル専用グローバルCD（F）。誰かがタックルを開始したら全員N F禁止
+                      // 難易度調整例）Easy: 360 / Normal: 240 / Hard: 120
 };
 
 // ============================================================
@@ -794,9 +799,9 @@ export const ENEMY_ATTACK_RELAY = {
 //    - punishesHitstun：true なら「プレイヤー被弾中」でも攻撃可（brave の追撃確定）
 export const ENEMY_PERSONALITY = {
   brave:    { guardTendency: 0.12, dodgeTendency: 0.08, staggerThreshold: 6, enragedHp: 0.50,
-              atk02Weight: 0.60, cooldownMult: 0.7, retreatMult: 0.15, punishesHitstun: true },
+              atk02Weight: 0.18, cooldownMult: 0.7, retreatMult: 0.15, punishesHitstun: true },  // 2026-05-25 タックル選択率 0.60→0.35→0.18
   cunning:  { guardTendency: 0.40, dodgeTendency: 0.45, staggerThreshold: 4, enragedHp: 0.38,
-              atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 1.0,  punishesHitstun: false },
+              atk02Weight: 0.15, cooldownMult: 1.0, retreatMult: 1.0,  punishesHitstun: false },  // 2026-05-25 タックル選択率 0.50→0.30→0.15
   // guardian：盾特化。頻繁にガード姿勢を取り、隙を見て攻撃。dodge はほぼしない
   guardian: { guardTendency: 0.65, dodgeTendency: 0.05, staggerThreshold: 5, enragedHp: 0.30,
               atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 0.5,  punishesHitstun: false },
