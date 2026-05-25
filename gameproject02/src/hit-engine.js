@@ -833,8 +833,19 @@ export function tryHitEnemies(p, attack, ctx) {
       anyHit = true;
       continue;
     }
-    // スーパーアーマー：berserker のアクティブフェーズ中のみ（wind/recover は無効）
-    if (e.superArmor > 0 && e.atkPhase === 'active' && (e.saHp ?? 0) > 0) {
+    // 恒常 SA（passive）：midboss01 盾破壊後に常時 1 発吸収（攻撃フェーズ問わず）
+    if ((e.passiveSaHp ?? 0) > 0) {
+      e.passiveSaHp = 0;
+      e.passiveSaRecharge = MIDBOSS_SHIELD_CONFIG.PASSIVE_SA_RECHARGE;
+      e.hitFlashTimer = 6;
+      spawnHitParticles(e.x, e.y + 100, e.z, 0xffaa00, 14, { type: 'omni' });  // 黄橙：passive SA
+      anyHit = true;
+      continue;
+    }
+    // スーパーアーマー：active フェーズ + recover 前半（recoverSaTimer > 0）の間有効
+    const _inSaWindow = e.atkPhase === 'active'
+      || (e.atkPhase === 'recover' && (e.recoverSaTimer ?? 0) > 0);
+    if (e.superArmor > 0 && _inSaWindow && (e.saHp ?? 0) > 0) {
       e.saHp--;
       if (e.saHp > 0) {   // 装甲残り有り → 通常リアクションをスキップ
         e.hitFlashTimer = 6;

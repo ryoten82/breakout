@@ -509,11 +509,11 @@ export const ENEMY_ATTACKS = {
     hitboxRangeX:   100,
     hitboxRangeY:   90,
     hitboxRangeZ:   80,
-    damage:         6,
-    atk_lv:         2,
-    knockback:      8,
-    hitstop:        5,
-    shake:          5,
+    damage:         8,    // 6 → 8（威圧感）
+    atk_lv:         3,    // 2（のけぞり）→ 3（吹き飛ばし）
+    knockback:      18,
+    hitstop:        6,
+    shake:          6,
     hitColor:       0xccaa44,
     pitchWind:     -0.22,
     pitchActive:   +0.42,
@@ -548,7 +548,8 @@ export const ENEMY_ATTACKS = {
     attackCategory: 'melee',
     windFrames:     14,
     activeFrames:   36,
-    recoverFrames:  120,  // 疲れ硬直 約2秒（この間 SA 無効・攻撃の隙）
+    recoverFrames:  120,  // 疲れ硬直 約2秒（後半は SA 無効・攻撃の隙）
+    recoverSaFrames: 40,  // 疲れ硬直のうち前半 40F は SA 継続（すぐ反撃できない）
     cooldownFrames: 90,
     dashSpeed:      5.0,
     dashMaxDist:    550,
@@ -810,7 +811,7 @@ export const ENEMY_PERSONALITY = {
   //   enragedHp 0＝HP% 興奮は発火せず、enraged 化は盾破壊でのみ起こる（midboss01）。
   //   staggerThreshold 80＝雑魚スケール（4〜6）に対し桁違いに打たれ強い。
   berserker:{ guardTendency: 0.0,  dodgeTendency: 0.0,  staggerThreshold: 80, enragedHp: 0.0,
-              atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 0.0,  punishesHitstun: true },
+              atk02Weight: 0.50, cooldownMult: 0.75, retreatMult: 0.0, punishesHitstun: true },
 };
 
 // ============================================================
@@ -844,6 +845,9 @@ export const MIDBOSS_SHIELD_CONFIG = {
   BREAK_HITSTOP:   14,    // 盾破壊の強ヒットストップ F
   BREAK_SHAKE:     12,    // 盾破壊のシェイク強度
   BANNER_FRAMES:   60,    // "SHIELD BREAK!" バナー表示 F（約 1 秒）
+  LAUNCH_RESIST_FRAMES:   22,  // 打ち上げ耐性：空中滞留上限 F。超えると強制着地（anti-juggle）
+  PASSIVE_SA_HP:           1,  // 恒常 SA：盾破壊後に常時保持するヒット吸収数（攻撃フェーズ問わず）
+  PASSIVE_SA_RECHARGE:    70,  // 恒常 SA リチャージ間隔 F（吸収後 N フレームで復活）
 };
 
 // ============================================================

@@ -45,7 +45,7 @@ let _enemies = null;   // 即リスポーン判定用の敵配列参照（initAc
 function _spawnSlot(slot) {
   if (!_spawnDummy) return;
   const hp = slot.enemyType === 'enem02' ? 35
-           : slot.enemyType === 'midboss01' ? 250
+           : slot.enemyType === 'midboss01' ? 300
            : 100;
   const cd = slot.enemyType === 'enem02' ? 60
            : slot.enemyType === 'midboss01' ? 75

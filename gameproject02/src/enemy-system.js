@@ -470,6 +470,10 @@ export function spawnDummy(x, z, opts = {}) {
     frozenByUlt:      false,
     ultBurstInvincible: false,  // ULT 由来の burst-down 中フラグ：起き上がる（wait01 復帰）まで完全無敵・メガクラも受け付けない
     // 飛行系状態の再突入カウンタ（コンボ中累積・wait01 復帰でリセット・2026-05-18）
+    launchResistTimer:     0,    // midboss01 打ち上げ耐性：> 0 でカウントダウン → 0 で強制着地
+    passiveSaHp:           0,    // midboss01 恒常 SA：盾破壊後にセット、攻撃フェーズ問わず吸収
+    passiveSaRecharge:     0,    // 吸収後のリチャージカウンタ（> 0 の間 passiveSaHp は 0）
+    recoverSaTimer:        0,    // recover 前半 SA 継続カウンタ（> 0 の間は active SA が有効）
     superFlightCount:      0,    // down_super_* 突入回数
     wallHitCount:          0,    // down_wall_* 突入回数
     lateralCombatInvincible: false,  // 2 回目以降の飛行系突入で立つフラグ：wait01 まで完全無敵
@@ -868,6 +872,7 @@ export function triggerShieldBreak(e, ctx) {
   e.enraged      = true;
   e.superArmor   = MIDBOSS_SHIELD_CONFIG.BERSERKER_SA;   // 攻撃中のヒット吸収（SA）を付与
   e.saHp         = 0;   // 次の _beginEnemyAttack で superArmor 値から再セット
+  e.passiveSaHp  = MIDBOSS_SHIELD_CONFIG.PASSIVE_SA_HP;  // 恒常 SA：フェーズ問わず常時 1 発吸収
   e.state     = STATE.enraged_intro;
   e.downTimer = ENEMY_ENRAGE_CONFIG.INTRO_FRAMES;
   e.aiPhase   = 'enraged';
@@ -2556,6 +2561,7 @@ export function updateEnemies(ctx) {
       // 飛行系状態カウンタ・関連フラグもリセット（2026-05-18）
       if (e.superFlightCount > 0) e.superFlightCount = 0;
       if (e.wallHitCount > 0) e.wallHitCount = 0;
+      if (e.launchResistTimer > 0) e.launchResistTimer = 0;  // 着地復帰でリセット
       if (e.lateralCombatInvincible) e.lateralCombatInvincible = false;
       if (e.skipWallCollision) e.skipWallCollision = false;
       if (e.isWallBounce) e.isWallBounce = false;  // 壁バウンス中フラグもクリア
@@ -2579,6 +2585,12 @@ export function updateEnemies(ctx) {
     if (e.detonateTimer > 0) {
       e.detonateTimer--;
       if (e.detonateTimer === 0) detonateBurn(e);
+    }
+    // 恒常 SA リチャージ（midboss01 盾破壊後）
+    if (e.passiveSaRecharge > 0) {
+      if (--e.passiveSaRecharge === 0) {
+        e.passiveSaHp = MIDBOSS_SHIELD_CONFIG.PASSIVE_SA_HP;
+      }
     }
     // 死亡判定（Phase 3-A/B：instantRespawn フラグで分岐 / 2026-05-20 e.dying へ）
     if (e.hp <= 0) {
@@ -3429,10 +3441,11 @@ export function updateEnemies(ctx) {
                           || e.atkDashDist >= (atk.dashMaxDist ?? 500)
                           || _moved < _step * 0.5;
             if (_rushEnd) {
-              e.atkPhase       = 'recover';
-              e.atkTimer       = atk.recoverFrames;
-              e.atkPitchTarget = 0;
-              e.atkSlotIdx     = 0;
+              e.atkPhase        = 'recover';
+              e.atkTimer        = atk.recoverFrames;
+              e.atkPitchTarget  = 0;
+              e.atkSlotIdx      = 0;
+              e.recoverSaTimer  = atk.recoverSaFrames ?? 0;  // recover 前半 SA
             }
           } else {
             // その場振り：active 中ずっとヒット判定（1 ヒットのみ）
@@ -3448,6 +3461,7 @@ export function updateEnemies(ctx) {
             }
           }
         } else if (e.atkPhase === 'recover') {
+          if (e.recoverSaTimer > 0) e.recoverSaTimer--;
           if (e.atkTimer <= 0) {
             e.state         = STATE.wait01;
             e.atkPhase      = null;
@@ -3484,7 +3498,20 @@ export function updateEnemies(ctx) {
     // ダウン・被弾ステート機械（タイマー駆動の遷移のみ・tiltAngle は後段で一括計算）
     if (e.state === STATE.down_up_start) {
       if (--e.downTimer <= 0) e.state = STATE.down_up_loop;
+      // midboss01 anti-juggle：打ち上げ開始と同時にカウンターをセット
+      if (e.enemyType === 'midboss01' && e.launchResistTimer === 0) {
+        e.launchResistTimer = MIDBOSS_SHIELD_CONFIG.LAUNCH_RESIST_FRAMES;
+      }
     } else if (e.state === STATE.down_up_loop) {
+      // midboss01 anti-juggle：滞空上限を超えたら強制着地（下流の y<=0 ブロックが down_bas_start へ遷移）
+      if (e.enemyType === 'midboss01' && e.launchResistTimer > 0) {
+        if (--e.launchResistTimer <= 0) {
+          e.y  = 0;
+          e.vy = 0;
+          e.launchResistTimer = 0;
+          spawnLaunchSmoke(e.x, 0, e.z);  // 着地煙で「叩きつけられた」感
+        }
+      }
       // 横倒しのまま落下（着地は y<=0 ブロックで処理）
     } else if (e.state === STATE.down_bas_start) {
       if (--e.downTimer <= 0) {

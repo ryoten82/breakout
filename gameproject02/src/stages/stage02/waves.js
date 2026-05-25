@@ -9,22 +9,23 @@
 
 import { STAGE01_WAVES, ENEMY_TEMPLATES } from '../stage01/waves.js';
 
-// midboss01（シールドガーダー）テンプレート追加。HP/性格/atkCooldown は action-test 既定に準拠。
+// midboss01（シールドガーダー）テンプレート追加。HP 300 に統一。
 export const STAGE02_ENEMY_TEMPLATES = {
   ...ENEMY_TEMPLATES,
-  midboss01: { enemyType: 'midboss01', maxHp: 250, personality: 'berserker', atkCooldown: 75 },
+  midboss01: { enemyType: 'midboss01', maxHp: 300, personality: 'berserker', atkCooldown: 75 },
 };
 
-// W4 のみ tier06 → midboss01 へ差し替え。他は Stage 1 と完全共用。
-// （変更時は STAGE01_WAVES の構造に追従する。将来は専用配列へ独立化予定）
+// W4：midboss01 + 雑魚 4 体の乱戦構成。シールドガーダーを単体封殺できないよう包囲圧力を追加。
 export const STAGE02_WAVES = STAGE01_WAVES.map(w => {
   if (w.id !== 'W4') return w;
   return {
     ...w,
     spawns: [
-      { type: 'tier01',    x: 6000, variant: 'walkin_right' },
-      { type: 'tier01',    x: 6100, variant: 'walkin_right' },
-      { type: 'midboss01', x: 6200, variant: 'fall' },        // 仮ボス：シールドガーダー
+      { type: 'midboss01', x: 6200, variant: 'fall' },            // 中ボス：正面から降臨
+      { type: 'tier01',    x: 6050, variant: 'walkin_right' },    // 左側から歩き込み
+      { type: 'tier01',    x: 6350, variant: 'walkin_left' },     // 右側から歩き込み（挟み）
+      { type: 'tier01',    x: 6100, z: -50, variant: 'fall' },    // 奥から落下（奥行き圧力）
+      { type: 'tier01',    x: 6300, z:  50, variant: 'fall' },    // 手前から落下
     ],
   };
 });
