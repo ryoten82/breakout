@@ -75,8 +75,9 @@ let _attackRelay = 0;
 // コンボ中に連続タックルで割り込まれる状況を防ぐ。
 let _globalTackleRelay = 0;
 
-let _addRectArea       = null;
+let _addRectArea        = null;
 let _updateAreaPosition = null;
+let _updateAreaScale    = null;
 let _removeArea         = null;
 
 export function initEnemySystem(deps) {
@@ -86,6 +87,7 @@ export function initEnemySystem(deps) {
   _enemies = deps.enemies;
   _addRectArea        = deps.addRectArea        ?? null;
   _updateAreaPosition = deps.updateAreaPosition ?? null;
+  _updateAreaScale    = deps.updateAreaScale    ?? null;
   _removeArea         = deps.removeArea         ?? null;
 }
 
@@ -2334,83 +2336,99 @@ function _updateBossAnim(e) {
   rp.rotation.z += (rTz - rp.rotation.z) * LSPD;
 }
 
-// ボス攻撃 AOE 表示管理
-// - wind / active フェーズ中：カメラ向き矩形を表示（hitboxRangeX/Y を元にサイズ決定）
-// - recover / null に変化したとき or dying：矩形を除去
-// - プロパティ：e._bossAoePrevPhase（前フレームの atkPhase 追跡用）/ e._bossAoeId
+// ボス攻撃 AOE 二重表示管理
+//
+// ① 背景矩形（_bossAoeId）：攻撃範囲全体を半透明で常時表示
+// ② カーソルバー（_bossAoeBar）：wind フェーズ中にボス側から先端へ走り、
+//    先端に到達（wind 終了）＝ active 発生を視覚的に告知
+//
+// サイズ：hitboxRangeX × AoE_SCALE（視認性確保のため1.6倍）/ hitboxRangeY × AoE_SCALE
+// プロパティ：_bossAoePrevPhase / _bossAoeId / _bossAoeBar
+const _AOE_SCALE     = 1.6;  // 実ヒットボックスより視覚的に大きく表示（見やすさ優先）
+const _CURSOR_W_FRAC = 0.12; // カーソルバー幅 = 表示幅の 12%
+
+function _aoeCleanAll(e) {
+  if (e._bossAoeId  != null) { _removeArea(e._bossAoeId);  e._bossAoeId  = null; }
+  if (e._bossAoeBar != null) { _removeArea(e._bossAoeBar); e._bossAoeBar = null; }
+}
+
 function _updateBossAoe(e) {
   if (!_addRectArea || !_removeArea || !_updateAreaPosition) return;
+
+  // dying 強制クリーン
+  if (e.dying) { _aoeCleanAll(e); return; }
+
   const prevPhase = e._bossAoePrevPhase ?? null;
   const curPhase  = (e.state === STATE.enemy_attacking) ? e.atkPhase : null;
   const phaseChanged = prevPhase !== curPhase;
+  const atk = e.curAtkId ? ENEMY_ATTACKS[e.curAtkId] : null;
+  const rx  = (atk?.hitboxRangeX ?? 0) * _AOE_SCALE;
+  const ry  = (atk?.hitboxRangeY ?? 0) * _AOE_SCALE;
+  const facing = e.facing ?? 1;
 
+  // ── フェーズ変化処理 ──────────────────────────────────────────
   if (phaseChanged) {
-    const leavingActive = (curPhase === 'recover' || curPhase === null) && (prevPhase === 'wind' || prevPhase === 'active');
+    // wind 開始：① 背景矩形 + ② カーソルバー（幅0 スタート）をスポーン
+    if (curPhase === 'wind' && atk && rx > 0) {
+      _aoeCleanAll(e);  // 念のため前回残骸をクリア
+      const bgCx = e.x + facing * (rx / 2);
+      const cy   = ry / 2;
+      const cw   = Math.max(10, rx * _CURSOR_W_FRAC);  // カーソルバー固定幅
 
-    // wind に入ったら AOE 矩形をスポーン
-    if (curPhase === 'wind' && e._bossAoeId == null && e.curAtkId) {
-      const atk = ENEMY_ATTACKS[e.curAtkId];
-      if (atk?.hitboxRangeX && atk?.hitboxRangeY) {
-        const rx = atk.hitboxRangeX;
-        const ry = atk.hitboxRangeY;
-        const facing = e.facing ?? 1;
-        const cx = e.x + facing * (rx / 2);
-        const cy = ry / 2;  // 地面から中心まで
-        // wind 中は薄めオレンジ（予兆）・active で点滅（危険）
-        e._bossAoeId = _addRectArea({
-          x: cx, y: cy, z: e.z,
-          width: rx, height: ry,
-          color: 0xff6600,
-          opacity: 0.40,
-          blink: false,
-        });
-      }
+      e._bossAoeId = _addRectArea({          // ① 背景（薄い）
+        x: bgCx, y: cy, z: e.z,
+        width: rx, height: ry,
+        color: 0xff6600, opacity: 0.25,
+      });
+      e._bossAoeBar = _addRectArea({         // ② カーソルバー（明るい）
+        x: e.x + facing * (cw / 2), y: cy, z: e.z + 1,
+        width: cw, height: ry,
+        color: 0xffcc00, opacity: 0.85,
+      });
     }
-    // active に入ったら点滅強化
-    if (curPhase === 'active' && e._bossAoeId != null) {
-      // 既存エリアのまま点滅は updateAreas 側で制御できないため再生成
-      _removeArea(e._bossAoeId);
-      e._bossAoeId = null;
-      const atk = ENEMY_ATTACKS[e.curAtkId];
-      if (atk?.hitboxRangeX && atk?.hitboxRangeY) {
-        const rx = atk.hitboxRangeX;
-        const ry = atk.hitboxRangeY;
-        const facing = e.facing ?? 1;
-        const cx = e.x + facing * (rx / 2);
-        const cy = ry / 2;
-        e._bossAoeId = _addRectArea({
-          x: cx, y: cy, z: e.z,
-          width: rx, height: ry,
-          color: 0xff2200,
-          opacity: 0.60,
-          blink: true,
-          blinkPeriodFn: () => 4,  // 速い点滅
-        });
-      }
+    // active 移行：カーソルを除去→背景を赤点滅に差し替え
+    if (curPhase === 'active' && atk && rx > 0) {
+      _aoeCleanAll(e);
+      const bgCx = e.x + facing * (rx / 2);
+      const cy   = ry / 2;
+      e._bossAoeId = _addRectArea({
+        x: bgCx, y: cy, z: e.z,
+        width: rx, height: ry,
+        color: 0xff2200, opacity: 0.55,
+        blink: true, blinkPeriodFn: () => 4,
+      });
     }
-    // recover / null になったら除去
-    if (leavingActive && e._bossAoeId != null) {
-      _removeArea(e._bossAoeId);
-      e._bossAoeId = null;
-    }
+    // recover / 終了：全除去
+    const leaving = (curPhase === 'recover' || curPhase === null)
+                 && (prevPhase === 'wind' || prevPhase === 'active');
+    if (leaving) _aoeCleanAll(e);
+
     e._bossAoePrevPhase = curPhase;
   }
 
-  // 毎フレーム：boss 移動に追従（ダッシュ突進など）
-  if (e._bossAoeId != null && e.curAtkId) {
-    const atk = ENEMY_ATTACKS[e.curAtkId];
-    if (atk?.hitboxRangeX) {
-      const facing = e.facing ?? 1;
-      const cx = e.x + facing * (atk.hitboxRangeX / 2);
-      const cy = (atk.hitboxRangeY ?? 90) / 2;
-      _updateAreaPosition(e._bossAoeId, cx, cy, e.z);
+  // ── 毎フレーム更新 ────────────────────────────────────────────
+  if (!atk || rx <= 0) return;
+  const cy = ry / 2;
+
+  // wind 中：背景はボス追従、カーソルは先端へ走る
+  if (curPhase === 'wind') {
+    // 背景追従
+    if (e._bossAoeId != null) {
+      _updateAreaPosition(e._bossAoeId, e.x + facing * (rx / 2), cy, e.z);
+    }
+    // カーソルバー：progress に応じて先端へ移動しスケール拡縮
+    if (e._bossAoeBar != null) {
+      const windFrames = atk.windFrames ?? 30;
+      const progress   = Math.max(0, Math.min(1, 1 - (e.atkTimer / windFrames)));
+      const cw         = Math.max(10, rx * _CURSOR_W_FRAC);
+      // カーソルの中心 = ボス内端 + 進捗 × (全幅 - カーソル幅/2)
+      const curCx = e.x + facing * (progress * rx - cw * 0.5 + cw * 0.5);
+      _updateAreaPosition(e._bossAoeBar, curCx, cy, e.z + 1);
     }
   }
-
-  // dying 中に除去漏れがあれば強制クリーン
-  if (e.dying && e._bossAoeId != null) {
-    _removeArea(e._bossAoeId);
-    e._bossAoeId = null;
+  // active 中：背景のみボス追従（ダッシュ突進などで動く場合）
+  if (curPhase === 'active' && e._bossAoeId != null) {
+    _updateAreaPosition(e._bossAoeId, e.x + facing * (rx / 2), cy, e.z);
   }
 }
 

@@ -101,7 +101,17 @@ export function addRectArea(opts) {
 export function updateAreaPosition(id, x, y, z) {
   const a = areas.find(a => a.id === id);
   if (!a) return;
-  a.mesh.position.set(x, a.mesh.position.y, z);
+  if (x !== undefined) a.mesh.position.x = x;
+  if (y !== undefined) a.mesh.position.y = y;
+  if (z !== undefined) a.mesh.position.z = z;
+}
+
+// 矩形エリアの scale を毎フレーム更新するために使う（カーソルバーの幅変更など）
+export function updateAreaScale(id, sx, sy) {
+  const a = areas.find(a => a.id === id);
+  if (!a) return;
+  if (sx !== undefined) a.mesh.scale.x = sx;
+  if (sy !== undefined) a.mesh.scale.y = sy;
 }
 
 export function removeArea(id) {
