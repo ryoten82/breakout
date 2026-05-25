@@ -1290,20 +1290,21 @@ export function tryHitEnemies(p, attack, ctx) {
       p.sp = Math.min(SP_CONFIG.MAX, p.sp + _gain);
       p._spGainCounted = true;
     }
-    // OC IGNITE × igniteTrigger 技（SP1）：2フェーズ起爆システム
-    //   Hit 1: 未 blastReady → 点火（未点火なら ignite も同時付与）+ blastReady セット
-    //   Hit 2: blastReady → 20F 遅延起爆（空中爆発狙い）
+    // OC IGNITE × igniteTrigger 技（SP1）：起爆システム
+    //   blastReady=true → 即起爆
+    //   延焼中（SPREAD/GC 由来含む）→ 即起爆（SP1 で点火した敵と同等に扱う）
+    //   未点火 → 点火 + blastReady セット（次の SP1 で起爆）
     if (attack.igniteTrigger && window.SB?.OC_FLAGS?.ignite) {
       // 共通：赤パーティクル追加
       spawnHitParticles(e.x, e.y + 60, e.z, 0xff2200, 28, { type: 'launch', speedMul: 1.1 });
       spawnHitParticles(e.x, e.y + 40, e.z, 0xff6600, 16, { type: 'omni',   speedMul: 0.8, sizeScale: 1.2 });
-      if (e.burnBlastReady) {
-        // Hit 2: 起爆タイマーセット
-        e.detonateTimer = 13;
+      if (e.burnBlastReady || e.burnTimer > 0) {
+        // 起爆：blastReady 済み or すでに延焼中（SPREAD/GC 由来）どちらも即起爆
+        e.detonateTimer  = 13;
         e.burnBlastReady = false;
       } else {
-        // Hit 1: 点火 + 即起爆準備完了
-        if (e.burnTimer <= 0) igniteEnemy(e, { sourceId: p.attackId });
+        // 未点火：点火 + 次の SP1 で起爆できるよう準備
+        igniteEnemy(e, { sourceId: p.attackId });
         e.burnBlastReady = true;
       }
     }
