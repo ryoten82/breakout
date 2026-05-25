@@ -75,11 +75,18 @@ let _attackRelay = 0;
 // コンボ中に連続タックルで割り込まれる状況を防ぐ。
 let _globalTackleRelay = 0;
 
+let _addRectArea       = null;
+let _updateAreaPosition = null;
+let _removeArea         = null;
+
 export function initEnemySystem(deps) {
   _THREE = deps.THREE;
   _scene = deps.scene;
   _players = deps.players;
   _enemies = deps.enemies;
+  _addRectArea        = deps.addRectArea        ?? null;
+  _updateAreaPosition = deps.updateAreaPosition ?? null;
+  _removeArea         = deps.removeArea         ?? null;
 }
 
 // ============================================================
@@ -2327,6 +2334,86 @@ function _updateBossAnim(e) {
   rp.rotation.z += (rTz - rp.rotation.z) * LSPD;
 }
 
+// ボス攻撃 AOE 表示管理
+// - wind / active フェーズ中：カメラ向き矩形を表示（hitboxRangeX/Y を元にサイズ決定）
+// - recover / null に変化したとき or dying：矩形を除去
+// - プロパティ：e._bossAoePrevPhase（前フレームの atkPhase 追跡用）/ e._bossAoeId
+function _updateBossAoe(e) {
+  if (!_addRectArea || !_removeArea || !_updateAreaPosition) return;
+  const prevPhase = e._bossAoePrevPhase ?? null;
+  const curPhase  = (e.state === STATE.enemy_attacking) ? e.atkPhase : null;
+  const phaseChanged = prevPhase !== curPhase;
+
+  if (phaseChanged) {
+    const leavingActive = (curPhase === 'recover' || curPhase === null) && (prevPhase === 'wind' || prevPhase === 'active');
+
+    // wind に入ったら AOE 矩形をスポーン
+    if (curPhase === 'wind' && e._bossAoeId == null && e.curAtkId) {
+      const atk = ENEMY_ATTACKS[e.curAtkId];
+      if (atk?.hitboxRangeX && atk?.hitboxRangeY) {
+        const rx = atk.hitboxRangeX;
+        const ry = atk.hitboxRangeY;
+        const facing = e.facing ?? 1;
+        const cx = e.x + facing * (rx / 2);
+        const cy = ry / 2;  // 地面から中心まで
+        // wind 中は薄めオレンジ（予兆）・active で点滅（危険）
+        e._bossAoeId = _addRectArea({
+          x: cx, y: cy, z: e.z,
+          width: rx, height: ry,
+          color: 0xff6600,
+          opacity: 0.40,
+          blink: false,
+        });
+      }
+    }
+    // active に入ったら点滅強化
+    if (curPhase === 'active' && e._bossAoeId != null) {
+      // 既存エリアのまま点滅は updateAreas 側で制御できないため再生成
+      _removeArea(e._bossAoeId);
+      e._bossAoeId = null;
+      const atk = ENEMY_ATTACKS[e.curAtkId];
+      if (atk?.hitboxRangeX && atk?.hitboxRangeY) {
+        const rx = atk.hitboxRangeX;
+        const ry = atk.hitboxRangeY;
+        const facing = e.facing ?? 1;
+        const cx = e.x + facing * (rx / 2);
+        const cy = ry / 2;
+        e._bossAoeId = _addRectArea({
+          x: cx, y: cy, z: e.z,
+          width: rx, height: ry,
+          color: 0xff2200,
+          opacity: 0.60,
+          blink: true,
+          blinkPeriodFn: () => 4,  // 速い点滅
+        });
+      }
+    }
+    // recover / null になったら除去
+    if (leavingActive && e._bossAoeId != null) {
+      _removeArea(e._bossAoeId);
+      e._bossAoeId = null;
+    }
+    e._bossAoePrevPhase = curPhase;
+  }
+
+  // 毎フレーム：boss 移動に追従（ダッシュ突進など）
+  if (e._bossAoeId != null && e.curAtkId) {
+    const atk = ENEMY_ATTACKS[e.curAtkId];
+    if (atk?.hitboxRangeX) {
+      const facing = e.facing ?? 1;
+      const cx = e.x + facing * (atk.hitboxRangeX / 2);
+      const cy = (atk.hitboxRangeY ?? 90) / 2;
+      _updateAreaPosition(e._bossAoeId, cx, cy, e.z);
+    }
+  }
+
+  // dying 中に除去漏れがあれば強制クリーン
+  if (e.dying && e._bossAoeId != null) {
+    _removeArea(e._bossAoeId);
+    e._bossAoeId = null;
+  }
+}
+
 // ============================================================
 //  攻撃選択（14-D-2・enem01.md §距離別攻撃選択 + §性格軸 レイヤー1）
 //   - 近距離（attackRange 以内）= 基本振り e01_atk_01
@@ -3816,8 +3903,8 @@ export function updateEnemies(ctx) {
       e.mesh.rotation.x = 0;
     }
 
-    // ボス専用：腕ピボットアニメーション（攻撃フェーズ別）
-    if (e.isBoss) _updateBossAnim(e);
+    // ボス専用：腕ピボットアニメーション + AOE 表示管理（攻撃フェーズ別）
+    if (e.isBoss) { _updateBossAnim(e); _updateBossAoe(e); }
 
     // 転がり中は腰ピボット補正（敵・プレイヤー共用ヘルパ）。それ以外は素の座標。
     if (e.state === STATE.down_roll_start || e.state === STATE.down_roll_loop) {

@@ -8,6 +8,9 @@
 //   addStaticArea(opts) — 一定位置に半透明リングを置く（id を返す）
 //     - position 追従が必要なら updateAreaPosition(id, x, y, z) で
 //     - 不要になったら removeArea(id)
+//   addRectArea(opts) — カメラ向き矩形エリアを置く（ボス攻撃 AOE 予兆など）
+//     - opts: { x, y, z, width, height, color, opacity, blink, blinkPeriodFn }
+//     - updateAreaPosition / removeArea で管理（addStaticArea と共通 id 空間）
 //   spawnExpandPulse(opts) — 0→radius に拡張しながらフェードする一発演出
 //     爆発の瞬間などに spawn
 //   updateAreas() — 毎フレーム呼ぶ（寿命・アニメ進行）
@@ -56,6 +59,38 @@ export function addStaticArea(opts) {
     life: opts.life ?? -1,    // -1 = 寿命なし（明示 remove 待ち）
     baseOpacity: opts.opacity ?? 0.4,
     // 点滅指定（任意）：blink: true / blinkPeriodFn(frame) → period
+    blink: !!opts.blink,
+    blinkPeriodFn: opts.blinkPeriodFn || null,
+    frame: 0,
+  });
+  return id;
+}
+
+// カメラ向き矩形エリア（ボス攻撃 AOE 予兆など）
+// PlaneGeometry を XY 平面に置く（カメラは +Z から見ているため正面を向く）
+export function addRectArea(opts) {
+  if (!_scene || !_THREE) return null;
+  const id = _nextId++;
+  const {
+    x = 0, y = 0, z = 0,
+    width = 100, height = 100,
+    color = 0xff4400, opacity = 0.3,
+  } = opts;
+  const geom = new _THREE.PlaneGeometry(width, height);
+  const mat = new _THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity,
+    side: _THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const mesh = new _THREE.Mesh(geom, mat);
+  mesh.position.set(x, y, z);
+  _scene.add(mesh);
+  areas.push({
+    id, mesh,
+    life: opts.life ?? -1,
+    baseOpacity: opacity,
     blink: !!opts.blink,
     blinkPeriodFn: opts.blinkPeriodFn || null,
     frame: 0,
