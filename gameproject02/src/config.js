@@ -579,9 +579,9 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.32,
     pitchActive:   +0.48,
     bossAnim: {
-      wind:    { lArm: { x: -1.0, z:  0.0 }, rArm: { x: -1.0, z:  0.0 } }, // 両腕を背後に振り上げ
-      active:  { lArm: { x: +0.8, z:  0.0 }, rArm: { x: +0.8, z:  0.0 } }, // 両拳を前方へ叩き下ろし
-      recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
+      wind:    { lArm: { x: 0, z: +1.1 }, rArm: { x: 0, z: -1.1 } }, // 両腕を外側に振り上げ（Yポーズ）
+      active:  { lArm: { x: 0, z: -0.3 }, rArm: { x: 0, z: +0.3 } }, // 両腕を内側へ叩き下ろし
+      recover: { lArm: { x: 0, z:  0.0 }, rArm: { x: 0, z:  0.0 } },
     },
   },
   // boss1_atk_02：横薙ぎフック（片腕大振り）
@@ -607,8 +607,8 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.28,
     pitchActive:   +0.18,
     bossAnim: {
-      wind:    { lArm: { x: -0.2, z: -0.3 }, rArm: { x: -0.2, z: +1.1 } }, // 右腕を外側に引いてタメ
-      active:  { lArm: { x:  0.0, z: +0.2 }, rArm: { x:  0.0, z: -0.7 } }, // 右腕を内側へ薙ぎ払い
+      wind:    { lArm: { x: -0.2, z: -0.3 }, rArm: { x: -0.2, z: -1.1 } }, // 右腕を外側に引いてタメ
+      active:  { lArm: { x:  0.0, z: +0.2 }, rArm: { x:  0.0, z: +0.7 } }, // 右腕を内側へ薙ぎ払い
       recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
     },
   },
@@ -635,9 +635,9 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.42,
     pitchActive:   +0.55,
     bossAnim: {
-      wind:    { lArm: { x: -1.4, z:  0.0 }, rArm: { x: -1.4, z:  0.0 } }, // 両腕を大きく振り上げ
-      active:  { lArm: { x: +1.0, z:  0.0 }, rArm: { x: +1.0, z:  0.0 } }, // 地面に叩きつけ（最大前傾）
-      recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
+      wind:    { lArm: { x: 0, z: +1.4 }, rArm: { x: 0, z: -1.4 } }, // 両腕を最大外側に振り上げ
+      active:  { lArm: { x: 0, z: -0.5 }, rArm: { x: 0, z: +0.5 } }, // 地面に叩きつけ（最大内側）
+      recover: { lArm: { x: 0, z:  0.0 }, rArm: { x: 0, z:  0.0 } },
     },
   },
   // boss1_atk_04：横薙ぎフック × 2 連（Phase 2 派生）
@@ -669,8 +669,8 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.28,
     pitchActive:   +0.20,
     bossAnim: {
-      wind:    { lArm: { x: -0.2, z: -0.3 }, rArm: { x: -0.2, z: +1.0 } }, // atk_02 と同じ初動
-      active:  { lArm: { x:  0.0, z: +0.2 }, rArm: { x:  0.0, z: -0.6 } }, // 薙ぎ払い（2連分で往復感）
+      wind:    { lArm: { x: -0.2, z: -0.3 }, rArm: { x: -0.2, z: -1.0 } }, // atk_02 と同じ初動
+      active:  { lArm: { x:  0.0, z: +0.2 }, rArm: { x:  0.0, z: +0.6 } }, // 薙ぎ払い（2連分で往復感）
       recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
     },
     multiHit:       true,
@@ -706,8 +706,8 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.40,
     pitchActive:   +0.50,
     bossAnim: {
-      wind:    { lArm: { x: -0.4, z: -0.5 }, rArm: { x: -0.4, z: +0.5 } }, // 両腕を広げミサイルポッド強調
-      active:  { lArm: { x: -0.4, z: -0.5 }, rArm: { x: -0.4, z: +0.5 } }, // 発射中も開いたまま
+      wind:    { lArm: { x: -0.4, z: +0.5 }, rArm: { x: -0.4, z: -0.5 } }, // 両腕を広げミサイルポッド強調
+      active:  { lArm: { x: -0.4, z: +0.5 }, rArm: { x: -0.4, z: -0.5 } }, // 発射中も開いたまま
       recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
     },
   },
@@ -771,9 +771,9 @@ export const ENEMY_ATTACKS = {
     pitchWind:     -0.55,
     pitchActive:   +0.70,
     bossAnim: {
-      wind:    { lArm: { x: -1.6, z: +0.3 }, rArm: { x: -1.6, z: -0.3 } }, // 両腕を頭上で組んでタメ（最大仰け反り）
-      active:  { lArm: { x:  0.0, z: +0.1 }, rArm: { x: +1.2, z: -0.1 } }, // 右腕を最大前方へ突き出し（必殺の一撃）
-      recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
+      wind:    { lArm: { x: 0, z: +1.4 }, rArm: { x: 0, z: -1.4 } }, // 両腕を最大外側に構えてタメ
+      active:  { lArm: { x: 0, z: -0.2 }, rArm: { x: 0, z: +1.2 } }, // 右腕を内側に最大振り下ろし（必殺の一撃）
+      recover: { lArm: { x: 0, z:  0.0 }, rArm: { x: 0, z:  0.0 } },
     },
     repulseAxis:   'ground',       // リパルスカウンター対象（弾き = 確定クリ + 100% gc）
   },
@@ -880,7 +880,7 @@ export const BOSS01_CONFIG = {
   SA_BREAK_ON_ULT:        true,   // ULT 命中で SA 崩し（試験的）
   SA_BREAK_STUN_FRAMES:   45,     // SA 崩し時のスタン F
   // サイズ（メッシュスケール）
-  MESH_SCALE:             4.0,   // midboss01 比 4 倍（80m 相当）
+  MESH_SCALE:             3.2,   // 元4.0の80%（64m相当）
   // === 移動/接近パラメータ（D 案 Phase 1 基本行動 2026-05-26）===
   //   重い・遅い・大柄 → 接近・攻撃距離・速度を boss 用に上書き
   //   DUMMY_ATK_CONFIG を直接いじらず、isBoss 分岐で本値を使う

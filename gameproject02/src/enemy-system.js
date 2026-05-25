@@ -1916,6 +1916,7 @@ function _explodeSplitBackBlast(e) {
 //  wind/active/recover それぞれの目標 rotation.x/z に向けてスムーズに補間する。
 // ============================================================
 function _updateBossAnim(e) {
+  if (e.dying) return;  // dying 演出中は腕を rest(0) に戻さない
   const parts = e.mesh?.userData?.parts;
   if (!parts?.lArmPivot || !parts?.rArmPivot) return;
   const lp = parts.lArmPivot;
