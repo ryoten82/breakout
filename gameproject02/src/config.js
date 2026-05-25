@@ -88,16 +88,39 @@ export const UKEMI_CONFIG = {
 // ============================================================
 //  SP ゲージ設定
 // ============================================================
+// ============================================================
+//  MISSION TIMER（ステージ制限時間）
+// ============================================================
+//  - 各ステージ START 時にカウントダウン開始（meta.timeLimitSec フレーム換算で減算）
+//  - 0 到達でプレイヤー強制 HP 0 → 撤退（dying → dead 演出）
+//  - Stage 3 ボス突入で freezeMissionTimer() 経由で停止（ボス戦に集中）
+//  - HUD は画面上中央・残 WARN_THRESHOLD_SEC 秒で色変化
+// ============================================================
+export const MISSION_TIMER_CONFIG = {
+  WARN_THRESHOLD_SEC:    30,   // 残りこの秒数以下で色を赤に
+  CRITICAL_THRESHOLD_SEC: 10,  // この秒数以下で点滅追加
+  HUD_FONT_SIZE_PX:      48,
+  HUD_COLOR_NORMAL:      '#ffee44',
+  HUD_COLOR_WARN:        '#ff8844',
+  HUD_COLOR_CRITICAL:    '#ff4444',
+};
+
 export const SP_CONFIG = {
   // ストック性（5 段階・各 STOCK_SIZE pt）：MAX = STOCK_SIZE * MAX_STOCKS = 100
   MAX:              100,
   STOCK_SIZE:       20,    // 1 ストックあたりの SP 量
   MAX_STOCKS:       5,     // 最大ストック数（Marvel vs Capcom 方式の LEVEL）
-  INITIAL_STOCKS:   3,     // 戦闘開始時のストック数
-  REGEN_RATE:       0.01,  // フレームごとの自然回復量（攻撃優先設計：逃げ回りだけでは遅い）
-  GAIN_ON_HIT:      3,     // ヒット1発あたりの獲得量（Phase 2.4 で 8→3 にトーンダウン）
-  GAIN_ON_TAKEN:    3,     // 被弾1発あたりの獲得量
-  GAIN_ON_GUARDED:  2,     // ガード成立1発あたりの獲得量
+  INITIAL_STOCKS:   0,     // 戦闘開始時のストック数（2026-05-27 3→0：必殺技は溜めてから）
+  REGEN_RATE:       0.005, // フレームごとの自然回復量（2026-05-25 0.01→0.005：通しで潤沢感あり半減）
+  // ヒット獲得量
+  //   - 通常技・特殊技（c01_atk_*）：通常の 70%
+  //   - 必殺技（c01_sp_*）：通常の 50%（それ自体が見せ場のため控えめ）
+  //   - 死体殴り（e.dying=true）：各値の 50%（hit-engine 側で乗算）
+  //   - hit-engine 側で 1 攻撃インスタンスにつき 1 回のみ加算
+  GAIN_ON_HIT:          1.05,   // 旧 1.5 × 0.70
+  GAIN_ON_HIT_SPECIAL:  0.25,   // 旧 0.5  × 0.50
+  GAIN_ON_TAKEN:    1.5,   // 被弾1発あたりの獲得量（2026-05-25 3→1.5：被弾で稼ぐループ抑止）
+  GAIN_ON_GUARDED:  1,     // ガード成立1発あたりの獲得量（2026-05-25 2→1：被弾連動で縮小）
   MEGA_CRASH_COST:  20,    // メガクラッシュ消費（= 1 ストック）
   ULT_COST:         40,    // ULT消費（= 2 ストック）
 };
@@ -369,9 +392,9 @@ export const ENEMY_ATTACKS = {
     windFrames:     32,    // 溜め（突進の予兆・読みやすさ重視で長め）
     activeFrames:   60,    // 突進の最大持続F（通常は dashMaxDist 到達で早期終了）
     recoverFrames:  35,    // 突進終了後の硬直（外し時の攻めどころ）
-    cooldownFrames: 90,    // 次の攻撃までのインターバル（基本振りの 2 倍・連発しない）
+    cooldownFrames: 140,   // 2026-05-25 通しプレイ受け：90→140（タックル間隔 1.5→2.3 秒・連発抑制）
     dashSpeed:      9,     // 突進速度（wu/F・仕様 3.5 は遅すぎたため引き上げ・SB で調整可）
-    dashMaxDist:    420,   // 突進の最大移動距離（wu・これか壁で停止）
+    dashMaxDist:    300,   // 2026-05-25 通しプレイ受け：420→300（実効レンジ 560→440wu・リーチ外被弾抑制）
     hitboxRangeX:   140,
     hitboxRangeY:   90,
     hitboxRangeZ:   100,
@@ -486,11 +509,11 @@ export const ENEMY_ATTACKS = {
     hitboxRangeX:   100,
     hitboxRangeY:   90,
     hitboxRangeZ:   80,
-    damage:         6,
-    atk_lv:         2,
-    knockback:      8,
-    hitstop:        5,
-    shake:          5,
+    damage:         8,    // 6 → 8（威圧感）
+    atk_lv:         3,    // 2（のけぞり）→ 3（吹き飛ばし）
+    knockback:      18,
+    hitstop:        6,
+    shake:          6,
     hitColor:       0xccaa44,
     pitchWind:     -0.22,
     pitchActive:   +0.42,
@@ -525,7 +548,8 @@ export const ENEMY_ATTACKS = {
     attackCategory: 'melee',
     windFrames:     14,
     activeFrames:   36,
-    recoverFrames:  120,  // 疲れ硬直 約2秒（この間 SA 無効・攻撃の隙）
+    recoverFrames:  120,  // 疲れ硬直 約2秒（後半は SA 無効・攻撃の隙）
+    recoverSaFrames: 40,  // 疲れ硬直のうち前半 40F は SA 継続（すぐ反撃できない）
     cooldownFrames: 90,
     dashSpeed:      5.0,
     dashMaxDist:    550,
@@ -783,11 +807,16 @@ export const ENEMY_ATTACKS = {
 //  #section enemy-attack-relay — 敵同士の攻撃テンポ（14-D-5）
 //  - ある敵の攻撃が終わってから、次の敵が攻撃を始められるまでの待ち時間。
 //  - 「敵同士が見合う」間（ま）を作る。VARIANCE で毎回ばらつかせテンポを一定にしない。
-//  - 実際の待ち ＝ BASE ×（1 ± VARIANCE のランダム）。
+//  - 実際の待ち ＝ BASE × DIFF_MULT ×（1 ± VARIANCE のランダム）。
+//  - 難易度調整：window.SB.ENEMY_ATTACK_RELAY.DIFF_MULT を変えるだけで全体テンポが変わる
+//    例）Easy: 1.5 / Normal: 1.0 / Hard: 0.65
 // ============================================================
 export const ENEMY_ATTACK_RELAY = {
-  BASE:     45,   // 攻撃終了 → 次の攻撃可能までの基準F
-  VARIANCE: 0.5,  // 振れ幅（±50%）。実待ち ＝ BASE × [0.5, 1.5]
+  BASE:         90,   // 攻撃終了 → 次の攻撃可能までの基準F（1.5秒平均）
+  VARIANCE:     0.5,  // 振れ幅（±50%）。実待ち ＝ BASE × DIFF_MULT × [0.5, 1.5]
+  DIFF_MULT:    1.0,  // 難易度倍率。大きいほど間が長い（=易しい）
+  TACKLE_RELAY: 240,  // タックル専用グローバルCD（F）。誰かがタックルを開始したら全員N F禁止
+                      // 難易度調整例）Easy: 360 / Normal: 240 / Hard: 120
 };
 
 // ============================================================
@@ -806,9 +835,9 @@ export const ENEMY_ATTACK_RELAY = {
 //    - punishesHitstun：true なら「プレイヤー被弾中」でも攻撃可（brave の追撃確定）
 export const ENEMY_PERSONALITY = {
   brave:    { guardTendency: 0.12, dodgeTendency: 0.08, staggerThreshold: 6, enragedHp: 0.50,
-              atk02Weight: 0.60, cooldownMult: 0.7, retreatMult: 0.15, punishesHitstun: true },
+              atk02Weight: 0.18, cooldownMult: 0.7, retreatMult: 0.15, punishesHitstun: true },  // 2026-05-25 タックル選択率 0.60→0.35→0.18
   cunning:  { guardTendency: 0.40, dodgeTendency: 0.45, staggerThreshold: 4, enragedHp: 0.38,
-              atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 1.0,  punishesHitstun: false },
+              atk02Weight: 0.15, cooldownMult: 1.0, retreatMult: 1.0,  punishesHitstun: false },  // 2026-05-25 タックル選択率 0.50→0.30→0.15
   // guardian：盾特化。頻繁にガード姿勢を取り、隙を見て攻撃。dodge はほぼしない
   guardian: { guardTendency: 0.65, dodgeTendency: 0.05, staggerThreshold: 5, enragedHp: 0.30,
               atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 0.5,  punishesHitstun: false },
@@ -817,7 +846,7 @@ export const ENEMY_PERSONALITY = {
   //   enragedHp 0＝HP% 興奮は発火せず、enraged 化は盾破壊でのみ起こる（midboss01）。
   //   staggerThreshold 80＝雑魚スケール（4〜6）に対し桁違いに打たれ強い。
   berserker:{ guardTendency: 0.0,  dodgeTendency: 0.0,  staggerThreshold: 80, enragedHp: 0.0,
-              atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 0.0,  punishesHitstun: true },
+              atk02Weight: 0.50, cooldownMult: 0.75, retreatMult: 0.0, punishesHitstun: true },
 };
 
 // ============================================================
@@ -851,6 +880,9 @@ export const MIDBOSS_SHIELD_CONFIG = {
   BREAK_HITSTOP:   14,    // 盾破壊の強ヒットストップ F
   BREAK_SHAKE:     12,    // 盾破壊のシェイク強度
   BANNER_FRAMES:   60,    // "SHIELD BREAK!" バナー表示 F（約 1 秒）
+  LAUNCH_RESIST_FRAMES:   22,  // 打ち上げ耐性：空中滞留上限 F。超えると強制着地（anti-juggle）
+  PASSIVE_SA_HP:           1,  // 恒常 SA：盾破壊後に常時保持するヒット吸収数（攻撃フェーズ問わず）
+  PASSIVE_SA_RECHARGE:    70,  // 恒常 SA リチャージ間隔 F（吸収後 N フレームで復活）
 };
 
 // ============================================================
@@ -1057,13 +1089,18 @@ export const REPULSE_CONFIG = {
   // === パリィボックス方式（2026-05-26）===
   // 旧「攻撃 hit 時の軸照合」を撤去し、専用の repulseBox / repulseTargetBox の AABB 重なり判定で成立させる。
   // 成立すると両者を「お膳立て位置」へワープし、軽い演出後に RC 発動（確定クリ + 100% gc）。
-  MAX_WARP_DISTANCE: 200,   // この距離を超えるとワープせず成立しない
+  MAX_WARP_DISTANCE: 350,   // この距離を超えるとワープせず成立しない（2026-05-27：200→350・aim 中ラグ + 退避動作許容）
   WARP_FRONT_OFFSET: 80,    // ワープ後の敵 X：プレイヤー facing 前方への距離
   WARP_Y_OFFSET:     120,   // ワープ後の敵 Y：プレイヤー頭上（attack hit 想定位置）
-  CAM_ZOOM_BOOST:    0.15,  // 一時的なカメラズーム加算
-  CAM_ZOOM_FRAMES:   14,    // ズーム持続 F
+  CAM_ZOOM_BOOST:    0.20,  // 一時的なカメラズーム加算（0.20 ≒ 20% 拡大）
+  CAM_ZOOM_FRAMES:   48,    // ズーム持続 F 合計（hold 18 + decay 30）
+  CAM_ZOOM_HOLD:     18,    // 最大ズーム据え置き F（0.3s）／残りは線形減衰
   SHAKE_AMOUNT:      6,
   SHAKE_FRAMES:      8,
+  SLOW_FRAMES:       14,    // RC 成立直後のスロー継続 F（megaSlow 機構を流用・DIVISOR=3）
+  HITSTOP_FRAMES:    18,    // RC 成立直後のヒットストップ（0.3s）
+  DARKEN_ALPHA:      0.35,  // 画面暗転オーバーレイの最大不透明度（ズームと同じカーブで連動）
+  BOLT_COUNT:        6,     // 雷ボルトの本数（縦長 box・spawnTrailDot 使用）
 };
 
 // ============================================================
@@ -1156,6 +1193,54 @@ export const GORE_CONFIG = {
   // final / burst フェーズの最後 N フレーム、残存 attached パーツを白く発光
   // 直後に _triggerFinalExplosion で本体除去 + 爆発
   PREEXPLODE_FLASH_FRAMES: 6,   // 約 0.1 秒（60F × 0.1）
+};
+
+// ============================================================
+//  #section burn — 延焼（burn）DoT + 伝播 + 死亡時爆発
+//  - 素では burn 付与不可。OC カード「点火 / 延焼 / 連鎖爆発」で段階的に解禁する積層設計
+//  - 付与経路：igniteEnemy(e, opts) を hit-engine / enemy-system から呼ぶ
+//  - DoT は noSpGain / noKnockback 相当（プレイヤー操作とは独立した時間ダメージ）
+//  - 伝播は SPREAD_ENABLED が true のときのみ起動（OC SPREAD カード取得で true）
+//  - 死亡時爆発は DEATH_BLAST_ENABLED が true のときのみ起動（OC CHAIN_BLAST カード取得で true）
+// ============================================================
+export const BURN_CONFIG = {
+  // DoT（2026-05-25 「地味」体感緩和：tick 間隔半減 + DPS は微増）
+  TICK_INTERVAL_FRAMES:   30,    // tick 間隔（0.5 秒・フィードバック頻度倍）
+  DAMAGE_PER_TICK:        2,     // 1 tick あたりダメージ（旧 3）
+  DURATION_FRAMES:        360,   // 持続フレーム（6 秒・12 tick = 24 dmg）
+  REFRESH_ON_REIGNITE:    true,  // 再点火で残時間リフレッシュ
+  MAX_STACKS:             1,     // V1 は単純付与（将来 OC でスタック化する余地）
+
+  // 伝播（OC SPREAD カードで ON）
+  SPREAD_ENABLED:         false,
+  SPREAD_RADIUS:          180,   // wu 半径内の最近接 1 体へ
+  SPREAD_INTERVAL_FRAMES: 90,    // 伝播判定間隔（1.5 秒・延焼テンポと整合）
+  SPREAD_MAX_CHAINS:      3,     // 1 burn から派生する連鎖上限
+  SPREAD_DURATION_INHERIT:0.7,   // 伝播先 duration 倍率（先細りで無限連鎖防止）
+
+  // 死亡時爆発（OC CHAIN_BLAST カードで ON）
+  DEATH_BLAST_ENABLED:    false,
+  DEATH_BLAST_RADIUS:     240,
+  DEATH_BLAST_DAMAGE:     12,
+  DEATH_BLAST_IGNITES:    true,  // 爆風範囲の生存敵に burn 付与
+  DEATH_BLAST_CHAIN_DURATION: 0.5, // 爆発由来 burn の duration 倍率
+
+  // 演出（オレンジ・アウトライン点滅 + 立ち上り炎パーティクル）
+  OUTLINE_COLOR:          0xff8822,  // burn 中の敵を包む shell-outline 色
+  OUTLINE_SCALE:          1.10,      // body/head を何倍にスケールして包むか
+  OUTLINE_PULSE_FRAMES:   28,        // 点滅 1 周期（sin 1 周）
+  OUTLINE_OPACITY_MIN:    0.30,
+  OUTLINE_OPACITY_MAX:    0.95,
+  FLAME_PARTICLE_COLOR:   0xff8822,
+  FLAME_PARTICLE_INTERVAL_FRAMES: 8,   // 2026-05-25 14→8：燃え立ち視認性向上
+  FLAME_PARTICLE_COUNT:   5,           // 2026-05-25 3→5
+
+  // 点火時フラッシュ（新規点火の瞬間のみ・再点火では発火しない）
+  IGNITE_FLASH_WHITE:     10,    // 中心の白閃光
+  IGNITE_FLASH_ORANGE:    18,    // 中層オレンジ
+  IGNITE_FLASH_RED:       14,    // 外層赤
+  IGNITE_FLASH_SHAKE_STRENGTH: 5,
+  IGNITE_FLASH_SHAKE_FRAMES:   6,
 };
 
 // ============================================================
@@ -1399,9 +1484,18 @@ export const KEY_CONFIG = {
 //  - 効果は ATTACKS / SP_CONFIG などのランタイム値を直接書き換え
 //  - id で applyOCEffect が分岐。color は選択 UI のアクセントカラー
 // ============================================================
+// rarity: チップと同じ 5 段階（'common'|'uncommon'|'rare'|'epic'|'legendary'）。
+// weight: 出現重み（デフォルト 10）。小さいほど出づらい。現テストでは weight のみ機能する。
 export const OVERCLOCK_CARDS = [
-  { id: 'POWER_UP',  label: 'POWER UP',  desc: '攻撃力 ×1.3',     color: '#ff5533' },
-  { id: 'SP_RUSH',   label: 'SP RUSH',   desc: 'SP 獲得 ×2',      color: '#22aaff' },
-  { id: 'REGEN_UP',  label: 'REGEN UP',  desc: 'SP 回復 ×3',      color: '#44dd88' },
-  { id: 'SP_FULL',   label: 'SP FULL',   desc: 'SP ゲージ即時満タン', color: '#ffcc22' },
+  { id: 'POWER_UP',  label: 'POWER UP',  desc: '攻撃力 ×1.3',                           color: '#ff5533', rarity: 'common',    weight: 10 },
+  { id: 'SP_RUSH',   label: 'SP RUSH',   desc: 'SP 獲得 ×2',                             color: '#22aaff', rarity: 'rare',      weight:  5 },
+  { id: 'SP_FULL',   label: 'SP FULL',   desc: 'SP 即時満タン / 上限 +2 本（継続）',     color: '#ffcc22', rarity: 'uncommon',  weight: 10 },
+  { id: 'BERSERK',   label: 'BERSERK',   desc: 'HP50%↓ →×1.2 / HP25%↓ →×1.4',         color: '#ff2244', rarity: 'rare',      weight:  7 },
+  // ===== 延焼ビルド（積層型・取得順を強制：点火 → 延焼 → 連鎖爆発）=====
+  //  - 点火を取らないと「延焼」「連鎖爆発」はプールに出ない
+  //  - 延焼を取らないと「連鎖爆発」はプールに出ない
+  //  - フィルタは index.html showOCSelection 内の _filterOcPool が担当
+  { id: 'IGNITE',      label: '点火',     desc: '必殺技命中 / 敵爆発時に周囲へ延焼を付与', color: '#ff7733', rarity: 'common',    weight: 10 },
+  { id: 'SPREAD',      label: '延焼',     desc: '延焼中の敵から周囲へ炎が広がる',         color: '#ff5522', rarity: 'uncommon',  weight: 10 },
+  { id: 'CHAIN_BLAST', label: '連鎖爆発', desc: '延焼中の敵が倒れると爆発し周囲を延焼',   color: '#ff2200', rarity: 'rare',      weight: 10 },
 ];

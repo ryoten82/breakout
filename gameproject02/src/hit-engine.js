@@ -38,7 +38,7 @@ import {
   PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG, MIDBOSS_SHIELD_CONFIG, REPULSE_CONFIG,
 } from './config.js';
 import { resolveAttackAttr, ATTACKS } from './attacks.js';
-import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak, triggerBossPhaseTransition } from './enemy-system.js';
+import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak, forceArmGoreCriticalIfPossible, triggerBossPhaseTransition, igniteEnemy, detonateBurn } from './enemy-system.js';
 import { spawnDamageNumber, spawnBanner } from './hud-system.js';
 
 let _THREE = null;
@@ -293,6 +293,68 @@ function _getTrailGeom() {
   return _TRAIL_GEOM;
 }
 
+// RC ボルト用の極太縦長 BoxGeometry。trail dot より遥かに視認性高く、画面を横切る雷感を出す
+let _RC_BOLT_GEOM = null;
+function _getRcBoltGeom() {
+  if (!_RC_BOLT_GEOM && _THREE) _RC_BOLT_GEOM = new _THREE.BoxGeometry(16, 240, 16);
+  return _RC_BOLT_GEOM;
+}
+
+// RC ボルト専用 particle 配列（hitstop で止まらず常に tick される）
+const rcBolts = [];
+
+// opts: { scaleX, scaleY, scaleZ, shrinkPower, fadeStart }
+//   scaleX/Y/Z : 初期スケール（X/Z は水平太さ・Y は高さ）
+//   shrinkPower: ライフ進行で X/Z が初期値→endRatio に縮む強度（0=縮まない・3=急激）
+//                Y は据え置きなので「太い柱 → 細い線」の変形になる
+//   fadeStart  : 0〜1 の残ライフ比率で opacity フェード開始（0.3 なら残り 30% から減衰）
+export function spawnRcBolt(x, y, z, vx, vy, vz, color, life, opts = {}) {
+  if (!_THREE || !_scene) return;
+  const { scaleX = 2, scaleY = 2, scaleZ = 2, shrinkPower = 2.5, fadeStart = 0.3 } = opts;
+  const geom = _getRcBoltGeom();
+  const mat = new _THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1 });
+  const mesh = new _THREE.Mesh(geom, mat);
+  mesh.position.set(x, y, z);
+  mesh.scale.set(scaleX, scaleY, scaleZ);
+  mesh.renderOrder = 9000;
+  mat.depthTest = false;
+  mat.depthWrite = false;
+  _scene.add(mesh);
+  rcBolts.push({
+    mesh, vx, vy, vz, life, lifeMax: life,
+    scaleX0: scaleX, scaleY0: scaleY, scaleZ0: scaleZ,
+    shrinkPower, fadeStart,
+  });
+}
+
+// 毎フレーム呼ばれる（hitstop 中も止まらない）
+//   X/Z は ease で初期値→0.15× へ収束（太い柱 → 細い線）
+//   Y は据え置き、opacity は残りライフ比率が fadeStart を下回ってから線形フェード
+export function updateRcBolts() {
+  for (let i = rcBolts.length - 1; i >= 0; i--) {
+    const b = rcBolts[i];
+    b.mesh.position.x += b.vx;
+    b.mesh.position.y += b.vy;
+    b.mesh.position.z += b.vz;
+    b.life--;
+    const lifeT = Math.max(0, b.life / b.lifeMax); // 1 → 0
+    // shrinkRatio: 1（最初）→ 0.15（最後）。pow で序盤一気に細く
+    const elapsed = 1 - lifeT;
+    const shrinkRatio = 1 - Math.pow(elapsed, 1 / Math.max(0.1, b.shrinkPower)) * 0.85;
+    b.mesh.scale.x = b.scaleX0 * shrinkRatio;
+    b.mesh.scale.z = b.scaleZ0 * shrinkRatio;
+    // 不透明度：残りが fadeStart 以下になったら線形に減衰
+    if (lifeT < b.fadeStart) {
+      b.mesh.material.opacity = lifeT / b.fadeStart;
+    }
+    if (b.life <= 0) {
+      _scene.remove(b.mesh);
+      if (b.mesh.material && b.mesh.material.dispose) b.mesh.material.dispose();
+      rcBolts.splice(i, 1);
+    }
+  }
+}
+
 // ============================================================
 //  ゴア・クリティカル用「血しぶき感のないクリーン トレイル粒子」
 //   - 散らばらず指定 vy だけ持つ縦長粒子を 1 つ push
@@ -354,6 +416,13 @@ export function spawnHitParticles(x, y, z, color = 0xffee44, count = 10, opts = 
       vx = Math.cos(angle) * speed;
       vz = Math.sin(angle) * speed;
       vy = -(r() * 4);
+    } else if (type === 'radial') {
+      // 地面衝撃波リング：XZ 平面に高速放射、Y は低めで地面を這う感
+      const angle = r() * Math.PI * 2;
+      const speed = (10 + r() * 12) * speedMul;
+      vx = Math.cos(angle) * speed;
+      vz = Math.sin(angle) * speed;
+      vy = 0.5 + r() * 2.5;
     } else {
       // omni（全方向・旧来動作）
       vx = (r() - 0.5) * 14;
@@ -398,7 +467,7 @@ export function spawnLaunchSmoke(x, y, z) {
 //   - 白／黄／橙／赤の多層パーティクル＋黒 debris
 //   - 既存プレイヤー dying 演出と同じ位置（mesh の頭上 y+80）を想定
 // ============================================================
-export function spawnDeathExplosion(x, y, z) {
+export function spawnDeathExplosion(x, y, z, opts) {
   const main = { type: 'omni', sizeScale: 1.5, speedMul: 1.35, lifeMul: 1.0 };
   // 中心の閃光（少数だが白）
   spawnHitParticles(x, y, z, 0xffffff, 14, main);
@@ -413,8 +482,48 @@ export function spawnDeathExplosion(x, y, z) {
   const linger = { type: 'omni', sizeScale: 2.0, speedMul: 0.45, lifeMul: lingerLife };
   spawnHitParticles(x, y, z, 0xff7733, 10, linger);
   spawnHitParticles(x, y, z, 0x553311, 8,  linger);
-  triggerHitstop(10);
+  // skipHitstop: RC airborneKill gc_04 のように、直前に長い hitstop が走っているケースで
+  //   爆発側の hitstop を抑制すると「ヒットストップ → 短い再生 → またヒットストップ」の
+  //   違和感を消せる（2026-05-27）。
+  if (!opts?.skipHitstop) triggerHitstop(7);
   triggerShake(16, 26);
+}
+
+// ============================================================
+//  起爆球体（blastSphere）— OC IGNITE Phase3 detonateBurn 用
+//  単位球を 0 → maxRadius まで EXPAND_FRAMES F で拡大しながらフェードアウト
+// ============================================================
+const _BLAST_MAX_RADIUS   = 350;
+const _BLAST_EXPAND_FRAMES = 18;
+export const blastSpheres = [];
+
+export function spawnBlastSphere(x, y, z, opts = {}) {
+  if (!_THREE || !_scene) return;
+  const maxR  = opts.maxRadius ?? _BLAST_MAX_RADIUS;
+  const life  = opts.life      ?? _BLAST_EXPAND_FRAMES;
+  const color = opts.color     ?? 0xff5500;
+  const geo  = new _THREE.SphereGeometry(1, 20, 16);
+  const mat  = new _THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.80, side: _THREE.BackSide });
+  const mesh = new _THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  _scene.add(mesh);
+  blastSpheres.push({ mesh, maxR, life, total: life });
+}
+
+export function updateBlastSpheres() {
+  for (let i = blastSpheres.length - 1; i >= 0; i--) {
+    const b = blastSpheres[i];
+    b.life--;
+    const t = 1 - (b.life / b.total);       // 0→1 で展開進行度
+    b.mesh.scale.setScalar(b.maxR * t);
+    b.mesh.material.opacity = 0.80 * (1 - t);
+    if (b.life <= 0) {
+      _scene.remove(b.mesh);
+      b.mesh.geometry.dispose();
+      b.mesh.material.dispose();
+      blastSpheres.splice(i, 1);
+    }
+  }
 }
 
 // ============================================================
@@ -502,8 +611,39 @@ export function tryHitEnemies(p, attack, ctx) {
   if (breakablesHitFn) breakablesHitFn(p, attack);
   const facing = p.facing;
   let anyHit = false;
+  // singleTarget 攻撃：range 内の最も近い 1 体だけにヒット（SP2 系の巻き添え抑止用）。
+  // RC の主役性を保つため、SP2 が周辺敵をまとめて削るのを防ぐ。
+  let _singleTargetCandidate = null;
+  let _singleTargetDistSq = Infinity;
+  if (attack.singleTarget) {
+    for (const e of enemies) {
+      if (!e.isAlive || e.dying || e.dyingInvincible) continue;
+      const dx = e.x - p.x, dz = e.z - p.z;
+      if (Math.abs(dx) > attack.rangeX) continue;
+      if (Math.abs(dz) > attack.rangeZ) continue;
+      if (attack.rangeY !== undefined) {
+        const dy = e.y - p.y;
+        const maxDown = attack.rangeYDown ?? attack.rangeY;
+        if (dy > attack.rangeY || dy < -maxDown) continue;
+      }
+      if (!attack.omni && Math.sign(dx) === -facing) continue;
+      const distSq = dx * dx + dz * dz;
+      if (distSq < _singleTargetDistSq) {
+        _singleTargetDistSq = distSq;
+        _singleTargetCandidate = e;
+      }
+    }
+  }
   for (const e of enemies) {
+    if (attack.singleTarget && e !== _singleTargetCandidate) continue;
     if (!e.isAlive) continue;
+    // RC 対象敵への通常ヒット抑止（2026-05-27）：
+    //   攻撃が repulseBox を持つ（=RC 系）かつ敵が repulseWindow 中の場合、
+    //   通常ヒットは打たず updateRepulseDetection 側で RC として処理させる。
+    //   こうしないと通常ヒットが先に kill して _maybeArmGoreCritical が
+    //   forceGc/airborneKill 無しの lastHitter で gc_04 を armed してしまい、
+    //   後段の RC は body 取れ済みで airborne モードにできず通常 GC が出る。
+    if (attack.repulseBox && e.repulseWindow) continue;
     // Phase 3：dying final フェーズ中は完全無敵（後方吹き飛び中の爆発待ち）
     if (e.dyingInvincible) continue;
     // down_burst_* 中は完全無敵：判定もダメージも一切受けない
@@ -625,6 +765,12 @@ export function tryHitEnemies(p, attack, ctx) {
         }
       }
     }
+    // BERSERK 倍率（HP 残量に応じた逆境ダメージ増幅）
+    if (window.SB?.OC_FLAGS?.berserk && p) {
+      const _bRatio = p.hp / p.maxHp;
+      if      (_bRatio < 0.25) _finalDamage = Math.round(_finalDamage * 1.4);
+      else if (_bRatio < 0.50) _finalDamage = Math.round(_finalDamage * 1.2);
+    }
     // ヒット
     e.hp = Math.max(0, e.hp - _finalDamage);
     if (_bossGateTriggered) triggerBossPhaseTransition(e, ctx);
@@ -693,8 +839,19 @@ export function tryHitEnemies(p, attack, ctx) {
       anyHit = true;
       continue;
     }
-    // スーパーアーマー：berserker のアクティブフェーズ中のみ（wind/recover は無効）
-    if (e.superArmor > 0 && e.atkPhase === 'active' && (e.saHp ?? 0) > 0) {
+    // 恒常 SA（passive）：midboss01 盾破壊後に常時 1 発吸収（攻撃フェーズ問わず）
+    if ((e.passiveSaHp ?? 0) > 0) {
+      e.passiveSaHp = 0;
+      e.passiveSaRecharge = MIDBOSS_SHIELD_CONFIG.PASSIVE_SA_RECHARGE;
+      e.hitFlashTimer = 6;
+      spawnHitParticles(e.x, e.y + 100, e.z, 0xffaa00, 14, { type: 'omni' });  // 黄橙：passive SA
+      anyHit = true;
+      continue;
+    }
+    // スーパーアーマー：active フェーズ + recover 前半（recoverSaTimer > 0）の間有効
+    const _inSaWindow = e.atkPhase === 'active'
+      || (e.atkPhase === 'recover' && (e.recoverSaTimer ?? 0) > 0);
+    if (e.superArmor > 0 && _inSaWindow && (e.saHp ?? 0) > 0) {
       e.saHp--;
       if (e.saHp > 0) {   // 装甲残り有り → 通常リアクションをスキップ
         e.hitFlashTimer = 6;
@@ -721,7 +878,11 @@ export function tryHitEnemies(p, attack, ctx) {
       // フラグは wait01 復帰時に enemy-system.js が自動 clear する。
       e.mesh.rotation.y = -e.fallDir * Math.PI / 2;
     }
-    e.knockbackVx   = facing * (attack.knockback * 0.4 * _sameAtkKbScale);
+    // kbRadial:true の技は facing ではなく「攻撃者中心→被弾者方向」でノックバック（放射状）
+    const _kbDir = attack.kbRadial
+      ? ((e.x !== p.x) ? Math.sign(e.x - p.x) : (Math.random() < 0.5 ? 1 : -1))
+      : facing;
+    e.knockbackVx   = _kbDir * (attack.knockback * 0.4 * _sameAtkKbScale);
     const resolved = resolveAttackAttr(attack);
     // === 超吹き飛ばし回数上限（down_super_* 中の敵に lv6 攻撃命中）===
     //   FLIGHT_BURST_LIMIT 回到達でバーストダウン化（2026-05-20 仕様統一）。
@@ -1074,17 +1235,51 @@ export function tryHitEnemies(p, attack, ctx) {
     triggerHitstop(_hitstop);
     triggerShake(_shake, _shake * 2 + 4);
     // ヒット演出：攻撃ごとに色・パーティクル数を変える（差別化）
-    const hitColor = attack.hitColor ?? 0xffee44;
-    const hitCount = attack.hitCount ?? 10;
+    // OC IGNITE 取得済み × igniteTrigger 技：ヒットカラーを赤系に差し替えてボリューム増量
+    const _ocIgnite = attack.igniteTrigger && window.SB?.OC_FLAGS?.ignite;
+    const hitColor = _ocIgnite ? 0xff2200 : (attack.hitColor ?? 0xffee44);
+    const hitCount = _ocIgnite ? (attack.hitCount ?? 10) * 2 : (attack.hitCount ?? 10);
     // パーティクルタイプ：attack.particleType が明示されていれば優先、なければ launchVy 符号で自動判定
     const _lvy = attack.launchVy ?? 0;
     const _pType = attack.particleType ?? (_lvy > 0 ? 'launch' : _lvy < 0 ? 'slam' : 'normal');
     spawnHitParticles(e.x - dx * 0.4, e.y + 80, e.z, hitColor, hitCount,
       { type: _pType, dirX: dx, dirZ: 0 });
+    // OC IGNITE: プレイヤー本体から前方に炎を散布（敵位置とは無関係）
+    if (_ocIgnite) {
+      const _fx = p.facing;
+      spawnHitParticles(p.x, p.y + 60, p.z, 0xff2200, hitCount,
+        { type: 'normal', dirX: _fx, dirZ: 0, speedMul: 1.2 });
+      spawnHitParticles(p.x, p.y + 40, p.z, 0xff8800, Math.floor(hitCount * 0.5),
+        { type: 'normal', dirX: _fx, dirZ: 0, speedMul: 0.8, sizeScale: 1.4 });
+    }
     bumpCombo(e);
     // SP 獲得：attack.noSpGain で個別オプトアウト可（ULT 等の自己回復ループ防止用）
-    if (!attack.noSpGain) {
-      p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
+    //   攻撃インスタンスにつき 1 回のみ加算（複数敵巻き込みでも一定量・2026-05-27 仕様）
+    //   通常技 / 必殺技で gain 量を切り替え（c01_sp_* は SPECIAL）
+    //   死体殴り（e.dying）は半額
+    if (!attack.noSpGain && !p._spGainCounted) {
+      const _isSpecial = typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_');
+      const _base = _isSpecial ? SP_CONFIG.GAIN_ON_HIT_SPECIAL : SP_CONFIG.GAIN_ON_HIT;
+      const _gain = e.dying ? _base * 0.5 : _base;
+      p.sp = Math.min(SP_CONFIG.MAX, p.sp + _gain);
+      p._spGainCounted = true;
+    }
+    // OC IGNITE × igniteTrigger 技（SP1）：2フェーズ起爆システム
+    //   Hit 1: 未 blastReady → 点火（未点火なら ignite も同時付与）+ blastReady セット
+    //   Hit 2: blastReady → 20F 遅延起爆（空中爆発狙い）
+    if (attack.igniteTrigger && window.SB?.OC_FLAGS?.ignite) {
+      // 共通：赤パーティクル追加
+      spawnHitParticles(e.x, e.y + 60, e.z, 0xff2200, 28, { type: 'launch', speedMul: 1.1 });
+      spawnHitParticles(e.x, e.y + 40, e.z, 0xff6600, 16, { type: 'omni',   speedMul: 0.8, sizeScale: 1.2 });
+      if (e.burnBlastReady) {
+        // Hit 2: 起爆タイマーセット
+        e.detonateTimer = 13;
+        e.burnBlastReady = false;
+      } else {
+        // Hit 1: 点火 + 即起爆準備完了
+        if (e.burnTimer <= 0) igniteEnemy(e, { sourceId: p.attackId });
+        e.burnBlastReady = true;
+      }
     }
     // 同技補正カウンタ：攻撃インスタンスにつき 1 回だけ +1（複数敵巻き込みでも 1 加算）
     if (!p._sameAtkCounted && _sameAtkBaseId) {
@@ -1162,6 +1357,10 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     if (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop) continue;
     // dyingInvincible（ゴア・クリティカル armed 等）は中間ヒット対象外（追撃禁止・2026-05-18）
     if (e.dyingInvincible) continue;
+    // RC 対象敵への通常ヒット抑止（2026-05-27）：tryHitEnemies と同条件で multi-hit にも適用。
+    //   c01_sp_02（粉塵昇竜・多段）など repulseBox 持ち多段技で、ジャンパー aim 中の敵に
+    //   中間ヒットが先行ダメージを入れて RC 経路の airborneKill GC を妨害するのを防ぐ。
+    if (attack.repulseBox && e.repulseWindow) continue;
     // 同一敵への hitInterval ガード
     const nextHitFrame = p.multiHitNextHit.get(e) ?? -Infinity;
     if (gameFrame < nextHitFrame) continue;
@@ -1207,6 +1406,12 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
           _bossGateTriggered = true;
         }
       }
+    }
+    // BERSERK 倍率（マルチヒット中間弾にも適用）
+    if (window.SB?.OC_FLAGS?.berserk && p) {
+      const _bRatio = p.hp / p.maxHp;
+      if      (_bRatio < 0.25) _midDamage = Math.round(_midDamage * 1.4);
+      else if (_bRatio < 0.50) _midDamage = Math.round(_midDamage * 1.2);
     }
     e.hp = Math.max(0, e.hp - _midDamage);
     if (_bossGateTriggered) triggerBossPhaseTransition(e, ctx);
@@ -1278,6 +1483,16 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     spawnHitParticles(e.x, e.y + 60, e.z, hitColor,
       Math.max(6, Math.floor((attack.hitCount ?? 10) * 0.6)),
       { type: 'normal', dirX: dx, dirZ: dz });
+    // OC IGNITE: 中間ヒットでもプレイヤー本体から前方に炎を散布
+    if (attack.igniteTrigger && window.SB?.OC_FLAGS?.ignite) {
+      const _fx = p.facing;
+      spawnHitParticles(p.x, p.y + 60, p.z, 0xff2200,
+        Math.max(6, Math.floor((attack.hitCount ?? 10) * 0.6)),
+        { type: 'normal', dirX: _fx, dirZ: 0, speedMul: 1.2 });
+      spawnHitParticles(p.x, p.y + 40, p.z, 0xff8800,
+        Math.max(4, Math.floor((attack.hitCount ?? 10) * 0.3)),
+        { type: 'normal', dirX: _fx, dirZ: 0, speedMul: 0.8, sizeScale: 1.4 });
+    }
     triggerHitstop(Math.max(2, Math.floor((attack.hitstop ?? 5) * 0.7)));
     triggerShake(Math.max(2, Math.floor((attack.shake ?? 4) * 0.6)),
                  Math.max(3, Math.floor((attack.shake ?? 4))));
@@ -1285,8 +1500,14 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     p.multiHitNextHit.set(e, gameFrame + (attack.hitInterval ?? 6));
     // コンボ +1（ヒットごと）
     bumpCombo(e);
-    if (!attack.noSpGain) {
-      p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_HIT);
+    // SP 獲得：攻撃インスタンスにつき 1 回（多段技でも 1 回・複数敵巻き込みでも 1 回）
+    //   死体殴り（e.dying）は半額
+    if (!attack.noSpGain && !p._spGainCounted) {
+      const _isSpecial = typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_');
+      const _base = _isSpecial ? SP_CONFIG.GAIN_ON_HIT_SPECIAL : SP_CONFIG.GAIN_ON_HIT;
+      const _gain = e.dying ? _base * 0.5 : _base;
+      p.sp = Math.min(SP_CONFIG.MAX, p.sp + _gain);
+      p._spGainCounted = true;
     }
     anyHit = true;
   }
@@ -1448,10 +1669,25 @@ function _aabbOverlap(a, b) {
 
 // main loop から毎フレーム呼ぶ。enemies は updateEnemies の後の最新状態を渡す
 export function updateRepulseDetection(p, enemies) {
-  if (!p || !p.attackId || !p.isAlive) return;
+  // プレイヤーの生存判定は p.hp > 0（敵の e.isAlive とは別規約）。
+  // 2026-05-27：以前 !p.isAlive で判定していたため undefined 扱いで毎フレーム早期 return → RC 全不発の原因だった。
+  if (!p || !p.attackId || p.hp <= 0) {
+    // attack 終了：次回の attack 開始を検出するため lastAttackId をクリア
+    if (p && !p.attackId) p._lastRcAttackId = null;
+    return;
+  }
   const atk = ATTACKS[p.attackId];
-  if (!atk || !atk.repulseBox) return;
-  // 同一 attackId 内で 1 度成立したら再成立しない（連発防止）
+  if (!atk || !atk.repulseBox) {
+    p._lastRcAttackId = p.attackId;  // attackId は変わったので追跡だけ更新
+    return;
+  }
+  // 新規 attack 開始検出：前回と attackId が違う or 前回 null → 連発防止フラグをクリア
+  // 2026-05-27：以前は同一文字列 attackId で固定比較していたため、同じ技を連発すると 2 回目以降が永続無効化されていた
+  if (p._lastRcAttackId !== p.attackId) {
+    p._repulseFiredForAttackId = null;
+    p._lastRcAttackId = p.attackId;
+  }
+  // 同一 attack インスタンス内で 1 度成立したら再成立しない（連発防止）
   if (p._repulseFiredForAttackId === p.attackId) return;
   // RC 判定 active 期間：attack.repulseFrameStart/End が定義されていればその範囲のみ active。
   // 未定義なら duration 中ずっと active（後方互換）。
@@ -1461,19 +1697,45 @@ export function updateRepulseDetection(p, enemies) {
   }
 
   const pBox = _resolveRepulseBoxToWorld(p.x, p.y, p.z, p.facing, atk.repulseBox);
+  const _dbg = (typeof window !== 'undefined') && window.SB?.DEBUG_SP2_LOG;
 
   for (const e of enemies) {
     if (!e || !e.isAlive || e.dying) continue;
-    if (!e.repulseWindow) continue;
+    // フェイル ログは jump_dive 中の敵に絞る（他の敵で大量ノイズが出るのを防ぐ）
+    const _isJd = e.curAtkId && ENEMY_ATTACKS[e.curAtkId]?.kind === 'jump_dive';
+    if (!e.repulseWindow) {
+      if (_dbg && _isJd) console.log(`  [RC fail] repulseWindow=false phase=${e._jdPhase ?? 'null'} grace=${e._jdDiveGrace ?? 0}`);
+      continue;
+    }
     const eAtk = ENEMY_ATTACKS[e.curAtkId];
     if (!eAtk || !eAtk.repulseTargetBox) continue;
-    if (eAtk.repulseAxis !== atk.repulseAxis) continue;
+    if (eAtk.repulseAxis !== atk.repulseAxis) { if (_dbg && _isJd) console.log(`  [RC fail] axis mismatch p=${atk.repulseAxis} e=${eAtk.repulseAxis}`); continue; }
     const dx = e.x - p.x, dz = e.z - p.z;
-    if (Math.hypot(dx, dz) > REPULSE_CONFIG.MAX_WARP_DISTANCE) continue;
+    const xzDist = Math.hypot(dx, dz);
+    if (xzDist > REPULSE_CONFIG.MAX_WARP_DISTANCE) { if (_dbg && _isJd) console.log(`  [RC fail] dist=${xzDist.toFixed(0)} > ${REPULSE_CONFIG.MAX_WARP_DISTANCE}`); continue; }
     const eBox = _resolveRepulseBoxToWorld(e.x, e.y, e.z, e.facing, eAtk.repulseTargetBox);
-    if (!_aabbOverlap(pBox, eBox)) continue;
+    if (!_aabbOverlap(pBox, eBox)) {
+      if (_dbg && _isJd) {
+        const xOK = pBox.x1 < eBox.x2 && pBox.x2 > eBox.x1;
+        const yOK = pBox.y1 < eBox.y2 && pBox.y2 > eBox.y1;
+        const zOK = pBox.z1 < eBox.z2 && pBox.z2 > eBox.z1;
+        console.log(
+          `  [RC fail AABB] X:${xOK?'OK':'NG'}(p${pBox.x1.toFixed(0)}..${pBox.x2.toFixed(0)} vs e${eBox.x1.toFixed(0)}..${eBox.x2.toFixed(0)}) ` +
+          `Y:${yOK?'OK':'NG'}(p${pBox.y1.toFixed(0)}..${pBox.y2.toFixed(0)} vs e${eBox.y1.toFixed(0)}..${eBox.y2.toFixed(0)}) ` +
+          `Z:${zOK?'OK':'NG'}(p${pBox.z1.toFixed(0)}..${pBox.z2.toFixed(0)} vs e${eBox.z1.toFixed(0)}..${eBox.z2.toFixed(0)}) ` +
+          `phase=${e._jdPhase ?? 'null'} grace=${e._jdDiveGrace ?? 0}`
+        );
+      }
+      continue;
+    }
 
     _triggerRepulseSuccess(p, e, atk, eAtk);
+    if (typeof window !== 'undefined' && window.SB?.DEBUG_SP2_LOG) {
+      const dist = Math.hypot(e.x - p.x, e.z - p.z);
+      const phase = e._jdPhase ?? 'null';
+      const grace = e._jdDiveGrace ?? 0;
+      console.log(`[RC HIT] attack=${p.attackId} | enemy.phase=${phase} dist=${dist.toFixed(0)}wu diveGrace残=${grace}F`);
+    }
     p._repulseFiredForAttackId = p.attackId;
     return;
   }
@@ -1482,30 +1744,108 @@ export function updateRepulseDetection(p, enemies) {
 function _triggerRepulseSuccess(p, e, atk, eAtk) {
   const _RC = REPULSE_CONFIG;
   // === ワープお膳立て ===
-  // 敵をプレイヤー正面・頭上へ。攻撃が「ちょうど当たる」位置関係を強制再現
+  // 敵をプレイヤー正面・頭上へ。攻撃が「ちょうど当たる」位置関係を強制再現。
+  // 2026-05-27：旧 Math.max(e.y, p.y + WARP_Y_OFFSET) は「上に居る敵は下げない」
+  //   実装だったため、ジャンパー aim 中（Y ~700）が画面外に取り残されていた。
+  //   ズーム時に演出の主役が見えないので、無条件で player.y + offset に揃える。
   e.x = p.x + (p.facing || 1) * _RC.WARP_FRONT_OFFSET;
   e.z = p.z;
-  e.y = Math.max(e.y, p.y + _RC.WARP_Y_OFFSET);
+  e.y = p.y + _RC.WARP_Y_OFFSET;
+  e.vy = 0;  // 落下慣性をクリア（直後に dying burst で物理は上書きされるが念のため）
+  // mesh 位置もその場で同期：描画は updateEnemies の後でメッシュへ反映されるが、
+  // hitstop 中は updateEnemies が走らないので明示同期しないと旧位置で固まる
+  if (e.mesh) {
+    e.mesh.position.set(e.x, e.y, e.z);
+  }
   e.facing = -(p.facing || 1);
   // 敵 attack の続行をキャンセル：repulseWindow を消費 + 攻撃 phase 強制終了
   e.repulseWindow = false;
-  // === 演出（軽め）===
-  spawnBanner('REPULSE!', { frames: _RC.BANNER_FRAMES, color: '#cc88ff', fontSize: 62 });
+  // === 演出 ===
+  // REPULSE! バナーは一旦停止（雷ボルト + ズームで十分視認可能・2026-05-27）
+  // spawnBanner('REPULSE!', { frames: _RC.BANNER_FRAMES, color: '#cc88ff', fontSize: 62 });
+  // ベース omni 弾け
   spawnHitParticles(e.x, e.y + 40, e.z, _RC.FLASH_COLOR, _RC.FLASH_COUNT, { type: 'omni' });
+  // 軸方向の雷：SF3 風アニメ進行（太い柱 → 細い線へ収束 → サテライトのジグザグ）
+  //   - メイン柱 1 本：超太い柱が立ち上がり、急激に縦線へ収束
+  //   - サテライト 4-5 本：横にズレた細めの柱が遅延気味に立ち、ゆっくり収束
+  //   - 全体的に Y は据え置きで X/Z だけ縮むので「柱が線になる」絵
+  const _axis = eAtk?.repulseAxis || atk?.repulseAxis;
+  // 共通方向ベクトル
+  const _isAerial = _axis === 'aerial';
+  const _isGround = _axis === 'ground';
+  const _isFrontal = _axis === 'frontal';
+  const _dir = _isAerial ? { vx: 0, vy: 1, vz: 0, oy: 0 }
+            : _isGround  ? { vx: 0, vy: -1, vz: 0, oy: 80 }
+            : _isFrontal ? { vx: (p.facing || 1), vy: 0, vz: 0, oy: 40 }
+            : null;
+  if (_dir) {
+    // メイン柱：太い・速い・寿命短め・急収束
+    const mainSpeed = 48;
+    spawnRcBolt(
+      e.x, e.y + _dir.oy, e.z,
+      _dir.vx * mainSpeed, _dir.vy * mainSpeed, _dir.vz * mainSpeed,
+      0xffffff, 20,
+      { scaleX: 5.0, scaleY: 2.8, scaleZ: 5.0, shrinkPower: 3.5, fadeStart: 0.35 },
+    );
+    // サテライト：横方向にずれた細めの柱・寿命長め・ゆっくり収束
+    const _satCount = _RC.BOLT_COUNT ?? 5;
+    const _satColors = [0xccddff, 0xaaccff, 0xeeeeff, 0xbbddff, 0xccccff];
+    for (let i = 0; i < _satCount; i++) {
+      const lat = (i - (_satCount - 1) / 2) * 36 + (Math.random() - 0.5) * 20;
+      const dep = (Math.random() - 0.5) * 28;
+      const speed = 36 + Math.random() * 14;
+      // サテライトは水平軸ずらし（frontal 時は Y にずらし）
+      const ox = _isFrontal ? 0 : lat;
+      const oy = _isFrontal ? lat * 0.4 : 0;
+      spawnRcBolt(
+        e.x + ox, e.y + _dir.oy + oy, e.z + dep,
+        _dir.vx * speed, _dir.vy * speed, _dir.vz * speed,
+        _satColors[i % _satColors.length], 30 + Math.random() * 6,
+        { scaleX: 2.0 + Math.random() * 0.8, scaleY: 2.3, scaleZ: 2.0 + Math.random() * 0.8, shrinkPower: 2.0, fadeStart: 0.4 },
+      );
+    }
+  }
+  // 白フラッシュ：成立瞬間の閃光（粒子は通常 omni）
+  spawnHitParticles(e.x, e.y + 40, e.z, 0xffffff, 14, { type: 'omni', sizeScale: 1.0, lifeMul: 0.8 });
   triggerShake(_RC.SHAKE_AMOUNT, _RC.SHAKE_FRAMES);
-  // カメラズーム boost：camera-system に専用 API がまだ無いので、SB 経由でフラグだけ立てる（後追い接続用）
+  // ヒットストップ：成立瞬間を強く見せる（既存 triggerHitstop 利用）
+  triggerHitstop(_RC.HITSTOP_FRAMES ?? 30);
+  // カメラズーム boost + 画面暗転：camera 側の hold + decay ズームを起動（ULT 中は自動スキップ）
   if (typeof window !== 'undefined' && window.SB) {
-    window.SB._repulseCamBoost = { frames: _RC.CAM_ZOOM_FRAMES, amount: _RC.CAM_ZOOM_BOOST };
+    if (typeof window.SB.applyCamZoomBoost === 'function') {
+      window.SB.applyCamZoomBoost(
+        _RC.CAM_ZOOM_BOOST,
+        _RC.CAM_ZOOM_FRAMES,
+        _RC.CAM_ZOOM_HOLD ?? 0,
+        _RC.DARKEN_ALPHA ?? 0.35,
+      );
+    }
+    // 短時間スロー：メガクラのスロー機構を流用（DIVISOR=3 で 1/3 速）
+    //   既存 megaSlow がアクティブな場合は伸ばさず Math.max で重ね合わせ
+    const _cur = window.SB.megaSlow ?? 0;
+    window.SB.megaSlow = Math.max(_cur, _RC.SLOW_FRAMES ?? 12);
   }
   // === RC ヒット成立処理 ===
-  // 確定クリ・大ダメージ・burst へ送る。雑魚は即死、ボスは HP 0 まで持っていく（雑魚相当の暴力的処理）。
+  // 確定クリ・破壊確定。ダメージ計算は通り抜けず、直接 hp=0 + burst で確定。
+  //   - 表示数字は「通常クリティカル相当」（攻撃 damage × CRIT_CONFIG.DAMAGE_MULT）。
+  //     999 等の特別な値だとリザルト集計（与ダメ累計）が歪むので回避。
+  //   - 内部は hp=0 + triggerBurstState + enterEnemyDyingBurst の非ダメージ経路で破壊
+  //     → damagePlayer 系の累積カウンタには載らない（破壊カウントだけ別途集計の余地）。
   // 将来ボス用は別途「連続判定版」で振る舞いを分ける（[[project_scrapblitz_repulse_counter]]）。
-  const _dmg = Math.max(e.hp, 999);
-  spawnDamageNumber(e.x, e.y + 110, e.z, _dmg, { crit: true });
+  const _critMult = CRIT_CONFIG?.DAMAGE_MULT ?? 1.5;
+  const _displayDmg = Math.round((atk.damage ?? 0) * _critMult);
+  spawnDamageNumber(e.x, e.y + 110, e.z, _displayDmg, { crit: true });
   e.hp = 0;
-  e.lastHitter = { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: 4, wasGrounded: false };
+  // RC は必ず gc 発動：
+  //   - lv: 4 で c01_gc_04（打ち上げ GC）に対応
+  //   - wasGrounded: true で requireGrounded フィルタ通過
+  //   - forceGc: true で確率チェックスキップ（100% 当選）
+  //   - airborneKill: true で gc_04 演出を「空中爆散」モードに（地面に足を残さない）
+  e.lastHitter = { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: 4, wasGrounded: true, forceGc: true, airborneKill: true };
   triggerBurstState(e, p.facing);
-  // dying フローへ：ゴアクリ抽選は通常通り走る（100% gc を強制したい場合は別途オプション化）
-  enterEnemyDyingBurst(e, { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: 4, wasGrounded: false }, p.facing);
+  enterEnemyDyingBurst(e, { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: 4, wasGrounded: true, forceGc: true, airborneKill: true }, p.facing);
+  // RC 強制 GC：同フレームで通常ヒットが既に kill 済みだと enterEnemyDyingBurst が早期 return し、
+  //   forceGc:true な lastHitter での GC 抽選が走らない。明示的に再評価して GC を armed させる。
+  forceArmGoreCriticalIfPossible(e);
   bumpCombo(e);
 }

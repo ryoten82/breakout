@@ -64,6 +64,7 @@ let _enemies = null;
 let _processMegaCrashUltInput = null;
 let _applyBodyEmissive = null;
 let _getEnemyHitboxMesh = null;
+let _hideAllEnemyHitboxes = null;
 let _guardShield = null;
 let _specialHitboxMesh = null;
 let _PART_REST = null;
@@ -93,6 +94,7 @@ export function initPlayerSystem(deps) {
   _processMegaCrashUltInput = deps.processMegaCrashUltInput;
   _applyBodyEmissive = deps.applyBodyEmissive;
   _getEnemyHitboxMesh = deps.getEnemyHitboxMesh;
+  _hideAllEnemyHitboxes = deps.hideAllEnemyHitboxes;
   _guardShield = deps.guardShield;
   _specialHitboxMesh = deps.specialHitboxMesh;
   _PART_REST = deps.PART_REST;
@@ -289,9 +291,15 @@ export function updateChargeJ(p) {
   // 攻撃中（attacking / hit_confirm）でも蓄積する：J 押しっぱなしで他 SP を撃ったり
   // 通常コンボの最中に裏で sp_03 を溜めるパターンを許可（プレイヤー側の主体的キャンセル繋ぎ）。
   // 空中でも蓄積可：難度高めだが「裏で溜めて空中 sp_03_air に繋ぐ」ルートをプレイヤー裁量で開放。
+  // 2026-05-25：knockback / down 中も溜め可能に（吹き飛ばされながら仕切り直しのチャージ）。
+  //   dying / dead / respawning は除外。被弾でチャージはリセットされるため「0 から溜め直し」前提。
+  const _inRecoverableHitstun = isHitstunState(p)
+    && p.state !== STATE.dying
+    && p.state !== STATE.dead
+    && p.state !== STATE.respawning;
   const canCharge =
     (p.state === STATE.wait01 || p.state === STATE.attacking || p.state === STATE.hit_confirm ||
-     PLAYER_JUMP_STATES.has(p.state))
+     PLAYER_JUMP_STATES.has(p.state) || _inRecoverableHitstun)
     && !p.guarding && !p.ultActive
     && p.state !== STATE.grabbing;
   const wasReady = p.chargeReady;
@@ -362,7 +370,12 @@ function canStartSpecial(p, opts) {
   if (p.state === STATE.wait01) return true;
   if (p.state === STATE.walk_fwd || p.state === STATE.walk_back) return true;
   if (p.state === STATE.hit_confirm) return true;
-  if (p.state === STATE.attacking) return true; // attacking もキャンセル発動可
+  if (p.state === STATE.attacking) {
+    // SP 中から SP へのキャンセルはヒット確認必須（空振りキャンセルで無敵ループ防止）
+    const _curAtk = ATTACKS[p.attackId];
+    if (_curAtk?.isSpecial && !p.hitDelivered) return false;
+    return true;
+  }
   // ジャンプ系 state は wait01 と同じ受付（演出フック）
   if (PLAYER_JUMP_STATES.has(p.state)) return true;
   return false;
@@ -494,6 +507,41 @@ export function processSpecialInput(p) {
 //  SP4 のみチャージ J リリース経由で従来通り発動（processSpecialInput）。
 //  従来の派生 K（↑K / →K / ↓K）は J 系へ移動（attack-engine.js の processAttackInput）。
 // ============================================================
+// SP2 押下時のタイミング検証ログ（2026-05-27）。
+//   window.SB.DEBUG_SP2_LOG = true で ON。
+//   押下瞬間の「敵 _jdPhase / repulseWindow / 距離 / grace 残 F」をスナップショット。
+//   何回か押すと、自分が「aim 中で押せている / dive grace 中 / もう dive 進行済 / そもそも aim 入ってない」のどれが多いか可視化できる。
+let _sp2LogSeq = 0;
+function _logSp2Snapshot(p, attackId) {
+  if (typeof window === 'undefined' || !window.SB?.DEBUG_SP2_LOG) return;
+  if (!_enemies) return;
+  _sp2LogSeq++;
+  const frame = getGameFrame();
+  // 最寄りの jump_dive 中の敵を 1 体ピック
+  let best = null, bestDist = Infinity;
+  for (const e of _enemies) {
+    if (!e || !e.isAlive || e.dying) continue;
+    const atk = e.curAtkId && ENEMY_ATTACKS[e.curAtkId];
+    if (!atk || atk.kind !== 'jump_dive') continue;
+    const d = Math.hypot(e.x - p.x, e.z - p.z);
+    if (d < bestDist) { bestDist = d; best = e; }
+  }
+  const tag = `[SP2 #${_sp2LogSeq}]`;
+  if (!best) {
+    console.log(`${tag} frame=${frame} attack=${attackId} → 敵 jump_dive 中なし（aim/dive 未起動）`);
+    return;
+  }
+  const phase = best._jdPhase ?? 'null';
+  const win   = !!best.repulseWindow;
+  const grace = best._jdDiveGrace ?? 0;
+  const aimLeft = best._jdAimTimer ?? 0;
+  console.log(
+    `${tag} frame=${frame} attack=${attackId} | enemy.phase=${phase} repulseWindow=${win} ` +
+    `dist=${bestDist.toFixed(0)}wu aimLeft=${aimLeft}F diveGrace=${grace}F` +
+    `${win ? '  ✅ RC 受付中' : '  ❌ RC OFF'}`
+  );
+}
+
 export function processStrongAttackInput(p) {
   const kPressed = _inp('KeyK');
   const justPressed = kPressed && !kKeyWasDown;
@@ -512,15 +560,28 @@ export function processStrongAttackInput(p) {
   //   - 地上：c01_sp_02_short（大昇り単発・粉塵昇竜の自機上昇感を残した形態）
   //   - 空中：c01_sp_02_air（控えめ単発・コンボ降下しない調整）
   //   - 旧 ホールド分岐コード（updateSp2Hold / SP2_HOLD_FRAMES）は実装は残置・本入口だけ即発に戻す
+  //   - c01_sp_02（粉塵昇竜・多段）は OC / 強化版として将来再利用予定（定義は attacks.js に残置）
   if (upHeld) {
     const id = p.isGrounded ? 'c01_sp_02_short' : 'c01_sp_02_air';
+    _logSp2Snapshot(p, id);  // タイミング検証ログ（window.SB.DEBUG_SP2_LOG で ON/OFF）
+    const _attackIdBefore = p.attackId;
+    const _stateBefore    = p.state;
+    const _spBefore       = p.sp;
     startSpecial(p, id);
+    if (typeof window !== 'undefined' && window.SB?.DEBUG_SP2_LOG) {
+      const fired = p.attackId === id && p.attackId !== _attackIdBefore;
+      if (!fired) {
+        console.log(`  [SP2 START FAIL] reason check: state(before)=${_stateBefore} attackId(before)=${_attackIdBefore} attackId(after)=${p.attackId} sp=${_spBefore.toFixed(1)}`);
+      } else {
+        console.log(`  [SP2 START OK] attackId=${p.attackId} stateTimer=${p.stateTimer} sp=${p.sp.toFixed(1)}`);
+      }
+    }
     return;
   }
 
   let baseId;
   if (dnHeld) baseId = 'c01_sp_03';
-  else        baseId = 'c01_sp_01';
+  else        baseId = window.SB?.OC_FLAGS?.ignite ? 'c01_sp_01_ignite' : 'c01_sp_01';
 
   startSpecial(p, pickSpecialAttackId(baseId, p.isGrounded));
 }
@@ -764,6 +825,10 @@ export function updatePlayer(p) {
     p._grabHitLock = true;
     const canReverse = (p.state !== STATE.dying && p.state !== STATE.dead && p.state !== STATE.guard_crash);
     if (canReverse) _processMegaCrashUltInput(p);
+    // 2026-05-25：knockback/down 中も J 長押しチャージを蓄積させる（仕切り直し溜め）。
+    // dying/dead/guard_crash は除外（canReverse と同条件）。
+    // リリースエッジ検出は processSpecialInput に任せる（hitstun 脱出後の最初フレームで発火）。
+    if (canReverse) updateChargeJ(p);
     // 受け身入力：被弾中の最初のジャンプ押下だけをバッファ投入に使う（1被弾1回）。
     //   連打でバッファを再充填し続けると受け身が確定してしまうため、ukemiAttempted で締める。
     //   早すぎる1回目はバッファが切れて不成立 → 連打は自滅。＝タイミングを読む技。
@@ -1203,6 +1268,7 @@ export function updatePlayer(p) {
       const _landAtk = p.attackId ? ATTACKS[p.attackId] : null;
       if (_landAtk &&
           (_landAtk.diveVy !== undefined || _landAtk.cancelOnLand) &&
+          !_landAtk.autoLandGeyser &&   // 着地ゲイザー技は attack-engine 側で着地を検知して自己遷移する
           (p.state === STATE.attacking || p.state === STATE.hit_confirm)) {
         p.state          = STATE.wait01;
         p.attackChainIdx = -1;
@@ -1348,8 +1414,10 @@ export function updatePlayer(p) {
       const rz = curAtkVis.rangeZ ?? 100;
       const yHeight = ryUp + ryDown;
       const yCenter = p.y + (ryUp - ryDown) * 0.5;
+      // omni 技（全方向）はプレイヤー中心配置・通常技は前方片側配置
+      const _hbXOffset = curAtkVis.omni ? 0 : p.facing * (rx * 0.5);
       _specialHitboxMesh.visible = true;
-      _specialHitboxMesh.position.set(p.x + p.facing * (rx * 0.5), yCenter, p.z);
+      _specialHitboxMesh.position.set(p.x + _hbXOffset, yCenter, p.z);
       _specialHitboxMesh.scale.set(rx, yHeight, rz * 2);
       // 個別色：攻撃定義に hitboxColor があれば上書き（sp_03_max の青炎など）
       _specialHitboxMesh.material.color.setHex(curAtkVis.hitboxColor ?? SPECIAL_CONFIG.HITBOX_COLOR);
@@ -1361,6 +1429,9 @@ export function updatePlayer(p) {
   }
 
   // === 敵攻撃の当たり判定可視化 ===
+  // プール内の全 hitbox を先に hide：enemies.splice で配列縮小すると
+  //   プール側の N 番 mesh が visible=true のまま空間に取り残されるため、毎フレーム必ずリセットする
+  if (_hideAllEnemyHitboxes) _hideAllEnemyHitboxes();
   for (let i = 0; i < _enemies.length; i++) {
     const e = _enemies[i];
     const mesh = _getEnemyHitboxMesh(i);

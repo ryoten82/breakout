@@ -58,6 +58,36 @@ let camRightLimit = null;
 export function setCamRightLimit(x) { camRightLimit = (x == null) ? null : +x; }
 export function getCamRightLimit() { return camRightLimit; }
 
+// 一時ズームブースト（RC 成立等の短時間ヒットエフェクト用）。
+//   amount: ベース zoom に加算する値（例 0.15 で約 15% 拡大）
+//   frames: 線形に 0 まで減衰する持続フレーム数
+// ULT が camera.zoom を専有制御している間は何もしない（次フレームで自然回復）。
+// 構造：peak ホールド期間 + 線形減衰期間。total = hold + decay。
+//   最初の hold F は zoom = base + amount のまま据え置き → 「ぐっと寄った」感を視認させる
+//   残り decay F で base へ線形に戻す
+let _zoomBoostAmount = 0;
+let _zoomBoostFrames = 0;
+let _zoomBoostHoldFrames = 0;
+let _zoomBoostDecayFrames = 0;
+// true base zoom: ブースト効いていない状態の zoom。連発時に base がブースト済み値で
+// 上書きされて演出が見えなくなるバグ防止のため、boost 未稼働時のみ更新する。
+let _zoomTrueBase = null;
+let _zoomBoostDarkenEl = null;
+let _zoomBoostDarkenAlpha = 0;
+export function applyCamZoomBoost(amount, frames, holdFrames, darkenAlpha) {
+  if (!_camera) return;
+  // boost 未稼働時にだけ true base を更新（連発で base がブースト値に張り付くのを防ぐ）。
+  if (_zoomBoostFrames <= 0) {
+    _zoomTrueBase = _camera.zoom || 1;
+  }
+  _zoomBoostAmount       = amount;
+  _zoomBoostHoldFrames   = holdFrames ?? 0;
+  _zoomBoostDecayFrames  = Math.max(1, frames - _zoomBoostHoldFrames);
+  _zoomBoostFrames       = _zoomBoostHoldFrames + _zoomBoostDecayFrames;
+  _zoomBoostDarkenAlpha  = darkenAlpha ?? 0;
+  if (!_zoomBoostDarkenEl) _zoomBoostDarkenEl = document.getElementById('rc-darken');
+}
+
 // ============================================================
 //  壁オブジェクト管理（2026-05-18）
 //  - levelWalls：ステージに配置された静的な壁（背景オブジェクト等）。
@@ -220,6 +250,10 @@ export function updateCamera() {
   // 終了後は通常デッドゾーンが自動的に再開
   if (p.ultActive) {
     camTargetX += (p.x - camTargetX) * 0.25;
+  } else if (_zoomBoostFrames > 0) {
+    // RC ズーム中はプレイヤーを画面中央へ素早く寄せる（画面端での見切れ防止）。
+    // ULT より弱い lerp で素早く追従＆ズーム終了後の通常デッドゾーンへ滑らかに移行。
+    camTargetX += (p.x - camTargetX) * 0.30;
   } else {
     // デッドゾーン：中央帯では固定、端に達したら追従
     if (p.x > camTargetX + DEAD_ZONE_X) camTargetX = p.x - DEAD_ZONE_X;
@@ -287,7 +321,12 @@ export function updateCamera() {
   const upTarget   = p.y - Y_RATIO * dz - SCREEN_Y_UP   * SCREEN_SCALE;
   const downTarget = p.y - Y_RATIO * dz - SCREEN_Y_DOWN * SCREEN_SCALE;
   let targetCamY;
-  if (upTarget > 0) {
+  if (_zoomBoostFrames > 0) {
+    // RC ズーム中：プレイヤーを画面の縦中央へ。screenY=0 になる camFollowY を直接計算
+    //   screenY = (CAM_Z*(p.y - camFollowY) - CAM_Y*dz) / camDist = 0
+    //   → camFollowY = p.y - Y_RATIO * dz
+    targetCamY = p.y - Y_RATIO * dz;
+  } else if (upTarget > 0) {
     targetCamY = upTarget;     // 上端を越えた分だけ追従
   } else if (downTarget < 0) {
     targetCamY = downTarget;   // 下端を越えた分だけ追従
@@ -304,7 +343,8 @@ export function updateCamera() {
   // 線形定速で target へ追従（上下とも一定速 10wu/F）
   // 重力加速を camera に持ち込まない（target が p.y に追従する性質上、step を遅くすることで
   // 「camera 側の加速感」を構造的に出さない設計）。プレイヤーは画面内で多少動く
-  const STEP = 10;
+  // 2026-05-27：RC ズーム中は STEP を大幅に拡大して即追従（画面端での見切れ防止）
+  const STEP = (_zoomBoostFrames > 0) ? 80 : 10;
   const diff = targetCamY - camFollowY;
   if (Math.abs(diff) > STEP) {
     camFollowY += Math.sign(diff) * STEP;
@@ -330,6 +370,30 @@ export function updateCamera() {
   const lookZ   = Math.round(camFollowZ);
   _camera.position.set(camPosX, camPosY, camPosZ);
   _camera.lookAt(Math.round(baseX), lookY, lookZ);
+
+  // 一時ズームブースト（RC 成立等）：ULT 中は ULT 側が zoom を専有するのでスキップ。
+  //   フェーズ：hold（最大ズーム据え置き）→ decay（線形に true base へ）
+  //   暗転オーバーレイ（#rc-darken）も同じ factor カーブで連動
+  if (_zoomBoostFrames > 0 && !p.ultActive) {
+    let factor;
+    if (_zoomBoostFrames > _zoomBoostDecayFrames) {
+      factor = 1.0;
+    } else {
+      factor = _zoomBoostFrames / _zoomBoostDecayFrames;
+    }
+    const base = _zoomTrueBase ?? 1;
+    _camera.zoom = base + _zoomBoostAmount * factor;
+    _camera.updateProjectionMatrix();
+    if (_zoomBoostDarkenEl && _zoomBoostDarkenAlpha > 0) {
+      _zoomBoostDarkenEl.style.opacity = String(_zoomBoostDarkenAlpha * factor);
+    }
+    _zoomBoostFrames--;
+    if (_zoomBoostFrames <= 0) {
+      _camera.zoom = base;
+      _camera.updateProjectionMatrix();
+      if (_zoomBoostDarkenEl) _zoomBoostDarkenEl.style.opacity = '0';
+    }
+  }
 
   // 背景カメラ：X はデッドゾーン baseX 追従、Y/Z はメインカメラと同期（同じく pixel snap）
   const bgX = Math.round(baseX);

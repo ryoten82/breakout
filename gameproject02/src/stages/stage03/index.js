@@ -27,25 +27,20 @@ let _platformGroup = null;
 let _players = null;
 let _bossIntroStarted = false;
 
-// 壊れ物配置：序盤コンテナ → 後半ボンベ＋地雷。OC コンテナはボス前（D 区画）に固定 1 個。
-// 地雷はボンベと効果が似るため x 位置を重ねない（地雷 x と canister x は別系列）。
+// 壊れ物配置：序盤コンテナ → 後半ボンベ。OC コンテナはボス前（D 区画）に固定 1 個。
+// 地雷は今回テストでは撤去（action-test のみに残す・将来実装で再配置予定）。
 const _STAGE3_PROPS = [
   // W2–W3 合間（序盤：コンテナ）
   { type: 'crate',        x: 2050, z: -20 },
   { type: 'crate',        x: 2200, z:  25 },
   { type: 'crate',        x: 2350, z:   0 },
   { type: 'canister',     x: 2600, z: -15 },
-  // W3–W4 合間（ボンベ＋地雷の導入・密度緩和でボンベは 1 個）
+  // W3–W4 合間（ボンベ）
   { type: 'canister',     x: 3750, z: -20 },
   { type: 'crate',        x: 4000, z:   0 },
-  { type: 'mine',         x: 4200, z: -30 },
-  { type: 'mine',         x: 4350, z:  30 },
-  // W4–BOSS（D 区画）：地雷散布＋ボス前 OC コンテナ。mine と canister は x で 250+ 離す。
-  { type: 'mine',         x: 5100, z: -20 },
-  { type: 'mine',         x: 5300, z:  25 },
+  // W4–BOSS（D 区画）：ボス前 OC コンテナ + ボンベ
   { type: 'oc-container', x: 5550, z:   0 },
   { type: 'canister',     x: 5800, z: -20 },
-  { type: 'mine',         x: 6050, z:  30 },
 ];
 
 const _runner = createWaveRunner({
@@ -90,6 +85,8 @@ export function tickStage03() {
   if (!_bossIntroStarted && p && p.x >= _BOSS_TRIGGER_X) {
     _bossIntroStarted = true;
     startBossIntro();
+    // ミッション制限時間を freeze（ボス戦に集中させる）
+    if (_runner.freezeTimer) _runner.freezeTimer();
   }
   // 演出中は wave-runner を止める（BOSS spawn を遅延 → 演出後に通常 trigger）
   if (isBossIntroActive()) {

@@ -24,6 +24,7 @@ import {
   CHIP_DROP_TABLE_NORMAL, CHIP_DROP_TABLE_RARE_PLUS, BOSS_CHIP_DROP_CONFIG,
 } from './config.js';
 import { CR_CONFIG } from './cr-system.js';
+import { getActiveWallX } from './camera.js';
 
 let _THREE = null;
 let _scene = null;
@@ -153,6 +154,11 @@ function _rollChipFromTable(table) {
   return table[table.length - 1].kind;
 }
 
+// midboss01 撃破時：チップ 1 枚（レアリティランダム・通常テーブル）をドロップ。
+export function dropSingleRandomChip(x, z, spawnY = 80) {
+  dropItem(_rollChipFromTable(CHIP_DROP_TABLE_NORMAL), x, z, spawnY);
+}
+
 // container 破壊時の追加ロール抽選。CR は呼び出し側で別途 dropCR してから本関数を呼ぶ想定。
 export function rollAndDropFromContainer(containerKind, x, z, spawnY = 80) {
   const table = CONTAINER_LOOT_TABLE[containerKind];
@@ -170,6 +176,20 @@ export function rollAndDropFromContainer(containerKind, x, z, spawnY = 80) {
   return chosen;
 }
 
+// 透明壁（進行ロック壁 / 画面端）でアイテムを跳ね返す
+function _clampItemToWalls(it) {
+  const half = (it.meshSize ?? 20) * 0.5;
+  const lx = getActiveWallX('left');
+  const rx = getActiveWallX('right');
+  if (it.x - half < lx) {
+    it.x = lx + half;
+    if (it.vx < 0) it.vx *= -0.3;
+  } else if (it.x + half > rx) {
+    it.x = rx - half;
+    if (it.vx > 0) it.vx *= -0.3;
+  }
+}
+
 export function updateItemSystem() {
   const p = (_players && _players[0]) || null;
   const C = ITEM_CONFIG;
@@ -183,6 +203,7 @@ export function updateItemSystem() {
     if (!it.landed) {
       it.vy -= C.GRAVITY;
       it.x += it.vx; it.y += it.vy; it.z += it.vz;
+      _clampItemToWalls(it);
       if (it.y <= 0) {
         it.y = 0;
         if (it.bounceCount < C.MAX_BOUNCES && Math.abs(it.vy) > C.BOUNCE_MIN_VY) {
@@ -221,6 +242,7 @@ export function updateItemSystem() {
       }
       if (!magnet) { it.vx *= C.GROUND_FRICTION; it.vz *= C.GROUND_FRICTION; }
       it.x += it.vx; it.z += it.vz;
+      _clampItemToWalls(it);
       // 吸引中：y を player の胴体高（ABSORB_TARGET_Y）へ ease 上昇
       //   → 「足元に吸われる」感を解消し、胴体に吸い込まれる視覚に揃える
       if (magnet) {
@@ -319,7 +341,9 @@ function _applyPickup(kind, p) {
     //   将来 p.chipInventory.push({ kind, rarityKey, rolledStats... }) を想定
     const rarityKey = CHIP_KIND_RARITY[kind];
     const r = CHIP_RARITY[rarityKey];
-    console.log(`[chip] +1 ${r.label}`);
+    if (typeof window !== 'undefined' && window.SB?.DEBUG_CHIP) {
+      console.log(`[chip] +1 ${r.label}`);
+    }
     // legendary は将来 onPickupSE で別 SE 鳴らす窓口あり（kind で識別可能）
   }
 }

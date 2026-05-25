@@ -114,6 +114,11 @@ export function startAttackById(p, id, chainIdx) {
   p._aggregateRouteAppended = false;
   // 同技補正用：新攻撃インスタンスにつき 1 回だけ attackHitCounts を +1 するためのフラグ
   p._sameAtkCounted = false;
+  // 着地ゲイザー：新攻撃開始でリセット（二重発火防止フラグ）
+  p._landGeyserFired = false;
+  // SP 獲得用：新攻撃インスタンスにつき 1 回だけ SP を加算するためのフラグ
+  //   （複数敵巻き込みでも SP は一定量。2026-05-27 仕様）
+  p._spGainCounted = false;
   // 急降下技：発動時はホバー（vy=0）→ divePause F 後に急降下
   if (ATTACKS[id].diveVy !== undefined && !p.isGrounded) {
     p.vy = 0;
@@ -247,6 +252,23 @@ export function updateAttack(p) {
   if (elapsed === atk.hitFrame && atk.selfRecoilVx !== undefined) {
     p.selfRecoilMomentum = atk.selfRecoilVx;
   }
+  // === 地面衝撃波リング演出（shockwaveEffect:true の技・hitFrame 1 度だけ）===
+  if (elapsed === atk.hitFrame && atk.shockwaveEffect) {
+    const swColor = atk.hitColor ?? 0xff8822;
+    // 中心バースト
+    spawnHitParticles(p.x, p.y + 2, p.z, swColor,  20, { type: 'radial', speedMul: 1.0 });
+    spawnHitParticles(p.x, p.y + 4, p.z, 0xffffff, 10, { type: 'launch', speedMul: 0.8, sizeScale: 0.7 });
+    // 楕円リング12点から上方噴出（hitbox に合わせて X:140 / Z:110 の楕円）
+    const _ringX = 140, _ringZ = 110;
+    for (let _i = 0; _i < 12; _i++) {
+      const _a = (_i / 12) * Math.PI * 2;
+      const _rx = Math.cos(_a) * _ringX;
+      const _rz = Math.sin(_a) * _ringZ;
+      spawnHitParticles(p.x + _rx, p.y + 6, p.z + _rz, swColor,   8, { type: 'launch', speedMul: 1.0, sizeScale: 1.1 });
+      spawnHitParticles(p.x + _rx, p.y + 6, p.z + _rz, 0xffffff,  3, { type: 'launch', speedMul: 1.4, sizeScale: 0.6 });
+    }
+    triggerShake(8, 12);
+  }
 
   // === 踏み込み遅延（lungeDelay）：攻撃発生付近で lungeMomentum を仕込む（金剛灼火イメージ）===
   if (atk.lungeDelay && elapsed === atk.lungeDelay && atk.lungeVx !== undefined) {
@@ -298,6 +320,13 @@ export function updateAttack(p) {
             if (atk.lungeVx !== undefined) p.lungeMomentum = 0;
           }
         }
+        // OC IGNITE：igniteTrigger 技の hit 窓中、空振り含めプレイヤー本体から前方に炎を放射
+        if (atk.igniteTrigger && window.SB?.OC_FLAGS?.ignite) {
+          const _fx = p.facing;
+          spawnHitParticles(p.x, p.y + 60, p.z, 0xff2200, 20, { type: 'normal', dirX: _fx, dirZ: 0, speedMul: 2.0, sizeScale: 1.0 });
+          spawnHitParticles(p.x, p.y + 40, p.z, 0xff7700, 12, { type: 'normal', dirX: _fx, dirZ: 0, speedMul: 1.4, sizeScale: 1.3 });
+          spawnHitParticles(p.x, p.y + 80, p.z, 0xffcc44, 8,  { type: 'normal', dirX: _fx, dirZ: 0, speedMul: 2.6, sizeScale: 0.6 });
+        }
       }
     }
   } else {
@@ -319,6 +348,13 @@ export function updateAttack(p) {
         if (atk.lungeVx !== undefined) p.lungeMomentum = 0;
       }
     }
+  }
+
+  // === 着地ゲイザー：autoLandGeyser 技が着地した瞬間に地上ゲイザーを自動発火 ===
+  if (atk.autoLandGeyser && p.isGrounded && !p._landGeyserFired) {
+    p._landGeyserFired = true;
+    startAttackById(p, 'c01_sp_03_land', -1);
+    return;
   }
 
   p.stateTimer--;

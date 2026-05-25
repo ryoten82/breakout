@@ -57,12 +57,12 @@ export function initCrSystem({ THREE, scene, players, hudLayerEl, spawnEffect })
   _scene = scene;
   _players = players;
   _spawnEffect = spawnEffect ?? null;
-  // CR カウンタ HUD（左下・最小表示）
+  // CR カウンタ HUD（SP ゲージ直下）
   const el = document.createElement('div');
   el.id = 'cr-counter';
   el.style.cssText =
-    'position:absolute;left:24px;bottom:88px;z-index:83;' +
-    'font-family:"Courier New",monospace;font-weight:bold;font-size:26px;' +
+    'position:absolute;left:18px;top:172px;z-index:83;' +
+    'font-family:"Courier New",monospace;font-weight:bold;font-size:36px;' +
     'color:#ffdd33;text-shadow:0 0 6px #000,2px 2px 0 #000;pointer-events:none;';
   el.textContent = 'CR: 0';
   (hudLayerEl ?? document.body).appendChild(el);
@@ -221,6 +221,11 @@ export function updateCrSystem() {
 }
 
 export function getCrTotal() { return _crTotal; }
+
+export function addCrTotal(n) {
+  _crTotal += n;
+  if (_crHudEl) _crHudEl.textContent = 'CR: ' + _crTotal;
+}
 
 // コイン c を登録済みバリア矩形の外へ押し戻す（最寄りの辺へ・速度は軽く反射）。
 // コインを半径 COIN_R の円として扱い、コイン graphic 全体が矩形外に出るよう

@@ -45,15 +45,15 @@ import {
   KB_LV06_VY, KB_LV06_VX_MULT,
   applyRollHipPivot,
 } from './states.js';
-import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG } from './config.js';
-import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, fxState } from './hit-engine.js';
-import { spawnBanner } from './hud-system.js';
+import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG, BURN_CONFIG } from './config.js';
+import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, spawnBlastSphere, spawnLaunchSmoke, fxState } from './hit-engine.js';
+import { spawnBanner, spawnDamageNumber } from './hud-system.js';
 import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
 import { isHitstunState, tryHitPlayer } from './damage-system.js';
 import { getActiveWallX, getKnockbackWallX } from './camera.js';
 import { dropCR } from './cr-system.js';
-import { dropBossChips } from './item-system.js';
+import { dropSingleRandomChip } from './item-system.js';
 
 let _THREE = null;
 let _scene = null;
@@ -71,6 +71,9 @@ const LANE_CLUSTER_DIST    = 220; // 「近接」とみなす実距離
 // 敵同士の攻撃テンポ（14-D-5）：直近の攻撃終了から次の攻撃が始められるまでの全体待ち。
 // 0 になるまで誰も攻撃を開始できない。攻撃完了ごとにばらつき付きで再セットされる。
 let _attackRelay = 0;
+// タックル専用グローバルCD：誰かがタックル開始 → TACKLE_RELAY フレームは全員タックル禁止。
+// コンボ中に連続タックルで割り込まれる状況を防ぐ。
+let _globalTackleRelay = 0;
 
 export function initEnemySystem(deps) {
   _THREE = deps.THREE;
@@ -472,6 +475,10 @@ export function spawnDummy(x, z, opts = {}) {
     frozenByUlt:      false,
     ultBurstInvincible: false,  // ULT 由来の burst-down 中フラグ：起き上がる（wait01 復帰）まで完全無敵・メガクラも受け付けない
     // 飛行系状態の再突入カウンタ（コンボ中累積・wait01 復帰でリセット・2026-05-18）
+    launchResistTimer:     0,    // midboss01 打ち上げ耐性：> 0 でカウントダウン → 0 で強制着地
+    passiveSaHp:           0,    // midboss01 恒常 SA：盾破壊後にセット、攻撃フェーズ問わず吸収
+    passiveSaRecharge:     0,    // 吸収後のリチャージカウンタ（> 0 の間 passiveSaHp は 0）
+    recoverSaTimer:        0,    // recover 前半 SA 継続カウンタ（> 0 の間は active SA が有効）
     superFlightCount:      0,    // down_super_* 突入回数
     wallHitCount:          0,    // down_wall_* 突入回数
     lateralCombatInvincible: false,  // 2 回目以降の飛行系突入で立つフラグ：wait01 まで完全無敵
@@ -586,9 +593,229 @@ export function spawnDummy(x, z, opts = {}) {
     thrownProjectile: false,  // 飛行中フラグ（true なら他敵との衝突判定が走る）
     thrownByPlayer:   null,   // ダメージ帰属（コンボ・SP 加算用）
     thrownDir:        0,      // 飛行方向（+1=右 / -1=左）
+    // === 延焼（burn）===
+    // OC カード「点火」取得後、SP 命中 / GC 撃破で igniteEnemy 経由で付与される
+    burnTimer:        0,    // 残フレーム（0 = 燃えていない）
+    burnTickAcc:      0,    // 次 DoT tick までの累積
+    burnSpreadAcc:    0,    // 次伝播判定までの累積
+    burnSpreadChain:  0,    // 自分が受け継いだチェーン段数（連鎖上限制御）
+    burnBlastReady:   false, // OC IGNITE: SP1 で点火済み → もう一度 SP1 で起爆
+    detonateTimer:    0,     // OC IGNITE Phase3: > 0 の間カウントダウン → 0 で detonateBurn
+    burnFlameAcc:     0,    // 炎パーティクル間引きカウンタ
+    burnSourceId:    null,  // 点火源 attack id（将来分析用）
+    burnShells:      null,  // burn 中の BackSide オレンジ shell mesh（body/head 別）
   };
   _enemies.push(e);
   return e;
+}
+
+// ============================================================
+//  延焼（burn）付与 API
+//  - 素では呼ばれない。OC「点火」カード取得後に hit-engine / enterEnemyDyingBurst から呼ぶ
+//  - 再点火：REFRESH_ON_REIGNITE=true なら残時間を max で更新（chain は維持）
+//  - 連鎖伝播・死亡時爆発の各機能は BURN_CONFIG.*_ENABLED が true のときのみ updateEnemies 側で起動
+// ============================================================
+export function igniteEnemy(e, opts = {}) {
+  if (!e || !e.isAlive || e.dying) return false;
+  const cfg = BURN_CONFIG;
+  const dur = (typeof opts.duration === 'number') ? opts.duration : cfg.DURATION_FRAMES;
+  if (e.burnTimer > 0 && cfg.REFRESH_ON_REIGNITE) {
+    e.burnTimer = Math.max(e.burnTimer, dur);
+    // chain は維持（既存連鎖の上限制御を壊さない）
+  } else if (e.burnTimer <= 0) {
+    e.burnTimer       = dur;
+    e.burnTickAcc     = 0;
+    e.burnSpreadAcc   = 0;
+    e.burnFlameAcc    = 0;
+    e.burnSpreadChain = opts.chain ?? 0;
+    _attachBurnOutline(e);  // 新規点火時のみ shell 生成（再点火では使い回し）
+    // 点火フラッシュ：白→オレンジ→赤 の 3 層爆炎 + 軽い shake で「決まった感」を出す
+    // （SPREAD/CHAIN_BLAST 由来の派生点火でも同等に発火させる：演出として地味さの主原因）
+    const fy = e.y + 80;
+    spawnHitParticles(e.x, fy, e.z, 0xffffff,           cfg.IGNITE_FLASH_WHITE,  { type: 'omni', sizeScale: 1.2, speedMul: 1.2 });
+    spawnHitParticles(e.x, fy, e.z, cfg.OUTLINE_COLOR,  cfg.IGNITE_FLASH_ORANGE, { type: 'omni', sizeScale: 1.1, speedMul: 1.1 });
+    spawnHitParticles(e.x, fy, e.z, 0xff3322,           cfg.IGNITE_FLASH_RED,    { type: 'omni', sizeScale: 1.0, speedMul: 1.0 });
+    triggerShake(cfg.IGNITE_FLASH_SHAKE_STRENGTH, cfg.IGNITE_FLASH_SHAKE_FRAMES);
+  }
+  e.burnSourceId = opts.sourceId ?? null;
+  return true;
+}
+
+// 延焼アウトライン（shell-outline 方式）：body/head の BackSide コピーを少し大きめに重ね、
+// MeshBasicMaterial で平坦オレンジ色にする。既存の outline shader（プレイヤー専用 RT 経路）には
+// 触らない。Body emissive とぶつからないよう、本体マテリアルには介入しない。
+function _attachBurnOutline(e) {
+  if (!_THREE_REF || !e.mesh || !e.mesh.userData || !e.mesh.userData.parts) return;
+  if (e.burnShells && e.burnShells.length > 0) return;  // 既に装着済み
+  const cfg = BURN_CONFIG;
+  const parts = e.mesh.userData.parts;
+  const shells = [];
+  for (const key of ['body', 'head']) {
+    const part = parts[key];
+    if (!part || !part.geometry || part.parent !== e.mesh) continue;
+    const mat = new _THREE_REF.MeshBasicMaterial({
+      color:        cfg.OUTLINE_COLOR,
+      side:         _THREE_REF.BackSide,
+      transparent:  true,
+      opacity:      cfg.OUTLINE_OPACITY_MAX,
+      depthWrite:   false,
+    });
+    const shell = new _THREE_REF.Mesh(part.geometry, mat);
+    shell.scale.setScalar(cfg.OUTLINE_SCALE);
+    shell.userData._isBurnShell = true;  // detach 抽選 / outline mask から除外できるよう識別
+    part.add(shell);
+    shells.push(shell);
+  }
+  e.burnShells = shells;
+}
+
+function _detachBurnOutline(e) {
+  if (!e.burnShells || e.burnShells.length === 0) return;
+  for (const sh of e.burnShells) {
+    if (sh.parent) sh.parent.remove(sh);
+    if (sh.material) sh.material.dispose();
+  }
+  e.burnShells = null;
+}
+
+// 内部：burn DoT/伝播/演出 tick（updateEnemies 内から呼ぶ）
+//   - dying / grabbed / frozenByUlt は呼び出し側で skip 済み前提
+function _updateBurnTick(e, ctx) {
+  if (e.burnTimer <= 0) return;
+  const cfg = BURN_CONFIG;
+  e.burnTimer--;
+  // burnTimer が切れた瞬間に shell を解放（次の if(0) で early-return する前に処理）
+  if (e.burnTimer <= 0) {
+    _detachBurnOutline(e);
+    e.burnBlastReady = false;   // 延焼自然消滅時は起爆準備もリセット
+    return;
+  }
+  // アウトライン点滅（sin 正弦波で MIN→MAX を往復）
+  if (e.burnShells && e.burnShells.length > 0) {
+    const t = (e._tick ?? 0);
+    const phase = (Math.sin((2 * Math.PI * t) / cfg.OUTLINE_PULSE_FRAMES) + 1) * 0.5;  // 0..1
+    const op = cfg.OUTLINE_OPACITY_MIN + (cfg.OUTLINE_OPACITY_MAX - cfg.OUTLINE_OPACITY_MIN) * phase;
+    for (const sh of e.burnShells) { if (sh.material) sh.material.opacity = op; }
+  }
+  // 炎パーティクル（HP バー直下から立ち上る）
+  e.burnFlameAcc++;
+  if (e.burnFlameAcc >= cfg.FLAME_PARTICLE_INTERVAL_FRAMES) {
+    e.burnFlameAcc = 0;
+    spawnHitParticles(e.x, e.y + 80, e.z, cfg.FLAME_PARTICLE_COLOR, cfg.FLAME_PARTICLE_COUNT, { type: 'omni' });
+  }
+  // DoT：noSpGain / noKnockback 相当（プレイヤー操作に依存しない時間ダメージ）
+  e.burnTickAcc++;
+  if (e.burnTickAcc >= cfg.TICK_INTERVAL_FRAMES) {
+    e.burnTickAcc = 0;
+    e.hp -= cfg.DAMAGE_PER_TICK;
+    e.hitFlashTimer = Math.max(e.hitFlashTimer, 4);
+    spawnDamageNumber(e.x, e.y + 130, e.z, cfg.DAMAGE_PER_TICK, { crit: true });
+    // hp<=0 になっても updateEnemies の死亡判定が同フレーム後段で動くので、ここでは hp 削るだけで OK
+  }
+  // 伝播（OC SPREAD カードで ON）
+  if (cfg.SPREAD_ENABLED && e.burnSpreadChain < cfg.SPREAD_MAX_CHAINS) {
+    e.burnSpreadAcc++;
+    if (e.burnSpreadAcc >= cfg.SPREAD_INTERVAL_FRAMES) {
+      e.burnSpreadAcc = 0;
+      _trySpreadBurn(e);
+    }
+  }
+}
+
+// 最近接の非 burn 敵に伝播（半径 SPREAD_RADIUS 以内・1 体のみ）
+function _trySpreadBurn(src) {
+  const cfg = BURN_CONFIG;
+  const r2 = cfg.SPREAD_RADIUS * cfg.SPREAD_RADIUS;
+  let best = null, bestD2 = r2 + 1;
+  for (const o of _enemies) {
+    if (o === src || !o.isAlive || o.dying) continue;
+    if (o.burnTimer > 0) continue;  // 既に燃えてる対象は除外
+    const dx = o.x - src.x, dz = o.z - src.z;
+    const d2 = dx * dx + dz * dz;
+    if (d2 < bestD2 && d2 <= r2) { best = o; bestD2 = d2; }
+  }
+  if (best) {
+    const nextChain = src.burnSpreadChain + 1;
+    const inheritMul = Math.pow(cfg.SPREAD_DURATION_INHERIT, nextChain);
+    igniteEnemy(best, { chain: nextChain, duration: cfg.DURATION_FRAMES * inheritMul, sourceId: 'spread' });
+  }
+}
+
+// 内部：burn 状態で死亡した敵の周囲爆発（OC CHAIN_BLAST カードで ON）
+//   - enterEnemyDying / enterEnemyDyingBurst から「burn 中 && DEATH_BLAST_ENABLED」の場合だけ呼ぶ
+function _spawnBurnDeathBlast(e) {
+  const cfg = BURN_CONFIG;
+  spawnDeathExplosion(e.x, e.y + 60, e.z, { skipHitstop: true });
+  const r2 = cfg.DEATH_BLAST_RADIUS * cfg.DEATH_BLAST_RADIUS;
+  const nextChain = e.burnSpreadChain + 1;
+  const inheritDur = cfg.DURATION_FRAMES * cfg.DEATH_BLAST_CHAIN_DURATION;
+  for (const o of _enemies) {
+    if (o === e || !o.isAlive || o.dying) continue;
+    const dx = o.x - e.x, dz = o.z - e.z;
+    if (dx * dx + dz * dz > r2) continue;
+    o.hp -= cfg.DEATH_BLAST_DAMAGE;
+    o.hitFlashTimer = Math.max(o.hitFlashTimer, 6);
+    if (cfg.DEATH_BLAST_IGNITES) {
+      igniteEnemy(o, { chain: nextChain, duration: inheritDur, sourceId: 'death_blast' });
+    }
+  }
+  triggerShake(10, 14);
+}
+
+// OC IGNITE: SP1 二打目で手動起爆（hit-engine 経由で呼ばれる）
+//   _spawnBurnDeathBlast（死亡時自動）とは別経路・より派手な演出を意図
+export function detonateBurn(e) {
+  if (!e || e.burnTimer <= 0) return;
+  const cfg = BURN_CONFIG;
+  // 大爆発ビジュアル（death blast より一段大きい）
+  spawnDeathExplosion(e.x, e.y + 60, e.z, { skipHitstop: false });
+  spawnBlastSphere(e.x, e.y + 60, e.z);                                               // 外球（350r, 18F）
+  spawnBlastSphere(e.x, e.y + 60, e.z, { maxRadius: 180, life: 12, color: 0xffaa22 }); // 内球（速め）
+  spawnHitParticles(e.x, e.y + 60, e.z, 0xff2200, 40, { type: 'launch', speedMul: 1.3 });
+  spawnHitParticles(e.x, e.y + 40, e.z, 0xff8800, 25, { type: 'omni',   speedMul: 1.0, sizeScale: 1.4 });
+  // 放射花火スパーク（16方向 + 中間8方向で花火感を出す）
+  for (let _si = 0; _si < 16; _si++) {
+    const _a = (_si / 16) * Math.PI * 2;
+    spawnHitParticles(
+      e.x + Math.cos(_a) * 20, e.y + 60, e.z + Math.sin(_a) * 20,
+      _si % 2 === 0 ? 0xff2200 : 0xff8800, 4,
+      { type: 'normal', dirX: Math.cos(_a), dirZ: Math.sin(_a), speedMul: 3.2, sizeScale: 0.9 }
+    );
+  }
+  spawnHitParticles(e.x, e.y + 60, e.z, 0xffcc44, 18, { type: 'omni', speedMul: 2.8, sizeScale: 0.6 }); // 高速黄金粒
+  triggerShake(14, 20);
+  // 本体へボーナスダメージ
+  e.hp -= cfg.DEATH_BLAST_DAMAGE * 2;
+  e.hitFlashTimer = Math.max(e.hitFlashTimer, 10);
+  // 周囲の敵へ爆風ダメージ（+ OC CHAIN_BLAST 有効なら延焼）
+  const r2 = cfg.DEATH_BLAST_RADIUS * cfg.DEATH_BLAST_RADIUS;
+  const nextChain = (e.burnSpreadChain ?? 0) + 1;
+  const inheritDur = cfg.DURATION_FRAMES * cfg.DEATH_BLAST_CHAIN_DURATION;
+  for (const o of _enemies) {
+    if (o === e || !o.isAlive || o.dying) continue;
+    const dx = o.x - e.x, dz = o.z - e.z;
+    if (dx * dx + dz * dz > r2) continue;
+    o.hp -= cfg.DEATH_BLAST_DAMAGE;
+    o.hitFlashTimer = Math.max(o.hitFlashTimer, 6);
+    if (cfg.DEATH_BLAST_ENABLED && cfg.DEATH_BLAST_IGNITES) {
+      igniteEnemy(o, { chain: nextChain, duration: inheritDur, sourceId: 'detonate' });
+    }
+  }
+  // burn 状態リセット
+  e.burnTimer      = 0;
+  e.burnBlastReady = false;
+  _detachBurnOutline(e);
+  // 爆発打ち上げ：生存中の敵を down_up_start へ移行（コンボ起点・頂点スロー有効）
+  if (e.isAlive && !e.dying) {
+    e.vy               = 18;
+    e.knockbackVx      = 0;
+    e.state            = STATE.down_up_start;
+    e.downTimer        = ENEMY_FALL_FRAMES;
+    e.launcherAirborne = true;   // 頂点付近で重力スロー（SP2 と同じ）
+    e.peakHangTimer    = 0;      // カウンターをリセットして再発火準備
+    e.peakHangTotal    = 0;
+    spawnLaunchSmoke(e.x, e.y, e.z);
+  }
 }
 
 // ============================================================
@@ -608,6 +835,8 @@ export function applyStatusStun(e, frames, ctx) {
     e.atkTimer = 0;
     e.hitDelivered = false;
     _clearAllTokens(ctx, e);
+    // タックル赤発光等の charge color が残ってたらリセット
+    if (e._chargeT > 0) { e._chargeT = 0; _setMeshChargeColor(e, 0); }
   }
   e.state           = STATE.status_stun;
   e.statusStunTimer = (typeof frames === 'number' && frames > 0) ? frames : STATUS_STUN_CONFIG.defaultDuration;
@@ -648,6 +877,7 @@ export function triggerShieldBreak(e, ctx) {
   e.enraged      = true;
   e.superArmor   = MIDBOSS_SHIELD_CONFIG.BERSERKER_SA;   // 攻撃中のヒット吸収（SA）を付与
   e.saHp         = 0;   // 次の _beginEnemyAttack で superArmor 値から再セット
+  e.passiveSaHp  = MIDBOSS_SHIELD_CONFIG.PASSIVE_SA_HP;  // 恒常 SA：フェーズ問わず常時 1 発吸収
   e.state     = STATE.enraged_intro;
   e.downTimer = ENEMY_ENRAGE_CONFIG.INTRO_FRAMES;
   e.aiPhase   = 'enraged';
@@ -716,6 +946,7 @@ export function enterEnemyDying(e, ctx) {
   e.atkPhase         = null;
   e.hitDelivered     = false;
   e.repulseWindow    = false;   // dying 死体に「危↑」HUD が残るリーク防止
+  e._jdDiveGrace     = 0;       // RC dive grace の残値クリア（デバッグログ汚染防止）
   // enemy_attacking state のまま dying に入ると、state machine が curAtkId+atkPhase=null で
   // どのフェーズブロックにも当てはまらずロックする（敵 mesh が attack ポーズで固まる）。
   // 例：ジャンパー jump_dive 中にバレル爆発で死亡 → 攻撃判定が画面に残って見える（D-3）。
@@ -725,9 +956,25 @@ export function enterEnemyDying(e, ctx) {
     e.atkTimer = 0;
   }
   _clearAllTokens(ctx, e);
+  // 延焼関連処理：burn shell は GC 抽選（パーツ detach 可能性あり）より前に剥がす
+  const _burnActive = (e.burnTimer > 0);
+  _detachBurnOutline(e);
   // ゴア・クリティカル抽選（基本構造・キャラ拡張で発火条件を絞る）
   _maybeArmGoreCritical(e);
+  // 延焼中に死亡 → CHAIN_BLAST：周囲爆発 + 範囲内の生存敵に burn 付与
+  if (BURN_CONFIG.DEATH_BLAST_ENABLED && _burnActive) _spawnBurnDeathBlast(e);
+  e.burnTimer = 0;
   return true;
+}
+
+// 外部公開：RC 成立時など「敵が既に dying でも GC を強制再評価したい」ケース用。
+// 2026-05-27：RC 直前の通常ヒットが敵を kill 済みだと enterEnemyDyingBurst が早期 return し
+// _maybeArmGoreCritical が再評価されない → forceGc:true が反映されず GC 不発になる事象を防ぐ。
+// 既に armed 済みなら上書きしない（演出途中での状態リセット回避）。
+export function forceArmGoreCriticalIfPossible(e) {
+  if (!e) return;
+  if (e.goreCritical && e.goreCritical.armed) return;
+  _maybeArmGoreCritical(e);
 }
 
 // ============================================================
@@ -785,11 +1032,13 @@ function _maybeArmGoreCritical(e) {
       if (DBG) console.log(`[GORECRIT] ${gcId} skip: requireGrounded but wasGrounded=${e.lastHitter.wasGrounded}`);
       continue;
     }
-    // 確率
-    const roll = Math.random();
-    if (roll >= GORE_CRITICAL_CONFIG.PROBABILITY) {
-      if (DBG) console.log(`[GORECRIT] ${gcId} skip: prob roll ${roll.toFixed(3)} >= ${GORE_CRITICAL_CONFIG.PROBABILITY}`);
-      continue;
+    // 確率：lastHitter.forceGc=true なら確率スキップで強制成立（RC 成立時など）
+    if (!e.lastHitter.forceGc) {
+      const roll = Math.random();
+      if (roll >= GORE_CRITICAL_CONFIG.PROBABILITY) {
+        if (DBG) console.log(`[GORECRIT] ${gcId} skip: prob roll ${roll.toFixed(3)} >= ${GORE_CRITICAL_CONFIG.PROBABILITY}`);
+        continue;
+      }
     }
     if (DBG) console.log(`[GORECRIT] ARMED! gcId=${gcId}, attackId=${attackId}, lv=${hitLv}, explosionVariant=${v.explosionVariant}, eY=${e.y|0}`);
     // 当選
@@ -797,7 +1046,24 @@ function _maybeArmGoreCritical(e) {
     _setupArmedKinematics(e, v.explosionVariant);
     // variant.freezeFrames が指定されていれば優先（gc_03 等で hitstop を抑えたい時用）
     _kickGoreCriticalFx(v.freezeFrames);
+    // OC「点火」取得済みなら GC 撃破を起点に周囲に延焼を撒く
+    //   - 死体自身も burn 状態にして、CHAIN_BLAST 取得済みなら GC 爆散と burn death blast が連動
+    if (window.SB && window.SB.OC_FLAGS && window.SB.OC_FLAGS.ignite) _igniteAroundGc(e);
     return;
+  }
+}
+
+// OC「点火」フック：GC arm 成立時に周囲を延焼
+//   半径は SPREAD_RADIUS を流用（伝播範囲と同じ感覚）
+//   死体自身もマーク（CHAIN_BLAST 取得時は dying 進行と連動して死亡時爆発も発火）
+function _igniteAroundGc(src) {
+  igniteEnemy(src, { sourceId: 'gc_arm', chain: 0 });
+  const r = BURN_CONFIG.SPREAD_RADIUS;
+  const r2 = r * r;
+  for (const o of _enemies) {
+    if (o === src || !o.isAlive || o.dying) continue;
+    const dx = o.x - src.x, dz = o.z - src.z;
+    if (dx * dx + dz * dz <= r2) igniteEnemy(o, { sourceId: 'gc_arm', chain: 0 });
   }
 }
 
@@ -816,7 +1082,8 @@ function _buildGoreCriticalState(e, profile, variantDef, gcId) {
     timer = GORE_CRITICAL_CONFIG.RED_LERP_FRAMES + GORE_CRITICAL_CONFIG.RED_HOLD_FRAMES;
   } else if (explosionVariant === 'head_launch_delayed') {
     phase = 'crit_head_fly';
-    timer = GORE_CRITICAL_CONFIG.HEAD_LAUNCH_DELAY;
+    // airborneKill：待ち時間ゼロで即爆発（hitstop 明けに弾ける順序にする・2026-05-27）
+    timer = (e.lastHitter && e.lastHitter.airborneKill) ? 1 : GORE_CRITICAL_CONFIG.HEAD_LAUNCH_DELAY;
   } else if (explosionVariant === 'slam_radial_split') {
     phase = 'crit_slam_stick';
     timer = GORE_CRITICAL_CONFIG.SLAM_DELAY;
@@ -911,13 +1178,19 @@ function _setupArmedKinematics(e, variant) {
     //     (1) 胴体 KB（1 キャラ分プレイヤーから離す）
     //     (2) mesh.position を新 e.x へ同期 + matrixWorld 更新
     //     (3) _detachBodyBundleNoExplode で body+head+nose を独立化 → velocity 上書き
+    //   2026-05-27 追加：airborneKill（RC 空中撃破）時は y=0 リセットせず、下半身も上半身と同じ vy で飛ばす。
+    //     地上に足が残らない「全部空中爆散」の絵にする。
+    const _airborneKill = !!(e.lastHitter && e.lastHitter.airborneKill);
     let dir = e.fallDir;
     if (dir !== 1 && dir !== -1) dir = (e.lastHitter && e.lastHitter.facing) || 1;
     e.x += dir * GORE_CRITICAL_CONFIG.HEAD_LAUNCH_BODY_KB_X;
     e.knockbackVx = 0;
     e.knockbackVz = 0;
-    e.vy = 0;                 // 残った下半身（stand）は地面に静止
-    e.y = 0;
+    e.vy = 0;
+    if (!_airborneKill) {
+      e.y = 0;                // 地上撃破：下半身は地面に静止
+    }
+    // _airborneKill: e.y そのまま（敵が居る高さで爆散）
     e.launcherAirborne = false;
     if (e.mesh) {
       e.mesh.position.x = e.x;
@@ -937,8 +1210,9 @@ function _setupArmedKinematics(e, variant) {
     const bundleName = _detachBodyBundleNoExplode(e, dir);
     if (bundleName && e.flyingParts && e.flyingParts.length > 0) {
       const fp = e.flyingParts[e.flyingParts.length - 1];
-      fp.vx = (Math.random() - 0.5) * 2 * cfg.UPPER_LAUNCH_VX_JITTER;
-      fp.vy = cfg.UPPER_LAUNCH_VY;          // 正＝上向き・抑えめでやや上に
+      // airborneKill：launch をスキップ（爆発で放射散乱させるため待機中は静止）
+      fp.vx = _airborneKill ? 0 : (Math.random() - 0.5) * 2 * cfg.UPPER_LAUNCH_VX_JITTER;
+      fp.vy = _airborneKill ? 0 : cfg.UPPER_LAUNCH_VY;
       fp.vz = 0;
       // 「アッパーの勢いを殺せずに後ろへ倒れ込みながら舞う」回転。
       // 回転軸 = 世界 Z 軸（奥行き）。body の Y 軸（直立）が自機反対側に倒れ込む方向に回す。
@@ -955,12 +1229,16 @@ function _setupArmedKinematics(e, variant) {
         if (mat && mat.color) mat.color.setRGB(1, 0.05, 0.05);
       }
     }
-    // 下半身（stand）も浮かせる：上半身より控えめな vy + 弱い縦回転で「両半身とも空中で爆散」の絵に。
-    const standName2 = _detachOneNamed(e, 'stand', null);
-    if (standName2 && e.flyingParts && e.flyingParts.length > 0) {
-      const sp = e.flyingParts[e.flyingParts.length - 1];
-      sp.vx = (Math.random() - 0.5) * 2 * cfg.LOWER_LAUNCH_VX_JITTER;
-      sp.vy = cfg.LOWER_LAUNCH_VY;
+    // 下半身も浮かせる：part 名が enemy 種別で異なる（enem01/midboss01='stand' = 単一 mesh /
+    //   enem02 ジャンパー='legs' = 4本足の Array）。両形態を扱う：
+    //   - 単一 mesh: _detachOneNamed で 1 個 detach
+    //   - 配列: _detachArrayNamed で各要素を個別 detach（4本それぞれ独立飛行）
+    //   2026-05-27：airborneKill 時は下半身も上半身と同じ vy にして「足だけ地面に残る」絵を防ぐ
+    const lowerVy = _airborneKill ? cfg.UPPER_LAUNCH_VY : cfg.LOWER_LAUNCH_VY;
+    const _applyLowerParams = (sp) => {
+      // airborneKill：launch スキップ（待機中静止 → 爆発時に放射散乱）
+      sp.vx = _airborneKill ? 0 : (Math.random() - 0.5) * 2 * cfg.LOWER_LAUNCH_VX_JITTER;
+      sp.vy = _airborneKill ? 0 : lowerVy;
       sp.vz = 0;
       sp.angVx = 0;
       sp.angVy = 0;
@@ -971,6 +1249,19 @@ function _setupArmedKinematics(e, variant) {
       sp._worldAxisSpeed = -dir * cfg.LOWER_LAUNCH_ANG_X;
       for (const mat of (sp._materials || [])) {
         if (mat && mat.color) mat.color.setRGB(1, 0.05, 0.05);
+      }
+    };
+    // 試行 1：単一 mesh の 'stand'
+    const standOk = _detachOneNamed(e, 'stand', null);
+    if (standOk && e.flyingParts.length > 0) {
+      _applyLowerParams(e.flyingParts[e.flyingParts.length - 1]);
+    } else {
+      // 試行 2：配列の 'legs'（複数本）
+      const legsCount = _detachArrayNamed(e, 'legs');
+      if (legsCount && e.flyingParts.length >= legsCount) {
+        for (let i = e.flyingParts.length - legsCount; i < e.flyingParts.length; i++) {
+          _applyLowerParams(e.flyingParts[i]);
+        }
       }
     }
   } else if (variant === 'slam_radial_split') {
@@ -1082,6 +1373,7 @@ export function enterEnemyDyingBurst(e, ctx, hitFacing) {
   e.atkPhase        = null;
   e.hitDelivered    = false;
   e.repulseWindow   = false;   // dying 死体に「危↑」HUD が残るリーク防止
+  e._jdDiveGrace    = 0;       // RC dive grace の残値クリア
   // enemy_attacking state でこのフローに入った場合のロック回避（D-3）。
   // burst ルートは下で state を STATE.down_burst_start に上書きするので明示変更は不要だが、
   // 念のため atkTimer はクリアしておく（machine が再評価される事故防止）
@@ -1111,8 +1403,14 @@ export function enterEnemyDyingBurst(e, ctx, hitFacing) {
   e.downTimer = ENEMY_DOWN_BURST_START_FRAMES;
   e.hitFlashTimer = 0;
   e.burstFlashTimer = 0;
+  // 延焼関連処理：burn shell は GC 抽選より前に剥がす
+  const _burnActive = (e.burnTimer > 0);
+  _detachBurnOutline(e);
   // ゴア・クリティカル抽選（burst ルートも対象：SP4 lv06 killing hit 等）
   _maybeArmGoreCritical(e);
+  // 延焼中に burst kill → CHAIN_BLAST：周囲爆発 + 範囲内の生存敵に burn 付与
+  if (BURN_CONFIG.DEATH_BLAST_ENABLED && _burnActive) _spawnBurnDeathBlast(e);
+  e.burnTimer = 0;
   return true;
 }
 
@@ -1233,6 +1531,28 @@ function _detachBodyBundle(e, hitFacing) {
 }
 
 // 内部ヘルパ：1 パーツを「指定 velocity（null ならランダム）」で分離
+// parts[name] が配列（例：enem02 の legs = 4本足の Array）の場合は配列内の各 mesh を
+// 個別 detach。戻り値は配列で detach した数 (>0) ／ null（取れなかった or 単一 mesh）。
+function _detachArrayNamed(e, name) {
+  const parts = e.mesh && e.mesh.userData && e.mesh.userData.parts;
+  if (!parts) return null;
+  const arr = parts[name];
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  let count = 0;
+  // 元配列をスナップショットしてから順に detach（detach は parent から外すので元配列を破壊しない方が無難）
+  const snapshot = arr.slice();
+  for (const m of snapshot) {
+    if (!m || m.parent !== e.mesh) continue;
+    // 単一 mesh の detach 経路を流用するため、一時的に parts に名前付きで差し込む
+    const tmpKey = `__tmp_${name}_${count}`;
+    parts[tmpKey] = m;
+    const ok = _detachOneNamed(e, tmpKey, null);
+    delete parts[tmpKey];
+    if (ok) count++;
+  }
+  return count > 0 ? count : null;
+}
+
 function _detachOneNamed(e, name, sharedVelocity) {
   const parts = e.mesh && e.mesh.userData && e.mesh.userData.parts;
   if (!parts) return null;
@@ -1304,6 +1624,34 @@ function _updateFlyingParts(e) {
   if (!e.flyingParts || e.flyingParts.length === 0) return;
   const alive = [];
   for (const p of e.flyingParts) {
+    // 強制削除タイマー（airborneKill 等で「爆発から N F 後に必ず消す」用）：
+    //   後半 1/3 で線形フェード → 0 で scene 除去。settle/fade 経路より優先。
+    if (p._forceRemoveTimer !== undefined) {
+      p._forceRemoveTimer--;
+      const fadeStart = 10;  // 残 10F から透過フェード
+      if (p._forceRemoveTimer <= fadeStart) {
+        const opa = Math.max(0, p._forceRemoveTimer / fadeStart);
+        if (p._materials) {
+          for (const mat of p._materials) {
+            if (!mat) continue;
+            mat.transparent = true;
+            mat.opacity = opa;
+          }
+        } else if (p.mesh.material) {
+          p.mesh.material.transparent = true;
+          p.mesh.material.opacity = opa;
+        }
+      }
+      if (p._forceRemoveTimer <= 0) {
+        if (p.mesh.parent) p.mesh.parent.remove(p.mesh);
+        if (p._materials) {
+          for (const mat of p._materials) if (mat && mat.dispose) mat.dispose();
+        } else if (p.mesh.material && p.mesh.material.dispose) {
+          p.mesh.material.dispose();
+        }
+        continue;
+      }
+    }
     // 物理進行
     p.x += p.vx;
     p.y += p.vy;
@@ -1525,10 +1873,9 @@ function _enterDyingFinal(e, ctx) {
 //   - 爆発感は spawnDeathExplosion に集約
 function _triggerFinalExplosion(e) {
   dropCR(e.x, e.z, e.y + 80);  // 爆発タイミングで CR ドロップ
-  // ボス相当（中ボス以上）はチップ確定ドロップ：仕様 §10/§1211
-  //   将来 boss01 / boss02 / boss03 等の enemyType を増やしたらここに追加
+  // 中ボス：チップ 1 枚確定（レアリティランダム）
   if (e.enemyType === 'midboss01') {
-    dropBossChips(e.x, e.z, e.y + 80);
+    dropSingleRandomChip(e.x, e.z, e.y + 80);
   }
   // ゴア・クリティカル armed：キャラ拡張バリアントで方向・追加 FX を上書き
   if (e.goreCritical && e.goreCritical.armed) {
@@ -1544,15 +1891,55 @@ function _triggerFinalExplosion(e) {
       // 胴体バンドル（body+head+nose）と下半身（stand）を分裂・逆回転で後方へ
       _explodeSplitBackBlast(e);
     } else if (variant === 'head_launch_delayed') {
-      // gc_04：頭は既に flyingParts として上空 / 画面外。胴体側 mesh を削除して共用爆発を地上で発火。
-      //   飛行中の頭部 part も同時に scene から削除（爆発と同時に消失）。
+      // gc_04：通常は既に launch 済みの parts を全消去して共用爆発のみ。
+      //   airborneKill 時は「爆発 → 上半身が大きく上昇、下半身も少し遅れて上昇」の
+      //   旧 gc_04 launch を爆発トリガーで再現（順序のみ変更）。
+      const _airborneKill = !!(e.lastHitter && e.lastHitter.airborneKill);
       if (e.mesh && e.mesh.parent) e.mesh.parent.remove(e.mesh);
-      spawnDeathExplosion(e.x, e.y + 80, e.z);
+      // airborneKill（RC ルート）：直前の RC + GC armed で既に長い hitstop が走っているため、
+      //   爆発側の追加 hitstop はスキップ（「2 回ストップ」感を抑える・2026-05-27）。
+      spawnDeathExplosion(e.x, e.y + 80, e.z, { skipHitstop: _airborneKill });
       if (e.flyingParts) {
-        for (const fp of e.flyingParts) {
-          if (fp.mesh && fp.mesh.parent) fp.mesh.parent.remove(fp.mesh);
+        if (_airborneKill) {
+          // 爆発のタイミングで launch velocity を後付け：旧 gc_04 と同じ「上半身泣き別れ + 下半身追従」の絵。
+          //   - 上半身（name='body+upper'）：UPPER_LAUNCH_VY + 縦回転
+          //   - それ以外（脚等）：LOWER_LAUNCH_VY + 弱い縦回転
+          let dirRef = e.fallDir;
+          if (dirRef !== 1 && dirRef !== -1) dirRef = (e.lastHitter && e.lastHitter.facing) || 1;
+          const cfg2 = GORE_CRITICAL_CONFIG;
+          for (const fp of e.flyingParts) {
+            const isUpper = (fp.name === 'body+upper');
+            if (isUpper) {
+              // 上半身：強く上空へ「すっ飛ぶ」（contrast 重視で boost）
+              fp.vx = (Math.random() - 0.5) * 2 * cfg2.UPPER_LAUNCH_VX_JITTER;
+              fp.vy = 32;
+              fp.vz = 0;
+              fp.angVx = 0; fp.angVy = 0; fp.angVz = 0;
+              fp._worldAxisRot   = new _THREE_REF.Vector3(0, 0, 1);
+              fp._worldAxisSpeed = -dirRef * cfg2.UPPER_LAUNCH_ANG_X;
+              fp._critGravMult   = cfg2.UPPER_LAUNCH_GRAV_MULT;
+              fp._critAirDecay   = 1.0;
+            } else {
+              // 下半身：そこまで浮かない（少しだけポンと跳ねる感じ）
+              fp.vx = (Math.random() - 0.5) * 2 * cfg2.LOWER_LAUNCH_VX_JITTER;
+              fp.vy = 6;
+              fp.vz = 0;
+              fp.angVx = 0; fp.angVy = 0; fp.angVz = 0;
+              fp._worldAxisRot   = new _THREE_REF.Vector3(0, 0, 1);
+              fp._worldAxisSpeed = -dirRef * cfg2.LOWER_LAUNCH_ANG_X;
+              fp._critGravMult   = cfg2.LOWER_LAUNCH_GRAV_MULT;
+              fp._critAirDecay   = 1.0;
+            }
+            // airborneKill：爆発から 60F (1.0s) で強制削除する timer をセット。
+            // 自然 fall + bounce + fade を待たず、空中でフェード消滅させる。
+            fp._forceRemoveTimer = 60;
+          }
+        } else {
+          for (const fp of e.flyingParts) {
+            if (fp.mesh && fp.mesh.parent) fp.mesh.parent.remove(fp.mesh);
+          }
+          e.flyingParts = [];
         }
-        e.flyingParts = [];
       }
     } else if (variant === 'slam_radial_split') {
       // gc_05：上半身パーツは放射飛行中・下半身は地面突き刺し中。全部消して共用爆発を地上で発火。
@@ -2060,15 +2447,19 @@ function _removeJdMarkers(e) {
   if (e._jdRingMesh) { _scene.remove(e._jdRingMesh); e._jdRingMesh = null; }
 }
 
-// jump_dive 溜め中の黄色発光（t=0:基本色 / t=1:フル黄色）
-// 各パーツの baseColors から補間。リセット時は t=0 で呼ぶ。
-function _setMeshChargeColor(e, t) {
+// 攻撃 wind/active 中の発光（t=0:基本色 / t=1:targetColor フル）
+// 各パーツの baseColors から linear 補間。リセット時は t=0 で呼ぶ。
+// targetColor 省略時は黄色（後方互換：jump_dive 溜め用）。タックルは 0xff2222 を指定。
+function _setMeshChargeColor(e, t, targetColor = 0xffff00) {
   if (!e.mesh) return;
   const _bc = e.mesh.userData.baseColors ?? { body: 0x2d4a22, head: 0x77aa55 };
   const parts = e.mesh.userData.parts;
   // legs が配列の場合に Set で高速 lookup
   const _legSet = (parts?.legs && Array.isArray(parts.legs))
     ? new Set(parts.legs) : null;
+  const tR = ((targetColor >> 16) & 0xff) / 255;
+  const tG = ((targetColor >>  8) & 0xff) / 255;
+  const tB = ( targetColor        & 0xff) / 255;
   e.mesh.traverse((child) => {
     if (!child.isMesh) return;
     const isHead = parts && child === parts.head;
@@ -2077,11 +2468,10 @@ function _setMeshChargeColor(e, t) {
     const bR = ((base >> 16) & 0xff) / 255;
     const bG = ((base >>  8) & 0xff) / 255;
     const bB = ( base        & 0xff) / 255;
-    // 黄色(1,1,0)へ補間
     child.material.color.setRGB(
-      bR + t * (1 - bR),
-      bG + t * (1 - bG),
-      bB * (1 - t),
+      bR + t * (tR - bR),
+      bG + t * (tG - bG),
+      bB + t * (tB - bB),
     );
   });
 }
@@ -2092,6 +2482,13 @@ function _clearAllTokens(ctx, e) {
   for (const tok of Object.values(ctx.attackTokens)) {
     if (tok.get() === e) tok.set(null);
   }
+}
+
+// 外部モジュール（hazards 等）からトークン解放するためのエクスポート版。
+//   floor-hole などが「敵を removed 扱いにする」前に呼ぶ。呼ばないと
+//   debug-invariants が「token が dead enemy を参照」を毎 F 警告し続ける。
+export function releaseEnemyTokens(ctx, e) {
+  _clearAllTokens(ctx, e);
 }
 
 // 攻撃開始：トークン取得 + enemy_attacking への遷移をまとめる
@@ -2139,7 +2536,8 @@ function _updateLaneZ(e) {
 //   - tryThrownChainHit へ ctx をそのまま渡す
 // ============================================================
 export function updateEnemies(ctx) {
-  if (_attackRelay > 0) _attackRelay--;  // 敵同士の攻撃テンポ待ち（14-D-5）
+  if (_attackRelay > 0) _attackRelay--;             // 敵同士の攻撃テンポ待ち（14-D-5）
+  if (_globalTackleRelay > 0) _globalTackleRelay--; // タックル専用グローバルCD
   for (const e of _enemies) {
     if (!e.isAlive) continue;
     _updateLaneZ(e);  // cunning の Z レーン振り直し（14-D-3・密集回避）
@@ -2197,6 +2595,7 @@ export function updateEnemies(ctx) {
       // 飛行系状態カウンタ・関連フラグもリセット（2026-05-18）
       if (e.superFlightCount > 0) e.superFlightCount = 0;
       if (e.wallHitCount > 0) e.wallHitCount = 0;
+      if (e.launchResistTimer > 0) e.launchResistTimer = 0;  // 着地復帰でリセット
       if (e.lateralCombatInvincible) e.lateralCombatInvincible = false;
       if (e.skipWallCollision) e.skipWallCollision = false;
       if (e.isWallBounce) e.isWallBounce = false;  // 壁バウンス中フラグもクリア
@@ -2211,6 +2610,20 @@ export function updateEnemies(ctx) {
         e.atkPhase = null;
         e.hitDelivered = false;
         if (e.atkCooldown < 30) e.atkCooldown = 30;
+      }
+    }
+    // === 延焼（burn）tick（OC「点火」未取得なら e.burnTimer=0 で no-op）===
+    // frozenByUlt / grabbed / armed-GC は既に上で continue 済み・dying は !e.isAlive まで進まない
+    if (e.burnTimer > 0) _updateBurnTick(e, ctx);
+    // === OC IGNITE Phase3 遅延起爆タイマー ===
+    if (e.detonateTimer > 0) {
+      e.detonateTimer--;
+      if (e.detonateTimer === 0) detonateBurn(e);
+    }
+    // 恒常 SA リチャージ（midboss01 盾破壊後）
+    if (e.passiveSaRecharge > 0) {
+      if (--e.passiveSaRecharge === 0) {
+        e.passiveSaHp = MIDBOSS_SHIELD_CONFIG.PASSIVE_SA_HP;
       }
     }
     // 死亡判定（Phase 3-A/B：instantRespawn フラグで分岐 / 2026-05-20 e.dying へ）
@@ -2704,15 +3117,21 @@ export function updateEnemies(ctx) {
               const _atkZThresh = e.isBoss ? 160 : 100;
               const basicCanAttack = _isGuardCounter || (adz < _atkZThresh && e.atkCooldown <= 0 && _attackRelay <= 0 &&
                 e.y <= ENEMY_AIRBORNE_Y_THRESHOLD && (!playerInHitstun || e.punishesHitstun));
-              const atkId = basicCanAttack
+              let atkId = basicCanAttack
                 ? (_isGuardCounter ? 'mb01_atk_gc' : _selectEnemyAtk(e, adx))
                 : null;
+              // タックル専用グローバルCD：CD 中はタックルを基本振りに差し替え（完全禁止より自然）
+              if (atkId === 'e01_atk_02' && _globalTackleRelay > 0) atkId = 'e01_atk_01';
+              // プレイヤー攻撃中はタックル禁止：コンボへの割り込みを抑制
+              if (atkId === 'e01_atk_02' && p0.state === STATE.attacking) atkId = 'e01_atk_01';
               if (atkId) {
                 const _atkDef = ENEMY_ATTACKS[atkId];
                 const _cat = _atkDef.attackCategory ?? 'melee';
                 const _catTok = ctx.attackTokens[_cat];
                 const tokenAvailable = !_catTok || _catTok.get() === null || _catTok.get() === e;
                 if (tokenAvailable) {
+                  // タックル開始時にグローバルCDをセット
+                  if (atkId === 'e01_atk_02') _globalTackleRelay = ENEMY_ATTACK_RELAY.TACKLE_RELAY;
                   // 攻撃発動（14-D-2：距離で振り/タックル選択）
                   _beginEnemyAttack(e, atkId, ctx);
                 }
@@ -2799,6 +3218,12 @@ export function updateEnemies(ctx) {
               const _wzSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * DUMMY_ATK_CONFIG.zChaseFactor;
               e.z += Math.sign(dz) * Math.min(_wzSpd, adz);
             }
+            // タックル（dash）予兆中は赤発光で通常 swing と区別（2026-05-25 通しプレイ受け）
+            if (atk.kind === 'dash') {
+              const windProg = 1.0 - (e.atkTimer / atk.windFrames);
+              e._chargeT = windProg;
+              _setMeshChargeColor(e, windProg, 0xff2222);
+            }
           }
           // approachRange を完全に超えたらキャンセルして wait01 復帰（jump_dive は発動後キャンセルしない）
           //   boss は APPROACH_RANGE が広いので個別判定
@@ -2836,6 +3261,8 @@ export function updateEnemies(ctx) {
           if (atk.kind === 'dash') {
             // 突進タックル：facing 方向へ dashSpeed で前進。
             //   終了条件＝ヒット成立 / 壁で停止 / dashMaxDist 到達 / activeFrames フォールバック
+            // 突進中は赤フル発光を維持（hitFlash で上書きされる可能性あるため毎F適用）
+            _setMeshChargeColor(e, 1.0, 0xff2222);
             const wallL = Math.max(PHYSICS.STAGE_LEFT,  getActiveWallX('left'));
             const wallR = Math.min(PHYSICS.STAGE_RIGHT, getActiveWallX('right'));
             const step  = atk.dashSpeed;
@@ -2852,6 +3279,8 @@ export function updateEnemies(ctx) {
               e.atkPhase       = 'recover';
               e.atkTimer       = atk.recoverFrames;
               e.atkPitchTarget = 0;
+              e._chargeT       = 0;
+              _setMeshChargeColor(e, 0);  // 赤発光リセット
             }
           } else if (atk.kind === 'hop_strike') {
             // 小ジャンプ攻撃：短いホップで前進→空中でヒット→着地でリカバリー
@@ -2888,11 +3317,15 @@ export function updateEnemies(ctx) {
               if (e.vy <= 2) {
                 e._jdPhase       = 'aim';
                 e.repulseWindow  = true;   // リパルスカウンター受付開始
+                e._jdDiveGrace   = 0;      // 前回 dive の残値をクリア
                 e._jdHoldY       = e.y;
                 e._jdAimTimer    = atk.aimFrames ?? 80;
-                const _p = _players && _players[0];
-                e._jdTargetX  = _p ? _p.x : e.x;
-                e._jdTargetZ  = _p ? _p.z : e.z;
+                // 2026-05-27：AOE 初期位置を敵自身の足元に。以前はプレイヤー位置に
+                // 即ワープしていたため「ジャンパーから離れた地点に AOE が湧く」絵だった
+                e._jdTargetX  = e.x;
+                e._jdTargetZ  = e.z;
+                // 寄せ込み期間：強 lerp でプレイヤーまで素早く詰めるフェーズの残 F
+                e._jdAimApproachFrames = 15;
                 _spawnJdMarkers(e, atk, e._jdTargetX, e._jdTargetZ);
               }
             } else if (_jdp === 'aim') {
@@ -2903,6 +3336,7 @@ export function updateEnemies(ctx) {
                 e.atkPitchTarget = 0;
                 e._jdPhase       = null;
                 e.repulseWindow  = false;  // リパルスカウンター受付終了（被弾キャンセル）
+                e._jdDiveGrace   = 0;
                 e._chargeT       = 0;
                 _clearAllTokens(ctx, e);
               } else {
@@ -2911,13 +3345,17 @@ export function updateEnemies(ctx) {
               e.vy = 0;
               const t = --e._jdAimTimer / (atk.aimFrames ?? 80);  // 1.0→0.0
               _updateJdRing(e, atk, Math.max(0, t));
-              // aim 中はプレイヤーを追尾（AOE・リングも一緒に移動）lerp 0.05 で遅れ追従
+              // aim 中はプレイヤーを追尾（AOE・リングも一緒に移動）
               // 2026-05-26：敵実体も _jdTargetX/Z に同期させて「実体が AOE 真上に居る」絵に統一
-              //   （旧：敵 x/z は凍結で AOE だけ動く → RC 判定や視認性で違和感が出ていた）
+              // 2026-05-27：寄せ込み期間（最初 15F）は強 lerp 0.25 でプレイヤー位置まで
+              //   素早く詰める。それ以降は既存の 0.05 でゆっくり追従。
+              //   AOE 初期位置はジャンパー足元 → 寄せ込みでプレイヤーへ → 追従、の三段階。
               const _aimP = _players && _players[0];
               if (_aimP) {
-                e._jdTargetX += (_aimP.x - e._jdTargetX) * 0.05;
-                e._jdTargetZ += (_aimP.z - e._jdTargetZ) * 0.05;
+                const _lerp = (e._jdAimApproachFrames > 0) ? 0.25 : 0.05;
+                if (e._jdAimApproachFrames > 0) e._jdAimApproachFrames--;
+                e._jdTargetX += (_aimP.x - e._jdTargetX) * _lerp;
+                e._jdTargetZ += (_aimP.z - e._jdTargetZ) * _lerp;
                 e.x = e._jdTargetX;
                 e.z = e._jdTargetZ;
                 if (e._jdAoeMesh) {
@@ -2932,11 +3370,21 @@ export function updateEnemies(ctx) {
               if (e._jdAimTimer <= 0) {
                 // 急降下開始（この瞬間 _jdTargetX/Z が確定・追尾解除）
                 e._jdPhase      = 'dive';
-                e.repulseWindow = false;  // リパルスカウンター受付終了（降下開始）
+                // リパルスカウンター grace（2026-05-27）：dive 開始後も短時間 RC 受付。
+                //   理由：人間反応は「降ってきた！」を見てから SP2 → aim 終端で即 OFF だと反応間に合わず抜ける。
+                //   12F ≒ 0.2s 猶予で「dive 確認 → SP2」が成立可能になる。
+                e._jdDiveGrace  = 12;
                 _removeJdMarkers(e);
               }
               } // end else (no hitFlash)
             } else if (_jdp === 'dive') {
+              // dive grace（2026-05-27）：dive 突入後も短時間 RC 受付（人間反応猶予）。
+              //   grace 中は repulseWindow=true を維持、カウンタ尽きたら false。
+              if (e._jdDiveGrace > 0) {
+                e.repulseWindow = true;
+                e._jdDiveGrace--;
+                if (e._jdDiveGrace <= 0) e.repulseWindow = false;
+              }
               // 超高速降下：物理を無視して直接 Y を更新
               e.x  = e._jdTargetX;
               e.z  = e._jdTargetZ;
@@ -2951,7 +3399,42 @@ export function updateEnemies(ctx) {
                 e.atkPhase       = 'recover';
                 e.atkTimer       = atk.recoverFrames + 60;  // +60F しゃがみ硬直（隙・反撃猶予）
                 e.atkPitchTarget = 0;
+                // dive 着地で RC grace を強制終了：grace 残値があるまま recover へ遷移すると
+                // 次フレーム以降 dive 分岐が走らず repulseWindow=true が残置される
+                e._jdDiveGrace   = 0;
+                e.repulseWindow  = false;
                 if (e.mesh) e.mesh.scale.y = 0.60;  // 着地しゃがみポーズ
+                // === RC チャレンジ失敗時の強制ヒット（2026-05-27）===
+                //   AOE 内に居座って RC も回避も成立しなかった場合、必ず敵の攻撃を食らわせる。
+                //   仕様：
+                //     - 敵を player 直上へワープして「外しても掴まれる」絵を作る
+                //     - 0.2s（12F）ヒットストップで重みを出す
+                //     - ガード中でも atk_lv 6 強制で guard クラッシュ
+                //   AOE 半径外まで逃げ切ったプレイヤーは免除（既存挙動）。
+                if (!e.hitDelivered) {
+                  const _p = _players && _players[0];
+                  if (_p && _p.hp > 0 && _p.state !== STATE.dying && _p.state !== STATE.dead) {
+                    const _aoeR = atk.aoeRadius ?? 120;
+                    const _ddx = _p.x - e._jdTargetX;
+                    const _ddz = _p.z - e._jdTargetZ;
+                    if (Math.hypot(_ddx, _ddz) <= _aoeR) {
+                      // プレイヤー直上へワープ（被弾位置の視認性向上）
+                      e.x = _p.x;
+                      e.z = _p.z;
+                      e.y = _p.y + 40;
+                      if (e.mesh) e.mesh.position.set(e.x, e.y, e.z);
+                      // 強制ヒット用 attack：hitbox を実質無限化 + atk_lv 6 で guard 抜け
+                      const _forceAtk = { ...atk,
+                        atk_lv: 6,
+                        hitboxRangeX: 9999, hitboxRangeY: 9999, hitboxRangeZ: 9999,
+                      };
+                      tryHitPlayer(e, _forceAtk);
+                      e.hitDelivered = true;
+                      // 0.2s 時止め（12F at 60fps）
+                      triggerHitstop(12);
+                    }
+                  }
+                }
               }
             } else {
               // フォールバック：_jdPhase が null のまま active に入った場合
@@ -2992,10 +3475,11 @@ export function updateEnemies(ctx) {
                           || e.atkDashDist >= (atk.dashMaxDist ?? 500)
                           || _moved < _step * 0.5;
             if (_rushEnd) {
-              e.atkPhase       = 'recover';
-              e.atkTimer       = atk.recoverFrames;
-              e.atkPitchTarget = 0;
-              e.atkSlotIdx     = 0;
+              e.atkPhase        = 'recover';
+              e.atkTimer        = atk.recoverFrames;
+              e.atkPitchTarget  = 0;
+              e.atkSlotIdx      = 0;
+              e.recoverSaTimer  = atk.recoverSaFrames ?? 0;  // recover 前半 SA
             }
           } else {
             // その場振り：active 中ずっとヒット判定（1 ヒットのみ）
@@ -3011,6 +3495,7 @@ export function updateEnemies(ctx) {
             }
           }
         } else if (e.atkPhase === 'recover') {
+          if (e.recoverSaTimer > 0) e.recoverSaTimer--;
           if (e.atkTimer <= 0) {
             e.state         = STATE.wait01;
             e.atkPhase      = null;
@@ -3023,7 +3508,7 @@ export function updateEnemies(ctx) {
             e.aiRetreatTimer = Math.round(DUMMY_ATK_CONFIG.retreatFrames * e.retreatMult);
             _clearAllTokens(ctx, e);  // トークン解放
             // 敵同士の攻撃テンポ（14-D-5）：次の攻撃まで「見合う」間をばらつき付きで確保
-            _attackRelay = Math.round(ENEMY_ATTACK_RELAY.BASE *
+            _attackRelay = Math.round(ENEMY_ATTACK_RELAY.BASE * ENEMY_ATTACK_RELAY.DIFF_MULT *
               (1 + (Math.random() * 2 - 1) * ENEMY_ATTACK_RELAY.VARIANCE));
             if (e.mesh) e.mesh.scale.y = 1.0;  // スケール安全リセット
           }
@@ -3047,7 +3532,20 @@ export function updateEnemies(ctx) {
     // ダウン・被弾ステート機械（タイマー駆動の遷移のみ・tiltAngle は後段で一括計算）
     if (e.state === STATE.down_up_start) {
       if (--e.downTimer <= 0) e.state = STATE.down_up_loop;
+      // midboss01 anti-juggle：打ち上げ開始と同時にカウンターをセット
+      if (e.enemyType === 'midboss01' && e.launchResistTimer === 0) {
+        e.launchResistTimer = MIDBOSS_SHIELD_CONFIG.LAUNCH_RESIST_FRAMES;
+      }
     } else if (e.state === STATE.down_up_loop) {
+      // midboss01 anti-juggle：滞空上限を超えたら強制着地（下流の y<=0 ブロックが down_bas_start へ遷移）
+      if (e.enemyType === 'midboss01' && e.launchResistTimer > 0) {
+        if (--e.launchResistTimer <= 0) {
+          e.y  = 0;
+          e.vy = 0;
+          e.launchResistTimer = 0;
+          spawnLaunchSmoke(e.x, 0, e.z);  // 着地煙で「叩きつけられた」感
+        }
+      }
       // 横倒しのまま落下（着地は y<=0 ブロックで処理）
     } else if (e.state === STATE.down_bas_start) {
       if (--e.downTimer <= 0) {

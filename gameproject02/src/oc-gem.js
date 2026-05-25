@@ -9,18 +9,20 @@
 let _scene = null;
 let _THREE = null;
 let _onAcquire = null;
+let _getPlayers = null;
 let _gem = null;   // 同時に 1 個のみ。{ mesh, core, shell, phase, timer }
 
 const RISE_FRAMES  = 24;    // 出現：下から湧き上がる
 const DWELL_FRAMES = 100;   // 滞在：その場でホバー（約 1.7 秒）
 const SHRINK_FRAMES = 10;   // 取得後：縮んで消える
 const SPAWN_Y      = 50;    // 湧き出し開始の高さ
-const HOVER_Y      = 140;   // ホバー中心の高さ
+const HOVER_Y      = 300;   // ホバー中心の高さ（プレイヤー頭上）
 
-export function initOcGem({ scene, THREE, onAcquire }) {
+export function initOcGem({ scene, THREE, onAcquire, getPlayers }) {
   _scene = scene;
   _THREE = THREE;
   _onAcquire = onAcquire || null;
+  _getPlayers = getPlayers || null;
 }
 
 export function isOcGemActive() { return _gem !== null; }
@@ -70,7 +72,24 @@ export function updateOcGem() {
     if (t >= 1) { g.phase = 'idle'; g.timer = 0; }
 
   } else if (g.phase === 'idle') {
-    // その場でゆったり上下にホバー
+    // プレイヤーに向けて引き寄せ（画面外に置き去り防止）
+    if (_getPlayers) {
+      const players = _getPlayers();
+      if (players && players.length > 0) {
+        // 最初の生存プレイヤーを対象
+        const p = players.find(pl => pl.hp > 0) ?? players[0];
+        const dx = p.x - g.mesh.position.x;
+        const dz = (p.z ?? 0) - g.mesh.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > 8) {
+          // 近いほど遅く・遠いほど速く（max 18 wu/f）
+          const speed = Math.min(dist * 0.10, 18);
+          g.mesh.position.x += (dx / dist) * speed;
+          g.mesh.position.z += (dz / dist) * speed;
+        }
+      }
+    }
+    // ゆったり上下にホバー
     g.mesh.position.y = HOVER_Y + Math.sin(g.timer * 0.08) * 10;
     if (g.timer >= DWELL_FRAMES) {
       g.phase = 'acquired';

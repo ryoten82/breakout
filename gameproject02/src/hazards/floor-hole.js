@@ -29,6 +29,15 @@ const SAFE_FALL_STATES = new Set([
   STATE.knockback01,
 ]);
 
+// 吹き飛び中は y が上昇するが穴判定を通す（lv3/lv5/lv6 の弾き込み対象）。
+// y > enemyGroundY チェックをこれらの state はバイパス。
+const FLY_THROUGH_HOLE_STATES = new Set([
+  STATE.down_front_start, STATE.down_front_loop,
+  STATE.down_super_start, STATE.down_super_loop,
+  STATE.down_wall_start,  STATE.down_wall_loop,
+  STATE.down_roll_start,
+]);
+
 // 共通チューニング（穴 1 個ごとの矩形は addFloorHole で渡す）
 export const FLOOR_HOLE_CONFIG = {
   enemyGroundY: 14,
@@ -172,7 +181,9 @@ function _spawnDeathBurst(x, y, z) {
 // SAFE_FALL_STATES の平穏個体は素通り（叩き込み武器化）。
 function _enemyHole(e) {
   if (!e || !e.isAlive || e.dying || e._inHole) return null;
-  if (e.y > FLOOR_HOLE_CONFIG.enemyGroundY) return null;
+  // 吹き飛び中（FLY_THROUGH_HOLE_STATES）は空中でも穴判定を通す。
+  // それ以外は接地近傍のみ（歩行中の誤落下を防ぐ）。
+  if (!FLY_THROUGH_HOLE_STATES.has(e.state) && e.y > FLOOR_HOLE_CONFIG.enemyGroundY) return null;
   if (SAFE_FALL_STATES.has(e.state)) return null;
   for (const h of _holes) {
     const r = h.rect;
@@ -183,6 +194,10 @@ function _enemyHole(e) {
 
 function _dropEnemy(e, holeRect) {
   e._inHole = true;
+  // 攻撃トークンを先に解放してから isAlive=false に。順序が逆だと
+  //   debug-invariants が「token が dead enemy を参照」を毎 F 警告し続ける（St2 で頻発）。
+  const SB = (typeof window !== 'undefined') ? window.SB : null;
+  if (SB && SB.releaseEnemyTokens) SB.releaseEnemyTokens(e);
   e.isAlive = false;     // updateEnemies スキップ → y クランプ無効化
   e.aiEnabled = false;
   e.knockbackVx = 0;
@@ -334,17 +349,22 @@ export function tickFloorHoleSystem() {
     const cfg = FLOOR_HOLE_CONFIG;
     const grounded = p.isGrounded || (p.y <= cfg.playerGroundY);
     const r = _holeAt(p.x, p.z);
+    // 吹き飛び中（lv3 KB 等）は穴上に居れば即落下（壁押し戻しをバイパス）
+    const blownAway = FLY_THROUGH_HOLE_STATES.has(p.state);
 
     if (r && !grounded) _playerAirborneOverHole = true;
     if (!r && grounded) _playerAirborneOverHole = false;
 
-    // ジャンプで穴に入って着地 → 落下。
-    // SAFE_FALL_STATES（calm landing）なら救済。攻撃/被弾系で穴上着地のみ落とす。
-    if (_playerAirborneOverHole && grounded && r) {
+    if (r && blownAway) {
+      // 吹き飛ばされて穴に入った → そのまま落下
+      _dropPlayer(p, r);
+    } else if (_playerAirborneOverHole && grounded && r) {
+      // ジャンプで穴に入って着地 → 落下。
+      // SAFE_FALL_STATES（calm landing）なら救済。攻撃/被弾系で穴上着地のみ落とす。
       if (!SAFE_FALL_STATES.has(p.state)) _dropPlayer(p, r);
       _playerAirborneOverHole = false;
     }
-    // 壁押し戻しは drop が発生していない時のみ
-    if (!_playerFallPending) _enforceHoleWall(p);
+    // 壁押し戻しは吹き飛び中でない通常接地時のみ
+    if (!_playerFallPending && !blownAway) _enforceHoleWall(p);
   }
 }

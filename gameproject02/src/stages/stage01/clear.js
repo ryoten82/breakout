@@ -93,6 +93,20 @@ function _beginClearPresentation(nextStageId) {
       // → URL を汚さないので、後で F5 した時は stage01 から再スタートできる
       try {
         sessionStorage.setItem('_sbAutoTransition', nextStageId);
+        // HP/SP 引継ぎ：次ステージ開始時に復元（HP は +30% ボーナス込みで適用）
+        const _p = window.SB?.players?.[0];
+        if (_p) {
+          sessionStorage.setItem('_sbCarryHp',    String(_p.hp));
+          sessionStorage.setItem('_sbCarryMaxHp', String(_p.maxHp));
+          sessionStorage.setItem('_sbCarrySp',    String(_p.sp));
+        }
+        // CR 引継ぎ
+        const _crVal = window.SB?.getCrTotal?.();
+        if (_crVal != null) sessionStorage.setItem('_sbCarryCr', String(_crVal));
+        // デバッグ HUD の表示状態を引継ぎ（html.dbg-hidden クラスで判定）
+        const _hudHidden = document.documentElement.classList.contains('dbg-hidden');
+        if (_hudHidden) sessionStorage.setItem('_sbDbgHidden', '1');
+        else sessionStorage.removeItem('_sbDbgHidden');
       } catch (_) { /* ignore */ }
       window.location.reload();
     }, FADE_OUT_MS);

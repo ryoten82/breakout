@@ -136,84 +136,120 @@ export const ATTACKS = {
     atk_lv_air:   2,                // 空中敵：軽フリンチ（knockback_air01）+ 浮き
   },
   // === sp_03（↓K）地上版・空中版：急降下踏みつけ必殺 ===
-  //   ↓↓K（or J）コマンド受付・地上発動は前方へ跳躍 → 頂点で溜め → 急降下
-  //   空中発動はその場で hover → 溜め → 急降下（旧 c01_atk_l_01_air_down のロジック踏襲）
-  //   3 連ヒット・最終段で叩きつけ（atk_lv 5）／最終段 hitstopLastHit 重め
-  //   ターゲットロック中はホーミング補助も乗って当てやすい
+  //   ↓↓K（or J）コマンド受付・地上版は 2026-05-25 に「パワーゲイザー」へ全面改修。
+  //   腕を振り上げ → 振り下ろし → 地面衝撃波（放射状 KB / 広範囲 / その場起動）
+  //   空中版（c01_sp_03_air）は従来の hover→dive 単発ヒットを維持。
   c01_sp_03: {
-    label:        'c01_sp_03 (METEO 急降下踏みつけ・↓↓K 地上版・連続ヒット)',
-    duration:     54, hitFrame: 32, hitDuration: 6, cancelWindow: 14,   // hitFrame 22→32（+10F 遅延）
-    isMultiHit:     true,
-    multiHitCount:  3,
-    hitInterval:    4,
-    damagePerHit:   4,
-    damageLastHit:  8,
-    damage:         16,
-    intermediateKnockbackVx: 0,
-    intermediateKbDecay:     0.78,
-    rangeX:       145, rangeZ: 135,
-    rangeY:       200,             // 跳躍中の落下軌道で上の敵にも当てるため広め
-    rangeYDown:   300,
-    knockback:    20,
-    hitstop:      8, shake: 6,
-    hitstopLastHit: 14,            // 最終段重ヒットストップ（追撃猶予）
-    // === 跳躍 → 頂点溜め → 急降下フェーズ ===
-    plyrLiftVy:       20,          // 18→20：apex 約 208wu（敵身長 130 より明らかに高い）
-    plyrLiftVx:       18,          // 前方推力（airVx 経由・約 3 キャラ分前進）
-    diveStartFrame:   20,          // apex 付近で dive 開始（plyrLiftVy 20 / GRAVITY 0.96 から逆算）
-    divePause:        16,          // 頂点ホバー時間（空中版と揃える）
-    diveVy:           -22,         // 急降下速度
-    aerialHop:    false,
+    label:        'c01_sp_03 (METEO パワーゲイザー・地上衝撃波・↓↓K 地上版)',
+    // 振り上げ（windup）→ 叩きつけ → 衝撃波 → リカバリー
+    duration:     60, hitFrame: 32, hitDuration: 10, cancelWindow: 10,  // hitFrame 24→32（出がかり延長）/ duration 52→60 / cw 22→10（連打無敵ループ防止）
+    damage:       20,
+    rangeX:       288, rangeZ: 224,   // 2026-05-25 360/280 → 80% = 288/224（広すぎ緩和）
+    rangeY:       50,                 // 2026-05-25 90→50：上方向判定を弱める
+    rangeYDown:   20,                 // 2026-05-25 30→20
+    knockback:    32,
+    hitstop:      12, shake: 10,
     atk_lv:       5,
     atk_lv_air:   5,
-    atk_lv_down:  5,
-    kb_vy_lv5:        -45,
-    kb_vx_mult_lv5:   2.0,         // 0.1→2.0（2026-05-16）後方約 1 キャラ分突き放して追い打ち余地を作る
+    atk_lv_down:  4,                  // ダウン中の敵は軽め（爆発的な巻き込みより抑制）
+    kb_vy_lv5:        -20,            // 若干浮き上がってから地面へ（lv5 既定の強叩きつけより緩め）
+    kb_vx_mult_lv5:   1.2,            // 放射方向へ適度に飛ばす
+    kbRadial:     true,               // 攻撃者中心から各敵への方向ベクトルでノックバック
     omni:         true,
     launcher:     false,
-    hitColor:     0xff4422,
-    hitCount:     18,
-    homingLerpMult: 1.4,           // ターゲットへの吸い寄せを強化（特殊化）
-    noHomingY:    true,            // ターゲット Y へは寄せない：dive 軌道の高さ（apex）を一定保持
-    requireLockForHoming: true,    // ノーロック発動時は homing 全停止（位置取りで当てる「コツが必要」技に）
-    targetOvershootGuard: true,    // ターゲットの手前 50wu で X 位置をクランプ（追い越し防止）
+    aerialHop:    false,
+    hitColor:     0xff8822,
+    hitCount:     28,
+    shockwaveEffect: true,            // hitFrame で地面衝撃波リング演出（attack-engine が発火）
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
-    partsAnim:    'air_slam',
+    partsAnim:    'slam_down',
   },
-  // 空中版：hover → dive → 単発ヒット（2026-05-16 多段化撤回。
-  //   旧 3-hit 化では「途中で着地して残りの hit が消える → 地上コンボに繋がり放題」の温床に
-  //   なったため、単発の重い 1 撃に戻す。lv5 叩きつけ＋後方ノックバックは維持）
+  // 空中版：急降下で敵を地面に引きずり → 着地瞬間に自動ゲイザー発火（2フェーズ）
+  //   Phase1: 急降下ヒット（敵を下方に引きずる・横は抑える）
+  //   Phase2: 着地瞬間に c01_sp_03_land が自動起動
   c01_sp_03_air: {
-    label:        'c01_sp_03_air (METEO 空中急降下・↓↓K 必殺・単発)',
-    duration:     40, hitFrame: 14, hitDuration: 6, cancelWindow: 22,  // cw 12→22（空中SPキャンセル受付拡張・2026-05-20）
-    damage:       14,
-    rangeX:       145, rangeZ: 135,
+    label:        'c01_sp_03_air (METEO 急降下→着地ゲイザー・↓↓K 空中版)',
+    duration:     80, hitFrame: 18, hitDuration: 40, cancelWindow: 8,
+    damage:       12,
+    rangeX:       145, rangeZ: 130,
     rangeY:       60,
     rangeYDown:   300,
-    knockback:    20,
-    hitstop:      14, shake: 8,    // 単発の重い 1 撃：地上版 hitstopLastHit と同等の重さ
+    knockback:    14,
+    hitstop:      8,  shake: 6,
     diveVy:       -22,
     divePause:    16,
-    aerialHop:    false,
     atk_lv:       5,
     atk_lv_air:   5,
-    atk_lv_down:  5,
-    kb_vy_lv5:        -45,
-    kb_vx_mult_lv5:   2.0,         // 後方約 1 キャラ分突き放して追い打ち余地を作る
+    atk_lv_down:  4,
+    kb_vy_lv5:        -50,          // 敵を強く下方に引きずる
+    kb_vx_mult_lv5:   0.2,          // 横はほぼ飛ばさない（まとめて落とす）
     omni:         true,
     launcher:     false,
+    aerialHop:    false,
     hitColor:     0xff4422,
-    hitCount:     22,              // 単発化に伴い粒数増（演出強調）
-    homingLerpMult: 1.4,           // ターゲットへの吸い寄せを強化
-    noHomingY:    true,            // ターゲット Y へは寄せない：dive 軌道を保つ
-    targetOvershootGuard: true,    // ターゲットの手前 50wu で X 位置をクランプ
+    hitCount:     18,
+    noHomingY:    true,             // dive 軌道を保つ
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
     partsAnim:    'air_slam',
+    autoLandGeyser: true,           // 着地瞬間に c01_sp_03_land を自動発火
   },
+  // 着地ゲイザー（c01_sp_03_air 着地時に内部自動発火・直接入力不可）
+  //   hitFrame: 0 で 1 フレーム目から即発生。shockwaveEffect で視覚は即座に出る。
+  c01_sp_03_land: {
+    label:        'c01_sp_03_land (着地ゲイザー・内部自動発火)',
+    duration:     30, hitFrame: 0, hitDuration: 14, cancelWindow: 8,
+    damage:       20,
+    rangeX:       288, rangeZ: 224,
+    rangeY:       50,
+    rangeYDown:   20,
+    knockback:    32,
+    hitstop:      12, shake: 10,
+    atk_lv:       5,
+    atk_lv_air:   5,
+    atk_lv_down:  4,
+    kb_vy_lv5:        -20,
+    kb_vx_mult_lv5:   1.2,
+    kbRadial:     true,
+    omni:         true,
+    launcher:     false,
+    aerialHop:    false,
+    hitColor:     0xff8822,
+    hitCount:     28,
+    shockwaveEffect: true,
+    isSpecial:    true,
+    flashOnStart: false,            // 空中phase で既にフラッシュ済み
+    showHitbox:   true,
+    partsAnim:    'slam_down',
+  },
+  // ── 旧 c01_sp_03_air（急降下版）温存 ───────────────────────────────
+  // 再利用候補：単発重ヒット・dive → 叩きつけの OC 強化版 or 別 SP 枠として。
+  // 復帰手順：下のコメントブロックを c01_sp_03_air: { ... } に差し戻すだけ。
+  //
+  // c01_sp_03_air_LEGACY: {
+  //   label:        'c01_sp_03_air (METEO 空中急降下・↓↓K 必殺・単発)',
+  //   duration:     40, hitFrame: 14, hitDuration: 6, cancelWindow: 22,
+  //   damage:       14,
+  //   rangeX:       145, rangeZ: 135,
+  //   rangeY:       60,
+  //   rangeYDown:   300,
+  //   knockback:    20,
+  //   hitstop:      14, shake: 8,
+  //   diveVy:       -22,
+  //   divePause:    16,
+  //   aerialHop:    false,
+  //   atk_lv:       5,  atk_lv_air: 5,  atk_lv_down: 5,
+  //   kb_vy_lv5:    -45,  kb_vx_mult_lv5: 2.0,
+  //   omni:         true,  launcher: false,
+  //   hitColor:     0xff4422,  hitCount: 22,
+  //   homingLerpMult: 1.4,  noHomingY: true,  targetOvershootGuard: true,
+  //   isSpecial:    true,  flashOnStart: true,  showHitbox: true,
+  //   partsAnim:    'air_slam',
+  // },
+  // ─────────────────────────────────────────────────────────────────────
   // 仕様: METEO 払い攻撃 — ↓+K で発動（単体可・Jチェーンからも可）
   // 当たり判定：足元中心・全方向・地面スライスのみ（浮き敵には当たらない）
   c01_add_03: {
@@ -354,22 +390,22 @@ export const ATTACKS = {
   //  - flashOnStart: true でプレイヤーを発動瞬間に白く発光
   // ============================================================
   c01_sp_01: {
-    label:        'c01_sp_01 (METEO 波動コマンド・弱ビーム・連続ヒット)',
+    label:        'c01_sp_01 (METEO 波動コマンド・弱ビーム・2段)',
     // 2026-05-19：発生前硬直 +10F（敵に対するリスク付与・発生に重み）
+    // 2026-05-25：3段→2段に変更（ヒット感重視・OC IGNITE なし通常版）
     duration:     40, hitFrame: 24, hitDuration: 6, cancelWindow: 14,
-    // === 連続ヒット：3 段（フレーム 14 / 19 / 24）===
-    // ビームの「ジリジリ」感を多段で表現。最終ヒットで吹き飛び（atk_lv 3）
+    // === 連続ヒット：2 段（フレーム 24 / 29）===
+    // 中間 1 発 + 最終 1 発。シンプルに当て切る感触
     isMultiHit:     true,
-    multiHitCount:  3,
+    multiHitCount:  2,
     hitInterval:    5,
-    damagePerHit:   4,    // 中間 2 発：軽フリンチ + 4 ダメ
-    damageLastHit:  10,   // 最終 1 発：10 ダメ + atk_lv 3 dispatch
-    damage:         18,   // 互換用（4×2 + 10 = 18 総合・旧 16 から微増）
+    damagePerHit:   6,    // 中間 1 発：のけぞり + 6 ダメ
+    damageLastHit:  14,   // 最終 1 発：14 ダメ + atk_lv 3 dispatch
+    damage:         20,   // 互換用（6 + 14 = 20 総合）
     rangeX:       250, rangeZ: 80, rangeY: 100,
     knockback:    50, hitstop: 8, shake: 6,
     atk_lv:       3,    // 地上敵：吹き飛び（down_front_start）
     atk_lv_air:   3,    // 空中敵も吹き飛び
-    // atk_lv_down は撤去（ダウン中ヒットは標準の空振り扱いに戻す）
     hitColor:     0x44ccff,
     hitCount:     24,
     launcher:     false,
@@ -377,16 +413,43 @@ export const ATTACKS = {
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
-    // 踏み込み（2026-05-20 改：金剛灼火イメージ）：発動直後は windupBackVx で少し下がり、
-    //   lungeDelay フレームで初めて前進開始 → 踏み込みと攻撃発生（最初のヒット14F）をほぼ同時に。
-    lungeVx:      20,                    // 20 / 0.15 ≈ 133wu 総距離（約 1.3 キャラ分）
+    lungeVx:      20,
     lungeDecay:   0.85,
-    lungeDelay:   12,                    // この elapsed F で踏み込み開始（最初のヒット 14F の直前）
-    windupBackVx:  5,                    // 発生前の小さな引き（facing 逆へ・約 28wu）
-    targetOvershootGuard: true,          // comboTarget の手前 50wu で X クランプ（貫通防止）
-    // 攻撃発生時の自己ノックバック（軽い反動）：hitFrame で後方にわずかに押される
+    lungeDelay:   12,
+    windupBackVx:  5,
+    targetOvershootGuard: true,
     selfRecoilVx: 2.4,
     selfRecoilDecay: 0.85,
+  },
+  // OC IGNITE 専用 SP1：3段ザラつき手触り・着火トリガー付き。ダメージは通常版より低い（後の伸びで逆転）
+  c01_sp_01_ignite: {
+    label:        'c01_sp_01_ignite (METEO 波動コマンド・OC IGNITE 版・3段着火)',
+    duration:     40, hitFrame: 24, hitDuration: 11, cancelWindow: 14,
+    isMultiHit:     true,
+    multiHitCount:  3,
+    hitInterval:    5,
+    damagePerHit:   4,    // 中間 2 発：4 ダメ（通常版より低い）
+    damageLastHit:  8,    // 最終 1 発：8 ダメ + 着火トリガー
+    damage:         16,   // 互換用（4×2 + 8 = 16 総合）
+    rangeX:       250, rangeZ: 80, rangeY: 100,
+    knockback:    50, hitstop: 8, shake: 6,
+    atk_lv:       3,
+    atk_lv_air:   3,
+    hitColor:     0xff4400,  // 赤み強め
+    hitCount:     24,
+    launcher:     false,
+    partsAnim:    'strong_punch_r',
+    isSpecial:    true,
+    flashOnStart: true,
+    showHitbox:   true,
+    lungeVx:      20,
+    lungeDecay:   0.85,
+    lungeDelay:   12,
+    windupBackVx:  5,
+    targetOvershootGuard: true,
+    selfRecoilVx: 2.4,
+    selfRecoilDecay: 0.85,
+    igniteTrigger: true,    // OC IGNITE: 2 フェーズ起爆システムを有効化
   },
   // 空中版：斜め下方向に発射。rangeY を絞って rangeYDown を大きく取る非対称 hitbox。
   // METEO 固有の挙動（VIPER 等は別の傾向にする予定）。pickSpecialAttackId で地上/空中を分岐
@@ -431,13 +494,50 @@ export const ATTACKS = {
     //   「後方に下がって距離を取る」イメージ。aerialHopFrame で最終段(28F)の後に出す
     //   → 連続ヒット中に自分が後退して取りこぼすのを防ぐ。
     aerialHop:    true,
-    aerialHopFrame: 30,     // 後方ホップの発火 F（最終ヒット 28F の直後）
-    aerialHopVy:  14,       // 上昇成分（通常 AERIAL_HOP_V=9 より少し強め）
-    aerialHopVx:  -10,      // 後方成分（負値 = facing と逆方向へ反動）
+    aerialHopFrame: 30,
+    aerialHopVy:  14,
+    aerialHopVx:  -10,
     partsAnim:    'strong_punch_r',
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
+  },
+  // OC IGNITE 空中版：c01_sp_01_air の着火トリガー付きコピー
+  c01_sp_01_ignite_air: {
+    label:        'c01_sp_01_ignite_air (METEO 波動コマンド・空中 OC IGNITE 版)',
+    duration:     36, hitFrame: 20, hitDuration: 11, cancelWindow: 22,
+    isMultiHit:     true,
+    multiHitCount:  3,
+    hitInterval:    4,
+    multiHitVacuum: true,
+    airStartVy:    3,
+    airGravFactor: 0.2,
+    damagePerHit:   4,
+    damageLastHit:  8,
+    damage:         16,
+    rangeX:       220, rangeZ: 90,
+    rangeY:       30,
+    rangeYDown:   260,
+    knockback:    45, hitstop: 8, shake: 6,
+    atk_lv:       5,
+    atk_lv_air:   6,
+    kb_vy_lv6:        -10,
+    kb_vx_mult_lv6:   5.0,
+    kb_vx_decay_lv6:  0.92,
+    kb_vy_lv5:        -8,
+    kb_vx_mult_lv5:   0.5,
+    hitColor:     0xff4400,
+    hitCount:     22,
+    launcher:     false,
+    aerialHop:    true,
+    aerialHopFrame: 30,
+    aerialHopVy:  14,
+    aerialHopVx:  -10,
+    partsAnim:    'strong_punch_r',
+    isSpecial:    true,
+    flashOnStart: true,
+    showHitbox:   true,
+    igniteTrigger: true,
   },
   c01_sp_02: {
     label:        'c01_sp_02 (METEO 対空コマンド・粉塵昇竜・地上版)',
@@ -478,8 +578,12 @@ export const ATTACKS = {
     flashOnStart: true,
     showHitbox:   true,
     repulseAxis:  'aerial',   // リパルスカウンター：対空軸（e02_atk_02 などに合わせる）
-    // RC 受付ボックス（パリィボックス・2026-05-26）：頭上に大きく広く。攻撃の物理 hitbox とは独立
-    repulseBox:   { offsetX: 0, offsetY: 500, w: 600, h: 1000, d: 160 },
+    // RC 受付ボックス（パリィボックス・2026-05-26 → 2026-05-27 Y 上方向拡張）：
+    //   頭上に大きく広く。攻撃の物理 hitbox とは独立。
+    //   敵 e02_atk_02 aim 中ピーク Y ≈ 747wu に対し余裕を持って Y 上限 1600wu まで拾う。
+    repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
+    // SP2 系は単体ターゲット化（2026-05-27）：RC の主役性保持・周辺巻き添え抑止
+    singleTarget: true,
   },
   // 空中版：単発打ち上げ（多段は触感的に苦しかったため単発化・2026-05-14）
   //   ヒットストップは重め維持で必殺技コマンド入力余地を確保
@@ -511,7 +615,9 @@ export const ATTACKS = {
     flashOnStart: true,
     showHitbox:   true,
     repulseAxis:  'aerial',           // 空中 SP2 も RC（aerial 軸）対応：地上版と揃える（2026-05-26）
-    repulseBox:   { offsetX: 0, offsetY: 500, w: 600, h: 1000, d: 160 },
+    // RC 受付ボックス（Y 上方向拡張・2026-05-27）：地上版と統一
+    repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
+    singleTarget: true,
   },
   // 地上短押し版（弱形態・単発アッパー・2026-05-26）：
   //   ↑+K を短押し（< SP2_HOLD_FRAMES）で地上発動した時の専用 ID。
@@ -548,12 +654,16 @@ export const ATTACKS = {
     flashOnStart: true,
     showHitbox:   true,
     repulseAxis:  'aerial',
-    repulseBox:   { offsetX: 0, offsetY: 500, w: 600, h: 1000, d: 160 },
+    // RC 受付ボックス（Y 上方向拡張・2026-05-27）：地上長押し版と統一
+    repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
+    singleTarget: true,
     // RC 判定 active 期間（2026-05-26）：攻撃判定（1-5F）の後、6-10F で 5F 限定 active。
     // 「攻撃当たり判定 → RC 判定」と段階を分けることで、AOE タイミングに左右されず
     // 押下の意図を素直に拾える。フィールドなしの attack は duration 中ずっと active（後方互換）。
-    repulseFrameStart: 6,
-    repulseFrameEnd:   10,
+    // 2026-05-27：短押しの RC 取りこぼし軽減のため 6-10（5F）→ 4-14（11F）に拡張。
+    // hitFrame=1 / hitDuration=5 なので、攻撃 active と 1F だけ重なるが、RC 成立判定が先に走るので問題なし。
+    repulseFrameStart: 4,
+    repulseFrameEnd:   14,
   },
   // === sp_04 系：N 段階チャージ（stage1=50F / stage2=120F MAX / 将来 stage3+ は _03, _04...）===
   //   stage1 → c01_sp_04_01 / c01_sp_04_01_air：今までの判定そのまま・後方ノックバック付与（lv6）
@@ -564,7 +674,7 @@ export const ATTACKS = {
     // 2026-05-19：発生前硬直 +8F（溜め技は溜めで補えるがリスク付与）
     duration:     44, hitFrame: 24, hitDuration: 6, cancelWindow: 16,
     damage:       28,
-    rangeX:       360, rangeZ: 260,   // Z 130→260（2026-05-15 二倍化）
+    rangeX:       220, rangeZ: 140,   // 2026-05-25 rangeX 160→220（狭すぎ緩和）/ rangeZ 140 維持
     rangeY:       130,
     rangeYDown:   30,
     knockback:    60, hitstop: 12, shake: 10,
@@ -592,7 +702,7 @@ export const ATTACKS = {
     // 2026-05-19：発生前硬直 +8F
     duration:     44, hitFrame: 24, hitDuration: 6, cancelWindow: 25,
     damage:       28,
-    rangeX:       360, rangeZ: 260,   // Z 130→260（2026-05-15 二倍化）
+    rangeX:       220, rangeZ: 140,   // 2026-05-25 rangeX 160→220：地上版に同期
     rangeY:       130,
     rangeYDown:   30,
     knockback:    60, hitstop: 12, shake: 10,
@@ -621,17 +731,17 @@ export const ATTACKS = {
     label:        'c01_sp_04_02 (METEO 溜めパンチ・stage2 MAX・地上版)',
     // 2026-05-19：発生前硬直 +8F
     duration:     48, hitFrame: 26, hitDuration: 7, cancelWindow: 16,
-    damage:       40,                       // 28 → 40：MAX 報酬
-    rangeX:       500, rangeZ: 300,         // Z 150→300（2026-05-15 二倍化）・前方リーチ強調
+    damage:       32,                       // 2026-05-25 40→32：ULT 同等は強すぎたため stage1(28) と ULT(40) の中間に
+    rangeX:       280, rangeZ: 160,         // 2026-05-25 rangeX 200→280（狭すぎ緩和）/ rangeZ 160 維持
     rangeY:       170,                      // 上方向もやや拡張
     rangeYDown:   50,
     knockback:    70, hitstop: 14, shake: 14,
     atk_lv:       6,
     atk_lv_air:   6,
     // atk_lv_down 無し
-    // 後方ノックバック（lv6 ベクトル個別上書き）— 2026-05-15 再調整
+    // 後方ノックバック（lv6 ベクトル個別上書き）— 2026-05-25 再々調整
     kb_vy_lv6:        12,                   // 浮き上がる軌道へ（旧 -10 → +8 → +12）
-    kb_vx_mult_lv6:   2.5,                  // 旧 5.0 → 2.5（半減）
+    kb_vx_mult_lv6:   1.8,                  // 旧 5.0 → 2.5 → 1.8（追撃可能距離まで戻す）
     kb_vx_decay_lv6:  0.92,
     hitColor:     0x44aaff,                 // 高温の青炎（stage1 のオレンジから昇格）
     hitCount:     44,                       // 30 → 44：粒数増しで強さを可視化
@@ -650,15 +760,15 @@ export const ATTACKS = {
     label:        'c01_sp_04_02_air (METEO 溜めパンチ・stage2 MAX・空中版)',
     // 2026-05-19：発生前硬直 +8F
     duration:     48, hitFrame: 26, hitDuration: 7, cancelWindow: 25,
-    damage:       40,
-    rangeX:       500, rangeZ: 300,   // Z 150→300（2026-05-15 二倍化）
+    damage:       32,                       // 2026-05-25 40→32：地上版と同期
+    rangeX:       280, rangeZ: 160,   // 2026-05-25 rangeX 200→280：地上版に同期
     rangeY:       170,
     rangeYDown:   50,
     knockback:    70, hitstop: 14, shake: 14,
     atk_lv:       6,
     atk_lv_air:   6,
     kb_vy_lv6:        12,                   // 浮き上がる軌道（2026-05-15・8→12）
-    kb_vx_mult_lv6:   2.5,                  // 旧 5.0 → 2.5（半減）
+    kb_vx_mult_lv6:   1.8,                  // 2026-05-25 2.5→1.8：地上版と同期
     kb_vx_decay_lv6:  0.92,
     hitColor:     0x44aaff,                 // 高温の青炎
     hitCount:     44,

@@ -21,7 +21,8 @@ const FLOOR_Y = 0;
 const FUSE_FRAMES        = 120;   // 点火 → 爆発までの時間（2 秒）
 const CANISTER_IGNITE_VY = 12;    // 点火時の小ジャンプ初速（≒ ↑J 食らった程度）
 const EXPLOSION_RANGE    = 400;   // AoE 半径
-const EXPLOSION_DAMAGE   = 50;    // 敵・プレイヤー共通ダメージ
+const EXPLOSION_DAMAGE        = 50;   // 敵へのダメージ
+const EXPLOSION_DAMAGE_PLAYER = 20;   // プレイヤーへのダメージ
 const EXPLOSION_HITSTOP  = 12;    // 爆発時のヒットストップ
 const FUSE_BLINK_MIN     = 2;     // 爆発直前の点滅周期（F）
 const FUSE_BLINK_MAX     = 12;    // 点火直後の点滅周期（F）
@@ -29,6 +30,10 @@ const PROXIMITY_TRIGGER_RANGE = 400;  // 地雷モード：プレイヤー接近
 const PROXIMITY_TRIGGER_RANGE_SQ = PROXIMITY_TRIGGER_RANGE * PROXIMITY_TRIGGER_RANGE;  // 毎フレーム判定用（sqrt 回避）
 // 攻撃ヒット時の壊れ物用ヒットストップ（attack.hitstop が無い場合のフォールバック）
 const HIT_DEFAULT_HITSTOP = 6;
+// 壊れ物 hit 専用 hitstop の上限（2026-05-27）：attack.hitstop が大きい技（SP2 系 12F 等）でも
+// コンテナ叩きでは軽い反応に抑え、後続の本命ヒット（RC や敵への通常ヒット）を主役にする。
+// 6F 程度に抑えれば「叩いた感」は出つつ RC の溜め+ズームが食われない。
+const BREAKABLE_HITSTOP_MAX = 6;
 // 複数 hp 壊れ物（OC コンテナ等）：1 ヒット登録ごとの無敵 F。
 //   tryHitBreakables は攻撃の hit 窓中ほぼ毎フレーム呼ばれるため、
 //   これが無いと 1 振りで hp を一気に削り切ってしまう。連撃の間隔より短く取る。
@@ -147,9 +152,14 @@ export function tryHitBreakables(p, attack) {
   if (!breakables.length) return false;
   let any = false;
   const facing = p.facing;
+  // ULT / メガクラは AoE が広く画面外の重要コンテナを壊す恐れがある。
+  // noAoeBreak フラグ（赤コンテナ・OC コンテナ）はこれらの攻撃ではスキップ。
+  const _isAoe = typeof p.attackId === 'string' &&
+    (p.attackId.startsWith('c01_sp_ult') || p.attackId.startsWith('c01_sp_mega'));
   for (const b of breakables) {
     // 既に点火中（fuseTimer 動作中）でも追加ヒットは無視
     if (!b.userData.alive || b.userData.dying) continue;
+    if (_isAoe && b.userData.noAoeBreak) continue;
     const dx = b.position.x - p.x;
     const dz = b.position.z - p.z;
     const bCenterY = b.position.y + b.userData.aabb.hh;
@@ -170,9 +180,16 @@ export function tryHitBreakables(p, attack) {
     }
     if (_applyBreakableHit(b)) any = true;
   }
-  // ヒットストップ：1 つでも当たれば攻撃側 hitstop（or 既定 6F）を発火
-  if (any && _triggerHitstop) {
-    _triggerHitstop(attack.hitstop ?? HIT_DEFAULT_HITSTOP);
+  // ヒットストップ：壊れ物への hit は最大 BREAKABLE_HITSTOP_MAX で抑える。
+  //   attack.hitstop が大きい技（SP2 短押し 12F 等）でも、コンテナ叩きで
+  //   その本来の溜めを消費せず、後続の本命ヒット（RC・敵ヒット）を主役に保つ。
+  // RC 技（attack.repulseBox 持ち）：hitstop を完全スキップ。
+  //   repulse ウィンドウ末端（elapsed ≈ repulseFrameEnd）で箱ヒットが発生すると、
+  //   hitstop 中は updateRepulseDetection が走らないため RC ウィンドウが消費され
+  //   hitstop 明けに elapsed が repulseFrameEnd を超えて RC 不発になる事象を防ぐ。
+  if (any && _triggerHitstop && !attack.repulseBox) {
+    const _raw = attack.hitstop ?? HIT_DEFAULT_HITSTOP;
+    _triggerHitstop(Math.min(_raw, BREAKABLE_HITSTOP_MAX));
   }
   return any;
 }
@@ -364,7 +381,7 @@ function _explode(mesh) {
       const atkLv = mesh.userData.testAtkLv ?? 4;
       _damagePlayer(
         p,
-        { damage: dmg, atk_lv: atkLv, knockback: 30, launchVy: EXPLOSION_LAUNCH_VY },
+        { damage: EXPLOSION_DAMAGE_PLAYER, atk_lv: atkLv, knockback: 30, launchVy: EXPLOSION_LAUNCH_VY },
         { x: cx, y: cy, z: cz },
       );
     }
