@@ -291,9 +291,15 @@ export function updateChargeJ(p) {
   // 攻撃中（attacking / hit_confirm）でも蓄積する：J 押しっぱなしで他 SP を撃ったり
   // 通常コンボの最中に裏で sp_03 を溜めるパターンを許可（プレイヤー側の主体的キャンセル繋ぎ）。
   // 空中でも蓄積可：難度高めだが「裏で溜めて空中 sp_03_air に繋ぐ」ルートをプレイヤー裁量で開放。
+  // 2026-05-25：knockback / down 中も溜め可能に（吹き飛ばされながら仕切り直しのチャージ）。
+  //   dying / dead / respawning は除外。被弾でチャージはリセットされるため「0 から溜め直し」前提。
+  const _inRecoverableHitstun = isHitstunState(p)
+    && p.state !== STATE.dying
+    && p.state !== STATE.dead
+    && p.state !== STATE.respawning;
   const canCharge =
     (p.state === STATE.wait01 || p.state === STATE.attacking || p.state === STATE.hit_confirm ||
-     PLAYER_JUMP_STATES.has(p.state))
+     PLAYER_JUMP_STATES.has(p.state) || _inRecoverableHitstun)
     && !p.guarding && !p.ultActive
     && p.state !== STATE.grabbing;
   const wasReady = p.chargeReady;
@@ -364,7 +370,12 @@ function canStartSpecial(p, opts) {
   if (p.state === STATE.wait01) return true;
   if (p.state === STATE.walk_fwd || p.state === STATE.walk_back) return true;
   if (p.state === STATE.hit_confirm) return true;
-  if (p.state === STATE.attacking) return true; // attacking もキャンセル発動可
+  if (p.state === STATE.attacking) {
+    // SP 中から SP へのキャンセルはヒット確認必須（空振りキャンセルで無敵ループ防止）
+    const _curAtk = ATTACKS[p.attackId];
+    if (_curAtk?.isSpecial && !p.hitDelivered) return false;
+    return true;
+  }
   // ジャンプ系 state は wait01 と同じ受付（演出フック）
   if (PLAYER_JUMP_STATES.has(p.state)) return true;
   return false;
@@ -570,7 +581,7 @@ export function processStrongAttackInput(p) {
 
   let baseId;
   if (dnHeld) baseId = 'c01_sp_03';
-  else        baseId = 'c01_sp_01';
+  else        baseId = window.SB?.OC_FLAGS?.ignite ? 'c01_sp_01_ignite' : 'c01_sp_01';
 
   startSpecial(p, pickSpecialAttackId(baseId, p.isGrounded));
 }
@@ -814,6 +825,10 @@ export function updatePlayer(p) {
     p._grabHitLock = true;
     const canReverse = (p.state !== STATE.dying && p.state !== STATE.dead && p.state !== STATE.guard_crash);
     if (canReverse) _processMegaCrashUltInput(p);
+    // 2026-05-25：knockback/down 中も J 長押しチャージを蓄積させる（仕切り直し溜め）。
+    // dying/dead/guard_crash は除外（canReverse と同条件）。
+    // リリースエッジ検出は processSpecialInput に任せる（hitstun 脱出後の最初フレームで発火）。
+    if (canReverse) updateChargeJ(p);
     // 受け身入力：被弾中の最初のジャンプ押下だけをバッファ投入に使う（1被弾1回）。
     //   連打でバッファを再充填し続けると受け身が確定してしまうため、ukemiAttempted で締める。
     //   早すぎる1回目はバッファが切れて不成立 → 連打は自滅。＝タイミングを読む技。
@@ -1253,6 +1268,7 @@ export function updatePlayer(p) {
       const _landAtk = p.attackId ? ATTACKS[p.attackId] : null;
       if (_landAtk &&
           (_landAtk.diveVy !== undefined || _landAtk.cancelOnLand) &&
+          !_landAtk.autoLandGeyser &&   // 着地ゲイザー技は attack-engine 側で着地を検知して自己遷移する
           (p.state === STATE.attacking || p.state === STATE.hit_confirm)) {
         p.state          = STATE.wait01;
         p.attackChainIdx = -1;
@@ -1398,8 +1414,10 @@ export function updatePlayer(p) {
       const rz = curAtkVis.rangeZ ?? 100;
       const yHeight = ryUp + ryDown;
       const yCenter = p.y + (ryUp - ryDown) * 0.5;
+      // omni 技（全方向）はプレイヤー中心配置・通常技は前方片側配置
+      const _hbXOffset = curAtkVis.omni ? 0 : p.facing * (rx * 0.5);
       _specialHitboxMesh.visible = true;
-      _specialHitboxMesh.position.set(p.x + p.facing * (rx * 0.5), yCenter, p.z);
+      _specialHitboxMesh.position.set(p.x + _hbXOffset, yCenter, p.z);
       _specialHitboxMesh.scale.set(rx, yHeight, rz * 2);
       // 個別色：攻撃定義に hitboxColor があれば上書き（sp_03_max の青炎など）
       _specialHitboxMesh.material.color.setHex(curAtkVis.hitboxColor ?? SPECIAL_CONFIG.HITBOX_COLOR);

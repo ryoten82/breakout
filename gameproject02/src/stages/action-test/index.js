@@ -31,11 +31,10 @@ const MINES = [
 ];
 
 // ダミー敵の配置スロット（性格・敵種別）。死亡フローに入ったら同スロットへ即リスポーンする。
-// 2026-05-26：RC（パリィボックス方式）テスト用に enem02 ジャンパーのみへ変更。
-//   即リスポーン判定が personality+enemyType の組で alive 検出する都合、同条件複数スロットは
-//   片方生存で両方 alive 扱いになり補充されない。1 体で運用し dying 中の即リスポーンに任せる。
+// 2026-05-25：OC IGNITE 検証用に enem01 スクラッパーへ変更（HP 100 で 3 フェーズ起爆を確認しやすい）。
+//   即リスポーン判定が personality+enemyType の組で alive 検出する都合、1 体で運用。
 const ENEMY_SLOTS = [
-  { personality: 'cunning', enemyType: 'enem02', x: 0, z: 150 },  // enem02 ジャンパー（RC 検証用）
+  { personality: 'brave', enemyType: 'enem01', x: 0, z: 150 },  // enem01 スクラッパー
 ];
 
 let _built = false;

@@ -933,6 +933,7 @@
       fxState, particles,
       triggerHitstop, triggerShake,
       spawnHitParticles, spawnLaunchSmoke, spawnDeathExplosion, updateParticles, updateRcBolts,
+      spawnBlastSphere, updateBlastSpheres,
       combo, bumpCombo, checkComboBreak,
       tryHitEnemies, tryHitEnemiesMultiHit, tryThrownChainHit,
       updateSuperFlightTrails, superFlightTrails,
@@ -962,7 +963,7 @@
     import {
       initHudSystem,
       updateSPGauge, updateHpHud, updateGrabGauge, updateEnemyAiPhaseHud, updateStatusStunHud,
-      updateEnemyPersonalityHud,
+      updateEnemyPersonalityHud, updateDetonateTimerHud,
       spawnDamageNumber, updateDamageNumbers,
       spawnBanner, updateBanners,
       updateRepulseHud,
@@ -1776,6 +1777,8 @@
       air_slam:      { armL:{y:-44,z:34}, armR:{y:-44,z:34}, fistL:{y:-62,z:44}, fistR:{y:-62,z:44}, legL:{y:-12}, legR:{y:-12} },
       // ↓+K: 払い — 右脚が低く前方に大きく流れ・左脚引き・腕バランス
       sweep:         { legR:{y:-20,z:66}, footR:{y:-24,z:82}, legL:{z:-16,y:-10}, footL:{z:-14,y:-6}, armL:{z:-14}, armR:{z:-14} },
+      // SP3 パワーゲイザー — 両腕を真下に振り下ろした瞬間・脚は踏ん張って開く
+      slam_down:     { armL:{y:-56,z:16,x:-6}, armR:{y:-56,z:16,x:6}, fistL:{y:-78,z:22,x:-8}, fistR:{y:-78,z:22,x:8}, legL:{y:-8,z:-8}, legR:{y:-8,z:-8} },
     };
 
     // ============================================================
@@ -3388,6 +3391,7 @@
         else tickStage01();
       }
       updateParticles();
+      updateBlastSpheres();
       updateRcBolts();
       updateSuperFlightTrails(players, enemies);
       players.forEach(p => updateDashTrail(p));
@@ -3406,6 +3410,7 @@
       updateEnemyAiPhaseHud();
       updateStatusStunHud();
       updateEnemyPersonalityHud();
+      updateDetonateTimerHud();
       updateDamageNumbers();
       updateBanners();
       // 旧「危↑」DOM HUD は新 rc-hud（自機追従ワールド UI）に置換のため呼ばない

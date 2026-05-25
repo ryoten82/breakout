@@ -111,7 +111,7 @@ export const SP_CONFIG = {
   STOCK_SIZE:       20,    // 1 ストックあたりの SP 量
   MAX_STOCKS:       5,     // 最大ストック数（Marvel vs Capcom 方式の LEVEL）
   INITIAL_STOCKS:   0,     // 戦闘開始時のストック数（2026-05-27 3→0：必殺技は溜めてから）
-  REGEN_RATE:       0.01,  // フレームごとの自然回復量（攻撃優先設計：逃げ回りだけでは遅い）
+  REGEN_RATE:       0.005, // フレームごとの自然回復量（2026-05-25 0.01→0.005：通しで潤沢感あり半減）
   // ヒット獲得量
   //   - 通常技・特殊技（c01_atk_*）：通常の 70%
   //   - 必殺技（c01_sp_*）：通常の 50%（それ自体が見せ場のため控えめ）
@@ -119,8 +119,8 @@ export const SP_CONFIG = {
   //   - hit-engine 側で 1 攻撃インスタンスにつき 1 回のみ加算
   GAIN_ON_HIT:          1.05,   // 旧 1.5 × 0.70
   GAIN_ON_HIT_SPECIAL:  0.25,   // 旧 0.5  × 0.50
-  GAIN_ON_TAKEN:    3,     // 被弾1発あたりの獲得量
-  GAIN_ON_GUARDED:  2,     // ガード成立1発あたりの獲得量
+  GAIN_ON_TAKEN:    1.5,   // 被弾1発あたりの獲得量（2026-05-25 3→1.5：被弾で稼ぐループ抑止）
+  GAIN_ON_GUARDED:  1,     // ガード成立1発あたりの獲得量（2026-05-25 2→1：被弾連動で縮小）
   MEGA_CRASH_COST:  20,    // メガクラッシュ消費（= 1 ストック）
   ULT_COST:         40,    // ULT消費（= 2 ストック）
 };
@@ -1165,10 +1165,10 @@ export const GORE_CONFIG = {
 //  - 死亡時爆発は DEATH_BLAST_ENABLED が true のときのみ起動（OC CHAIN_BLAST カード取得で true）
 // ============================================================
 export const BURN_CONFIG = {
-  // DoT
-  TICK_INTERVAL_FRAMES:   60,    // tick 間隔（1 秒・テンポ控えめ）
-  DAMAGE_PER_TICK:        3,     // 1 tick あたりダメージ
-  DURATION_FRAMES:        360,   // 持続フレーム（6 秒・6 tick = 18 dmg）
+  // DoT（2026-05-25 「地味」体感緩和：tick 間隔半減 + DPS は微増）
+  TICK_INTERVAL_FRAMES:   30,    // tick 間隔（0.5 秒・フィードバック頻度倍）
+  DAMAGE_PER_TICK:        2,     // 1 tick あたりダメージ（旧 3）
+  DURATION_FRAMES:        360,   // 持続フレーム（6 秒・12 tick = 24 dmg）
   REFRESH_ON_REIGNITE:    true,  // 再点火で残時間リフレッシュ
   MAX_STACKS:             1,     // V1 は単純付与（将来 OC でスタック化する余地）
 
@@ -1193,8 +1193,15 @@ export const BURN_CONFIG = {
   OUTLINE_OPACITY_MIN:    0.30,
   OUTLINE_OPACITY_MAX:    0.95,
   FLAME_PARTICLE_COLOR:   0xff8822,
-  FLAME_PARTICLE_INTERVAL_FRAMES: 14,  // パーティクル間隔も少し疎に
-  FLAME_PARTICLE_COUNT:   3,
+  FLAME_PARTICLE_INTERVAL_FRAMES: 8,   // 2026-05-25 14→8：燃え立ち視認性向上
+  FLAME_PARTICLE_COUNT:   5,           // 2026-05-25 3→5
+
+  // 点火時フラッシュ（新規点火の瞬間のみ・再点火では発火しない）
+  IGNITE_FLASH_WHITE:     10,    // 中心の白閃光
+  IGNITE_FLASH_ORANGE:    18,    // 中層オレンジ
+  IGNITE_FLASH_RED:       14,    // 外層赤
+  IGNITE_FLASH_SHAKE_STRENGTH: 5,
+  IGNITE_FLASH_SHAKE_FRAMES:   6,
 };
 
 // ============================================================

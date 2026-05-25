@@ -46,7 +46,7 @@ import {
   applyRollHipPivot,
 } from './states.js';
 import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG, BURN_CONFIG } from './config.js';
-import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, fxState } from './hit-engine.js';
+import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, spawnBlastSphere, spawnLaunchSmoke, fxState } from './hit-engine.js';
 import { spawnBanner, spawnDamageNumber } from './hud-system.js';
 import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
@@ -590,6 +590,8 @@ export function spawnDummy(x, z, opts = {}) {
     burnTickAcc:      0,    // 次 DoT tick までの累積
     burnSpreadAcc:    0,    // 次伝播判定までの累積
     burnSpreadChain:  0,    // 自分が受け継いだチェーン段数（連鎖上限制御）
+    burnBlastReady:   false, // OC IGNITE: SP1 で点火済み → もう一度 SP1 で起爆
+    detonateTimer:    0,     // OC IGNITE Phase3: > 0 の間カウントダウン → 0 で detonateBurn
     burnFlameAcc:     0,    // 炎パーティクル間引きカウンタ
     burnSourceId:    null,  // 点火源 attack id（将来分析用）
     burnShells:      null,  // burn 中の BackSide オレンジ shell mesh（body/head 別）
@@ -618,6 +620,13 @@ export function igniteEnemy(e, opts = {}) {
     e.burnFlameAcc    = 0;
     e.burnSpreadChain = opts.chain ?? 0;
     _attachBurnOutline(e);  // 新規点火時のみ shell 生成（再点火では使い回し）
+    // 点火フラッシュ：白→オレンジ→赤 の 3 層爆炎 + 軽い shake で「決まった感」を出す
+    // （SPREAD/CHAIN_BLAST 由来の派生点火でも同等に発火させる：演出として地味さの主原因）
+    const fy = e.y + 80;
+    spawnHitParticles(e.x, fy, e.z, 0xffffff,           cfg.IGNITE_FLASH_WHITE,  { type: 'omni', sizeScale: 1.2, speedMul: 1.2 });
+    spawnHitParticles(e.x, fy, e.z, cfg.OUTLINE_COLOR,  cfg.IGNITE_FLASH_ORANGE, { type: 'omni', sizeScale: 1.1, speedMul: 1.1 });
+    spawnHitParticles(e.x, fy, e.z, 0xff3322,           cfg.IGNITE_FLASH_RED,    { type: 'omni', sizeScale: 1.0, speedMul: 1.0 });
+    triggerShake(cfg.IGNITE_FLASH_SHAKE_STRENGTH, cfg.IGNITE_FLASH_SHAKE_FRAMES);
   }
   e.burnSourceId = opts.sourceId ?? null;
   return true;
@@ -669,6 +678,7 @@ function _updateBurnTick(e, ctx) {
   // burnTimer が切れた瞬間に shell を解放（次の if(0) で early-return する前に処理）
   if (e.burnTimer <= 0) {
     _detachBurnOutline(e);
+    e.burnBlastReady = false;   // 延焼自然消滅時は起爆準備もリセット
     return;
   }
   // アウトライン点滅（sin 正弦波で MIN→MAX を往復）
@@ -741,6 +751,62 @@ function _spawnBurnDeathBlast(e) {
     }
   }
   triggerShake(10, 14);
+}
+
+// OC IGNITE: SP1 二打目で手動起爆（hit-engine 経由で呼ばれる）
+//   _spawnBurnDeathBlast（死亡時自動）とは別経路・より派手な演出を意図
+export function detonateBurn(e) {
+  if (!e || e.burnTimer <= 0) return;
+  const cfg = BURN_CONFIG;
+  // 大爆発ビジュアル（death blast より一段大きい）
+  spawnDeathExplosion(e.x, e.y + 60, e.z, { skipHitstop: false });
+  spawnBlastSphere(e.x, e.y + 60, e.z);                                               // 外球（350r, 18F）
+  spawnBlastSphere(e.x, e.y + 60, e.z, { maxRadius: 180, life: 12, color: 0xffaa22 }); // 内球（速め）
+  spawnHitParticles(e.x, e.y + 60, e.z, 0xff2200, 40, { type: 'launch', speedMul: 1.3 });
+  spawnHitParticles(e.x, e.y + 40, e.z, 0xff8800, 25, { type: 'omni',   speedMul: 1.0, sizeScale: 1.4 });
+  // 放射花火スパーク（16方向 + 中間8方向で花火感を出す）
+  for (let _si = 0; _si < 16; _si++) {
+    const _a = (_si / 16) * Math.PI * 2;
+    spawnHitParticles(
+      e.x + Math.cos(_a) * 20, e.y + 60, e.z + Math.sin(_a) * 20,
+      _si % 2 === 0 ? 0xff2200 : 0xff8800, 4,
+      { type: 'normal', dirX: Math.cos(_a), dirZ: Math.sin(_a), speedMul: 3.2, sizeScale: 0.9 }
+    );
+  }
+  spawnHitParticles(e.x, e.y + 60, e.z, 0xffcc44, 18, { type: 'omni', speedMul: 2.8, sizeScale: 0.6 }); // 高速黄金粒
+  triggerShake(14, 20);
+  // 本体へボーナスダメージ
+  e.hp -= cfg.DEATH_BLAST_DAMAGE * 2;
+  e.hitFlashTimer = Math.max(e.hitFlashTimer, 10);
+  // 周囲の敵へ爆風ダメージ（+ OC CHAIN_BLAST 有効なら延焼）
+  const r2 = cfg.DEATH_BLAST_RADIUS * cfg.DEATH_BLAST_RADIUS;
+  const nextChain = (e.burnSpreadChain ?? 0) + 1;
+  const inheritDur = cfg.DURATION_FRAMES * cfg.DEATH_BLAST_CHAIN_DURATION;
+  for (const o of _enemies) {
+    if (o === e || !o.isAlive || o.dying) continue;
+    const dx = o.x - e.x, dz = o.z - e.z;
+    if (dx * dx + dz * dz > r2) continue;
+    o.hp -= cfg.DEATH_BLAST_DAMAGE;
+    o.hitFlashTimer = Math.max(o.hitFlashTimer, 6);
+    if (cfg.DEATH_BLAST_ENABLED && cfg.DEATH_BLAST_IGNITES) {
+      igniteEnemy(o, { chain: nextChain, duration: inheritDur, sourceId: 'detonate' });
+    }
+  }
+  // burn 状態リセット
+  e.burnTimer      = 0;
+  e.burnBlastReady = false;
+  _detachBurnOutline(e);
+  // 爆発打ち上げ：生存中の敵を down_up_start へ移行（コンボ起点・頂点スロー有効）
+  if (e.isAlive && !e.dying) {
+    e.vy               = 18;
+    e.knockbackVx      = 0;
+    e.state            = STATE.down_up_start;
+    e.downTimer        = ENEMY_FALL_FRAMES;
+    e.launcherAirborne = true;   // 頂点付近で重力スロー（SP2 と同じ）
+    e.peakHangTimer    = 0;      // カウンターをリセットして再発火準備
+    e.peakHangTotal    = 0;
+    spawnLaunchSmoke(e.x, e.y, e.z);
+  }
 }
 
 // ============================================================
@@ -2509,6 +2575,11 @@ export function updateEnemies(ctx) {
     // === 延焼（burn）tick（OC「点火」未取得なら e.burnTimer=0 で no-op）===
     // frozenByUlt / grabbed / armed-GC は既に上で continue 済み・dying は !e.isAlive まで進まない
     if (e.burnTimer > 0) _updateBurnTick(e, ctx);
+    // === OC IGNITE Phase3 遅延起爆タイマー ===
+    if (e.detonateTimer > 0) {
+      e.detonateTimer--;
+      if (e.detonateTimer === 0) detonateBurn(e);
+    }
     // 死亡判定（Phase 3-A/B：instantRespawn フラグで分岐 / 2026-05-20 e.dying へ）
     if (e.hp <= 0) {
       if (e.instantRespawn) {

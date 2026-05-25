@@ -38,7 +38,7 @@ import {
   PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG, MIDBOSS_SHIELD_CONFIG, REPULSE_CONFIG,
 } from './config.js';
 import { resolveAttackAttr, ATTACKS } from './attacks.js';
-import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak, forceArmGoreCriticalIfPossible, triggerBossPhaseTransition, igniteEnemy } from './enemy-system.js';
+import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak, forceArmGoreCriticalIfPossible, triggerBossPhaseTransition, igniteEnemy, detonateBurn } from './enemy-system.js';
 import { spawnDamageNumber, spawnBanner } from './hud-system.js';
 
 let _THREE = null;
@@ -416,6 +416,13 @@ export function spawnHitParticles(x, y, z, color = 0xffee44, count = 10, opts = 
       vx = Math.cos(angle) * speed;
       vz = Math.sin(angle) * speed;
       vy = -(r() * 4);
+    } else if (type === 'radial') {
+      // 地面衝撃波リング：XZ 平面に高速放射、Y は低めで地面を這う感
+      const angle = r() * Math.PI * 2;
+      const speed = (10 + r() * 12) * speedMul;
+      vx = Math.cos(angle) * speed;
+      vz = Math.sin(angle) * speed;
+      vy = 0.5 + r() * 2.5;
     } else {
       // omni（全方向・旧来動作）
       vx = (r() - 0.5) * 14;
@@ -480,6 +487,43 @@ export function spawnDeathExplosion(x, y, z, opts) {
   //   違和感を消せる（2026-05-27）。
   if (!opts?.skipHitstop) triggerHitstop(7);
   triggerShake(16, 26);
+}
+
+// ============================================================
+//  起爆球体（blastSphere）— OC IGNITE Phase3 detonateBurn 用
+//  単位球を 0 → maxRadius まで EXPAND_FRAMES F で拡大しながらフェードアウト
+// ============================================================
+const _BLAST_MAX_RADIUS   = 350;
+const _BLAST_EXPAND_FRAMES = 18;
+export const blastSpheres = [];
+
+export function spawnBlastSphere(x, y, z, opts = {}) {
+  if (!_THREE || !_scene) return;
+  const maxR  = opts.maxRadius ?? _BLAST_MAX_RADIUS;
+  const life  = opts.life      ?? _BLAST_EXPAND_FRAMES;
+  const color = opts.color     ?? 0xff5500;
+  const geo  = new _THREE.SphereGeometry(1, 20, 16);
+  const mat  = new _THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.80, side: _THREE.BackSide });
+  const mesh = new _THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  _scene.add(mesh);
+  blastSpheres.push({ mesh, maxR, life, total: life });
+}
+
+export function updateBlastSpheres() {
+  for (let i = blastSpheres.length - 1; i >= 0; i--) {
+    const b = blastSpheres[i];
+    b.life--;
+    const t = 1 - (b.life / b.total);       // 0→1 で展開進行度
+    b.mesh.scale.setScalar(b.maxR * t);
+    b.mesh.material.opacity = 0.80 * (1 - t);
+    if (b.life <= 0) {
+      _scene.remove(b.mesh);
+      b.mesh.geometry.dispose();
+      b.mesh.material.dispose();
+      blastSpheres.splice(i, 1);
+    }
+  }
 }
 
 // ============================================================
@@ -817,7 +861,11 @@ export function tryHitEnemies(p, attack, ctx) {
       // フラグは wait01 復帰時に enemy-system.js が自動 clear する。
       e.mesh.rotation.y = -e.fallDir * Math.PI / 2;
     }
-    e.knockbackVx   = facing * (attack.knockback * 0.4 * _sameAtkKbScale);
+    // kbRadial:true の技は facing ではなく「攻撃者中心→被弾者方向」でノックバック（放射状）
+    const _kbDir = attack.kbRadial
+      ? ((e.x !== p.x) ? Math.sign(e.x - p.x) : (Math.random() < 0.5 ? 1 : -1))
+      : facing;
+    e.knockbackVx   = _kbDir * (attack.knockback * 0.4 * _sameAtkKbScale);
     const resolved = resolveAttackAttr(attack);
     // === 超吹き飛ばし回数上限（down_super_* 中の敵に lv6 攻撃命中）===
     //   FLIGHT_BURST_LIMIT 回到達でバーストダウン化（2026-05-20 仕様統一）。
@@ -1170,13 +1218,23 @@ export function tryHitEnemies(p, attack, ctx) {
     triggerHitstop(_hitstop);
     triggerShake(_shake, _shake * 2 + 4);
     // ヒット演出：攻撃ごとに色・パーティクル数を変える（差別化）
-    const hitColor = attack.hitColor ?? 0xffee44;
-    const hitCount = attack.hitCount ?? 10;
+    // OC IGNITE 取得済み × igniteTrigger 技：ヒットカラーを赤系に差し替えてボリューム増量
+    const _ocIgnite = attack.igniteTrigger && window.SB?.OC_FLAGS?.ignite;
+    const hitColor = _ocIgnite ? 0xff2200 : (attack.hitColor ?? 0xffee44);
+    const hitCount = _ocIgnite ? (attack.hitCount ?? 10) * 2 : (attack.hitCount ?? 10);
     // パーティクルタイプ：attack.particleType が明示されていれば優先、なければ launchVy 符号で自動判定
     const _lvy = attack.launchVy ?? 0;
     const _pType = attack.particleType ?? (_lvy > 0 ? 'launch' : _lvy < 0 ? 'slam' : 'normal');
     spawnHitParticles(e.x - dx * 0.4, e.y + 80, e.z, hitColor, hitCount,
       { type: _pType, dirX: dx, dirZ: 0 });
+    // OC IGNITE: プレイヤー本体から前方に炎を散布（敵位置とは無関係）
+    if (_ocIgnite) {
+      const _fx = p.facing;
+      spawnHitParticles(p.x, p.y + 60, p.z, 0xff2200, hitCount,
+        { type: 'normal', dirX: _fx, dirZ: 0, speedMul: 1.2 });
+      spawnHitParticles(p.x, p.y + 40, p.z, 0xff8800, Math.floor(hitCount * 0.5),
+        { type: 'normal', dirX: _fx, dirZ: 0, speedMul: 0.8, sizeScale: 1.4 });
+    }
     bumpCombo(e);
     // SP 獲得：attack.noSpGain で個別オプトアウト可（ULT 等の自己回復ループ防止用）
     //   攻撃インスタンスにつき 1 回のみ加算（複数敵巻き込みでも一定量・2026-05-27 仕様）
@@ -1189,12 +1247,22 @@ export function tryHitEnemies(p, attack, ctx) {
       p.sp = Math.min(SP_CONFIG.MAX, p.sp + _gain);
       p._spGainCounted = true;
     }
-    // OC「点火」取得済み × 必殺技命中：被弾敵に延焼を付与
-    //   mega / ULT は AoE 由来で巻き込み量が多すぎるので除外（バランス調整余地）
-    if (window.SB && window.SB.OC_FLAGS && window.SB.OC_FLAGS.ignite
-        && typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_')
-        && !p.attackId.startsWith('c01_sp_mega') && !p.attackId.startsWith('c01_sp_ult')) {
-      igniteEnemy(e, { sourceId: p.attackId });
+    // OC IGNITE × igniteTrigger 技（SP1）：2フェーズ起爆システム
+    //   Hit 1: 未 blastReady → 点火（未点火なら ignite も同時付与）+ blastReady セット
+    //   Hit 2: blastReady → 20F 遅延起爆（空中爆発狙い）
+    if (attack.igniteTrigger && window.SB?.OC_FLAGS?.ignite) {
+      // 共通：赤パーティクル追加
+      spawnHitParticles(e.x, e.y + 60, e.z, 0xff2200, 28, { type: 'launch', speedMul: 1.1 });
+      spawnHitParticles(e.x, e.y + 40, e.z, 0xff6600, 16, { type: 'omni',   speedMul: 0.8, sizeScale: 1.2 });
+      if (e.burnBlastReady) {
+        // Hit 2: 起爆タイマーセット
+        e.detonateTimer = 13;
+        e.burnBlastReady = false;
+      } else {
+        // Hit 1: 点火 + 即起爆準備完了
+        if (e.burnTimer <= 0) igniteEnemy(e, { sourceId: p.attackId });
+        e.burnBlastReady = true;
+      }
     }
     // 同技補正カウンタ：攻撃インスタンスにつき 1 回だけ +1（複数敵巻き込みでも 1 加算）
     if (!p._sameAtkCounted && _sameAtkBaseId) {
@@ -1392,6 +1460,16 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     spawnHitParticles(e.x, e.y + 60, e.z, hitColor,
       Math.max(6, Math.floor((attack.hitCount ?? 10) * 0.6)),
       { type: 'normal', dirX: dx, dirZ: dz });
+    // OC IGNITE: 中間ヒットでもプレイヤー本体から前方に炎を散布
+    if (attack.igniteTrigger && window.SB?.OC_FLAGS?.ignite) {
+      const _fx = p.facing;
+      spawnHitParticles(p.x, p.y + 60, p.z, 0xff2200,
+        Math.max(6, Math.floor((attack.hitCount ?? 10) * 0.6)),
+        { type: 'normal', dirX: _fx, dirZ: 0, speedMul: 1.2 });
+      spawnHitParticles(p.x, p.y + 40, p.z, 0xff8800,
+        Math.max(4, Math.floor((attack.hitCount ?? 10) * 0.3)),
+        { type: 'normal', dirX: _fx, dirZ: 0, speedMul: 0.8, sizeScale: 1.4 });
+    }
     triggerHitstop(Math.max(2, Math.floor((attack.hitstop ?? 5) * 0.7)));
     triggerShake(Math.max(2, Math.floor((attack.shake ?? 4) * 0.6)),
                  Math.max(3, Math.floor((attack.shake ?? 4))));

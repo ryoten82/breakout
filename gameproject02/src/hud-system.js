@@ -47,6 +47,8 @@ let _aiPhaseProj = null;
 const _aiPhasePool = [];
 let _stunProj = null;
 const _stunPool = [];
+let _detonateProj = null;
+const _detonatePool = [];
 let _personaProj = null;
 const _personaPool = [];
 let _dmgProj = null;
@@ -75,6 +77,7 @@ export function initHudSystem(deps) {
   _stunProj = new _THREE.Vector3();
   _personaProj = new _THREE.Vector3();
   _dmgProj = new _THREE.Vector3();
+  _detonateProj = new _THREE.Vector3();
   _repulseHudEl = deps.repulseHudEl ?? document.getElementById('repulse-hud');
 }
 
@@ -521,5 +524,105 @@ export function updateRepulseHud() {
   } else {
     _repulsePulse = 0;
     _repulseHudEl.style.display  = 'none';
+  }
+}
+
+// ============================================================
+//  敵ステータスアイコン列（本番採用想定）
+//   各敵の頭上に 🔥❄️☠️ 等のアイコンを横並びで表示。
+//   将来のデバフ追加時は _buildStatusIcons に行を足すだけで拡張可。
+//   上段固定パネルはデバッグ用（detonateTimer カウント等）。
+// ============================================================
+
+// --- 敵追従ステータスアイコン行（per-enemy） ---
+let _ignitePanelEl = null;
+function _getIgnitePanelEl() {
+  if (_ignitePanelEl) return _ignitePanelEl;
+  const el = document.createElement('div');
+  el.style.position    = 'absolute';
+  el.style.top         = '4px';
+  el.style.left        = '50%';
+  el.style.transform   = 'translateX(-50%)';
+  el.style.pointerEvents = 'none';
+  el.style.zIndex      = '999';
+  el.style.fontFamily  = "'Courier New', monospace";
+  el.style.fontSize    = '13px';
+  el.style.fontWeight  = 'bold';
+  el.style.textShadow  = '0 0 4px #000, 1px 1px 0 #000';
+  el.style.whiteSpace  = 'nowrap';
+  el.style.display     = 'none';
+  (_hudLayerEl ?? document.body).appendChild(el);
+  _ignitePanelEl = el;
+  return el;
+}
+
+function _getStatusIconEl(idx) {
+  while (_detonatePool.length <= idx) {
+    const el = document.createElement('div');
+    el.style.position    = 'absolute';
+    el.style.transform   = 'translate(-50%, -50%)';
+    el.style.pointerEvents = 'none';
+    el.style.zIndex      = '84';
+    el.style.fontSize    = '20px';           // アイコン本体サイズ
+    el.style.lineHeight  = '1';
+    el.style.display     = 'flex';
+    el.style.gap         = '2px';
+    el.style.alignItems  = 'center';
+    el.style.display     = 'none';
+    (_hudLayerEl ?? document.body).appendChild(el);
+    _detonatePool.push(el);
+  }
+  return _detonatePool[idx];
+}
+
+// デバフアイコン列を構築して innerHTML で返す
+// 将来ステータス追加時はここに行を追加するだけ
+function _buildStatusIcons(e) {
+  let html = '';
+  if (e.burnTimer > 0 || e.burnBlastReady || e.detonateTimer > 0) {
+    // 🔥 = 延焼中（起爆準備状態も同じアイコン）/ 💥N = 起爆カウント中
+    if (e.detonateTimer > 0) html += `<span>💥<span style="font-size:12px;vertical-align:middle">${e.detonateTimer}</span></span>`;
+    else                     html += `<span>🔥</span>`;
+  }
+  // 将来: if (e.freezeTimer > 0) html += '<span title="氷結">❄️</span>';
+  // 将来: if (e.poisonTimer > 0) html += '<span title="毒">☠️</span>';
+  return html;
+}
+
+export function updateDetonateTimerHud() {
+  if (!_enemies) return;
+  const panel = _getIgnitePanelEl();
+  const debugParts = [];
+
+  for (let i = 0; i < _enemies.length; i++) {
+    const e = _enemies[i];
+    const iconEl = _getStatusIconEl(i);
+    const hasAny = e.isAlive && !e.dying &&
+      (e.burnTimer > 0 || e.burnBlastReady || e.detonateTimer > 0);
+
+    if (!hasAny || !_detonateProj) {
+      iconEl.style.display = 'none';
+    } else {
+      iconEl.innerHTML = _buildStatusIcons(e);
+      _detonateProj.set(e.x, e.y + 200, e.z);   // HP バー相当の高さ
+      _detonateProj.project(_camera);
+      iconEl.style.left    = ((_detonateProj.x * 0.5 + 0.5) * _gameWidth)  + 'px';
+      iconEl.style.top     = ((-_detonateProj.y * 0.5 + 0.5) * _gameHeight) + 'px';
+      iconEl.style.display = 'flex';
+    }
+
+    // 固定デバッグパネル用
+    if (e.isAlive && !e.dying && e.detonateTimer > 0) {
+      debugParts.push(`[${i}]<span style="color:#ff2200">💥${e.detonateTimer}</span>`);
+    }
+  }
+  for (let i = _enemies.length; i < _detonatePool.length; i++) _detonatePool[i].style.display = 'none';
+
+  // 固定パネル（blastReady と detonateTimer だけ表示。通常の 🔥 は敵追従で十分）
+  if (debugParts.length > 0) {
+    panel.innerHTML = debugParts.join('  ');
+    panel.style.display = 'block';
+  } else {
+    panel.style.display = 'none';
   }
 }
