@@ -2221,12 +2221,12 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-26 boss01 Phase1 基本行動：BOSS01_CONFIG に APPROACH/ATTACK_RANGE/SPEED/Z_CHASE 追加・chase 判定で isBoss 分岐';
+    const LAST_UPDATE = '2026-05-26 ボスグラブ免疫 + 腕ピボットアニメーション（bossAnim宣言型・全7攻撃）';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
     // LAST_UPDATE と同時に更新する運用（feedback_last_update_hud.md §1.5）
-    const TAB_LABEL = 'boss01Phase';
+    const TAB_LABEL = 'AI部屋';
     document.title = TAB_LABEL;
     {
       const _buildInfoEl = document.getElementById('build-info');
@@ -2367,14 +2367,11 @@
     }
 
     // モード選択メニュー：キー/パッド操作中のフォーカスをボタン要素に反映（OC と同パターン）
+    //   _modeMenuOptions（picker 登録時に作られる stageId 配列）と同インデックスで .start-mode-btn を辿る。
+    //   HTML のボタン順は左→右と一致している前提。
     function _updateModeMenuFocus() {
-      const btns = [
-        document.getElementById('mode-play'),
-        document.getElementById('mode-actiontest'),
-        document.getElementById('mode-bosstest'),
-      ];
+      const btns = document.querySelectorAll('#start-screen-overlay .start-mode-btn');
       btns.forEach((el, i) => {
-        if (!el) return;
         el.classList.toggle('start-mode-btn--focused', i === _modeMenuFocusIdx);
       });
     }
@@ -2687,7 +2684,8 @@
       const _btnPlay = document.getElementById('mode-play');
       const _btnTest = document.getElementById('mode-actiontest');
       const _btnBoss = document.getElementById('mode-bosstest');
-      // 並び順（DOM 左→右）と stageId を対応付け（後の左右キー / マウス hover で共用）
+      // 並び順（DOM 左→右）と stageId を対応付け（左右キー / マウス hover で共用）
+      // 将来 mode-XXX ボタンを HTML に増やしたらこの配列にエントリ追加するだけで連動する。
       const _modeBtnEntries = [
         { el: _btnPlay, id: 'stage01' },
         { el: _btnTest, id: 'actionTest' },
