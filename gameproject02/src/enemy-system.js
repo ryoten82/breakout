@@ -50,7 +50,7 @@ import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThro
 import { spawnBanner, spawnDamageNumber } from './hud-system.js';
 import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
-import { isHitstunState, tryHitPlayer } from './damage-system.js';
+import { isHitstunState, tryHitPlayer, damagePlayer } from './damage-system.js';
 import { getActiveWallX, getKnockbackWallX } from './camera.js';
 import { dropCR } from './cr-system.js';
 import { dropSingleRandomChip } from './item-system.js';
@@ -80,6 +80,7 @@ let _addRectArea           = null;
 let _addSemicircleArea     = null;
 let _updateAreaPosition    = null;
 let _updateAreaScale       = null;
+let _updateAreaRotation    = null;
 let _removeArea            = null;
 let _triggerBossMegaCrashFX = null;  // fx-system から注入
 
@@ -93,6 +94,7 @@ export function initEnemySystem(deps) {
   _addSemicircleArea      = deps.addSemicircleArea     ?? null;
   _updateAreaPosition     = deps.updateAreaPosition    ?? null;
   _updateAreaScale        = deps.updateAreaScale       ?? null;
+  _updateAreaRotation     = deps.updateAreaRotation    ?? null;
   _removeArea             = deps.removeArea            ?? null;
   _triggerBossMegaCrashFX = deps.triggerBossMegaCrashFX ?? null;
 }
@@ -529,6 +531,10 @@ export function spawnDummy(x, z, opts = {}) {
     bossSAStunTimer:   0,           // SA 崩しスタン残 F（RC 成功 / ULT 命中 / 大技 recover で立つ）
     bossSAHitCount:    0,           // SA 吸収済みヒット数（THRESHOLD 到達で knockback01・リセット）
     bossSADecayTimer:  0,           // 最終ヒットからの経過 F（DECAY_FRAMES 超でカウントリセット）
+    bossStun:       false,       // スタン（atk_06 recover 後 / SA 解除 + 黒点滅 + KB固定・ボス専用）
+    bossStunTimer:  0,           // スタン残 F
+    _bossStunFrame: 0,           // 点滅 sin 用フレームカウンタ
+    _missiles:      null,        // boss1_atk_05 (missile_barrage) 個別ミサイル管理配列
     // 盾システム（midboss01 専用）：本体 HP と独立した盾 HP。0 で盾破壊。
     //   midboss01 以外は shieldBroken=true（最初から盾なし扱い）で hit-engine 側分岐を 1 条件に。
     shieldMaxHp:      (_enemyType === 'midboss01') ? MIDBOSS_SHIELD_CONFIG.SHIELD_MAX_HP : 0,
@@ -2389,8 +2395,8 @@ function _aoeCleanAll(e) {
 function _updateBossAoe(e) {
   if (!_removeArea || !_updateAreaPosition) return;
 
-  // dying 強制クリーン
-  if (e.dying) { _aoeCleanAll(e); return; }
+  // dying 強制クリーン（ミサイル飛行中も含めて全消し）
+  if (e.dying) { _aoeCleanAll(e); _cleanupMissiles(e); return; }
 
   const prevPhase    = e._bossAoePrevPhase ?? null;
   const curPhase     = (e.state === STATE.enemy_attacking) ? e.atkPhase : null;
@@ -2436,10 +2442,9 @@ function _updateBossAoe(e) {
         e._bossAoeMissileRemaining     = count;
         e._bossAoeMissileTimer         = e._bossAoeMissileSpawnInterval; // 最初の 1 発を即スポーン
       } else if (shape === 'overdrive_track') {
-        // 追尾サークル：boss 位置にスポーン（per-frame で player 方向へ進める）
-        const p0 = _players?.[0];
-        e._odTargetX    = p0?.x ?? e.x;
-        e._odTargetZ    = p0?.z ?? e.z;
+        // boss 位置に固定（warp 廃止に合わせて追尾を停止：その場連続技）
+        e._odTargetX    = e.x;
+        e._odTargetZ    = e.z;
         e._odBossStartX = e.x;
         e._odBossStartZ = e.z;
         const mRadius = disp?.radius ?? 180;
@@ -2481,7 +2486,8 @@ function _updateBossAoe(e) {
     }
 
     // active 移行：カーソル除去 → 赤点滅に差し替え
-    if (curPhase === 'active' && atk && (rx > 0 || radius > 0)) {
+    // boss_double_tackle は precharge/rush を tackle active code が手動管理するためスキップ
+    if (curPhase === 'active' && atk && (rx > 0 || radius > 0) && atk.kind !== 'boss_double_tackle') {
       _aoeCleanAll(e);
 
       if (shape === 'semicircle') {
@@ -2577,12 +2583,13 @@ function _updateBossAoe(e) {
     }
     // active 中：target 固定（移動しない）
   } else if (shape === 'tackle_corridor') {
-    // 全画面幅 rect：Z はボス追従、X はカメラ連動のため毎フレーム再計算
-    if (e._bossAoeId != null) {
+    // wind 中のみ更新（active 中は tackle active code が AOE を直接管理）
+    if (e._bossAoeId != null && curPhase !== 'active') {
       const wallL = getActiveWallX('left');
       const wallR = getActiveWallX('right');
       const cx    = (wallR + wallL) / 2;
       const ch    = disp?.h ?? ry;
+      // wind 中はボス Z 固定（AOE がボスに付随している絵）
       _updateAreaPosition(e._bossAoeId, cx, ch / 2, e.z);
     }
   } else if (shape === 'missiles') {
@@ -2695,6 +2702,23 @@ function _selectEnemyAtk(e, adx) {
   if (e.enemyType === 'boss01') {
     // フェーズ移行演出中は攻撃不可（仕切り直し）
     if (e.bossPhaseTransitioning) return null;
+    const phase = e.bossPhase ?? 1;
+    // ── テスト用：Phase 3 で 100% 連続技 (atk_07) ──────────────
+    //   far-tackle や対空より最優先で発動。本稼働時は BOSS01_CONFIG.PHASE3_FORCE_OVERDRIVE を false に
+    if (phase >= 3 && BOSS01_CONFIG.PHASE3_FORCE_OVERDRIVE) {
+      return 'boss1_atk_07';
+    }
+    // ── 遠距離タックル優先：自機が遠いほど atk_06 を選びやすく（距離詰め技として活用）──
+    //   Phase 2 以降で atk_06 解禁後に発動。adx > FAR_TACKLE_RANGE で確率抽選。
+    //   通常の接近圏外ゲート(approachRange*1.4)より先に判定するので、
+    //   非常に遠い距離からでもタックルで詰めに行ける（dashMaxDist=1800 でアリーナ横断可）。
+    if (phase >= 2) {
+      const _farRange = BOSS01_CONFIG.FAR_TACKLE_RANGE ?? 500;
+      const _farProb  = BOSS01_CONFIG.FAR_TACKLE_PROB  ?? 0.65;
+      if (adx > _farRange && Math.random() < _farProb) {
+        return 'boss1_atk_06';
+      }
+    }
     // 接近圏外は攻撃せず歩み寄り（boss01 は AOE 多彩なので拡大圏内まで待つ）
     if (adx > DUMMY_ATK_CONFIG.approachRange * 1.4) return null;
     // ── 対空優先：プレイヤーが一定時間空中にいたら atk01（縦軸叩きつけ）を優先選択 ──
@@ -2705,7 +2729,6 @@ function _selectEnemyAtk(e, adx) {
     if ((e._playerAirFrames ?? 0) >= _bossAntiAirThreshold && Math.random() < _bossAntiAirProb) {
       return 'boss1_atk_01';
     }
-    const phase = e.bossPhase ?? 1;
     // Phase 1：拳のみ 3 種を均等抽選（完全 SA / 弱点なし）
     if (phase === 1) {
       const r = Math.random();
@@ -2827,6 +2850,69 @@ function _setMeshChargeColor(e, t, targetColor = 0xffff00) {
   });
 }
 
+// ============================================================
+//  ミサイルバラージ（boss1_atk_05）専用ヘルパー
+//  - 各ミサイルは waiting → warning → done の3段階
+//  - waiting: 出番待ち、見た目なし
+//  - warning: AOE 警告表示 + 落下メッシュ可視（着弾点へ降下）
+//  - done   : 着弾済み（damage 判定 + 爆発演出済み）
+// ============================================================
+function _buildMissileVisual(x, z, startY) {
+  if (!_THREE || !_scene) return null;
+  // 弾頭：赤色の小型ロケット（円錐 + 円柱）
+  const grp = new _THREE.Group();
+  const head = new _THREE.Mesh(
+    new _THREE.ConeGeometry(10, 24, 8),
+    new _THREE.MeshBasicMaterial({ color: 0xff5522 }),
+  );
+  head.position.y = 30;
+  head.rotation.x = Math.PI;  // 先端を下に
+  grp.add(head);
+  const body = new _THREE.Mesh(
+    new _THREE.CylinderGeometry(10, 10, 36, 8),
+    new _THREE.MeshBasicMaterial({ color: 0xcccccc }),
+  );
+  grp.add(body);
+  grp.position.set(x, startY, z);
+  _scene.add(grp);
+  return grp;
+}
+
+function _disposeMissileVisual(mesh) {
+  if (!mesh || !_scene) return;
+  _scene.remove(mesh);
+  mesh.traverse(child => {
+    if (child.isMesh) {
+      child.geometry?.dispose?.();
+      child.material?.dispose?.();
+    }
+  });
+}
+
+// ミサイル個別の radial 判定 → damagePlayer 直接呼び出し
+function _tryMissileHit(missile, radius, attack) {
+  const p = _players?.[0];
+  if (!p || !p.mesh) return false;
+  if (p.state === STATE.dying || p.state === STATE.dead) return false;
+  if (p.invincible || p.invincibleFrames > 0) return false;
+  if (p.y > 220) return false;  // 高くジャンプ中のプレイヤーは missile を回避（地上着弾）
+  const dx = p.x - missile.x;
+  const dz = p.z - missile.z;
+  if (Math.hypot(dx, dz) > radius) return false;
+  const facing = (p.x >= missile.x) ? 1 : -1;
+  return damagePlayer(p, attack, { x: missile.x, y: 0, z: missile.z, facing });
+}
+
+// ミサイル一括クリーンアップ（recover 遷移 / dying / 強制中断時）
+function _cleanupMissiles(e) {
+  if (!e._missiles) return;
+  for (const m of e._missiles) {
+    if (m.aoeId != null) { _removeArea?.(m.aoeId); m.aoeId = null; }
+    if (m.mesh) { _disposeMissileVisual(m.mesh); m.mesh = null; }
+  }
+  e._missiles = null;
+}
+
 // カテゴリトークン全解放：該当敵 e が保持しているトークンを全カテゴリから外す
 function _clearAllTokens(ctx, e) {
   if (!ctx || !ctx.attackTokens) return;
@@ -2856,13 +2942,18 @@ function _beginEnemyAttack(e, atkId, ctx) {
   e.atkPitchTarget = atk.pitchWind;
   e.atkDashDist    = 0;
   e.atkSlotIdx     = 0;       // slash_rush 複数ヒットインデックスをリセット
-  e._tacklePass    = 1;       // boss_double_tackle パス番号（1:初回 / 2:折り返し）
-  e._tackleHitDone = false;   // 現パスでのヒット済みフラグ
+  e._tackleHitDone  = false;   // 現パスでのヒット済みフラグ（boss_double_tackle）
+  e._tackleState    = null;    // 'precharge1'|'rush1'|'precharge2'|'rush2'
+  e._tacklePreTimer = 0;       // precharge 残フレーム
   e._odInitDone    = false;   // boss_overdrive アクティブ初期化済みフラグ
   e._odSlotIdx     = 0;       // 現コンボスロットインデックス
   e._odSlotPhase   = null;    // 'wind' | 'active'
   e._odSlotTimer   = 0;       // 現スロットの残フレーム
   e._odSlotAxis    = null;    // RC 軸（hud / hit-engine で参照）
+  e._odComboRcLockedOut = false; // 連続 RC ロックアウト：途中で 1 スロット失敗したら以降は RC 不可
+  e._odPerfectRcCount = 0;       // 連続技中の Perfect RC（軸一致）成立回数。フィニッシュ damage 倍率に影響
+  e._comboRcFinishHitPending = false; // 連続 RC フィニッシュ後の最初の player ヒット待ちフラグ
+  e._comboRcFinishLockAttackId = null; // 単発化ロック：このフィニッシュ SP（player attackId）からの後続ヒットを抑止
   e._odTargetX     = null;    // 追尾サークルのターゲット X
   e._odTargetZ     = null;    // 追尾サークルのターゲット Z
   e._odBossStartX  = null;    // wind 開始時の boss X（サークル出発点）
@@ -2909,6 +3000,34 @@ export function updateEnemies(ctx) {
       if (e.bossSADecayTimer <= 0) {
         e.bossSAHitCount  = 0;
         e.bossSADecayTimer = 0;
+      }
+    }
+    // boss01 SA スタンタイマー（ULT / RC 成功でセット → カウントダウンで SA 復帰）
+    //   bossSAStunTimer > 0 の間は bossInSA=false（hit-engine 側の判定）
+    //   カウントが 0 に戻れば SA が自動復帰する
+    if (e.bossFullSA && (e.bossSAStunTimer ?? 0) > 0) {
+      e.bossSAStunTimer--;
+    }
+    // スタンタイマー（atk_06 recover 開始でセット・ボス専用）
+    if (e.bossStun) {
+      e.bossStunTimer--;
+      e._bossStunFrame = (e._bossStunFrame ?? 0) + 1;
+      // スタン中の低速 KB tail をクランプ：「ゆっくり動き続ける」絵を防ぐ。
+      //   旧 0.1 wu/F cutoff（共通）だと連続 RC フィニッシュ KB（初速 90 + decay 0.93）が
+      //   長く尾を引く → スタン中ずっとジワジワ動いて見える。1.5 wu/F で snap stop。
+      if (Math.abs(e.knockbackVx) < 1.5) {
+        e.knockbackVx = 0;
+      }
+      if (e.bossStunTimer <= 0) {
+        e.bossStun      = false;
+        e.bossStunTimer = 0;
+        _setMeshChargeColor(e, 0);  // 黒オーバーレイリセット
+      } else {
+        // 柔らかい黒点滅：sin 波で 0 〜 STUN_PULSE_OPACITY を往復
+        const _pSpeed = BOSS01_CONFIG.STUN_PULSE_SPEED   ?? 0.045;
+        const _pMax   = BOSS01_CONFIG.STUN_PULSE_OPACITY ?? 0.30;
+        const _pFactor = _pMax * (0.5 + 0.5 * Math.sin(e._bossStunFrame * _pSpeed));
+        _setMeshChargeColor(e, _pFactor, 0x000000);
       }
     }
     // boss01 フェーズ移行タイマー（triggerBossPhaseTransition で開始・カウントダウンで自動解除）
@@ -3428,6 +3547,14 @@ export function updateEnemies(ctx) {
             // タイマー満了 → X 距離で再判定（Z は chase 中に別途追従するので含めない）
             e.aiPhase = (adx < DUMMY_ATK_CONFIG.approachRange) ? 'chase' : 'idle';
           }
+        } else if (e.isBoss && e.bossStun) {
+          // === ボススタン中：完全停止（連続 RC フィニッシュ後の見せ場確保）===
+          //   AI 判断・移動・攻撃選択をすべてスキップ。bossStunTimer 切れで自動復帰。
+          //   atkCooldown は通常通り減衰するので、スタン明け直後に即攻撃可能。
+          e.aiPhase = 'idle';
+          if (e.state === STATE.walk_fwd || e.state === STATE.walk_back || e.state === STATE.dash) {
+            e.state = STATE.wait01;
+          }
         } else {
           // === ダッシュ追跡（14-D-4）+ idle / chase 判定 + 接近・攻撃発動 ===
           const C = DUMMY_ATK_CONFIG;
@@ -3631,6 +3758,10 @@ export function updateEnemies(ctx) {
               e._chargeT     = 0;
               if (e.mesh) e.mesh.scale.y = 1.0;  // しゃがみ解除
               _setMeshChargeColor(e, 0);           // 黄色発光リセット（ジャンプ開始）
+            } else if (atk.kind === 'boss_double_tackle') {
+              // 突進直前の予備溜め（AOE が player Z へホーミングする間 boss 静止）
+              e._tackleState    = 'precharge1';
+              e._tacklePreTimer = atk.preChargeFrames ?? 15;
             } else {
               e.x += e.facing * (atk.lungeVx ?? 0);  // 突進タックル（dash）は lungeVx 無し
             }
@@ -3860,53 +3991,112 @@ export function updateEnemies(ctx) {
               e.recoverSaTimer  = atk.recoverSaFrames ?? 0;  // recover 前半 SA
             }
           } else if (atk.kind === 'boss_double_tackle') {
-            // 画面端往復タックル：壁到達で即反転 → 2 パス目 → recover
+            // 画面端往復タックル（precharge → rush × 2）
+            //   _tackleState: 'precharge1' → 'rush1' → 'precharge2' → 'rush2' → recover
+            //   precharge: 静止しながら AOE が player Z にホーミング（外部の tackle_corridor 更新で実施）
+            //   rush: 壁まで突進 + 1 ヒット判定
             const wallL = Math.max(PHYSICS.STAGE_LEFT, getActiveWallX('left'));
             const wallR = Math.min(PHYSICS.STAGE_RIGHT, getActiveWallX('right'));
-            const _step = atk.dashSpeed ?? 10;
-            const _nx   = Math.min(wallR, Math.max(wallL, e.x + e.facing * _step));
-            const _moved = Math.abs(_nx - e.x);
-            e.x = _nx;
-            e.atkDashDist += _moved;
-            _setMeshChargeColor(e, 1.0, 0xff8833);  // 突進中オレンジ発光
-            // パスごとに 1 ヒット
-            if (!e._tackleHitDone) {
-              if (tryHitPlayer(e, atk)) {
-                e._tackleHitDone = true;
-                e.slashHitFlash  = 6;
+            const pf    = atk.preChargeFrames ?? 15;
+
+            if (e._tackleState === 'precharge1' || e._tackleState === 'precharge2') {
+              // ── 予備溜め ──────────────────────────────────────────────────
+              // AOE をボス中心に配置し rotation.y でプレイヤー Z 方向へ回転（ホーミング演出）
+              // 初回フレームは橙コリドーを生成（active 移行時の赤を上書き）
+              const disp2 = atk.aoeDisplay;
+              const ch2   = disp2?.h ?? 220;
+              const arenaW2 = wallR - wallL;
+              const p0pc = _players?.[0];
+
+              if (e._tacklePreTimer === pf) {
+                _aoeCleanAll(e);
+                e._bossAoeId = _addRectArea?.({
+                  x: (wallL + wallR) / 2, y: 1, z: p0pc?.z ?? e.z,
+                  width: arenaW2, height: ch2,
+                  color: 0xff6600, opacity: 0.35,
+                  blink: true, blinkPeriodFn: () => 6,
+                }) ?? null;
+                // 床面に寝かせる（カメラ向き XY 平面を水平 XZ 平面へ）
+                _updateAreaRotation?.(e._bossAoeId, -Math.PI / 2, 0, 0);
               }
-            }
-            // 壁到達 / dashMaxDist / タイムアウト → 折り返し or recover
-            const _passEnd = _moved < _step * 0.5
-                          || e.atkDashDist >= (atk.dashMaxDist ?? 1800)
-                          || e.atkTimer <= 0;
-            if (_passEnd) {
-              if ((e._tacklePass ?? 1) < 2) {
-                // 1 パス目完了 → 即反転して 2 パス目
-                e._tacklePass++;
-                e.facing        = -e.facing;
-                e.mesh.rotation.y = e.facing * Math.PI / 2;
-                e.atkDashDist   = 0;
-                e._tackleHitDone = false;
-                e.atkTimer      = atk.activeFrames;  // タイムアウトリセット
-              } else {
-                // 2 パス目完了 → recover
-                e.atkPhase       = 'recover';
-                e.atkTimer       = atk.recoverFrames;
-                e.atkPitchTarget = 0;
-                e.recoverSaTimer = atk.recoverSaFrames ?? 0;
-                _setMeshChargeColor(e, 0);
+              // 毎フレームプレイヤーZ を追従（どのレーンに突進するかをプレビュー）
+              if (p0pc && e._bossAoeId != null) {
+                _updateAreaPosition?.(e._bossAoeId, (wallL + wallR) / 2, 1, p0pc.z);
+              }
+              // チャージ発光（橙）
+              _setMeshChargeColor(e, (pf - e._tacklePreTimer) / pf, 0xff8833);
+              e._tacklePreTimer--;
+
+              if (e._tacklePreTimer <= 0) {
+                // 溜め完了：プレイヤー Z にスナップして突進開始
+                if (p0pc) e.z = p0pc.z;
+                _aoeCleanAll(e);
+                e._bossAoeId = _addRectArea?.({
+                  x: (wallL + wallR) / 2, y: 1, z: e.z,
+                  width: arenaW2, height: ch2,
+                  color: 0xff2200, opacity: 0.55,
+                  blink: true, blinkPeriodFn: () => 4,
+                }) ?? null;
+                _updateAreaRotation?.(e._bossAoeId, -Math.PI / 2, 0, 0);
+                e._tackleState    = e._tackleState === 'precharge1' ? 'rush1' : 'rush2';
+                e.atkDashDist     = 0;
+                e._tackleHitDone  = false;
+              }
+
+            } else {
+              // ── 突進（rush1 / rush2）──────────────────────────────────────
+              const _step  = atk.dashSpeed ?? 10;
+              const _nx    = Math.min(wallR, Math.max(wallL, e.x + e.facing * _step));
+              const _moved = Math.abs(_nx - e.x);
+              e.x = _nx;
+              e.atkDashDist += _moved;
+              _setMeshChargeColor(e, 1.0, 0xff8833);
+
+              // 1 パス 1 ヒット
+              if (!e._tackleHitDone) {
+                if (tryHitPlayer(e, atk)) {
+                  e._tackleHitDone = true;
+                  e.slashHitFlash  = 6;
+                }
+              }
+
+              // 壁到達 / dashMaxDist / タイムアウト → 次フェーズへ
+              const _passEnd = _moved < _step * 0.5
+                            || e.atkDashDist >= (atk.dashMaxDist ?? 1800)
+                            || e.atkTimer <= 0;
+              if (_passEnd) {
+                if (e._tackleState === 'rush1') {
+                  // rush1 完了 → 振り返り + precharge2
+                  e.facing          = -e.facing;
+                  if (e.mesh) e.mesh.rotation.y = e.facing * Math.PI / 2;
+                  e._tackleState    = 'precharge2';
+                  e._tacklePreTimer = pf;
+                  _setMeshChargeColor(e, 0);
+                } else {
+                  // rush2 完了 → recover + 疲れ状態開始
+                  e.atkPhase         = 'recover';
+                  e.atkTimer         = atk.recoverFrames;
+                  e.atkPitchTarget   = 0;
+                  e.recoverSaTimer   = atk.recoverSaFrames ?? 0;
+                  e.bossStun      = true;
+                  e.bossStunTimer = BOSS01_CONFIG.STUN_FRAMES ?? 300;
+                  e._bossStunFrame = 0;
+                  _setMeshChargeColor(e, 0);
+                }
               }
             }
           } else if (atk.kind === 'boss_overdrive') {
             // 追尾 4 連コンボ：各スロットに wind（RC 受付）→ hit → active（後隙）
             const slots = atk.comboSlots ?? [];
+            const _DBG_OD = (typeof window !== 'undefined') && window.SB?.DEBUG_BOSS_OD;
 
             if (!e._odInitDone) {
-              // アクティブ初回：target 位置へスナップ + スロット 0 開始
+              // アクティブ初回：その場で連続技開始（warp 廃止：自機の混乱を避ける）
               e._odInitDone = true;
-              if (e._odTargetX != null) e.x = e._odTargetX;
-              // facing をプレイヤー方向に更新
+              e._odComboRcLockedOut = false;  // 新コンボ：ロックアウトをリセット
+              e._odPerfectRcCount = 0;        // 新コンボ：Perfect RC カウントもリセット
+              if (_DBG_OD) console.log(`[OD INIT] slot 0 wind start (windF=${slots[0]?.windF}, axis=${slots[0]?.repulseAxis})`);
+              // facing だけプレイヤー方向に更新
               const p0 = _players?.[0];
               if (p0) {
                 e.facing = (p0.x >= e.x) ? 1 : -1;
@@ -3922,15 +4112,61 @@ export function updateEnemies(ctx) {
               e.repulseWindow = true;
             }
 
-            e._odSlotTimer = Math.max(0, (e._odSlotTimer ?? 1) - 1);
+            // 負数も許容（wind 終了後のグレース期間に使う）
+            e._odSlotTimer = (e._odSlotTimer ?? 1) - 1;
             const slot = slots[e._odSlotIdx ?? 0];
+
+            // ── ホーミング：プレイヤー方向へ間合いを詰める ──
+            //   振り下ろし系の近距離技 → ボス側から寄らないと最後の一撃が届かない
+            //   wind / active 両フェーズで継続。停止距離内ならその場で止まる
+            const _p0od = _players?.[0];
+            if (_p0od && !_p0od.dying && _p0od.state !== STATE.dead) {
+              const _hSpdX = BOSS01_CONFIG.OVERDRIVE_HOMING_X ?? 12;
+              const _hSpdZ = BOSS01_CONFIG.OVERDRIVE_HOMING_Z ?? 6;
+              const _hTgtX = BOSS01_CONFIG.OVERDRIVE_TARGET_X ?? 180;
+              const _hTgtZ = BOSS01_CONFIG.OVERDRIVE_TARGET_Z ?? 60;
+              const _dxH = _p0od.x - e.x;
+              const _adxH = Math.abs(_dxH);
+              if (_adxH > _hTgtX) {
+                e.x += Math.sign(_dxH) * Math.min(_hSpdX, _adxH - _hTgtX);
+              }
+              const _dzH = _p0od.z - e.z;
+              const _adzH = Math.abs(_dzH);
+              if (_adzH > _hTgtZ) {
+                e.z += Math.sign(_dzH) * Math.min(_hSpdZ, _adzH - _hTgtZ);
+              }
+              // facing もプレイヤー方向へ更新（プレイヤーが背後に回り込んだら振り向く）
+              //   旧 50wu 閾値 → 10wu に縮小：連続技中に反対側へ回り込まれても確実に振り向く
+              if (_adxH > 10) {
+                const _newFacing = _dxH >= 0 ? 1 : -1;
+                if (e.facing !== _newFacing) {
+                  e.facing = _newFacing;
+                  if (e.mesh) e.mesh.rotation.y = e.facing * Math.PI / 2;
+                }
+              }
+            }
+            // wind 終了後の RC グレース：UI が「白丸ピーク」になった瞬間に押しても間に合うように
+            //   timer が 0 まで来た後さらに N F 受付（その間 repulseWindow は true 維持）
+            const _windGrace = atk.windGraceFrames ?? 14;
 
             if (!slot) {
               e.atkPhase = 'recover'; e.atkTimer = atk.recoverFrames;
               e.repulseWindow = false; e._odSlotAxis = null;
             } else if (e._odSlotPhase === 'wind') {
-              if (e._odSlotTimer <= 0) {
-                // wind 終了 → ヒット判定 + active（後隙）へ
+              // timer が -windGrace に達するまでは wind 扱い（RC 可）
+              if (e._odSlotTimer <= -_windGrace) {
+                if (_DBG_OD) console.log(`[OD wind→active] slot ${e._odSlotIdx} (no RC, grace expired) → hit fire / chain LOCKED OUT`);
+                // wind + grace 完走 → ヒット判定 + active（後隙）へ
+                //   RC 取り逃し：以降のスロットは RC 不可
+                e._odComboRcLockedOut = true;
+                // ヒット直前の facing 最終確認：プレイヤーが反対側にいたら強制反転（特に最終段ストレートで重要）
+                if (_p0od) {
+                  const _newFacing = (_p0od.x >= e.x) ? 1 : -1;
+                  if (e.facing !== _newFacing) {
+                    e.facing = _newFacing;
+                    if (e.mesh) e.mesh.rotation.y = e.facing * Math.PI / 2;
+                  }
+                }
                 e._odSlotPhase  = 'active';
                 e._odSlotTimer  = slot.activeF ?? 10;
                 e.repulseWindow = false;
@@ -3939,28 +4175,117 @@ export function updateEnemies(ctx) {
                 tryHitPlayer(e, _hitAtk);
                 e.slashHitFlash = 6;
               }
+              // else: wind 中 or grace 中（timer 0 ～ -_windGrace） → repulseWindow=true 維持で RC 受付継続
             } else {
               // active（後隙）終了 → 次スロットへ or recover
               if (e._odSlotTimer <= 0) {
                 const nextIdx = (e._odSlotIdx ?? 0) + 1;
                 if (nextIdx >= slots.length) {
+                  if (_DBG_OD) console.log(`[OD] all slots done → recover`);
                   e.atkPhase       = 'recover';
                   e.atkTimer       = atk.recoverFrames;
                   e.atkPitchTarget = 0;
                 } else {
+                  if (_DBG_OD) console.log(`[OD active→wind] slot ${nextIdx} (windF=${slots[nextIdx]?.windF}, axis=${slots[nextIdx]?.repulseAxis}) lockedOut=${e._odComboRcLockedOut}`);
                   e._odSlotIdx    = nextIdx;
                   e._odSlotPhase  = 'wind';
                   const ns        = slots[nextIdx];
                   e._odSlotTimer  = ns.windF ?? 20;
                   e._odSlotAxis   = ns.repulseAxis ?? null;
-                  e.repulseWindow = true;
+                  // ロックアウト中は repulseWindow を立てない（UI / 検出ともに無効化）
+                  e.repulseWindow = !e._odComboRcLockedOut;
                 }
               }
             }
             // タイムアウト保険
             if (e.atkTimer <= 0 && e.atkPhase === 'active') {
+              if (_DBG_OD) console.log(`[OD TIMEOUT] activeFrames 切れ → recover (slot=${e._odSlotIdx} phase=${e._odSlotPhase} timer=${e._odSlotTimer})`);
               e.atkPhase = 'recover'; e.atkTimer = atk.recoverFrames;
               e.repulseWindow = false; e._odSlotAxis = null;
+            }
+          } else if (atk.kind === 'missile_barrage') {
+            // ── ミサイルバラージ：時間差で 1 発ずつ降ってきて個別 AOE 警告 → 着弾 ──
+            //   1 発ごとに waiting → warning → done の状態機械。
+            //   warning 中：AOE 警告リング表示 + ミサイル mesh を着弾点へ降下
+            //   着弾時刻：t >= impactFrame で damage 判定 + 爆発演出
+            //   将来 missileImpactWindow を延長すれば「他攻撃と重なる飽和攻撃」になる
+            const af = atk.activeFrames;
+            const t  = af - e.atkTimer;
+
+            // 初回フレーム：着弾位置と時刻を生成
+            if (!e._missiles) {
+              const cnt   = atk.missileCount        ?? 9;
+              const winF  = atk.missileImpactWindow ?? 180;
+              const warnF = atk.missileWarningFrames?? 30;
+              const spX   = atk.missileSpreadX      ?? 1400;
+              const spZ   = atk.missileSpreadZ      ?? 600;
+              const usePl = (atk.missileTargetMode ?? 'player') === 'player';
+              const cx    = usePl ? (_players?.[0]?.x ?? e.x) : 0;
+              const cz    = usePl ? (_players?.[0]?.z ?? e.z) : e.z;
+              e._missiles = [];
+              for (let i = 0; i < cnt; i++) {
+                const baseT   = warnF + ((cnt > 1) ? (i / (cnt - 1)) * winF : 0);
+                const jitter  = (Math.random() - 0.5) * (winF / cnt) * 0.5;
+                const impactF = Math.max(warnF, Math.floor(baseT + jitter));
+                const mx = cx + (Math.random() - 0.5) * spX;
+                const mz = cz + (Math.random() - 0.5) * spZ;
+                e._missiles.push({
+                  x: mx, z: mz,
+                  impactFrame: impactF,
+                  warnFrame:   impactF - warnF,
+                  state: 'waiting', aoeId: null, mesh: null, done: false,
+                });
+              }
+            }
+
+            const mRadius = atk.missileRadius     ?? 110;
+            const fallH   = atk.missileFallHeight ?? 700;
+            const warnF2  = atk.missileWarningFrames ?? 30;
+            for (const m of e._missiles) {
+              if (m.done) continue;
+              // waiting → warning：AOE と落下メッシュをスポーン
+              if (m.state === 'waiting' && t >= m.warnFrame) {
+                m.aoeId = _addStaticArea?.({
+                  x: m.x, y: 0, z: m.z,
+                  radius: mRadius, color: 0xff6600, opacity: 0.45,
+                  thickness: mRadius * 0.35,
+                  blink: true, blinkPeriodFn: () => 8,
+                }) ?? null;
+                m.mesh = _buildMissileVisual(m.x, m.z, fallH);
+                m.state = 'warning';
+              }
+              // warning フェーズ：mesh を着弾点へ降下（線形補間）
+              if (m.state === 'warning' && m.mesh) {
+                const remain = m.impactFrame - t;
+                const ratio  = Math.max(0, Math.min(1, remain / warnF2));
+                m.mesh.position.y = ratio * fallH;
+              }
+              // warning → done：着弾
+              if (m.state === 'warning' && t >= m.impactFrame) {
+                _tryMissileHit(m, mRadius, {
+                  damage:    atk.missileDamage    ?? 16,
+                  atk_lv:    atk.missileAtkLv     ?? 4,
+                  knockback: atk.missileKnockback ?? 24,
+                  hitstop:   atk.hitstop          ?? 6,
+                  shake:     atk.shake            ?? 10,
+                  hitColor:  atk.hitColor         ?? 0xff7733,
+                });
+                spawnHitParticles(m.x, 20, m.z, 0xffcc44, 18, { type: 'launch', speedMul: 1.4 });
+                spawnHitParticles(m.x, 20, m.z, 0xff4422, 24, { type: 'omni',   speedMul: 1.0, sizeScale: 1.2 });
+                triggerShake(6, 10);
+                if (m.aoeId != null) { _removeArea?.(m.aoeId); m.aoeId = null; }
+                if (m.mesh) { _disposeMissileVisual(m.mesh); m.mesh = null; }
+                m.state = 'done';
+                m.done  = true;
+              }
+            }
+
+            // タイムアウト → recover
+            if (e.atkTimer <= 0) {
+              _cleanupMissiles(e);
+              e.atkPhase       = 'recover';
+              e.atkTimer       = atk.recoverFrames;
+              e.atkPitchTarget = 0;
             }
           } else {
             // その場振り：active 中ずっとヒット判定（1 ヒットのみ）
@@ -4344,6 +4669,14 @@ export function updateEnemies(ctx) {
     }
     // チャージ発光が active な場合は hitFlash の上書きを戻す（最後に書いて勝つ）
     if (e._chargeT > 0) _setMeshChargeColor(e, e._chargeT);
+    // ボススタン中の黒点滅も同じく毎フレーム再適用（hitFlash 等で base color に戻された後）
+    //   フィニッシュ RC 後の knockback02 + bossStun 中、視覚的にスタン状態を明示
+    if (e.bossStun && (e.bossStunTimer ?? 0) > 0) {
+      const _pSpeed  = BOSS01_CONFIG.STUN_PULSE_SPEED   ?? 0.045;
+      const _pMax    = BOSS01_CONFIG.STUN_PULSE_OPACITY ?? 0.30;
+      const _pFactor = _pMax * (0.5 + 0.5 * Math.sin((e._bossStunFrame ?? 0) * _pSpeed));
+      _setMeshChargeColor(e, _pFactor, 0x000000);
+    }
 
     // きりもみやられ突入フラッシュ：紫を「乗算」で body/head 色に被せる
     //   元色 × 紫 (0x6622ff) を t=1 とし、t=0 で元色へフェード復帰（敵種別色対応）
