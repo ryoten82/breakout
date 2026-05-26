@@ -1010,9 +1010,16 @@ export const BOSS01_CONFIG = {
   OVERDRIVE_TARGET_X:       180,   // この距離以内なら停止（X）：振り下ろしの判定圏内
   OVERDRIVE_TARGET_Z:       60,    // 停止距離（Z）
   // ── SCRAP THEM!!! フェイタルフェーズ（§10）──
-  FATAL_DURATION:           600,   // フェイタル持続 F（10 秒）
-  FATAL_SLOW_FRAMES:        18,    // 入場スローモーション F（約 0.3 秒・megaSlow 機構を流用）
-  FATAL_BANNER_DELAY:       18,    // バナー表示遅延 F（スロー終了に合わせる）
+  //   フェーズ A: 入場スロー（3秒 megaSlow）+ ボスを真っ黒にフェード（並行・早々に完了）
+  //   フェーズ B: スタン期（10秒・プレイヤー自由コンボ）
+  //   フェーズ C: 爆発前フリーズ（1.5秒・画面停止）
+  //   フェーズ D: 爆散（enterEnemyDyingBurst）
+  FATAL_SLOWIN_FRAMES:      180,   // フェーズA：入場スロー F（3 秒・megaSlow セット値）
+  FATAL_SLOWIN_TIMER:       60,    // フェーズA：実フレーム持続（DIVISOR=3 で 180F 相当 ≒ 60 update tick）
+  FATAL_BLACK_FADE_FRAMES:  25,    // フェーズA中の真っ黒フェード所要 update tick（早々に完了：slow_in 60 tick の前半で消化）
+  FATAL_BANNER_DELAY:       30,    // バナー表示遅延 F（スロー入り後すぐ）
+  FATAL_STUN_FRAMES:        600,   // フェーズB：スタン期 F（10 秒・プレイヤー自由コンボ）
+  FATAL_FREEZE_FRAMES:      90,    // フェーズC：爆発前フリーズ F（1.5 秒）
   FATAL_WOBBLE_SPEED:       0.06,  // よろめき振動の角周波数（sin 波で X 揺らし）
   FATAL_WOBBLE_AMP:         18,    // よろめき振幅 wu（X 方向）
 };
