@@ -50,7 +50,7 @@ import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThro
 import { spawnBanner, spawnDamageNumber } from './hud-system.js';
 import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
-import { isHitstunState, tryHitPlayer, damagePlayer } from './damage-system.js';
+import { isHitstunState, tryHitPlayer, damagePlayer, tintBody, restoreBodyColor } from './damage-system.js';
 import { getActiveWallX, getKnockbackWallX } from './camera.js';
 import { dropCR } from './cr-system.js';
 import { dropSingleRandomChip } from './item-system.js';
@@ -1450,6 +1450,13 @@ export function enterBossFatal(e, p) {
   if (typeof window !== 'undefined' && window.SB) {
     window.SB.megaSlow = Math.max(window.SB.megaSlow ?? 0, _CFG.FATAL_SLOWIN_FRAMES ?? 180);
   }
+  // プレイヤー側：無敵点滅でシルエットがチラつかないよう invincibleFrames をクリア
+  //   ボスはスタン中で攻撃しないので無敵は不要
+  if (_players) {
+    for (const _p of _players) {
+      if (_p) _p.invincibleFrames = 0;
+    }
+  }
   return true;
 }
 
@@ -1464,9 +1471,16 @@ function _updateBossFatal(e) {
   // HP クランプ（フェイタル中の追加ダメージで爆散しないよう保護）
   if (e.hp <= 0) e.hp = 1;
   // 真っ黒フェード（早々に完了）：fade 完了後は固定で真っ黒オーバーレイ
+  //   ボスとプレイヤー両方に同じフェードを適用してシルエット演出に
   const _fadeDur = _CFG.FATAL_BLACK_FADE_FRAMES ?? 25;
   e._bossFatalFadeProgress = Math.min(1, (e._bossFatalFadeProgress ?? 0) + 1 / _fadeDur);
   _setMeshChargeColor(e, e._bossFatalFadeProgress, 0x000000);
+  // プレイヤー側にも tintBody で黒フェード（同じ進行度）
+  if (_players) {
+    for (const _p of _players) {
+      if (_p && _p.mesh) tintBody(_p.mesh, 0, 0, 0, e._bossFatalFadeProgress);
+    }
+  }
   // バナー遅延表示（slow_in 中の少し遅れたタイミング）
   if ((e.bossFatalBannerTimer ?? 0) > 0) {
     e.bossFatalBannerTimer--;
@@ -1488,6 +1502,12 @@ function _updateBossFatal(e) {
     e.bossFatal = false;
     e.hp        = 0;
     e.lastHitter = { lv: 6, facing: 1, forceGc: false };
+    // プレイヤー側のシルエット tint を解除（爆散と同時に通常色へ戻す）
+    if (_players) {
+      for (const _p of _players) {
+        if (_p && _p.mesh) restoreBodyColor(_p.mesh);
+      }
+    }
     enterEnemyDyingBurst(e, e.lastHitter, 1);
     return;
   }
