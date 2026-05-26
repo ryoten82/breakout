@@ -2697,6 +2697,14 @@ function _selectEnemyAtk(e, adx) {
     if (e.bossPhaseTransitioning) return null;
     // 接近圏外は攻撃せず歩み寄り（boss01 は AOE 多彩なので拡大圏内まで待つ）
     if (adx > DUMMY_ATK_CONFIG.approachRange * 1.4) return null;
+    // ── 対空優先：プレイヤーが一定時間空中にいたら atk01（縦軸叩きつけ）を優先選択 ──
+    //   atk01 は hitboxRangeY=360 でジャンプ最高点をカバーしているため対空として機能する。
+    //   SP2 連打・空中滞留への自然な抑止。閾値・確率は SB 経由でランタイム調整可。
+    const _bossAntiAirThreshold = 50;   // この F 以上空中滞留で対空モード（約0.8秒）
+    const _bossAntiAirProb      = 0.85; // 対空モード中の atk01 選択確率（残り15%は通常抽選）
+    if ((e._playerAirFrames ?? 0) >= _bossAntiAirThreshold && Math.random() < _bossAntiAirProb) {
+      return 'boss1_atk_01';
+    }
     const phase = e.bossPhase ?? 1;
     // Phase 1：拳のみ 3 種を均等抽選（完全 SA / 弱点なし）
     if (phase === 1) {
@@ -3328,6 +3336,10 @@ export function updateEnemies(ctx) {
         _players[0].state !== STATE.dying && _players[0].state !== STATE.dead) {
       const p0 = _players[0];
       const playerInHitstun = isHitstunState(p0);
+      // ボス：プレイヤー滞空フレームを毎 F カウント（対空 AI 用）
+      if (e.isBoss) {
+        e._playerAirFrames = (p0.y > 20) ? (e._playerAirFrames ?? 0) + 1 : 0;
+      }
       if (e.atkCooldown > 0) e.atkCooldown--;
       if (e.state === STATE.wait01 || e.state === STATE.walk_fwd ||
           e.state === STATE.walk_back || e.state === STATE.dash) {
@@ -3568,6 +3580,8 @@ export function updateEnemies(ctx) {
               _setMeshChargeColor(e, windProg);          // 基本色→黄色へ漸変（チャージ予兆）
             }
             // 移動なし（静止）
+          } else if (atk.freezePos) {
+            // freezePos=true：完全静止。発動位置を固定して当てる攻撃（boss1_atk_03 地響き等）
           } else {
             // 通常攻撃の溜め：プレイヤーへ追従（向き合わせ + X/Z 詰め）
             // 距離が attackRange より外なら少しずつ追う（溜め中の追跡速度は控えめ）
@@ -3589,9 +3603,10 @@ export function updateEnemies(ctx) {
             }
           }
           // approachRange を完全に超えたらキャンセルして wait01 復帰（jump_dive は発動後キャンセルしない）
-          //   boss は APPROACH_RANGE が広いので個別判定
+          //   boss は wind 入り後の距離キャンセルを行わない（離れて中断＝何もできない問題の解消）
           const _windCancelRange = e.isBoss ? BOSS01_CONFIG.APPROACH_RANGE : DUMMY_ATK_CONFIG.approachRange;
-          if (atk.kind !== 'jump_dive' &&
+          if (!e.isBoss &&
+              atk.kind !== 'jump_dive' &&
               (adx > _windCancelRange || adz > _windCancelRange)) {
             e.state         = STATE.wait01;
             e.atkPhase      = null;
