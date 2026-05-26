@@ -1446,6 +1446,13 @@ export function enterBossFatal(e, p) {
   e.knockbackVx       = 0;  // 既存 KB を即停止（よろめきベース位置を確定するため）
   // よろめき位置をその場に固定
   e._bossFatalBaseX   = e.x;
+  // パーツ脱落の予定順序（末端→中央）— GC を経由せず順次 _detachOneNamed で 1 個ずつ
+  //   左右の腕どちらが先かはランダム / body は含めない（上半身泣き別れ回避）
+  e._fatalDetachOrder = ['lArmPivot', 'rArmPivot', 'stand', 'head'];
+  if (Math.random() < 0.5) {
+    [e._fatalDetachOrder[0], e._fatalDetachOrder[1]] = [e._fatalDetachOrder[1], e._fatalDetachOrder[0]];
+  }
+  e._fatalDetachCooldown = _CFG.FATAL_DETACH_FIRST_DELAY ?? 60;
   // スローモーション（入場：3 秒・DIVISOR=3 で 60 update tick）
   if (typeof window !== 'undefined' && window.SB) {
     window.SB.megaSlow = Math.max(window.SB.megaSlow ?? 0, _CFG.FATAL_SLOWIN_FRAMES ?? 180);
@@ -1498,6 +1505,23 @@ function _updateBossFatal(e) {
   e.knockbackVx = 0;
   e.x = (e._bossFatalBaseX ?? e.x);
   if (e.mesh) e.mesh.position.x = e.x;
+  // パーツ脱落：stun 期のみ・末端から順次・GC は呼ばない
+  //   _fatalDetachOrder の先頭から 1 個ずつ抜き出して _detachOneNamed で分離
+  //   body は order に含めていないので「上半身泣き別れ」は発生しない
+  if (e.bossFatalPhase === 'stun' && Array.isArray(e._fatalDetachOrder) && e._fatalDetachOrder.length > 0) {
+    e._fatalDetachCooldown = (e._fatalDetachCooldown ?? 0) - 1;
+    if (e._fatalDetachCooldown <= 0) {
+      const _name = e._fatalDetachOrder.shift();
+      _detachOneNamed(e, _name, null);
+      // 小さい黒煙＋軽い hitstop で離脱を強調
+      spawnHitParticles(e.x, e.y + 90, e.z, 0x222222, 12, { type: 'omni' });
+      triggerHitstop(4);
+      e._fatalDetachCooldown = _CFG.FATAL_DETACH_INTERVAL ?? 90;
+    }
+  }
+  // 分離済みパーツの物理更新（重力・バウンド・フェード）
+  //   dying 中は _updateDyingTimers が呼ぶが、フェイタルは dying ではないのでここで明示呼び出し
+  _updateFlyingParts(e);
   // フェーズ機械
   if (e.bossFatalPhase === 'pre_freeze') {
     // pre_freeze 突入時に triggerHitstop で全停止 → このティックは hitstop 抜けた直後の最初の update

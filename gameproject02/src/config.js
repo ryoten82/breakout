@@ -1022,6 +1022,11 @@ export const BOSS01_CONFIG = {
   FATAL_FREEZE_FRAMES:      90,    // フェーズC：爆発前フリーズ F（1.5 秒）
   FATAL_WOBBLE_SPEED:       0.06,  // よろめき振動の角周波数（sin 波で X 揺らし）
   FATAL_WOBBLE_AMP:         18,    // よろめき振幅 wu（X 方向）
+  // ── パーツ脱落（フェイタル B 期：stun 中に末端から少しずつ）──
+  //   GC は呼ばない / 上半身バンドル（body+head）は分離しない
+  //   順序：腕（左右ランダム）→ もう片腕 → stand → head の 4 段（最大数）
+  FATAL_DETACH_FIRST_DELAY: 60,    // stun 開始から最初の脱落までの待機 tick（1 秒）
+  FATAL_DETACH_INTERVAL:    90,    // 脱落間隔 tick（1.5 秒）
 };
 
 // ============================================================
