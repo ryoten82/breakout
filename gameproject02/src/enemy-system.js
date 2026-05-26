@@ -626,10 +626,11 @@ export function spawnDummy(x, z, opts = {}) {
     burnTickAcc:      0,    // 次 DoT tick までの累積
     burnSpreadAcc:    0,    // 次伝播判定までの累積
     burnSpreadChain:  0,    // 自分が受け継いだチェーン段数（連鎖上限制御）
-    burnBlastReady:   false, // OC IGNITE: SP1 で点火済み → もう一度 SP1 で起爆
-    detonateTimer:    0,     // OC IGNITE Phase3: > 0 の間カウントダウン → 0 で detonateBurn
-    burnFlameAcc:     0,    // 炎パーティクル間引きカウンタ
-    burnSourceId:    null,  // 点火源 attack id（将来分析用）
+    burnBlastReady:     false, // OC IGNITE: SP1 で点火済み → もう一度 SP1 で起爆
+    detonateTimer:      0,     // OC IGNITE Phase3: > 0 の間カウントダウン → 0 で detonateBurn
+    burnAutoBlastTimer: 0,     // OC CHAIN_BLAST: 点火時にセット → 0 で自動 detonateBurn
+    burnFlameAcc:       0,    // 炎パーティクル間引きカウンタ
+    burnSourceId:      null,  // 点火源 attack id（将来分析用）
     burnShells:      null,  // burn 中の BackSide オレンジ shell mesh（body/head 別）
   };
   _enemies.push(e);
@@ -650,11 +651,13 @@ export function igniteEnemy(e, opts = {}) {
     e.burnTimer = Math.max(e.burnTimer, dur);
     // chain は維持（既存連鎖の上限制御を壊さない）
   } else if (e.burnTimer <= 0) {
-    e.burnTimer       = dur;
-    e.burnTickAcc     = 0;
-    e.burnSpreadAcc   = 0;
-    e.burnFlameAcc    = 0;
-    e.burnSpreadChain = opts.chain ?? 0;
+    e.burnTimer         = dur;
+    e.burnTickAcc       = 0;
+    e.burnSpreadAcc     = 0;
+    e.burnFlameAcc      = 0;
+    e.burnSpreadChain   = opts.chain ?? 0;
+    // OC CHAIN_BLAST: 新規点火時に自動爆発タイマーをセット
+    e.burnAutoBlastTimer = BURN_CONFIG.DEATH_BLAST_ENABLED ? BURN_CONFIG.AUTO_BLAST_DELAY : 0;
     _attachBurnOutline(e);  // 新規点火時のみ shell 生成（再点火では使い回し）
     // 点火フラッシュ：白→オレンジ→赤 の 3 層爆炎 + 軽い shake で「決まった感」を出す
     // （SPREAD/CHAIN_BLAST 由来の派生点火でも同等に発火させる：演出として地味さの主原因）
@@ -714,8 +717,17 @@ function _updateBurnTick(e, ctx) {
   // burnTimer が切れた瞬間に shell を解放（次の if(0) で early-return する前に処理）
   if (e.burnTimer <= 0) {
     _detachBurnOutline(e);
-    e.burnBlastReady = false;   // 延焼自然消滅時は起爆準備もリセット
+    e.burnBlastReady     = false;   // 延焼自然消滅時は起爆準備もリセット
+    e.burnAutoBlastTimer = 0;
     return;
+  }
+  // OC CHAIN_BLAST: 自動爆発タイマー（新規点火時にセット済み）
+  if (e.burnAutoBlastTimer > 0) {
+    e.burnAutoBlastTimer--;
+    if (e.burnAutoBlastTimer === 0) {
+      detonateBurn(e);
+      return;
+    }
   }
   // アウトライン点滅（sin 正弦波で MIN→MAX を往復）
   if (e.burnShells && e.burnShells.length > 0) {
@@ -4338,20 +4350,7 @@ export function updateEnemies(ctx) {
     // ダウン・被弾ステート機械（タイマー駆動の遷移のみ・tiltAngle は後段で一括計算）
     if (e.state === STATE.down_up_start) {
       if (--e.downTimer <= 0) e.state = STATE.down_up_loop;
-      // midboss01 anti-juggle：打ち上げ開始と同時にカウンターをセット
-      if (e.enemyType === 'midboss01' && e.launchResistTimer === 0) {
-        e.launchResistTimer = MIDBOSS_SHIELD_CONFIG.LAUNCH_RESIST_FRAMES;
-      }
     } else if (e.state === STATE.down_up_loop) {
-      // midboss01 anti-juggle：滞空上限を超えたら強制着地（下流の y<=0 ブロックが down_bas_start へ遷移）
-      if (e.enemyType === 'midboss01' && e.launchResistTimer > 0) {
-        if (--e.launchResistTimer <= 0) {
-          e.y  = 0;
-          e.vy = 0;
-          e.launchResistTimer = 0;
-          spawnLaunchSmoke(e.x, 0, e.z);  // 着地煙で「叩きつけられた」感
-        }
-      }
       // 横倒しのまま落下（着地は y<=0 ブロックで処理）
     } else if (e.state === STATE.down_bas_start) {
       if (--e.downTimer <= 0) {

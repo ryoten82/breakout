@@ -40,6 +40,7 @@ import {
   spawnHitParticles, bumpCombo, triggerHitstop, triggerShake, fxState, combo,
 } from './hit-engine.js';
 import { isHitstunState, _cancelHitstunForReversal } from './damage-system.js';
+import { addStaticArea, removeArea, spawnExpandPulse } from './fx/damage-area.js';
 
 let _inp = null;
 let _dirMatchesForFacing = null;
@@ -116,6 +117,15 @@ export function startAttackById(p, id, chainIdx) {
   p._sameAtkCounted = false;
   // 着地ゲイザー：新攻撃開始でリセット（二重発火防止フラグ）
   p._landGeyserFired = false;
+  // 地面AoEリング：前の攻撃のリングが残っていればクリア
+  if (p._aoeRingId != null) { removeArea(p._aoeRingId); p._aoeRingId = null; }
+  // shockwaveEffect 技（SP3 など）：攻撃開始と同時に射程リングを床に表示（予兆）
+  if (ATTACKS[id].shockwaveEffect) {
+    const _rx = ATTACKS[id].rangeX ?? 200;
+    const _rz = ATTACKS[id].rangeZ ?? 160;
+    const _r  = Math.round((_rx + _rz) / 2 * 0.88);
+    p._aoeRingId = addStaticArea({ x: p.x, y: 0, z: p.z, radius: _r, color: 0xff3030, opacity: 0.50 });
+  }
   // SP 獲得用：新攻撃インスタンスにつき 1 回だけ SP を加算するためのフラグ
   //   （複数敵巻き込みでも SP は一定量。2026-05-27 仕様）
   p._spGainCounted = false;
@@ -268,6 +278,13 @@ export function updateAttack(p) {
       spawnHitParticles(p.x + _rx, p.y + 6, p.z + _rz, 0xffffff,  3, { type: 'launch', speedMul: 1.4, sizeScale: 0.6 });
     }
     triggerShake(8, 12);
+    // 静的リングを expand pulse に切り替え（衝撃波で外へ広がるイメージ）
+    if (p._aoeRingId != null) { removeArea(p._aoeRingId); p._aoeRingId = null; }
+    const _prx = atk.rangeX ?? 200;
+    const _prz = atk.rangeZ ?? 160;
+    spawnExpandPulse({ x: p.x, y: 1, z: p.z,
+      radius: Math.round((_prx + _prz) / 2 * 0.88),
+      color: 0xff3030, opacity: 0.65, life: 20 });
   }
 
   // === 踏み込み遅延（lungeDelay）：攻撃発生付近で lungeMomentum を仕込む（金剛灼火イメージ）===
@@ -387,6 +404,8 @@ export function updateAttack(p) {
       p.stepMomentum = 0;
       p.dashCooldown = PHYSICS.DASH_COOLDOWN;
     }
+    // AoEリングのクリーンアップ（hitFrame で消えていない場合＝空振り終了など）
+    if (p._aoeRingId != null) { removeArea(p._aoeRingId); p._aoeRingId = null; }
     // ULT 終了：演出完全リセット・無敵解除・全敵を強制解凍
     // ultDome / camera / attackTokens のクリーンアップは index.html 側コールバックに委譲
     if (atk.isUlt) {

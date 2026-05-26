@@ -2512,6 +2512,7 @@
     let _ocPending        = false; // カード選択中（true の間メインループを停止）
     let _ocOpenTimer      = 0;     // ジェム取得フラッシュ後、OC 選択画面を開くまでの残 F
     const _ocMods         = {};    // 適用済み変更の undo 用ベース値保存
+    let   _ocAppliedCards = [];   // 適用済みカード ID 履歴（ステージ遷移時の引継ぎ用）
     let   _ocCards        = [];   // 現在表示中の OC カード配列（キー入力選択用）
     let   _ocFocusIdx     = 0;    // フォーカス中カードの index（0 or 1）
     const _ocPadPrev      = { left: false, right: false, select: false };  // rising-edge
@@ -2726,6 +2727,8 @@
           }
           break;
       }
+      // SKIP 以外は履歴に記録（ステージ引継ぎ用）
+      _ocAppliedCards.push(cardId);
     }
 
     // 攻撃カテゴリトークン（カテゴリ別に独立した1枠・同時攻撃制御）
@@ -2904,6 +2907,8 @@
     // stage runner（wave-runner）が「現在ステージ」を参照できるようグローバルに公開
     // → URL ベースから SELECTED_STAGE 参照に切替（sessionStorage 経由で URL に依存しないため）
     const _IS_AUTO_TRANSITION = !!_autoTransitionStage;
+    // OC 引継ぎカード ID リスト（window.SB 定義後に適用するため一時保持）
+    let _ocCarryIds = null;
 
     // 選択されたステージを実際に初期化する（モード選択ボタン or 即時起動から呼ぶ）。
     //   stage01 外周書割（exterior）も stage01 起動時にここで併せて適用する。
@@ -3029,6 +3034,12 @@
           sessionStorage.removeItem('_sbCarryCr');
           if (!isNaN(_cCr) && _cCr > 0) addCrTotal(_cCr);
           sessionStorage.removeItem('_sbDbgHidden');  // inline script 側で使用済み
+          // OC カード引継ぎ：読み出しのみ（適用は window.SB 定義後に行う）
+          const _ocRaw = sessionStorage.getItem('_sbCarryOC');
+          sessionStorage.removeItem('_sbCarryOC');
+          if (_ocRaw) {
+            try { _ocCarryIds = JSON.parse(_ocRaw); } catch (_) { /* ignore */ }
+          }
         } catch (_) { /* ignore */ }
       }
     }
@@ -4292,6 +4303,8 @@
       //   SB.oc.gem(x, z)       → 任意座標に OC ジェムを出現（フロー確認用）
       //   SB.OVERCLOCK_CARDS    → カードテーブル確認
       OVERCLOCK_CARDS,
+      // OC カード引継ぎ：clear.js が stage 遷移直前に参照して sessionStorage に保存する
+      _ocAppliedCards,
       // 延焼（burn）：素では burn 付与不可。OC「点火」取得後に SP 命中 / GC 撃破で発火
       //   SB.BURN_CONFIG.SPREAD_ENABLED = true  → 伝播強制 ON（カード未取得でも検証可）
       //   SB.BURN_CONFIG.DEATH_BLAST_ENABLED = true → 死亡時爆発強制 ON
@@ -4332,6 +4345,12 @@
       set: (v) => fxRefs.megaSlow.set(v),
       configurable: true,
     });
+    // OC カード引継ぎ遅延適用（window.SB / OC_FLAGS が揃ったここで実行）
+    if (_ocCarryIds && Array.isArray(_ocCarryIds) && _ocCarryIds.length > 0) {
+      for (const _id of _ocCarryIds) _applyOCEffect(_id);
+      console.log('[OC] 引継ぎ復元:', _ocCarryIds);
+      _ocCarryIds = null;
+    }
     console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / pad / mega crash / ult) loaded.');
     console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG / SB.KEY_CONFIG');
     console.log('[SCRAP BLITZ] Try: SB.SP_CONFIG.MEGA_CRASH_COST = 10');

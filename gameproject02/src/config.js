@@ -1307,8 +1307,10 @@ export const BURN_CONFIG = {
   SPREAD_MAX_CHAINS:      3,     // 1 burn から派生する連鎖上限
   SPREAD_DURATION_INHERIT:0.7,   // 伝播先 duration 倍率（先細りで無限連鎖防止）
 
-  // 死亡時爆発（OC CHAIN_BLAST カードで ON）
+  // 時限自動爆発（OC CHAIN_BLAST カードで ON）
+  // 延焼開始から AUTO_BLAST_DELAY フレーム後に自動で detonateBurn を起動する
   DEATH_BLAST_ENABLED:    false,
+  AUTO_BLAST_DELAY:       120,   // 延焼開始から爆発までの待ちフレーム（2 秒）
   DEATH_BLAST_RADIUS:     240,
   DEATH_BLAST_DAMAGE:     12,
   DEATH_BLAST_IGNITES:    true,  // 爆風範囲の生存敵に burn 付与
@@ -1586,5 +1588,5 @@ export const OVERCLOCK_CARDS = [
   //  - フィルタは index.html showOCSelection 内の _filterOcPool が担当
   { id: 'IGNITE',      label: '点火',     desc: '必殺技命中 / 敵爆発時に周囲へ延焼を付与', color: '#ff7733', rarity: 'common',    weight: 10 },
   { id: 'SPREAD',      label: '延焼',     desc: '延焼中の敵から周囲へ炎が広がる',         color: '#ff5522', rarity: 'uncommon',  weight: 10 },
-  { id: 'CHAIN_BLAST', label: '連鎖爆発', desc: '延焼中の敵が倒れると爆発し周囲を延焼',   color: '#ff2200', rarity: 'rare',      weight: 10 },
+  { id: 'CHAIN_BLAST', label: '連鎖爆発', desc: '延焼開始から2秒後に自動爆発・周囲を延焼', color: '#ff2200', rarity: 'rare',      weight: 10 },
 ];
