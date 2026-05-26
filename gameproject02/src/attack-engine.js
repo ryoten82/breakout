@@ -315,6 +315,7 @@ export function updateAttack(p) {
         const hit = tryHitEnemiesMultiHit(p, atk, isLast, _hitCtx);
         if (hit) {
           p.hitDelivered = true;
+          if (!p.isGrounded) p.airHitOccurred = true;   // 空中ヒット成立フラグ（着地でクリア・SP→SP whiff チェーン許可）
           // 中間ヒット中は stepMomentum / lungeMomentum を切らない（突進を続ける）
           // 最終ヒット時のみ止める（オーバーシュート防止）
           if (isLast) {
@@ -340,6 +341,7 @@ export function updateAttack(p) {
     ) {
       if (tryHitEnemies(p, atk, _hitCtx)) {
         p.hitDelivered = true;
+        if (!p.isGrounded) p.airHitOccurred = true;   // 空中ヒット成立フラグ（着地でクリア・SP→SP whiff チェーン許可）
         // 起き上がり後の被弾回復グレース中に敵へ攻撃を当てたら無敵を即解除（再交戦＝救済終了）。
         // リバイブ無敵（recoverGrace=false）は対象外。
         if (p.recoverGrace) { p.invincibleFrames = 0; p.recoverGrace = false; }
@@ -633,6 +635,12 @@ export function processAttackInput(p) {
       const _caj = ATTACKS[p.attackId]?.cancelToAirJ;
       if (_caj && !p.isGrounded && !p.aerialWhiffed) {
         startAerialAttack(p, 0);
+        return;
+      }
+      // 着地後の SP hit_confirm（チェーン外）から地上 J で新規チェーン開始を許可。
+      // 旧実装は無条件 return で「SP→着地→J」が 45F 死に入力になっていた（2026-05-26 修正）。
+      if (p.isGrounded) {
+        startAttack(p, 0);
         return;
       }
       return; // 派生（チェーン外）後は何もしない

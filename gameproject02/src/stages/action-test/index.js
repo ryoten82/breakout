@@ -33,8 +33,9 @@ const MINES = [
 // ダミー敵の配置スロット（性格・敵種別）。死亡フローに入ったら同スロットへ即リスポーンする。
 // 2026-05-25：OC IGNITE 検証用に enem01 スクラッパーへ変更（HP 100 で 3 フェーズ起爆を確認しやすい）。
 //   即リスポーン判定が personality+enemyType の組で alive 検出する都合、1 体で運用。
+// デバッグ用：スクラッパー（enem01）を HP 無限で配置。SP チェーン検証に使う（2026-05-26）。
 const ENEMY_SLOTS = [
-  { personality: 'berserker', enemyType: 'midboss01', x: 0, z: 150 },  // midboss01 シールドガーダー
+  { personality: 'brave', enemyType: 'enem01', x: 0, z: 150 },
 ];
 
 let _built = false;
@@ -44,9 +45,8 @@ let _enemies = null;   // 即リスポーン判定用の敵配列参照（initAc
 // 1 スロット分のダミーを生成。instantRespawn:false ＝ 死亡演出（ゴア）を最後まで再生させる。
 function _spawnSlot(slot) {
   if (!_spawnDummy) return;
-  const hp = slot.enemyType === 'enem02' ? 35
-           : slot.enemyType === 'midboss01' ? 300
-           : 100;
+  // デバッグ用：HP 無限（実質倒れない巨大値）。SP チェーン検証のため戦闘継続を保つ（2026-05-26）。
+  const hp = 999999;
   const cd = slot.enemyType === 'enem02' ? 60
            : slot.enemyType === 'midboss01' ? 75
            : 90;

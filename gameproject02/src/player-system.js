@@ -113,11 +113,12 @@ export function processGuardInput(p) {
 
   if (!blockNewInput) {
     const lEdge = lHeld && !p._lWasHeld;  // L の rising edge
+    // hit_confirm はガード起動許可：空中 SP 着地後の防御不可問題を解消（2026-05-26）。
+    // attacking のみ排除（攻撃モーション中のガード割り込みは禁止）。
     const baseEligible =
       !p.guarding &&
       p.isGrounded &&
-      p.state !== STATE.attacking &&
-      p.state !== STATE.hit_confirm;
+      p.state !== STATE.attacking;
     // J+K 同時押し中の L 押下は ULT 入力候補なのでガードに入らない（誤発動防止・2026-05-15）
     // 旧版だと L 押した瞬間にガード起動 → p.guarding=true → ULT 入力 blocked で ULT が出なかった
     const _jkAlsoHeld = _inp('KeyJ') && _inp('KeyK');
@@ -374,15 +375,16 @@ function canStartSpecial(p, opts) {
   if (p.state === STATE.walk_fwd || p.state === STATE.walk_back) return true;
   if (p.state === STATE.hit_confirm) return true;
   if (p.state === STATE.attacking) {
-    // 攻撃中からの SP キャンセルはヒット確認必須（J 空振り・SP 空振り→SP 乱射を防止）
-    if (!p.hitDelivered) return false;
-    // cancelWindowStart が設定されている技は、その F 以降でないと SP キャンセル不可
-    // → 空中 J キャンセルと開始タイミングを統一
-    const _atkDef = ATTACKS[p.attackId];
-    if (_atkDef?.cancelWindowStart) {
-      const elapsed = _atkDef.duration - p.stateTimer;
-      if (elapsed < _atkDef.cancelWindowStart) return false;
-    }
+    // 攻撃中からの SP キャンセルはヒット確認必須。
+    //   ★空中の場合：本攻撃が当たってなくても airHitOccurred（同ジャンプ中の SP ヒット履歴）があれば許可。
+    //   これで「SP2 ヒット → SP1 whiff → SP3」のような連鎖を可能にする（2026-05-26）。
+    //   地上では従来通り hitDelivered 必須（地上 SP→SP 乱射防止）。
+    const _hitOk = p.hitDelivered || (!p.isGrounded && p.airHitOccurred);
+    if (!_hitOk) return false;
+    // SP→SP キャンセルはヒット成立直後から即受付（2026-05-26 修正）。
+    //   旧仕様は hitFrame + hitDuration の遅延を入れていたが、当該 6F 期間に K を押すと kKeyWasDown が
+    //   立ったまま窓に届かず死に入力になっていた（SP1 が出ない事象の主因）。
+    //   ヒットの直後にキャンセル可能でも、hitstop で視覚的にはほぼ違和感がない。
     return true;
   }
   // ジャンプ系 state は wait01 と同じ受付（演出フック）
@@ -399,7 +401,11 @@ function specialBaseId(id) {
   let s = id;
   if (s.endsWith('_air'))   s = s.slice(0, -4);
   if (s.endsWith('_short')) s = s.slice(0, -6);   // 2026-05-26：SP2 短押し版（c01_sp_02_short → c01_sp_02）
-  s = s.replace(/_\d{2}$/, '');  // _01, _02, ... の段階サフィックスを剥がす
+  // 段階サフィックス（_NN_NN 末尾の _NN）だけ剥がす：c01_sp_04_01 → c01_sp_04
+  //   単独 _NN（c01_sp_01 等）は SP 番号そのものなので保持。
+  //   2026-05-26 修正：旧 /_\d{2}$/ は SP 番号まで剥がしてしまい c01_sp_01 → c01_sp になっていた
+  //   （全空中 SP が同 baseId 'c01_sp' に潰れ、airUsedSpecialIds で互いをブロックしていた）。
+  s = s.replace(/(_\d{2})_\d{2}$/, '$1');
   return s;
 }
 // 必殺技の短期連発抑止クールダウン（コンボ未確立中のみ適用）
@@ -410,6 +416,12 @@ function startSpecial(p, id) {
   // 重複検出：specialUsedIds.add する前に判定して flag に保存。
   // 重複ヒットすると敵が down_burst_* に強制遷移（tryHitEnemies が参照）。
   const baseId = specialBaseId(id);
+  const _dbg = window.SB?.DEBUG_SPECIAL;
+  if (_dbg) {
+    const _atk = p.attackId ? ATTACKS[p.attackId] : null;
+    const _elapsed = _atk ? (_atk.duration - p.stateTimer) : '-';
+    console.log(`[SP TRY] id=${id} base=${baseId} state=${p.state} curAttack=${p.attackId} elapsed=${_elapsed} grounded=${p.isGrounded} hitDel=${p.hitDelivered} airHit=${p.airHitOccurred} airLock=${p.airAutoLockout ?? p.airAttackLockout ?? 0} landingLag=${p.landingLagTimer ?? 0} airUsed=${p.airUsedSpecialIds ? [...p.airUsedSpecialIds].join(',') : 'null'}`);
+  }
   // 2 回目の方向タップ → SP コマンド のように、ダッシュ起動と SP 発動が同期する入力では
   // ダッシュが SP 発動より 1〜2F 早く立つ。SP 発動時にはダッシュをクリアして、
   // SP 終了後に方向キー保持で「裏ダッシュが続く」事故を防ぐ（2026-05-18）。
@@ -426,7 +438,18 @@ function startSpecial(p, id) {
   // 「地上 SP2 → 空中 SP2」のような地上⇄空中の派生切替は別 id なので cooldown 無視 → 繋がる
   const _lastFire = p._specialFireFrames?.[baseId] ?? -Infinity;
   const _lastFireId = p._specialFireIds?.[baseId];
-  if (_lastFireId === id && getGameFrame() - _lastFire < _SPECIAL_COOLDOWN_FRAMES) return false;
+  if (_lastFireId === id && getGameFrame() - _lastFire < _SPECIAL_COOLDOWN_FRAMES) {
+    if (_dbg) console.log(`  [SP REJECT] cooldown gap=${getGameFrame() - _lastFire} < ${_SPECIAL_COOLDOWN_FRAMES}`);
+    return false;
+  }
+  // === 空中 SP 出戻り禁止 ===
+  // 同ジャンプ中に一度使った base ID は着地まで再使用不可（SP2→SP1→SP2 の無限チェーン防止）
+  if (!p.isGrounded) {
+    if (p.airUsedSpecialIds?.has(baseId)) {
+      if (_dbg) console.log(`  [SP REJECT] airUsedSpecialIds has ${baseId}`);
+      return false;
+    }
+  }
   // 重複判定はヒット時に「敵単位」で行うようになったため、ここでは発動可否判定をしない
   // （p.specialUsedIds は debug HUD 表示・将来 UI 用に維持。burst トリガには不使用）
   const wasGrabbing = (p.state === STATE.grabbing);
@@ -439,6 +462,11 @@ function startSpecial(p, id) {
   //    発動瞬間ではなく「攻撃が出る瞬間（パイルバンカー射出など）の反動」として表現するため。
   // 使用済 ID は地上/空中で共有するため base ID で記録（重複時も add は冪等）
   p.specialUsedIds.add(baseId);
+  // 空中使用済み ID を記録（同ジャンプ中の出戻り連打を防ぐ）
+  if (!p.isGrounded) {
+    if (!p.airUsedSpecialIds) p.airUsedSpecialIds = new Set();
+    p.airUsedSpecialIds.add(baseId);
+  }
   // 短期連発抑止用：base ID ごとに「技終了時刻」を記録（cooldown はそこから開始）
   // → 技 duration が長い必殺技でも、終了してから一定 F 経過しないと再発動できない
   if (!p._specialFireFrames) p._specialFireFrames = {};
@@ -456,7 +484,7 @@ function startSpecial(p, id) {
   // 方向入力履歴クリア：同じコマンドが連打で再成立しないように
   // （1 コマンド = 1 発動。次に出すには方向を再入力する必要がある）
   p.dirHistory.length = 0;
-  if (window.SB?.DEBUG_SPECIAL) console.log('[SPECIAL]', id, '発動');
+  if (_dbg) console.log(`  [SP FIRE OK] ${id}`);
   return true;
 }
 
@@ -558,7 +586,19 @@ export function processStrongAttackInput(p) {
   if (p.guarding || p.ultActive) return;
   if (p.state === STATE.grabbing) return;
   if (!justPressed) return;
-  if (!canStartSpecial(p)) return;
+  if (window.SB?.DEBUG_SPECIAL) {
+    const upH = _inp('ArrowUp') || _inp('KeyW');
+    const dnH = _inp('ArrowDown') || _inp('KeyS');
+    console.log(`[K PRESS] up=${upH} dn=${dnH} state=${p.state} curAttack=${p.attackId}`);
+  }
+  if (!canStartSpecial(p)) {
+    if (window.SB?.DEBUG_SPECIAL) {
+      const _atk = p.attackId ? ATTACKS[p.attackId] : null;
+      const _elapsed = _atk ? (_atk.duration - p.stateTimer) : '-';
+      console.log(`  [canStartSpecial=FALSE] state=${p.state} hitDel=${p.hitDelivered} airHit=${p.airHitOccurred} elapsed=${_elapsed} grounded=${p.isGrounded} airLock=${p.airAttackLockout ?? 0} landingLag=${p.landingLagTimer ?? 0}`);
+    }
+    return;
+  }
 
   const upHeld  = _inp('ArrowUp')    || _inp('KeyW');
   const dnHeld  = _inp('ArrowDown')  || _inp('KeyS');
@@ -576,7 +616,7 @@ export function processStrongAttackInput(p) {
     const _attackIdBefore = p.attackId;
     const _stateBefore    = p.state;
     const _spBefore       = p.sp;
-    startSpecial(p, id);
+    const _fired = startSpecial(p, id);
     if (typeof window !== 'undefined' && window.SB?.DEBUG_SP2_LOG) {
       const fired = p.attackId === id && p.attackId !== _attackIdBefore;
       if (!fired) {
@@ -585,7 +625,10 @@ export function processStrongAttackInput(p) {
         console.log(`  [SP2 START OK] attackId=${p.attackId} stateTimer=${p.stateTimer} sp=${p.sp.toFixed(1)}`);
       }
     }
-    return;
+    // SP2 が airUsedSpecialIds 等で発動失敗した場合は SP1 へフォールスルー（2026-05-26）。
+    //   理由：↑を押しっぱなしのまま K で SP1 を狙ったとき、SP2 試行→ブロック→不発で固まる事象の救済。
+    if (_fired) return;
+    if (window.SB?.DEBUG_SPECIAL) console.log(`  [SP2 fallthrough → SP1]`);
   }
 
   let baseId;
@@ -883,17 +926,35 @@ export function updatePlayer(p) {
   }
   if (p.invincibleFrames > 0) p.invincibleFrames--;
 
+  // ============================================================
+  // 攻撃連発ロック群（2026-05-26 整理）
+  //   ① airAttackLockout（postAirLockout 由来・空中限定）
+  //      - aerialHop 発火時に SP の postAirLockout 値で起動
+  //      - canStartSpecial で `!p.hitDelivered` の時のみブロック → 命中時は素通り
+  //      - 着地でクリア
+  //   ② landingLag（空中技後の地上硬直）
+  //      - 着地時に SP の landingLag 値で起動
+  //      - ★命中時はスキップ：hitDelivered=true の場合 set されない（攻めの継続を優先）
+  //      - 空振り着地時のみ攻撃/SP/ダッシュ入力を一定 F 封鎖（メガクラ/ULT/移動/ガードは許可）
+  //   ③ airUsedSpecialIds（空中 SP 出戻り禁止）
+  //      - 同 base ID は着地まで再使用不可
+  //      - 異なる SP への乗換は自由（SP2→SP1→SP3 は OK / SP2→SP1→SP2 は NG）
+  //   ④ _specialFireFrames（同 ID 30F 連発抑止）
+  //      - 全 SP 共通の最小クールダウン
+  // ============================================================
+
   // === 空中攻撃ロックアウト（aerialHop 後の連打防止）===
   if (p.airAttackLockout > 0) {
     if (p.isGrounded) p.airAttackLockout = 0;  // 着地でリセット
     else p.airAttackLockout--;
   }
 
-  // === 着地硬直（landingLag）：空中技着地後の攻撃入力封鎖 ===
-  if ((p.landingLagTimer ?? 0) > 0) {
-    p.landingLagTimer--;
-    return;  // 攻撃・SP・ダッシュ入力をすべてスキップ
-  }
+  // === 着地硬直（landingLag）：空中技空振り着地後の攻撃/SP/ダッシュ入力封鎖（移動は許可）===
+  //   2026-05-26 修正：旧実装は return で updatePlayer 全体を打ち切っていたため歩行も止まっていた。
+  //   2026-05-26 修正：hitDelivered の場合は set されないため、命中時はそもそも _landingLagged にならない。
+  //   2026-05-26 修正：地上時のみ判定（ジャンプで離陸したら即解除・タイマーもジャンプ時にクリア）。
+  if ((p.landingLagTimer ?? 0) > 0) p.landingLagTimer--;
+  const _landingLagged = (p.landingLagTimer ?? 0) > 0 && p.isGrounded;
 
   // === SP 自然回復 ===
   p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.REGEN_RATE);
@@ -910,9 +971,11 @@ export function updatePlayer(p) {
   }
 
   // === 攻撃入力処理（毎フレーム）===
+  // メガクラ／ULT は緊急回避手段なので landingLag 中も通す（防御選択肢の確保）。
   _processMegaCrashUltInput(p);
-  // 受け身ジャンプ上昇中（ukemiInvuln）は攻撃を封印：受け身でテンポを上げすぎない（2026-05-20）
-  if (!p.ukemiInvuln) {
+  // 通常攻撃・SP は landingLag 中スキップ（攻撃ロックアウトの本来の目的）。
+  // 受け身ジャンプ上昇中（ukemiInvuln）は攻撃を封印：受け身でテンポを上げすぎない（2026-05-20）。
+  if (!_landingLagged && !p.ukemiInvuln) {
     processSpecialInput(p);
     processAttackInput(p);
     processStrongAttackInput(p);
@@ -920,7 +983,7 @@ export function updatePlayer(p) {
 
   if (p.specialFlashTimer > 0) p.specialFlashTimer--;
   if (p.ukemiFlashTimer > 0) p.ukemiFlashTimer--;
-  if (!p.guarding && !p.ultActive && p.state !== STATE.grabbing) processDashInput(p);
+  if (!_landingLagged && !p.guarding && !p.ultActive && p.state !== STATE.grabbing) processDashInput(p);
 
   tryCancelJump(p);
   updateComboHoming(p);
@@ -1202,6 +1265,7 @@ export function updatePlayer(p) {
     p.isGrounded = false;
     p.thrustFramesLeft = PHYSICS.THRUST_FRAMES;
     p.jumpConsumed = true;
+    p.landingLagTimer = 0;   // ジャンプで離陸 → landingLag は意味を成さないのでクリア（2026-05-26）
     // 離陸 state（ダッシュジャンプは jump_d_*）。攻撃中・grabbing はジャンプ条件で除外済み。
     if (p.airWasDash) {
       p.state      = STATE.jump_d_start;
@@ -1300,8 +1364,11 @@ export function updatePlayer(p) {
         p.kBuffered      = false;
         p.attackBuffered = false;
       }
-      // 着地硬直（landingLag）：空中技の着地後に指定 F だけ攻撃入力を封鎖
-      if (_landAtk?.landingLag && (p.state === STATE.attacking || p.state === STATE.hit_confirm || p.state === STATE.wait01)) {
+      // 着地硬直（landingLag）：空中技着地後の攻撃入力封鎖。
+      //   ★ヒット成立済（hitDelivered）はスキップ：命中時はキャンセル/チェーン優先（2026-05-26）。
+      //   空振り着地時のみ後隙ペナルティとして発動。
+      if (_landAtk?.landingLag && !p.hitDelivered &&
+          (p.state === STATE.attacking || p.state === STATE.hit_confirm || p.state === STATE.wait01)) {
         p.landingLagTimer = _landAtk.landingLag;
       }
       { let ldx = 0, ldz = 0;
@@ -1318,6 +1385,13 @@ export function updatePlayer(p) {
         p.airWasDash = false;
       }
       p.aerialHopCount = 0;      // 着地で連続ホップ減衰カウンタもリセット
+      p.airUsedSpecialIds = null; // 着地で空中 SP 使用履歴をリセット（出戻り禁止フラグのクリア）
+      p.airHitOccurred = false;   // 着地で空中ヒット履歴をリセット（SP→SP whiff チェーン許可フラグ）
+      // 同 ID 30F cooldown をクリア：着地後の次ジャンプで同じ空中 SP を再使用可能にする（2026-05-26）。
+      //   元々「地上ループ防止」目的で導入されたが、空中は airUsedSpecialIds が 1 回制限を担うため重複。
+      //   着地のたびにリセットして「再ジャンプ→同 SP」を阻害しない。地上連打は次の同 ID 発動で再度 set される。
+      p._specialFireFrames = null;
+      p._specialFireIds    = null;
       p.airVx = 0;
       p.airVz = 0;
       // 通常ジャンプ着地 → jump_end / jump_d_end へ（攻撃中・ダッシュ中は介入しない）。
