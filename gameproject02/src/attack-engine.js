@@ -886,14 +886,22 @@ export function triggerUlt(p) {
   // 発動制限：空中不可 / ガード中不可
   // 自他問わず ULT 演出中は割り込み発動不可（マルチ対応見込み）
   if (anyPlayerUlting()) return;
-  if (!p.isGrounded) return;
   if (p.guarding)   return;
-  // 被弾中だった場合は state を強制クリア（リバーサル発動）
-  if (isHitstunState(p)) _cancelHitstunForReversal(p);
-  // 許可ステート：wait01 / attacking / hit_confirm（hit_confirm からキャンセル発動可）
-  if (p.state !== STATE.wait01 &&
-      p.state !== STATE.attacking &&
-      p.state !== STATE.hit_confirm) return;
+  // フェイタル中は地上/state 制限を緩和（プレイヤーは隙に必殺技を撃つターン）
+  //   どの state からでも ULT 発動可能・空中でも OK
+  const _anyFatal = _enemies && _enemies.some(e => e && e.bossFatal && !e.dying);
+  if (!_anyFatal) {
+    if (!p.isGrounded) return;
+    // 被弾中だった場合は state を強制クリア（リバーサル発動）
+    if (isHitstunState(p)) _cancelHitstunForReversal(p);
+    // 許可ステート：wait01 / attacking / hit_confirm（hit_confirm からキャンセル発動可）
+    if (p.state !== STATE.wait01 &&
+        p.state !== STATE.attacking &&
+        p.state !== STATE.hit_confirm) return;
+  } else {
+    // フェイタル：被弾中なら hitstun 解除のみ実施（state は許容）
+    if (isHitstunState(p)) _cancelHitstunForReversal(p);
+  }
   if (p.sp < SP_CONFIG.ULT_COST) {
     // SP 不足 → 何もせず失敗（旧版はメガクラへフォールバックしていたが、ULT 入力で残り SP を
     // 食い潰される暴発の原因となるため撤去・2026-05-15）。mega を撃ちたい時は U / J+K で。
