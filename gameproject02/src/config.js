@@ -1018,8 +1018,10 @@ export const BOSS01_CONFIG = {
   FATAL_SLOWIN_TIMER:       60,    // フェーズA：実フレーム持続（DIVISOR=3 で 180F 相当 ≒ 60 update tick）
   FATAL_BLACK_FADE_FRAMES:  25,    // フェーズA中の真っ黒フェード所要 update tick（早々に完了：slow_in 60 tick の前半で消化）
   FATAL_BANNER_DELAY:       30,    // バナー表示遅延 F（スロー入り後すぐ）
-  FATAL_STUN_FRAMES:        600,   // フェーズB：スタン期 F（10 秒・プレイヤー自由コンボ）
-  FATAL_FREEZE_FRAMES:      90,    // フェーズC：爆発前フリーズ F（1.5 秒）
+  FATAL_STUN_FRAMES:        600,   // フェーズB：スタン期 タイムアウト F（10 秒・コンボ切れ/バーストダウン で早期終了）
+  FATAL_SMALL_EXPLODE_FRAMES: 120, // フェーズC：小爆発ループ持続 F（2 秒・ポーズ完全固定）
+  FATAL_SMALL_BLAST_INTERVAL: 14,  // フェーズC：小爆発の発生間隔 F（≒0.23 秒ごと）
+  FATAL_BIG_SLOW_FRAMES:    90,    // フェーズD：大爆発時のスローモーション F（1.5 秒）
   FATAL_WOBBLE_SPEED:       0.06,  // よろめき振動の角周波数（sin 波で X 揺らし）
   FATAL_WOBBLE_AMP:         18,    // よろめき振幅 wu（X 方向）
   // ── パーツ脱落（フェイタル B 期：stun 中に末端から少しずつ）──

@@ -1505,31 +1505,13 @@ function _updateBossFatal(e) {
   e.knockbackVx = 0;
   e.x = (e._bossFatalBaseX ?? e.x);
   if (e.mesh) e.mesh.position.x = e.x;
-  // パーツ脱落：stun 期のみ・末端から順次・GC は呼ばない
-  //   _fatalDetachOrder の先頭から 1 個ずつ抜き出して _detachOneNamed で分離
-  //   body は order に含めていないので「上半身泣き別れ」は発生しない
-  if (e.bossFatalPhase === 'stun' && Array.isArray(e._fatalDetachOrder) && e._fatalDetachOrder.length > 0) {
-    e._fatalDetachCooldown = (e._fatalDetachCooldown ?? 0) - 1;
-    if (e._fatalDetachCooldown <= 0) {
-      const _name = e._fatalDetachOrder.shift();
-      _detachOneNamed(e, _name, null);
-      // 小さい黒煙＋軽い hitstop で離脱を強調
-      spawnHitParticles(e.x, e.y + 90, e.z, 0x222222, 12, { type: 'omni' });
-      triggerHitstop(4);
-      e._fatalDetachCooldown = _CFG.FATAL_DETACH_INTERVAL ?? 90;
-    }
-  }
-  // 分離済みパーツの物理更新（重力・バウンド・フェード）
-  //   dying 中は _updateDyingTimers が呼ぶが、フェイタルは dying ではないのでここで明示呼び出し
-  _updateFlyingParts(e);
-  // フェーズ機械
-  if (e.bossFatalPhase === 'pre_freeze') {
-    // pre_freeze 突入時に triggerHitstop で全停止 → このティックは hitstop 抜けた直後の最初の update
-    // つまり「フリーズ終了 → 爆発」のタイミング
+  // === フェーズ機械（A: slow_in → B: stun → C: small_explode → D: big_explode）===
+
+  // ── フェーズ D: 大爆発（前ティックで megaSlow セット済み・このティックで爆散）──
+  if (e.bossFatalPhase === 'big_explode') {
     e.bossFatal = false;
     e.hp        = 0;
     e.lastHitter = { lv: 6, facing: 1, forceGc: false };
-    // プレイヤー側のシルエット tint を解除（爆散と同時に通常色へ戻す）
     if (_players) {
       for (const _p of _players) {
         if (_p && _p.mesh) restoreBodyColor(_p.mesh);
@@ -1538,18 +1520,80 @@ function _updateBossFatal(e) {
     enterEnemyDyingBurst(e, e.lastHitter, 1);
     return;
   }
-  e.bossFatalPhaseTimer = (e.bossFatalPhaseTimer ?? 0) - 1;
-  if (e.bossFatalPhaseTimer <= 0) {
-    if (e.bossFatalPhase === 'slow_in') {
-      e.bossFatalPhase      = 'stun';
-      e.bossFatalPhaseTimer = _CFG.FATAL_STUN_FRAMES ?? 600;
-    } else if (e.bossFatalPhase === 'stun') {
-      e.bossFatalPhase      = 'pre_freeze';
-      e.bossFatalPhaseTimer = 0;
-      // hitstop で全停止（player update も止まる）→ 1.5 秒後の次 update で爆散
-      triggerHitstop(_CFG.FATAL_FREEZE_FRAMES ?? 90);
+
+  // ── フェーズ C: 小爆発ループ（ポーズ完全固定）──
+  if (e.bossFatalPhase === 'small_explode') {
+    // ポーズ固定：state とアニメ進行を毎フレーム上書き
+    if (e._fatalLockState) {
+      e.state = e._fatalLockState;
+      e.downTimer = 99999;   // state machine の自動遷移を抑止
+      e.atkPhase  = null;
+      e.atkTimer  = 0;
     }
+    // 小爆発抽選（FATAL_SMALL_BLAST_INTERVAL 間隔で発生）
+    e._fatalSmallBlastCd = (e._fatalSmallBlastCd ?? 0) - 1;
+    if (e._fatalSmallBlastCd <= 0) {
+      const _ox = (Math.random() - 0.5) * 200;
+      const _oy = 40 + Math.random() * 220;
+      const _oz = (Math.random() - 0.5) * 80;
+      spawnHitParticles(e.x + _ox, e.y + _oy, e.z + _oz, 0xff7733, 18, { type: 'omni' });
+      spawnHitParticles(e.x + _ox, e.y + _oy, e.z + _oz, 0xffaa44, 10, { type: 'omni' });
+      triggerShake(5, 6);
+      e._fatalSmallBlastCd = _CFG.FATAL_SMALL_BLAST_INTERVAL ?? 14;
+    }
+    e.bossFatalPhaseTimer = (e.bossFatalPhaseTimer ?? 0) - 1;
+    if (e.bossFatalPhaseTimer <= 0) {
+      // 大爆発へ移行：megaSlow をセット → 次ティックで big_explode が走る
+      e.bossFatalPhase = 'big_explode';
+      if (typeof window !== 'undefined' && window.SB) {
+        window.SB.megaSlow = Math.max(window.SB.megaSlow ?? 0, _CFG.FATAL_BIG_SLOW_FRAMES ?? 90);
+      }
+    }
+    _updateFlyingParts(e);
+    return;
   }
+
+  // ── フェーズ B: スタン期（コンボ切れ / バーストダウン / タイムアウトで終了）──
+  if (e.bossFatalPhase === 'stun') {
+    // パーツ脱落（stun 期のみ）
+    if (Array.isArray(e._fatalDetachOrder) && e._fatalDetachOrder.length > 0) {
+      e._fatalDetachCooldown = (e._fatalDetachCooldown ?? 0) - 1;
+      if (e._fatalDetachCooldown <= 0) {
+        const _name = e._fatalDetachOrder.shift();
+        _detachOneNamed(e, _name, null);
+        spawnHitParticles(e.x, e.y + 90, e.z, 0x222222, 12, { type: 'omni' });
+        triggerHitstop(4);
+        e._fatalDetachCooldown = _CFG.FATAL_DETACH_INTERVAL ?? 90;
+      }
+    }
+    // 終了トリガ判定：コンボ切れ / バーストダウン / タイムアウト
+    const _prevCombo = e._fatalPrevCombo ?? 0;
+    const _curCombo  = combo.count ?? 0;
+    e._fatalPrevCombo = _curCombo;
+    const _comboJustBroke = _prevCombo > 0 && _curCombo === 0;
+    const _burstDown      = (e.state === STATE.down_burst_start || e.state === STATE.down_burst_loop);
+    e.bossFatalPhaseTimer = (e.bossFatalPhaseTimer ?? 0) - 1;
+    const _timeOut        = e.bossFatalPhaseTimer <= 0;
+    if (_comboJustBroke || _burstDown || _timeOut) {
+      // small_explode へ移行：ポーズ snapshot + dyingInvincible で完全固定
+      e.bossFatalPhase      = 'small_explode';
+      e.bossFatalPhaseTimer = _CFG.FATAL_SMALL_EXPLODE_FRAMES ?? 120;
+      e._fatalSmallBlastCd  = 0;       // 最初の小爆発は即発
+      e._fatalLockState     = e.state; // ポーズ snapshot
+      e.dyingInvincible     = true;    // hit-engine 側のヒット skip 経路を流用
+    }
+    _updateFlyingParts(e);
+    return;
+  }
+
+  // ── フェーズ A: slow_in（タイマーで stun へ）──
+  e.bossFatalPhaseTimer = (e.bossFatalPhaseTimer ?? 0) - 1;
+  if (e.bossFatalPhaseTimer <= 0 && e.bossFatalPhase === 'slow_in') {
+    e.bossFatalPhase      = 'stun';
+    e.bossFatalPhaseTimer = _CFG.FATAL_STUN_FRAMES ?? 600;
+    e._fatalPrevCombo     = combo.count ?? 0;  // コンボ追跡開始
+  }
+  _updateFlyingParts(e);
 }
 
 //   - HP 0 を lv06 攻撃で達成した瞬間に呼ばれる
