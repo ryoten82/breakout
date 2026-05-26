@@ -45,7 +45,7 @@ import {
   KB_LV06_VY, KB_LV06_VX_MULT,
   applyRollHipPivot,
 } from './states.js';
-import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG, BURN_CONFIG, BOSS_MEGA_CONFIG } from './config.js';
+import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG, BURN_CONFIG, BOSS_MEGA_CONFIG, SP_CONFIG } from './config.js';
 import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, spawnBlastSphere, spawnLaunchSmoke, fxState } from './hit-engine.js';
 import { spawnBanner, spawnDamageNumber } from './hud-system.js';
 import { tryPinballHit } from './pinball.js';
@@ -1452,9 +1452,13 @@ export function enterBossFatal(e, p) {
   }
   // プレイヤー側：無敵点滅でシルエットがチラつかないよう invincibleFrames をクリア
   //   ボスはスタン中で攻撃しないので無敵は不要
+  //   ＋ SP を完全回復（フェイタル＝隙に必殺技を叩き込むターン）
   if (_players) {
     for (const _p of _players) {
-      if (_p) _p.invincibleFrames = 0;
+      if (_p) {
+        _p.invincibleFrames = 0;
+        _p.sp = SP_CONFIG.MAX;
+      }
     }
   }
   return true;
@@ -1488,13 +1492,12 @@ function _updateBossFatal(e) {
       spawnBanner('SCRAP THEM!!!', { frames: 150, color: '#ffcc00', fontSize: 80 });
     }
   }
-  // よろめき：fade 完了後にのみ揺れる（最初は静止）
-  if (e._bossFatalFadeProgress >= 1) {
-    const _wobW = _CFG.FATAL_WOBBLE_SPEED ?? 0.06;
-    const _wobA = _CFG.FATAL_WOBBLE_AMP   ?? 18;
-    e.x = (e._bossFatalBaseX ?? e.x) + Math.sin(e._bossFatalFrame * _wobW) * _wobA;
-    if (e.mesh) e.mesh.position.x = e.x;
-  }
+  // 位置を完全ロック：knockback / wobble 起因の漂流を防ぐ
+  //   旧 sin wave wobble は「ゆっくり歩いて見える」と指摘あり → 撤去
+  //   毎フレーム baseX に強制スナップ + knockbackVx を 0 に潰す
+  e.knockbackVx = 0;
+  e.x = (e._bossFatalBaseX ?? e.x);
+  if (e.mesh) e.mesh.position.x = e.x;
   // フェーズ機械
   if (e.bossFatalPhase === 'pre_freeze') {
     // pre_freeze 突入時に triggerHitstop で全停止 → このティックは hitstop 抜けた直後の最初の update
