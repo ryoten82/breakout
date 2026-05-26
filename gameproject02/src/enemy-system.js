@@ -4798,6 +4798,12 @@ export function updateEnemies(ctx) {
       const _pFactor = _pMax * (0.5 + 0.5 * Math.sin((e._bossStunFrame ?? 0) * _pSpeed));
       _setMeshChargeColor(e, _pFactor, 0x000000);
     }
+    // フェイタル中：真っ黒フェードを最終適用（bossStun pulse を上書きしてシルエット完成）
+    //   bossStun との競合：bossStun は毎フレーム base color 復元後に弱い pulse を被せるため、
+    //   ここで強い fade を再適用しないと黒くならない。
+    if (e.bossFatal && !e.dying) {
+      _setMeshChargeColor(e, e._bossFatalFadeProgress ?? 0, 0x000000);
+    }
 
     // きりもみやられ突入フラッシュ：紫を「乗算」で body/head 色に被せる
     //   元色 × 紫 (0x6622ff) を t=1 とし、t=0 で元色へフェード復帰（敵種別色対応）
