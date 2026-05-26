@@ -51,6 +51,7 @@ import {
 import {
   isHitstunState, updatePlayerHitstun,
   updateCrisisEffect, updateInvincibleBlink,
+  _cancelHitstunForReversal,
 } from './damage-system.js';
 import { spawnHitParticles } from './hit-engine.js';
 import { getActiveWallX } from './camera.js';
@@ -391,6 +392,28 @@ function canStartSpecial(p, opts) {
   if (PLAYER_JUMP_STATES.has(p.state)) return true;
   return false;
 }
+
+// SP2（RC）専用 gate：ほぼ全行動から強制キャンセル発動を許可（2026-05-26）
+//   乱戦で攻撃モーション硬直により RC を逃す問題への対処。
+//   ULT / メガクラ / 吹き飛び / ダウン / 致命系のみ拒否。軽い被弾（knockback 系）からはリバーサル発動。
+const _SP2_RC_BLOCKED_STATES = new Set([
+  STATE.down_front_start, STATE.down_front_loop,
+  STATE.down_up_start, STATE.down_up_loop,
+  STATE.down_rakka_start, STATE.down_rakka_loop, STATE.down_bound_start,
+  STATE.down_super_start, STATE.down_super_loop, STATE.down_wall_start,
+  STATE.down_roll_start, STATE.down_roll_loop,
+  STATE.down_bas_start, STATE.down_bas_loop, STATE.down_bas_end,
+  STATE.guard_crash, STATE.dying, STATE.dead, STATE.respawning,
+]);
+function canStartSP2ForRC(p) {
+  if (p.guarding) return false;
+  if (p.ultActive) return false;
+  if (anyPlayerUlting()) return false;
+  if (p.attackId === 'c01_sp_mega01') return false;
+  if (_SP2_RC_BLOCKED_STATES.has(p.state)) return false;
+  return true;
+}
+
 // 必殺技 ID の正規化：地上/空中の派生は同じ base として 1 コンボ 1 回ルールを共有する
 //   例: 'c01_sp_01' と 'c01_sp_01_air' は同じ base 'c01_sp_01' として扱う
 function specialBaseId(id) {
@@ -591,14 +614,7 @@ export function processStrongAttackInput(p) {
     const dnH = _inp('ArrowDown') || _inp('KeyS');
     console.log(`[K PRESS] up=${upH} dn=${dnH} state=${p.state} curAttack=${p.attackId}`);
   }
-  if (!canStartSpecial(p)) {
-    if (window.SB?.DEBUG_SPECIAL) {
-      const _atk = p.attackId ? ATTACKS[p.attackId] : null;
-      const _elapsed = _atk ? (_atk.duration - p.stateTimer) : '-';
-      console.log(`  [canStartSpecial=FALSE] state=${p.state} hitDel=${p.hitDelivered} airHit=${p.airHitOccurred} elapsed=${_elapsed} grounded=${p.isGrounded} airLock=${p.airAttackLockout ?? 0} landingLag=${p.landingLagTimer ?? 0}`);
-    }
-    return;
-  }
+  // SP2（RC）は canStartSP2ForRC で後処理。SP1/SP3 は後述の canStartSpecial チェックで制限。
 
   const upHeld  = _inp('ArrowUp')    || _inp('KeyW');
   const dnHeld  = _inp('ArrowDown')  || _inp('KeyS');
@@ -610,7 +626,11 @@ export function processStrongAttackInput(p) {
   //   - 空中：c01_sp_02_air（控えめ単発・コンボ降下しない調整）
   //   - 旧 ホールド分岐コード（updateSp2Hold / SP2_HOLD_FRAMES）は実装は残置・本入口だけ即発に戻す
   //   - c01_sp_02（粉塵昇竜・多段）は OC / 強化版として将来再利用予定（定義は attacks.js に残置）
+  // SP2 だけは canStartSP2ForRC で「ほぼ全行動からキャンセル可」（2026-05-26）。
+  //   乱戦で攻撃硬直により RC を逃す問題への対処。被弾中（軽 knockback）はメガクラ同様にリバーサル発動。
   if (upHeld) {
+    if (!canStartSP2ForRC(p)) return;
+    if (isHitstunState(p)) _cancelHitstunForReversal(p);
     const id = p.isGrounded ? 'c01_sp_02_short' : 'c01_sp_02_air';
     _logSp2Snapshot(p, id);  // タイミング検証ログ（window.SB.DEBUG_SP2_LOG で ON/OFF）
     const _attackIdBefore = p.attackId;
@@ -630,6 +650,9 @@ export function processStrongAttackInput(p) {
     if (_fired) return;
     if (window.SB?.DEBUG_SPECIAL) console.log(`  [SP2 fallthrough → SP1]`);
   }
+
+  // SP1/SP3 は従来通り canStartSpecial で受付（SP2 のみ強制キャンセル特権）
+  if (!canStartSpecial(p)) return;
 
   let baseId;
   if (dnHeld) baseId = 'c01_sp_03';
