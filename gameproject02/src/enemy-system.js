@@ -1407,6 +1407,47 @@ function _setupArmedKinematics(e, variant) {
 
 // ============================================================
 //  Phase 3-C：lv06 ヒット時のバーストダウン即爆散ルート（黒フェード経由しない直行）
+// ============================================================
+//  SCRAP THEM!!! フェイタルフェーズ（§10）
+//  ボスの HP が 0 到達後、即爆散させず「ボーナスコンボタイム」を挟む。
+//  - 入場：スローモーション + よろめき開始 + バナー遅延表示
+//  - 持続：FATAL_DURATION F 間、プレイヤーが自由にコンボ可（HP は 1 で固定）
+//  - 終了：タイマー切れ → enterEnemyDyingBurst（爆散）
+//  - 特例：フェイタル中にメガクラッシュが当たった場合も即爆散
+// ============================================================
+export function enterBossFatal(e, p) {
+  if (!e || e.dying || e.bossFatal) return false;
+  const _CFG = BOSS01_CONFIG;
+  e.bossFatal       = true;
+  e.bossFatalTimer  = _CFG.FATAL_DURATION ?? 600;
+  e.bossFatalBannerTimer = _CFG.FATAL_BANNER_DELAY ?? 18;  // スロー終了後にバナー表示
+  e._bossFatalFrame = 0;  // よろめきアニメ用フレームカウント
+  // HP を 1 に固定：フェイタル中の追加ダメージは見た目のみ（コンボ継続目的）
+  e.hp              = 1;
+  // AI とスタン：ボスは完全静止（既存 bossStun 機構を再利用）
+  e.aiEnabled       = false;
+  e.bossStun        = true;
+  e.bossStunTimer   = (e.bossFatalTimer ?? 600) + 60;  // フェイタル終了後も少しマージン
+  e._bossStunFrame  = 0;
+  e.bossSAStunTimer = 0;
+  e.bossFullSA      = false;
+  // SA カウンターも解除（フェイタル中は毎ヒット受ける演出のため）
+  e.bossSACounter   = 0;
+  // 攻撃停止
+  e.atkPhase        = null;
+  e.atkTimer        = 0;
+  e.atkCooldown     = 99999;
+  e.repulseWindow   = false;
+  e._odSlotPhase    = null;
+  // よろめき位置をその場に固定
+  e._bossFatalBaseX = e.x;
+  // スローモーション（入場）
+  if (typeof window !== 'undefined' && window.SB) {
+    window.SB.megaSlow = Math.max(window.SB.megaSlow ?? 0, _CFG.FATAL_SLOW_FRAMES ?? 18);
+  }
+  return true;
+}
+
 //   - HP 0 を lv06 攻撃で達成した瞬間に呼ばれる
 //   - 即座に色を黒に（fade=0）、hold=0、phase='burst' でカウントダウン開始
 //   - 既存 down_burst_* state の物理を流用（きりもみ吹っ飛び）
@@ -3049,6 +3090,32 @@ export function updateEnemies(ctx) {
       if (e.bossPhaseTransitionTimer <= 0) {
         e.bossPhaseTransitioning = false;
         e.bossPhaseTransitionTimer = 0;
+      }
+    }
+    // SCRAP THEM!!! フェイタルフェーズ（§10）
+    if (e.bossFatal && !e.dying) {
+      e.bossFatalTimer = (e.bossFatalTimer ?? 0) - 1;
+      e._bossFatalFrame = (e._bossFatalFrame ?? 0) + 1;
+      // HP を 1 でクランプ（ダメージを受けても爆散しない）
+      if (e.hp <= 0) e.hp = 1;
+      // バナー遅延表示（スロー終了後）
+      if ((e.bossFatalBannerTimer ?? 0) > 0) {
+        e.bossFatalBannerTimer--;
+        if (e.bossFatalBannerTimer <= 0) {
+          spawnBanner('SCRAP THEM!!!', { frames: 150, color: '#ffcc00', fontSize: 80 });
+        }
+      }
+      // よろめき演出：ベース位置から sin 波で X 揺らし
+      const _wobW = BOSS01_CONFIG.FATAL_WOBBLE_SPEED ?? 0.06;
+      const _wobA = BOSS01_CONFIG.FATAL_WOBBLE_AMP   ?? 18;
+      e.x = (e._bossFatalBaseX ?? e.x) + Math.sin(e._bossFatalFrame * _wobW) * _wobA;
+      if (e.mesh) e.mesh.position.x = e.x;
+      // タイマー切れ → 爆散
+      if (e.bossFatalTimer <= 0) {
+        e.bossFatal = false;
+        e.hp        = 0;
+        e.lastHitter = { lv: 6, facing: 1, forceGc: false };
+        enterEnemyDyingBurst(e, e.lastHitter, 1);
       }
     }
     // Phase 3：dying タイマー進行（state machine は維持・色フェード/最終フェーズ遷移を回す）

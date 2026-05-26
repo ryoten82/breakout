@@ -38,7 +38,7 @@ import {
   PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG, MIDBOSS_SHIELD_CONFIG, REPULSE_CONFIG, BOSS01_CONFIG, GORE_CRITICAL_CONFIG,
 } from './config.js';
 import { resolveAttackAttr, ATTACKS } from './attacks.js';
-import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak, forceArmGoreCriticalIfPossible, triggerBossPhaseTransition, igniteEnemy, detonateBurn } from './enemy-system.js';
+import { handleEnemyDyingHit, enterEnemyDyingBurst, enterBossFatal, triggerShieldBreak, forceArmGoreCriticalIfPossible, triggerBossPhaseTransition, igniteEnemy, detonateBurn } from './enemy-system.js';
 import { _cancelPlayerAction } from './damage-system.js';
 import { spawnDamageNumber, spawnBanner } from './hud-system.js';
 
@@ -1400,7 +1400,9 @@ export function tryHitEnemies(p, attack, ctx) {
         ? attack.atk_lv_air
         : (attack.atk_lv ?? 1);
       if (e.hp <= 0 && !e.dying && !e.instantRespawn && _killLv === 6) {
-        enterEnemyDyingBurst(e, ctx, p.facing);
+        // フェイタル中は hp を 1 に保護して爆散させない
+        if (e.bossFatal) { e.hp = 1; }
+        else { enterEnemyDyingBurst(e, ctx, p.facing); }
       }
     }
     anyHit = true;
@@ -2230,10 +2232,15 @@ function _triggerComboRcFinish(p, e, atk, eAtk, isPerfect = true) {
   e.hp = Math.max(0, e.hp - actualDmg);
   spawnDamageNumber(e.x, e.y + 110, e.z, actualDmg, { crit: true });
   if (gateHit) triggerBossPhaseTransition(e, null);
-  // 注：e.hp が 0 に到達した場合の dying 突入は通常の damage 経路に任せる（フェイタル）
-  if (e.hp <= 0 && !e.dying) {
-    e.lastHitter = { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: 5, wasGrounded: true, forceGc: false };
-    enterEnemyDyingBurst(e, e.lastHitter, p.facing);
+  // HP 0 → SCRAP THEM!!! フェイタルフェーズへ（§10）
+  //   即爆散させず、ボーナスコンボタイム（10秒）を挟んでから爆散。
+  //   enterBossFatal が false を返した場合（二重発火等）は通常の dying へフォールバック。
+  if (e.hp <= 0 && !e.dying && !e.bossFatal) {
+    const _fatalEntered = enterBossFatal(e, p);
+    if (!_fatalEntered) {
+      e.lastHitter = { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: 5, wasGrounded: true, forceGc: false };
+      enterEnemyDyingBurst(e, e.lastHitter, p.facing);
+    }
   }
 
   // ── プレイヤー SP は cancel しない（出し切り）+ SP 終了まで完全無敵 + startup スキップ ──

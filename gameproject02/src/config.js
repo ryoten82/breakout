@@ -1009,6 +1009,12 @@ export const BOSS01_CONFIG = {
   OVERDRIVE_HOMING_Z:       4.2,   // Z 方向ホーミング速度 wu/F（旧 6 の 70%）
   OVERDRIVE_TARGET_X:       180,   // この距離以内なら停止（X）：振り下ろしの判定圏内
   OVERDRIVE_TARGET_Z:       60,    // 停止距離（Z）
+  // ── SCRAP THEM!!! フェイタルフェーズ（§10）──
+  FATAL_DURATION:           600,   // フェイタル持続 F（10 秒）
+  FATAL_SLOW_FRAMES:        18,    // 入場スローモーション F（約 0.3 秒・megaSlow 機構を流用）
+  FATAL_BANNER_DELAY:       18,    // バナー表示遅延 F（スロー終了に合わせる）
+  FATAL_WOBBLE_SPEED:       0.06,  // よろめき振動の角周波数（sin 波で X 揺らし）
+  FATAL_WOBBLE_AMP:         18,    // よろめき振幅 wu（X 方向）
 };
 
 // ============================================================
