@@ -139,6 +139,8 @@ export const STATE = {
   //     同名 STATE をプレイヤー/敵で共有しても誤動作しない。
   //     将来「全 entity ループ」を作る場合は要再設計。
   guard_crash:      'guard_crash',       // ガードクラッシュ硬直（SP枯渇）
+  // 連続用 RC 成功時：屈みながら後方へ少しスライド。次スロットの RC も受付可
+  combo_rc_slide:   'combo_rc_slide',
   dying:            'dying',             // 死亡演出（黒化→点滅→爆散）
   dead:             'dead',              // 完全消滅 → DEAD_FRAMES 後に respawning
   respawning:       'respawning',        // 復活演出（落下→着地→無敵点滅）

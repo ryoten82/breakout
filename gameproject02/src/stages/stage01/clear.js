@@ -107,6 +107,13 @@ function _beginClearPresentation(nextStageId) {
         const _hudHidden = document.documentElement.classList.contains('dbg-hidden');
         if (_hudHidden) sessionStorage.setItem('_sbDbgHidden', '1');
         else sessionStorage.removeItem('_sbDbgHidden');
+        // OC カード引継ぎ：_ocAppliedCards の ID リストをそのまま保存
+        const _ocCards = window.SB?._ocAppliedCards;
+        if (Array.isArray(_ocCards) && _ocCards.length > 0) {
+          sessionStorage.setItem('_sbCarryOC', JSON.stringify(_ocCards));
+        } else {
+          sessionStorage.removeItem('_sbCarryOC');
+        }
       } catch (_) { /* ignore */ }
       window.location.reload();
     }, FADE_OUT_MS);

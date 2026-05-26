@@ -35,10 +35,11 @@ import {
 } from './states.js';
 import {
   COMBO_LEVELS, getComboLevel,
-  PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG, MIDBOSS_SHIELD_CONFIG, REPULSE_CONFIG, BOSS01_CONFIG,
+  PHYSICS, SP_CONFIG, HOMING_CONFIG, ENEMY_ATTACKS, SPECIAL_CONFIG, SAME_ATK_CONFIG, CRIT_CONFIG, ENEMY_REACT_CONFIG, MIDBOSS_SHIELD_CONFIG, REPULSE_CONFIG, BOSS01_CONFIG, GORE_CRITICAL_CONFIG,
 } from './config.js';
 import { resolveAttackAttr, ATTACKS } from './attacks.js';
 import { handleEnemyDyingHit, enterEnemyDyingBurst, triggerShieldBreak, forceArmGoreCriticalIfPossible, triggerBossPhaseTransition, igniteEnemy, detonateBurn } from './enemy-system.js';
+import { _cancelPlayerAction } from './damage-system.js';
 import { spawnDamageNumber, spawnBanner } from './hud-system.js';
 
 let _THREE = null;
@@ -658,6 +659,41 @@ export function tryHitEnemies(p, attack, ctx) {
     if (e.ultBurstInvincible) { if (_DBG_SP2AIR) console.log('[SP2AIR] skip ultBurstInvincible'); continue; }
     if (e.lateralCombatInvincible) { if (_DBG_SP2AIR) console.log('[SP2AIR] skip lateralCombatInvincible'); continue; }
     if (e.dodgeInvuln) continue;  // #14-B：バックステップ回避の前半無敵
+    // 連続技 (boss_overdrive) 実行中はボス完全無敵：
+    //   ヒットは "発生扱い"（コンボ HUD・0ダメ数値ポップで視覚フィードバック）だが
+    //   ダメージ 0 / state 変更なし / knockback なし / フリンチなし。
+    //   通常 RC は updateRepulseDetection 経路（上の repulseWindow 分岐）で処理済み。
+    if (e.isBoss && e.state === STATE.enemy_attacking &&
+        ENEMY_ATTACKS[e.curAtkId]?.kind === 'boss_overdrive') {
+      spawnDamageNumber(e.x, e.y + 110, e.z, 0, {});
+      anyHit = true;
+      continue;
+    }
+    // 連続用 RC フィニッシュ後の単発化ロック：
+    //   同じ SP（attackId）からの 2 発目以降のヒットを silently skip。
+    //   多段ヒット SP（sp_02 など）が掠るように複数発当たる見栄えを抑止し、
+    //   「トドメ 1 発で締める」絵を強制する。
+    //   異なる attackId のヒットが来たら自動クリア（次の SP は通常通り多段ヒット）。
+    if (e.isBoss && e._comboRcFinishLockAttackId) {
+      if (e._comboRcFinishLockAttackId === p.attackId) {
+        continue;  // 同 SP の後続ヒット → 単発化のためスキップ
+      } else {
+        e._comboRcFinishLockAttackId = null;  // 別 SP に切り替わったらロック解除
+      }
+    }
+    // 連続用 RC フィニッシュ後の最初の player ヒット：GC 級ヒットストップ + シェイクで重み付け
+    //   どの SP で締めても一律 GC 級演出になる（フラグは 1 発で consume）。
+    //   GC 本体（armed/爆散）は発火しない。後続の attack.hitstop/shake は Math.max で素通り。
+    //   ＋単発化ロックをセット：同 attackId の後続ヒットは上の continue で抑止される。
+    if (e.isBoss && e._comboRcFinishHitPending) {
+      e._comboRcFinishHitPending = false;
+      e._comboRcFinishLockAttackId = p.attackId;  // ← 単発化ロック
+      triggerHitstop(GORE_CRITICAL_CONFIG?.FREEZE_FRAMES ?? 18);
+      triggerShake(
+        GORE_CRITICAL_CONFIG?.SHAKE_MAG    ?? 22,
+        GORE_CRITICAL_CONFIG?.SHAKE_FRAMES ?? 34,
+      );
+    }
     const dx = e.x - p.x;
     const dz = e.z - p.z;
     if (_DBG_SP2AIR) console.log(`[SP2AIR] candidate state=${e.state} dx=${dx.toFixed(0)} dz=${dz.toFixed(0)} dy=${(e.y-p.y).toFixed(0)} pY=${p.y.toFixed(0)} eY=${e.y.toFixed(0)} facing=${facing} eyAbove=${e.y > 10}`);
@@ -894,7 +930,8 @@ export function tryHitEnemies(p, attack, ctx) {
     // SA 中かどうかを以降のバーストチェック全体で共有（先に確定させる）
     //   SA 中はバーストダウンの発動もカウントもしない（唐突バースト抑止）。
     //   forceBurstDown（ULT等）は SA を無視して通す。
-    const _bossInSA = !!(e.bossFullSA && !e.bossSAStunTimer);
+    // bossStun 中は SA を強制解除（スタン = SA なし + 全攻撃リアクション・ボス専用）
+    const _bossInSA = !!(e.bossFullSA && !e.bossSAStunTimer && !e.bossStun);
     // === 超吹き飛ばし回数上限（down_super_* 中の敵に lv6 攻撃命中）===
     //   FLIGHT_BURST_LIMIT 回到達でバーストダウン化（2026-05-20 仕様統一）。
     //   旧仕様：lateralCombatInvincible でトラジェクトリ温存 → 統一して burst に。
@@ -1134,6 +1171,20 @@ export function tryHitEnemies(p, attack, ctx) {
           if (_tok && _tok.get() === e) _tok.set(null);  // トークン解放
         }
       }
+      // === スタンディスパッチ（boss_double_tackle recover 後・ボス専用）===
+      // 通常 atk_lv ディスパッチを使わず KB1/KB2 の 2 段階に固定。
+      //   KB2（重い）：打ち上げ(launchVy) / 打ち下ろし以上(atk_lv≥STUN_HEAVY_LV) /
+      //               超吹っ飛び / メガクラ / ULT(forceBurstDown)
+      //   KB1（普通）：その他すべて
+      // ボスを空中に飛ばす・バーストダウンはスタン中は発動しない（KB1/KB2 に留める）。
+      if (e.bossStun && e.isBoss) {
+        const _heavyLv  = BOSS01_CONFIG?.STUN_HEAVY_LV ?? 5;
+        const _effectLv = attack.atk_lv ?? 1;
+        const _isHeavy  = !!(attack.launchVy) || _effectLv >= _heavyLv || !!attack.forceBurstDown;
+        e.state    = _isHeavy ? STATE.knockback02 : STATE.knockback01;
+        e.downTimer = _isHeavy ? ENEMY_KB02_FRAMES : ENEMY_KB01_FRAMES;
+        applyHitInitialPitch(e);
+      } else {
       // === atk_lv 駆動の被弾ステート振り分け ===
       // 再発火許可ステート：
       //  - wait01（初動）
@@ -1224,6 +1275,7 @@ export function tryHitEnemies(p, attack, ctx) {
         }
       }
       applyHitInitialPitch(e);
+      }  // end else (通常 atk_lv ディスパッチ)
     }
     // 空中の敵へのヒット：敵もホップで浮遊継続(非打ち上げ技共通・地上技でも適用)
     // ※叩きつけ/吹き飛ばし系はホップで vy を上書きされたくないので除外
@@ -1316,20 +1368,21 @@ export function tryHitEnemies(p, attack, ctx) {
       p.sp = Math.min(SP_CONFIG.MAX, p.sp + _gain);
       p._spGainCounted = true;
     }
-    // OC IGNITE × igniteTrigger 技（SP1）：2フェーズ起爆システム
-    //   Hit 1: 未 blastReady → 点火（未点火なら ignite も同時付与）+ blastReady セット
-    //   Hit 2: blastReady → 20F 遅延起爆（空中爆発狙い）
+    // OC IGNITE × igniteTrigger 技（SP1）：起爆システム
+    //   blastReady=true → 即起爆
+    //   延焼中（SPREAD/GC 由来含む）→ 即起爆（SP1 で点火した敵と同等に扱う）
+    //   未点火 → 点火 + blastReady セット（次の SP1 で起爆）
     if (attack.igniteTrigger && window.SB?.OC_FLAGS?.ignite) {
       // 共通：赤パーティクル追加
       spawnHitParticles(e.x, e.y + 60, e.z, 0xff2200, 28, { type: 'launch', speedMul: 1.1 });
       spawnHitParticles(e.x, e.y + 40, e.z, 0xff6600, 16, { type: 'omni',   speedMul: 0.8, sizeScale: 1.2 });
-      if (e.burnBlastReady) {
-        // Hit 2: 起爆タイマーセット
-        e.detonateTimer = 13;
+      if (e.burnBlastReady || e.burnTimer > 0) {
+        // 起爆：blastReady 済み or すでに延焼中（SPREAD/GC 由来）どちらも即起爆
+        e.detonateTimer  = 13;
         e.burnBlastReady = false;
       } else {
-        // Hit 1: 点火 + 即起爆準備完了
-        if (e.burnTimer <= 0) igniteEnemy(e, { sourceId: p.attackId });
+        // 未点火：点火 + 次の SP1 で起爆できるよう準備
+        igniteEnemy(e, { sourceId: p.attackId });
         e.burnBlastReady = true;
       }
     }
@@ -1721,62 +1774,86 @@ function _aabbOverlap(a, b) {
 
 // main loop から毎フレーム呼ぶ。enemies は updateEnemies の後の最新状態を渡す
 export function updateRepulseDetection(p, enemies) {
+  const _DBG_OD = (typeof window !== 'undefined') && window.SB?.DEBUG_BOSS_OD;
   // プレイヤーの生存判定は p.hp > 0（敵の e.isAlive とは別規約）。
   // 2026-05-27：以前 !p.isAlive で判定していたため undefined 扱いで毎フレーム早期 return → RC 全不発の原因だった。
   if (!p || !p.attackId || p.hp <= 0) {
-    // attack 終了：次回の attack 開始を検出するため lastAttackId をクリア
     if (p && !p.attackId) p._lastRcAttackId = null;
     return;
   }
   const atk = ATTACKS[p.attackId];
   if (!atk || !atk.repulseBox) {
-    p._lastRcAttackId = p.attackId;  // attackId は変わったので追跡だけ更新
+    if (_DBG_OD && p._lastRcAttackId !== p.attackId) {
+      console.log(`  [RC ENTRY skip] attack=${p.attackId} has no repulseBox`);
+    }
+    p._lastRcAttackId = p.attackId;
     return;
   }
   // 新規 attack 開始検出：前回と attackId が違う or 前回 null → 連発防止フラグをクリア
-  // 2026-05-27：以前は同一文字列 attackId で固定比較していたため、同じ技を連発すると 2 回目以降が永続無効化されていた
   if (p._lastRcAttackId !== p.attackId) {
+    if (_DBG_OD) console.log(`  [RC ENTRY new] attack=${p.attackId} state=${p.state} stateTimer=${p.stateTimer} prevFired=${p._repulseFiredForAttackId}`);
     p._repulseFiredForAttackId = null;
     p._lastRcAttackId = p.attackId;
   }
   // 同一 attack インスタンス内で 1 度成立したら再成立しない（連発防止）
-  if (p._repulseFiredForAttackId === p.attackId) return;
+  if (p._repulseFiredForAttackId === p.attackId) {
+    if (_DBG_OD) console.log(`  [RC ENTRY blocked] already fired for ${p.attackId}`);
+    return;
+  }
   // RC 判定 active 期間：attack.repulseFrameStart/End が定義されていればその範囲のみ active。
-  // 未定義なら duration 中ずっと active（後方互換）。
   if (atk.repulseFrameStart != null && atk.repulseFrameEnd != null) {
     const elapsed = (atk.duration ?? 0) - (p.stateTimer ?? 0);
-    if (elapsed < atk.repulseFrameStart || elapsed > atk.repulseFrameEnd) return;
+    if (elapsed < atk.repulseFrameStart || elapsed > atk.repulseFrameEnd) {
+      if (_DBG_OD && elapsed === atk.repulseFrameStart - 1) {
+        console.log(`  [RC ENTRY] window opens next frame (elapsed=${elapsed}, repulseStart=${atk.repulseFrameStart})`);
+      }
+      if (_DBG_OD && elapsed === atk.repulseFrameEnd + 1) {
+        console.log(`  [RC ENTRY] window just closed (elapsed=${elapsed}, repulseEnd=${atk.repulseFrameEnd})`);
+      }
+      return;
+    }
   }
 
   const pBox = _resolveRepulseBoxToWorld(p.x, p.y, p.z, p.facing, atk.repulseBox);
   const _dbg = (typeof window !== 'undefined') && window.SB?.DEBUG_SP2_LOG;
+  // _DBG_OD は関数冒頭で宣言済み（boss_overdrive 連続技のデバッグログ用）
 
   for (const e of enemies) {
     if (!e || !e.isAlive || e.dying) continue;
-    // フェイル ログは jump_dive 中の敵に絞る（他の敵で大量ノイズが出るのを防ぐ）
+    // フェイル ログは jump_dive 中の敵 + boss_overdrive 中の敵に絞る
     const _isJd = e.curAtkId && ENEMY_ATTACKS[e.curAtkId]?.kind === 'jump_dive';
+    const _isOd = e.curAtkId && ENEMY_ATTACKS[e.curAtkId]?.kind === 'boss_overdrive';
+    const _logAny = (_dbg && _isJd) || (_DBG_OD && _isOd);
     if (!e.repulseWindow) {
-      if (_dbg && _isJd) console.log(`  [RC fail] repulseWindow=false phase=${e._jdPhase ?? 'null'} grace=${e._jdDiveGrace ?? 0}`);
+      if (_logAny) console.log(`  [RC fail] repulseWindow=false phase=${e._jdPhase ?? e._odSlotPhase ?? 'null'} slot=${e._odSlotIdx}`);
       continue;
     }
     const eAtk = ENEMY_ATTACKS[e.curAtkId];
     if (!eAtk || !eAtk.repulseTargetBox) continue;
     // boss_overdrive は _odSlotAxis でスロットごとに軸が変わる（通常は eAtk.repulseAxis）
+    //   軸が一致すれば RC（カウンター成立）、不一致でも timing+box が合えば RP（受け流し）
+    //   → ここでは skip せず、axisMatch フラグだけ計算しておき後段でディスパッチ分岐
     const _eAxis = e._odSlotAxis ?? eAtk.repulseAxis;
-    if (_eAxis !== atk.repulseAxis) { if (_dbg && _isJd) console.log(`  [RC fail] axis mismatch p=${atk.repulseAxis} e=${_eAxis}`); continue; }
+    const _axisMatch = (_eAxis === atk.repulseAxis);
+    if (_logAny && !_axisMatch) console.log(`  [RP only] axis mismatch p=${atk.repulseAxis} e=${_eAxis} → 受け流しのみ`);
     const dx = e.x - p.x, dz = e.z - p.z;
     const xzDist = Math.hypot(dx, dz);
-    if (xzDist > REPULSE_CONFIG.MAX_WARP_DISTANCE) { if (_dbg && _isJd) console.log(`  [RC fail] dist=${xzDist.toFixed(0)} > ${REPULSE_CONFIG.MAX_WARP_DISTANCE}`); continue; }
+    // boss_overdrive はワープなし → MAX_WARP_DISTANCE 制限を緩和（空中 RC でジャンプして離れても成立可）
+    //   AABB オーバーラップで実距離判定するので、距離上限は粗いガードとして広めに。
+    const _distLimit = _isOd ? (REPULSE_CONFIG.MAX_WARP_DISTANCE * 2) : REPULSE_CONFIG.MAX_WARP_DISTANCE;
+    if (xzDist > _distLimit) { if (_logAny) console.log(`  [RC fail] dist=${xzDist.toFixed(0)} > ${_distLimit}`); continue; }
     // 敵がプレイヤー目線付近まで降りてきた時のみ RC 成立（インジケータのトップで反応する設計）
     //   aim 中（y≈747）や dive 初期（高位置）では不成立、降りてきて目線に達した瞬間に成立する
+    //   boss_overdrive はその場連続技 → Y 差分制限は無効化（空中昇竜で頭上から RC 等を許容）
     const yGap = e.y - p.y;
-    if (yGap > REPULSE_CONFIG.MAX_Y_GAP) {
-      if (_dbg && _isJd) console.log(`  [RC fail] y-gap too large e.y=${e.y.toFixed(0)} p.y=${p.y.toFixed(0)} gap=${yGap.toFixed(0)} > ${REPULSE_CONFIG.MAX_Y_GAP}`);
+    if (!_isOd && yGap > REPULSE_CONFIG.MAX_Y_GAP) {
+      if (_logAny) console.log(`  [RC fail] y-gap too large e.y=${e.y.toFixed(0)} p.y=${p.y.toFixed(0)} gap=${yGap.toFixed(0)} > ${REPULSE_CONFIG.MAX_Y_GAP}`);
       continue;
     }
     // 物理ヒット可能距離内なら RC をスキップ（通常ヒット優先）
     //   → プレイヤーが本体に近寄って直接 SP2 を当てた場合、RC でなく通常ダメージにする
-    {
+    //   ※ boss_overdrive はボス完全無敵で通常ヒット 0 ダメ＝意味がないので、このスキップを適用しない
+    if (!_isOd) {
       const absDx = Math.abs(dx);
       const absDy = Math.abs(e.y - p.y);
       const absDz = Math.abs(dz);
@@ -1785,13 +1862,13 @@ export function updateRepulseDetection(p, enemies) {
       const rz = atk.rangeZ ?? 0;
       if (rx > 0 && ry > 0 && rz > 0 &&
           absDx < rx && absDy < ry && absDz < rz) {
-        if (_dbg && _isJd) console.log(`  [RC skip] in physical hit range dx=${absDx.toFixed(0)}/${rx} dy=${absDy.toFixed(0)}/${ry} dz=${absDz.toFixed(0)}/${rz}`);
+        if (_logAny) console.log(`  [RC skip] in physical hit range dx=${absDx.toFixed(0)}/${rx} dy=${absDy.toFixed(0)}/${ry} dz=${absDz.toFixed(0)}/${rz}`);
         continue;
       }
     }
     const eBox = _resolveRepulseBoxToWorld(e.x, e.y, e.z, e.facing, eAtk.repulseTargetBox);
     if (!_aabbOverlap(pBox, eBox)) {
-      if (_dbg && _isJd) {
+      if (_logAny) {
         const xOK = pBox.x1 < eBox.x2 && pBox.x2 > eBox.x1;
         const yOK = pBox.y1 < eBox.y2 && pBox.y2 > eBox.y1;
         const zOK = pBox.z1 < eBox.z2 && pBox.z2 > eBox.z1;
@@ -1799,13 +1876,36 @@ export function updateRepulseDetection(p, enemies) {
           `  [RC fail AABB] X:${xOK?'OK':'NG'}(p${pBox.x1.toFixed(0)}..${pBox.x2.toFixed(0)} vs e${eBox.x1.toFixed(0)}..${eBox.x2.toFixed(0)}) ` +
           `Y:${yOK?'OK':'NG'}(p${pBox.y1.toFixed(0)}..${pBox.y2.toFixed(0)} vs e${eBox.y1.toFixed(0)}..${eBox.y2.toFixed(0)}) ` +
           `Z:${zOK?'OK':'NG'}(p${pBox.z1.toFixed(0)}..${pBox.z2.toFixed(0)} vs e${eBox.z1.toFixed(0)}..${eBox.z2.toFixed(0)}) ` +
-          `phase=${e._jdPhase ?? 'null'} grace=${e._jdDiveGrace ?? 0}`
+          `phase=${e._jdPhase ?? e._odSlotPhase ?? 'null'} slot=${e._odSlotIdx}`
         );
       }
       continue;
     }
 
-    _triggerRepulseSuccess(p, e, atk, eAtk);
+    // RP/RC 二段階仕様（2026-05-26 改修）：
+    //   軸一致 → RC（カウンター成立・大ダメージ / GC / フィニッシュ倍率）
+    //   軸不一致 → RP（受け流しのみ・被弾回避だけ）
+    //   boss_overdrive はスロット途中 / 最終で挙動が違う
+    if (eAtk?.kind === 'boss_overdrive') {
+      const slots   = eAtk.comboSlots ?? [];
+      const slotIdx = e._odSlotIdx ?? 0;
+      const isLast  = slotIdx >= slots.length - 1;
+      if (_DBG_OD) {
+        console.log(`[OD ${_axisMatch ? 'RC' : 'RP'} MATCH] slot=${slotIdx} isLast=${isLast} slotTimer=${e._odSlotTimer}`);
+      }
+      if (isLast) {
+        _triggerComboRcFinish(p, e, atk, eAtk, _axisMatch);
+      } else {
+        _triggerComboRcContinue(p, e, atk, eAtk, _axisMatch);
+      }
+    } else {
+      // 単発 RC 系（jump_dive 等）
+      if (_axisMatch) {
+        _triggerRepulseSuccess(p, e, atk, eAtk);
+      } else {
+        _triggerRepulseParry(p, e, atk, eAtk);
+      }
+    }
     if (typeof window !== 'undefined' && window.SB?.DEBUG_SP2_LOG) {
       const dist = Math.hypot(e.x - p.x, e.z - p.z);
       const phase = e._jdPhase ?? 'null';
@@ -1815,6 +1915,85 @@ export function updateRepulseDetection(p, enemies) {
     p._repulseFiredForAttackId = p.attackId;
     return;
   }
+}
+
+// ============================================================
+//  RC 系ヘルパー（_triggerRepulseSuccess / _triggerComboRcContinue / _triggerComboRcFinish 共通）
+//  - 軸方向の雷ボルト演出
+//  - プレイヤー SP の startup スキップ（hitFrame 直前へワープ）
+//  - カメラズーム + 暗転 + スロー
+// ============================================================
+
+// 軸方向（aerial/ground/frontal）に基づいて雷ボルトを spawn
+//   メイン柱 1 本 + サテライト N 本（REPULSE_CONFIG.BOLT_COUNT）。
+//   発生点：(centerX, centerY, centerZ)。frontal は playerFacing で左右反転。
+function _spawnRcDirectionalBolts(centerX, centerY, centerZ, axis, playerFacing) {
+  const _RC = REPULSE_CONFIG;
+  const isAerial  = axis === 'aerial';
+  const isGround  = axis === 'ground';
+  const isFrontal = axis === 'frontal';
+  const dir = isAerial  ? { vx: 0, vy: 1, vz: 0, oy: 0 }
+            : isGround  ? { vx: 0, vy: -1, vz: 0, oy: 80 }
+            : isFrontal ? { vx: (playerFacing || 1), vy: 0, vz: 0, oy: 40 }
+            : null;
+  if (!dir) return;
+  // メイン柱：太い・速い・寿命短め・急収束
+  const mainSpeed = 48;
+  spawnRcBolt(
+    centerX, centerY + dir.oy, centerZ,
+    dir.vx * mainSpeed, dir.vy * mainSpeed, dir.vz * mainSpeed,
+    0xffffff, 20,
+    { scaleX: 5.0, scaleY: 2.8, scaleZ: 5.0, shrinkPower: 3.5, fadeStart: 0.35 },
+  );
+  // サテライト：横方向にずれた細めの柱・寿命長め・ゆっくり収束
+  const satCount  = _RC.BOLT_COUNT ?? 5;
+  const satColors = [0xccddff, 0xaaccff, 0xeeeeff, 0xbbddff, 0xccccff];
+  for (let i = 0; i < satCount; i++) {
+    const lat   = (i - (satCount - 1) / 2) * 36 + (Math.random() - 0.5) * 20;
+    const dep   = (Math.random() - 0.5) * 28;
+    const speed = 36 + Math.random() * 14;
+    // サテライトは水平軸ずらし（frontal 時は Y にずらし）
+    const ox = isFrontal ? 0 : lat;
+    const oy = isFrontal ? lat * 0.4 : 0;
+    spawnRcBolt(
+      centerX + ox, centerY + dir.oy + oy, centerZ + dep,
+      dir.vx * speed, dir.vy * speed, dir.vz * speed,
+      satColors[i % satColors.length], 30 + Math.random() * 6,
+      { scaleX: 2.0 + Math.random() * 0.8, scaleY: 2.3, scaleZ: 2.0 + Math.random() * 0.8, shrinkPower: 2.0, fadeStart: 0.4 },
+    );
+  }
+}
+
+// プレイヤー SP の stateTimer を hitFrame 直前（3F 前）へジャンプ。
+//   sp_03 のような長 startup の技でも RC 成立直後にすぐ攻撃モーションが見える。
+//   既に進行済みなら何もしない（Math.min で短くする方向のみ）。
+function _skipSpStartup(p) {
+  if (!p.attackId || !ATTACKS[p.attackId]) return;
+  const spAtk = ATTACKS[p.attackId];
+  const hitF  = spAtk.hitFrame ?? 0;
+  if (hitF <= 3) return;
+  const targetTimer = (spAtk.duration ?? 80) - (hitF - 3);
+  if ((p.stateTimer ?? Infinity) > targetTimer) {
+    p.stateTimer = targetTimer;
+  }
+}
+
+// RC 用カメラ FX（ズーム + 暗転 + スロー）。skipCenter=true でキャラ中央寄せをスキップ。
+function _applyRcCamFx(zoomAmount, skipCenter) {
+  const _RC = REPULSE_CONFIG;
+  if (typeof window === 'undefined' || !window.SB) return;
+  if (typeof window.SB.applyCamZoomBoost === 'function') {
+    window.SB.applyCamZoomBoost(
+      zoomAmount,
+      _RC.CAM_ZOOM_FRAMES,
+      _RC.CAM_ZOOM_HOLD ?? 0,
+      _RC.DARKEN_ALPHA ?? 0.35,
+      !!skipCenter,
+    );
+  }
+  // 短時間スロー：メガクラのスロー機構を流用
+  const cur = window.SB.megaSlow ?? 0;
+  window.SB.megaSlow = Math.max(cur, _RC.SLOW_FRAMES ?? 12);
 }
 
 function _triggerRepulseSuccess(p, e, atk, eAtk) {
@@ -1841,66 +2020,14 @@ function _triggerRepulseSuccess(p, e, atk, eAtk) {
   // spawnBanner('REPULSE!', { frames: _RC.BANNER_FRAMES, color: '#cc88ff', fontSize: 62 });
   // ベース omni 弾け
   spawnHitParticles(e.x, e.y + 40, e.z, _RC.FLASH_COLOR, _RC.FLASH_COUNT, { type: 'omni' });
-  // 軸方向の雷：SF3 風アニメ進行（太い柱 → 細い線へ収束 → サテライトのジグザグ）
-  //   - メイン柱 1 本：超太い柱が立ち上がり、急激に縦線へ収束
-  //   - サテライト 4-5 本：横にズレた細めの柱が遅延気味に立ち、ゆっくり収束
-  //   - 全体的に Y は据え置きで X/Z だけ縮むので「柱が線になる」絵
-  const _axis = eAtk?.repulseAxis || atk?.repulseAxis;
-  // 共通方向ベクトル
-  const _isAerial = _axis === 'aerial';
-  const _isGround = _axis === 'ground';
-  const _isFrontal = _axis === 'frontal';
-  const _dir = _isAerial ? { vx: 0, vy: 1, vz: 0, oy: 0 }
-            : _isGround  ? { vx: 0, vy: -1, vz: 0, oy: 80 }
-            : _isFrontal ? { vx: (p.facing || 1), vy: 0, vz: 0, oy: 40 }
-            : null;
-  if (_dir) {
-    // メイン柱：太い・速い・寿命短め・急収束
-    const mainSpeed = 48;
-    spawnRcBolt(
-      e.x, e.y + _dir.oy, e.z,
-      _dir.vx * mainSpeed, _dir.vy * mainSpeed, _dir.vz * mainSpeed,
-      0xffffff, 20,
-      { scaleX: 5.0, scaleY: 2.8, scaleZ: 5.0, shrinkPower: 3.5, fadeStart: 0.35 },
-    );
-    // サテライト：横方向にずれた細めの柱・寿命長め・ゆっくり収束
-    const _satCount = _RC.BOLT_COUNT ?? 5;
-    const _satColors = [0xccddff, 0xaaccff, 0xeeeeff, 0xbbddff, 0xccccff];
-    for (let i = 0; i < _satCount; i++) {
-      const lat = (i - (_satCount - 1) / 2) * 36 + (Math.random() - 0.5) * 20;
-      const dep = (Math.random() - 0.5) * 28;
-      const speed = 36 + Math.random() * 14;
-      // サテライトは水平軸ずらし（frontal 時は Y にずらし）
-      const ox = _isFrontal ? 0 : lat;
-      const oy = _isFrontal ? lat * 0.4 : 0;
-      spawnRcBolt(
-        e.x + ox, e.y + _dir.oy + oy, e.z + dep,
-        _dir.vx * speed, _dir.vy * speed, _dir.vz * speed,
-        _satColors[i % _satColors.length], 30 + Math.random() * 6,
-        { scaleX: 2.0 + Math.random() * 0.8, scaleY: 2.3, scaleZ: 2.0 + Math.random() * 0.8, shrinkPower: 2.0, fadeStart: 0.4 },
-      );
-    }
-  }
-  // 白フラッシュ：成立瞬間の閃光（粒子は通常 omni）
+  // 軸方向の雷ボルト演出（SF3 風：太い柱 → 細い線へ収束 → サテライトのジグザグ）
+  _spawnRcDirectionalBolts(e.x, e.y, e.z, eAtk?.repulseAxis || atk?.repulseAxis, p.facing);
+  // 白フラッシュ + シェイク + ヒットストップ
   spawnHitParticles(e.x, e.y + 40, e.z, 0xffffff, 14, { type: 'omni', sizeScale: 1.0, lifeMul: 0.8 });
   triggerShake(_RC.SHAKE_AMOUNT, _RC.SHAKE_FRAMES);
-  // ヒットストップ：成立瞬間を強く見せる（既存 triggerHitstop 利用）
   triggerHitstop(_RC.HITSTOP_FRAMES ?? 30);
-  // カメラズーム boost + 画面暗転：camera 側の hold + decay ズームを起動（ULT 中は自動スキップ）
-  if (typeof window !== 'undefined' && window.SB) {
-    if (typeof window.SB.applyCamZoomBoost === 'function') {
-      window.SB.applyCamZoomBoost(
-        _RC.CAM_ZOOM_BOOST,
-        _RC.CAM_ZOOM_FRAMES,
-        _RC.CAM_ZOOM_HOLD ?? 0,
-        _RC.DARKEN_ALPHA ?? 0.35,
-      );
-    }
-    // 短時間スロー：メガクラのスロー機構を流用（DIVISOR=3 で 1/3 速）
-    //   既存 megaSlow がアクティブな場合は伸ばさず Math.max で重ね合わせ
-    const _cur = window.SB.megaSlow ?? 0;
-    window.SB.megaSlow = Math.max(_cur, _RC.SLOW_FRAMES ?? 12);
-  }
+  // カメラズーム + 暗転 + スロー（中央寄せ ON：通常 RC は被写体をセンターに揃える）
+  _applyRcCamFx(_RC.CAM_ZOOM_BOOST, false);
   // === RC ヒット成立処理 ===
   // 確定クリ・破壊確定。ダメージ計算は通り抜けず、直接 hp=0 + burst で確定。
   //   - 表示数字は「通常クリティカル相当」（攻撃 damage × CRIT_CONFIG.DAMAGE_MULT）。
@@ -1923,5 +2050,227 @@ function _triggerRepulseSuccess(p, e, atk, eAtk) {
   // RC 強制 GC：同フレームで通常ヒットが既に kill 済みだと enterEnemyDyingBurst が早期 return し、
   //   forceGc:true な lastHitter での GC 抽選が走らない。明示的に再評価して GC を armed させる。
   forceArmGoreCriticalIfPossible(e);
+  bumpCombo(e);
+  // テンポ改善：SP startup を hitFrame 直前へジャンプ
+  _skipSpStartup(p);
+}
+
+// ============================================================
+//  Repulse Parry (RP)：軸不一致でも timing + box が合っていれば受け流しのみ成立。
+//  - 雑魚（非ボス）：敵を KB2 状態にして攻撃中断・プレイヤーは combo_rc_slide で後方スライド
+//    （ダメージ無し・双方仕切り直し。BASTION のような受け中心キャラの軸技にも使う想定）
+//  - ボス（過去 jump_dive のような単発系）：敵は kill しない・プレイヤー短時間無敵だけで凌ぐ
+// ============================================================
+function _triggerRepulseParry(p, e, atk, eAtk) {
+  const _RC = REPULSE_CONFIG;
+
+  // ── プレイヤー側：攻撃キャンセル → combo_rc_slide（屈み + 後方スライド）──
+  //   連続用 RC continue と同じ state を流用。雑魚 RP も同じ「受け流し」絵で統一。
+  _cancelPlayerAction(p);
+  if (p._specialFireFrames) p._specialFireFrames = {};
+  if (p._specialFireIds)    p._specialFireIds    = {};
+  p.state           = STATE.combo_rc_slide;
+  p.stateTimer      = BOSS01_CONFIG.COMBO_RC_SLIDE_FRAMES ?? 30;
+  const _slideVx    = BOSS01_CONFIG.COMBO_RC_SLIDE_VX ?? 4.0;
+  p.kbVx            = -(p.facing || 1) * _slideVx;
+  p.kbVy            = 0;
+  p.vy              = 0;
+  if (p.mesh) p.mesh.scale.y = 0.65;
+  p.invincibleFrames = Math.max(p.invincibleFrames ?? 0, p.stateTimer);
+
+  // ── 敵側：ボスかどうかで分岐 ──
+  if (e.isBoss) {
+    // ボス：kill せず敵 attack は継続させる（連続技以外の単発 RC 用フォールバック）
+    //   ボスの SA / 重量級バランスを崩さないため、KB2 にはしない
+  } else {
+    // 雑魚：KB2 状態に強制遷移。攻撃中断 + 後方ノックバックで仕切り直し
+    e.state         = STATE.knockback02;
+    e.downTimer     = ENEMY_KB02_FRAMES;
+    e.atkPhase      = null;
+    e.atkTimer      = 0;
+    e.atkCooldown   = (eAtk?.cooldownFrames ?? 60);
+    e.hitDelivered  = false;
+    e.repulseWindow = false;
+    // 後方ノックバック：プレイヤーから離れる方向
+    e.knockbackVx   = (e.x >= p.x ? 1 : -1) * 18;
+    e.kbDecay       = 0.86;
+    applyHitInitialPitch(e);
+    // jump_dive 等の aim マーカーが残っていたら撤去（呼べる場合）
+    if (typeof e._jdAimTimer === 'number') e._jdAimTimer = 0;
+    if (typeof e._jdPhase === 'string')    e._jdPhase = null;
+  }
+
+  // ── 演出（共通：青系の控えめパリィ）──
+  spawnHitParticles(p.x, p.y + 60, p.z, 0x66ccff, 14, { type: 'omni' });
+  spawnHitParticles(e.x, e.y + 40, e.z, 0x88aaff, 10, { type: 'omni', sizeScale: 0.8 });
+  triggerHitstop(Math.floor((_RC.HITSTOP_FRAMES ?? 30) * 0.4));
+  triggerShake(Math.floor((_RC.SHAKE_AMOUNT ?? 14) * 0.5), Math.floor((_RC.SHAKE_FRAMES ?? 12) * 0.6));
+  _applyRcCamFx((_RC.CAM_ZOOM_BOOST ?? 0.2) * 0.4, true);
+}
+
+// ============================================================
+//  連続用 RC：非フィニッシュ（boss_overdrive スロット 1〜N-1）
+//  - 両者ノーダメージ／ボスは構わず次スロットへ
+//  - プレイヤーは attack キャンセル → combo_rc_slide で後方スライド
+//  - 軽量 RC 演出（雷ボルト省略・hitstop だけ短く）／GC は出さない
+// ============================================================
+function _triggerComboRcContinue(p, e, atk, eAtk, isPerfect = true) {
+  const _RC = REPULSE_CONFIG;
+  const _DBG_OD = (typeof window !== 'undefined') && window.SB?.DEBUG_BOSS_OD;
+  if (isPerfect) {
+    e._odPerfectRcCount = (e._odPerfectRcCount ?? 0) + 1;
+  }
+  if (_DBG_OD) console.log(`[OD ${isPerfect ? 'RC' : 'RP'} CONTINUE] slot ${e._odSlotIdx} → boss continues / player→slide / perfectCount=${e._odPerfectRcCount ?? 0}`);
+  // ── プレイヤー：攻撃キャンセル → combo_rc_slide へ ──
+  _cancelPlayerAction(p);
+  // 同 SP の連発クールダウンをクリア（連続 RC で同じ SP を即チェインできるようにする）
+  //   通常は SP duration + 30F 経たないと同 SP を再発動できないが、連続用 RC ではその抑止を解除
+  if (p._specialFireFrames) p._specialFireFrames = {};
+  if (p._specialFireIds)    p._specialFireIds    = {};
+  p.state           = STATE.combo_rc_slide;
+  p.stateTimer      = BOSS01_CONFIG.COMBO_RC_SLIDE_FRAMES ?? 30;
+  // 後方スライド：facing 反対方向に kbVx 初速をセット
+  const _slideVx    = BOSS01_CONFIG.COMBO_RC_SLIDE_VX ?? 4.0;
+  p.kbVx            = -(p.facing || 1) * _slideVx;
+  p.kbVy            = 0;
+  p.vy              = 0;
+  // 屈み：mesh.scale.y を圧縮
+  if (p.mesh) p.mesh.scale.y = 0.65;
+  // 無敵フラグ（hitstun 中の通常被弾防御に加えて念のため）
+  p.invincibleFrames = Math.max(p.invincibleFrames ?? 0, p.stateTimer);
+
+  // ── ボス：スロット wind を即終了 → active へ前倒し（ヒットはスキップ）──
+  //   _odSlotPhase を 'active' に切り替え、tryHitPlayer は呼ばない。
+  //   次フレーム以降は active 残時間→次スロットへ自然遷移。
+  if (eAtk && Array.isArray(eAtk.comboSlots)) {
+    const slots = eAtk.comboSlots;
+    const slot  = slots[e._odSlotIdx ?? 0];
+    e._odSlotPhase  = 'active';
+    e._odSlotTimer  = slot?.activeF ?? 10;
+    e.repulseWindow = false;
+    e._odSlotAxis   = null;
+  }
+
+  // ── 演出：RC（軸一致）はフル雷ボルト、RP（軸不一致）は青系の控えめ受け流し ──
+  if (isPerfect) {
+    spawnHitParticles(e.x, e.y + 40, e.z, _RC.FLASH_COLOR, _RC.FLASH_COUNT ?? 16, { type: 'omni' });
+    const _slot     = eAtk?.comboSlots?.[e._odSlotIdx ?? 0];
+    const _slotAxis = e._odSlotAxis ?? _slot?.repulseAxis ?? atk.repulseAxis;
+    _spawnRcDirectionalBolts(e.x, e.y, e.z, _slotAxis, p.facing);
+    spawnHitParticles(e.x, e.y + 40, e.z, 0xffffff, 14, { type: 'omni', sizeScale: 1.0, lifeMul: 0.8 });
+    triggerShake(_RC.SHAKE_AMOUNT ?? 14, _RC.SHAKE_FRAMES ?? 12);
+    triggerHitstop(_RC.HITSTOP_FRAMES ?? 30);
+  } else {
+    // RP（受け流しのみ）：軽量演出。雷ボルトなし・青系パーティクル・hitstop / shake 控えめ
+    spawnHitParticles(p.x, p.y + 60, p.z, 0x66ccff, 12, { type: 'omni' });
+    spawnHitParticles(e.x, e.y + 40, e.z, 0x88aaff, 8, { type: 'omni', sizeScale: 0.7 });
+    triggerHitstop(Math.floor((_RC.HITSTOP_FRAMES ?? 30) * 0.4));
+    triggerShake(Math.floor((_RC.SHAKE_AMOUNT ?? 14) * 0.5), Math.floor((_RC.SHAKE_FRAMES ?? 12) * 0.6));
+  }
+  // 暗転 + スロー（連続 continue：ズーム量 0・skipCenter true でカメラ寄りカット）
+  //   トドメとの差別化：演出強度は維持しつつ、カメラ寄りでテンポを殺さない
+  _applyRcCamFx(0, true);
+}
+
+// ============================================================
+//  連続用 RC：フィニッシュ（boss_overdrive 最終スロット）
+//  - ボス：KB2 + 大ダメージ + 4秒スタン（既存 bossStun フラグ）
+//  - プレイヤー：SP は通常通り出し切り（cancel しない）
+//  - GC スキップ（対ボス連続 RC ルール）／kill しない（フェイタル委譲）
+// ============================================================
+function _triggerComboRcFinish(p, e, atk, eAtk, isPerfect = true) {
+  const _RC = REPULSE_CONFIG;
+  const _DBG_OD = (typeof window !== 'undefined') && window.SB?.DEBUG_BOSS_OD;
+  // 倍率計算：途中の Perfect RC 数 × MULT_STEP + フィニッシュが RP なら PENALTY
+  const _perfectCount = e._odPerfectRcCount ?? 0;
+  const _multStep   = BOSS01_CONFIG.COMBO_RC_PERFECT_MULT_STEP ?? 0.5;
+  const _rpPenalty  = BOSS01_CONFIG.COMBO_RC_FINISH_RP_PENALTY ?? 0.5;
+  const _continueMult = 1.0 + _perfectCount * _multStep;     // 0/1/2/3 perfect → 1.0/1.5/2.0/2.5x
+  const _finalMult    = isPerfect ? 1.0 : _rpPenalty;        // フィニッシュ RP は半減
+  const _totalMult    = _continueMult * _finalMult;
+  if (_DBG_OD) console.log(`[OD ${isPerfect ? 'RC' : 'RP'} FINISH] slot ${e._odSlotIdx} → KB2 + stun ${BOSS01_CONFIG.COMBO_RC_FINISH_STUN}F / perfectCount=${_perfectCount} / mult=${_totalMult.toFixed(2)}x`);
+  // ── ボス：active 強制終了して KB2 へ ──
+  e._odSlotPhase   = null;
+  e._odSlotTimer   = 0;
+  e._odSlotAxis    = null;
+  e.repulseWindow  = false;
+  e._odInitDone    = false;
+  e.state          = STATE.knockback02;
+  e.downTimer      = ENEMY_KB02_FRAMES;
+  e.atkPhase       = null;
+  e.atkTimer       = 0;
+  e.atkCooldown    = (eAtk?.cooldownFrames ?? 300);
+  e.hitDelivered   = false;
+  // 後方ノックバック：プレイヤーから離れる方向（フィニッシュは派手に飛ばす）
+  //   SA クランプ式の * 0.4 は撤去、kbDecay も緩めて滞空距離を稼ぐ
+  const _kb = BOSS01_CONFIG.COMBO_RC_FINISH_KB ?? 90;
+  e.knockbackVx = (e.x >= p.x ? 1 : -1) * _kb;
+  e.kbDecay     = 0.93;  // 緩やか減衰：総距離 ≒ _kb / (1 - 0.93) ≒ 1280wu
+  // SA stun timer も立てて hit-engine 側の SA クランプ判定を確実に解除
+  e.bossSAStunTimer = Math.max(e.bossSAStunTimer ?? 0, BOSS01_CONFIG.COMBO_RC_FINISH_STUN ?? 240);
+  applyHitInitialPitch(e);
+
+  // ── スタン開始 ──
+  e.bossStun         = true;
+  e.bossStunTimer    = BOSS01_CONFIG.COMBO_RC_FINISH_STUN ?? 240;
+  e._bossStunFrame   = 0;
+
+  // ── ダメージ適用（HP ゲート尊重・フェイタル委譲）──
+  //   基本値 × (1 + perfectContinues * MULT_STEP) × (フィニッシュ RC なら 1.0 / RP なら PENALTY)
+  const dmg = Math.round((BOSS01_CONFIG.COMBO_RC_FINISH_DAMAGE ?? 300) * _totalMult);
+  const gates    = e.bossPhaseGateHP;
+  const phaseIdx = (e.bossPhase ?? 1) - 1;
+  const nextGate = (gates && gates.length > phaseIdx) ? (gates[phaseIdx] ?? 0) : 0;
+  let actualDmg  = dmg;
+  let gateHit    = false;
+  if (nextGate > 0 && e.hp - dmg <= nextGate) {
+    actualDmg = Math.max(0, e.hp - (nextGate + 1));
+    gateHit   = true;
+  }
+  e.hp = Math.max(0, e.hp - actualDmg);
+  spawnDamageNumber(e.x, e.y + 110, e.z, actualDmg, { crit: true });
+  if (gateHit) triggerBossPhaseTransition(e, null);
+  // 注：e.hp が 0 に到達した場合の dying 突入は通常の damage 経路に任せる（フェイタル）
+  if (e.hp <= 0 && !e.dying) {
+    e.lastHitter = { attackId: p.attackId, profileKey: 'METEO', facing: p.facing, lv: 5, wasGrounded: true, forceGc: false };
+    enterEnemyDyingBurst(e, e.lastHitter, p.facing);
+  }
+
+  // ── プレイヤー SP は cancel しない（出し切り）+ SP 終了まで完全無敵 + startup スキップ ──
+  // 既存の SP アニメ・hitbox は p.attackId 駆動でそのまま動く
+  //   出し切り保護：SP の duration + 余裕分の invincibleFrames を立てる。
+  //   damagePlayer は invincibleFrames > 0 でヒット拒否するので、ボスの後続攻撃・地雷等を完全無視。
+  //   キャンセル禁止：_comboRcFinishLockActive を立てて canStartSpecial が SP→SP キャンセルを拒否する。
+  if (p.attackId && ATTACKS[p.attackId]) {
+    const _spDur = ATTACKS[p.attackId].duration ?? 80;
+    p.invincibleFrames = Math.max(p.invincibleFrames ?? 0, _spDur + 20);
+  } else {
+    p.invincibleFrames = Math.max(p.invincibleFrames ?? 0, 120);
+  }
+  p._comboRcFinishLockActive = true;  // フィニッシュ SP 完走強制：別 SP に派生不可
+  // テンポ改善：SP startup を hitFrame 直前へジャンプ
+  _skipSpStartup(p);
+
+  // ── 演出：RC（軸一致）はフル版、RP（軸不一致）は受け流し演出のまま敵だけ KB2 ──
+  if (isPerfect) {
+    // RC 成立瞬間は軽演出（パーティクル + 通常シェイク）。
+    // GC 級のヒットストップ・シェイクは「プレイヤーの SP が実際にボスにヒットした瞬間」に発火する
+    // ため、ここではフラグだけ立てる（メインヒットループが消費）。
+    spawnHitParticles(e.x, e.y + 60, e.z, _RC.FLASH_COLOR, _RC.FLASH_COUNT ?? 16, { type: 'omni' });
+    spawnHitParticles(e.x, e.y + 40, e.z, 0xffffff, 14, { type: 'omni', sizeScale: 1.0, lifeMul: 0.8 });
+    triggerShake(_RC.SHAKE_AMOUNT ?? 14, _RC.SHAKE_FRAMES ?? 12);
+    triggerHitstop(_RC.HITSTOP_FRAMES ?? 30);
+    e._comboRcFinishHitPending = true;  // 次の player→boss ヒットで GC 級演出を発火
+    _applyRcCamFx(_RC.CAM_ZOOM_BOOST, false);   // カメラズーム + 暗転（フィニッシュドラマ演出）
+  } else {
+    // RP（軸不一致でのフィニッシュ）：見た目は RP の青系受け流しのまま、敵だけ KB2 + スタンで終了
+    //   GC 級ヒットストップは出さない（_comboRcFinishHitPending を立てない）
+    //   カメラズームも控えめ（暗転無し）。倍率半減ダメは既に上で適用済み
+    spawnHitParticles(p.x, p.y + 60, p.z, 0x66ccff, 14, { type: 'omni' });
+    spawnHitParticles(e.x, e.y + 40, e.z, 0x88aaff, 10, { type: 'omni', sizeScale: 0.7 });
+    triggerHitstop(Math.floor((_RC.HITSTOP_FRAMES ?? 30) * 0.4));
+    triggerShake(Math.floor((_RC.SHAKE_AMOUNT ?? 14) * 0.5), Math.floor((_RC.SHAKE_FRAMES ?? 12) * 0.6));
+    _applyRcCamFx((_RC.CAM_ZOOM_BOOST ?? 0.2) * 0.4, true);  // 控えめズーム + 中央寄せ無し
+  }
   bumpCombo(e);
 }

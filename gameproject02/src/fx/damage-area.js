@@ -145,6 +145,15 @@ export function updateAreaPosition(id, x, y, z) {
   if (z !== undefined) a.mesh.position.z = z;
 }
 
+// エリアの rotation を毎フレーム更新（ボス tackle AOE ホーミング回転など）
+export function updateAreaRotation(id, rx, ry, rz) {
+  const a = areas.find(a => a.id === id);
+  if (!a) return;
+  if (rx !== undefined) a.mesh.rotation.x = rx;
+  if (ry !== undefined) a.mesh.rotation.y = ry;
+  if (rz !== undefined) a.mesh.rotation.z = rz;
+}
+
 // 矩形エリアの scale を毎フレーム更新するために使う（カーソルバーの幅変更など）
 export function updateAreaScale(id, sx, sy) {
   const a = areas.find(a => a.id === id);

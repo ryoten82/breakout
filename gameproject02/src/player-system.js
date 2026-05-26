@@ -363,6 +363,13 @@ function canStartSpecial(p, opts) {
   if (p.guarding) return false;
   if (p.ultActive) return false;
   if (anyPlayerUlting()) return false;
+  // 連続用 RC フィニッシュ中の SP は出し切り強制（キャンセル不可）。
+  //   `_triggerComboRcFinish` がフラグを立て、SP 完走（state が attacking から抜ける）で自動解除。
+  //   トドメの一撃を別 SP で塗り潰さず、演出的決着を保証する。
+  if (p._comboRcFinishLockActive) {
+    if (p.state === STATE.attacking) return false;  // 進行中 → キャンセル禁止
+    p._comboRcFinishLockActive = false;             // 完走済 → ロック解除
+  }
   // 空中攻撃ロックアウト中（aerialHop 直後）は空中 SP を封鎖。
   // ただしヒット確認があれば別の空中 SP へキャンセル可（hit→SP→SP 等のコンボ続行を許容）
   if (!p.isGrounded && (p.airAttackLockout ?? 0) > 0 && !p.hitDelivered) return false;
@@ -375,6 +382,8 @@ function canStartSpecial(p, opts) {
   if (p.state === STATE.wait01) return true;
   if (p.state === STATE.walk_fwd || p.state === STATE.walk_back) return true;
   if (p.state === STATE.hit_confirm) return true;
+  // 連続用 RC スライド中も SP 開始可（次スロットの RC を即座に繰り出せるように）
+  if (p.state === STATE.combo_rc_slide) return true;
   if (p.state === STATE.attacking) {
     // 攻撃中からの SP キャンセルはヒット確認必須。
     //   ★空中の場合：本攻撃が当たってなくても airHitOccurred（同ジャンプ中の SP ヒット履歴）があれば許可。
@@ -900,6 +909,15 @@ export function updatePlayer(p) {
     p._grabHitLock = true;
     const canReverse = (p.state !== STATE.dying && p.state !== STATE.dead && p.state !== STATE.guard_crash);
     if (canReverse) _processMegaCrashUltInput(p);
+    // 連続用 RC スライド中は通常 SP 入力も受け付ける（次スロット RC のため即時 SP 発動を許可）。
+    //   SP が発動すれば state は attacking に切り替わり、kbVx スライドは SP 移動に上書きされる。
+    if (p.state === STATE.combo_rc_slide) {
+      processSpecialInput(p);
+      // SP 発動で state が変わった場合は通常 updatePlayer フローに任せて return（hitstun 後処理は不要）
+      if (p.state !== STATE.combo_rc_slide) {
+        return;
+      }
+    }
     // 2026-05-25：knockback/down 中も J 長押しチャージを蓄積させる（仕切り直し溜め）。
     // dying/dead/guard_crash は除外（canReverse と同条件）。
     // リリースエッジ検出は processSpecialInput に任せる（hitstun 脱出後の最初フレームで発火）。

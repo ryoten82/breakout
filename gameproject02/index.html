@@ -387,6 +387,17 @@
       transition: none;
       z-index: 51;
     }
+    /* 敵必殺技中の薄い画面暗転（必殺技感の強調・ボス専用）
+       長時間表示でも疲れない薄め opacity。CSS transition で滑らかフェード。 */
+    #enemy-ult-darken {
+      position: absolute;
+      inset: 0;
+      background: #000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease-out;
+      z-index: 49;
+    }
     /* デバッグ：グラブ用ゲージ（敵の頭上・本番では非表示予定）*/
     #grab-gauge {
       position: absolute;
@@ -779,6 +790,7 @@
 <body>
   <div id="game-frame">
   <div id="mega-darken"></div>
+  <div id="enemy-ult-darken"></div>
   <div id="ult-darken"></div>
   <div id="rc-darken"></div>
   <div id="pause-overlay">
@@ -1109,6 +1121,7 @@
       enterEnemyDying, killEnemy, initEnemyGoreBlack,
       enterEnemyExplode, handleEnemyDyingHit, detachOnePart, enterEnemyDyingBurst,
       jumpEnemy, igniteEnemy, releaseEnemyTokens,
+      triggerBossPhaseTransition,
     } from './src/enemy-system.js';
     // === breakables（壊れ物プロップの破壊・パーツ飛び散り）===
     import {
@@ -1142,7 +1155,7 @@
     } from './src/debug-invariants.js';
     // === damage-area（ダメージ範囲可視化：共通モジュール・AoE 攻撃や爆発範囲に転用可）===
     import {
-      initDamageArea, addStaticArea, addRectArea, addSemicircleArea, updateAreaPosition, updateAreaScale, removeArea,
+      initDamageArea, addStaticArea, addRectArea, addSemicircleArea, updateAreaPosition, updateAreaScale, updateAreaRotation, removeArea,
       spawnExpandPulse, updateAreas,
     } from './src/fx/damage-area.js';
     // === stages（背景部屋・stage-room worktree 由来）===
@@ -2132,6 +2145,8 @@
     let megaSlowCounter  = 0;
     let megaDarkenFade   = 0;   // 暗転フェードアウト残フレーム
     const megaDarkenEl   = document.getElementById('mega-darken');
+    const enemyUltDarkenEl = document.getElementById('enemy-ult-darken');
+    const ENEMY_ULT_DARKEN_ALPHA = 0.22;   // 薄い暗転（必殺技中ずっと持続するため疲れない値）
 
     // === ULT 赤ドーム（足元から画面全体へ広がる半透明シールド）===
     const ultDome = (() => {
@@ -2497,6 +2512,7 @@
     let _ocPending        = false; // カード選択中（true の間メインループを停止）
     let _ocOpenTimer      = 0;     // ジェム取得フラッシュ後、OC 選択画面を開くまでの残 F
     const _ocMods         = {};    // 適用済み変更の undo 用ベース値保存
+    let   _ocAppliedCards = [];   // 適用済みカード ID 履歴（ステージ遷移時の引継ぎ用）
     let   _ocCards        = [];   // 現在表示中の OC カード配列（キー入力選択用）
     let   _ocFocusIdx     = 0;    // フォーカス中カードの index（0 or 1）
     const _ocPadPrev      = { left: false, right: false, select: false };  // rising-edge
@@ -2711,6 +2727,8 @@
           }
           break;
       }
+      // SKIP 以外は履歴に記録（ステージ引継ぎ用）
+      _ocAppliedCards.push(cardId);
     }
 
     // 攻撃カテゴリトークン（カテゴリ別に独立した1枠・同時攻撃制御）
@@ -2722,7 +2740,7 @@
     // let _tok_projectile = null;  // 将来の長距離敵用（未使用時はコメントアウト）
 
     // enemy-system 初期化（spawnDummy / updateEnemies が使う依存を注入）
-    initEnemySystem({ THREE, scene, players, enemies, addStaticArea, addRectArea, addSemicircleArea, updateAreaPosition, updateAreaScale, removeArea, triggerBossMegaCrashFX });
+    initEnemySystem({ THREE, scene, players, enemies, addStaticArea, addRectArea, addSemicircleArea, updateAreaPosition, updateAreaScale, updateAreaRotation, removeArea, triggerBossMegaCrashFX });
     initEnemyGoreBlack(THREE);  // 黒フェード目標色（gore-scrap）の初期化
     // damage-area 初期化（ダメージ範囲リング・パルスの共通基盤）
     initDamageArea({ scene, THREE });
@@ -2889,6 +2907,8 @@
     // stage runner（wave-runner）が「現在ステージ」を参照できるようグローバルに公開
     // → URL ベースから SELECTED_STAGE 参照に切替（sessionStorage 経由で URL に依存しないため）
     const _IS_AUTO_TRANSITION = !!_autoTransitionStage;
+    // OC 引継ぎカード ID リスト（window.SB 定義後に適用するため一時保持）
+    let _ocCarryIds = null;
 
     // 選択されたステージを実際に初期化する（モード選択ボタン or 即時起動から呼ぶ）。
     //   stage01 外周書割（exterior）も stage01 起動時にここで併せて適用する。
@@ -2900,7 +2920,26 @@
       if (id === 'actionTest') {
         initActionTest({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
       } else if (id === 'bossTest') {
-        initBossTest({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
+        initBossTest({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground,
+          // フェーズスキップ爆弾コールバック：HP ゲートを尊重して 9999 ダメージ適用
+          onBombActivate: () => {
+            const boss = enemies.find(e => e.isBoss && e.isAlive && !e.dying);
+            if (!boss || boss.bossPhaseTransitioning) return;
+            const gates    = boss.bossPhaseGateHP;
+            const phaseIdx = (boss.bossPhase ?? 1) - 1;
+            const nextGate = gates ? (gates[phaseIdx] ?? 0) : 0;
+            const BOMB_DMG = 9999;
+            let actualDmg  = BOMB_DMG;
+            let gateHit    = false;
+            if (nextGate > 0 && boss.hp - BOMB_DMG <= nextGate) {
+              actualDmg = Math.max(0, boss.hp - (nextGate + 1));
+              gateHit   = true;
+            }
+            boss.hp = Math.max(0, boss.hp - actualDmg);
+            spawnDamageNumber(boss.x, boss.y + 110, boss.z, actualDmg, {});
+            if (gateHit) triggerBossPhaseTransition(boss, hitCtx);
+          },
+        });
       } else if (id === 'stage03') {
         initStage03({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
       } else if (id === 'stage02') {
@@ -2995,6 +3034,12 @@
           sessionStorage.removeItem('_sbCarryCr');
           if (!isNaN(_cCr) && _cCr > 0) addCrTotal(_cCr);
           sessionStorage.removeItem('_sbDbgHidden');  // inline script 側で使用済み
+          // OC カード引継ぎ：読み出しのみ（適用は window.SB 定義後に行う）
+          const _ocRaw = sessionStorage.getItem('_sbCarryOC');
+          sessionStorage.removeItem('_sbCarryOC');
+          if (_ocRaw) {
+            try { _ocCarryIds = JSON.parse(_ocRaw); } catch (_) { /* ignore */ }
+          }
         } catch (_) { /* ignore */ }
       }
     }
@@ -3573,9 +3618,22 @@
     // ============================================================
     function update() {
       players.forEach(updatePlayer);
-      updateEnemies(hitCtx);
-      // RC（パリィボックス）判定：updatePlayer/updateEnemies の後で双方の最新 attack 状態を見て成立判定
+      // 敵必殺技中の画面薄暗転：isUltimate フラグの攻撃を実行中の敵を 1 体でも検出したらフェードイン
+      if (enemyUltDarkenEl) {
+        let _anyUlt = false;
+        for (const e of enemies) {
+          if (!e.isAlive || e.dying) continue;
+          if (e.state !== STATE.enemy_attacking) continue;
+          const _eAtk = e.curAtkId ? ENEMY_ATTACKS[e.curAtkId] : null;
+          if (_eAtk?.isUltimate) { _anyUlt = true; break; }
+        }
+        enemyUltDarkenEl.style.opacity = _anyUlt ? ENEMY_ULT_DARKEN_ALPHA : 0;
+      }
+      // RC 判定は updateEnemies より前に実施：
+      //   wind 最終フレームで updateEnemies が tryHitPlayer を発火する前に RC を成立させる。
+      //   敵 state は 1F 前のものを参照するが、RC タイミングには影響しない（むしろ wind-end edge ケースを救う）。
       players.forEach(p => updateRepulseDetection(p, enemies));
+      updateEnemies(hitCtx);
       // 壊れ物プロップ：フラッシュ進行・飛び散りパーツ物理
       updateBreakables();
       // OC ジェム：湧き上がり → 滞在 → 取得演出
@@ -4084,6 +4142,9 @@
     addEventListener('resize', updateHudScale);
     updateHudScale();  // 初期化
     window.SB = {
+      // ── デバッグフラグ（標準 ON 中：仕様確定後に false / 削除） ─────
+      DEBUG_BOSS_OD: true,  // boss_overdrive（連続技）の slot 遷移・RC マッチ・失敗理由をログ出力
+      // ─────────────────────────────────────────────────
       scene, camera, bgCamera, renderer, players, enemies,
       CHARACTER_ASSETS,
       PHYSICS, CAM_CONFIG, applyCamConfig, applyCamZoomBoost,
@@ -4242,6 +4303,8 @@
       //   SB.oc.gem(x, z)       → 任意座標に OC ジェムを出現（フロー確認用）
       //   SB.OVERCLOCK_CARDS    → カードテーブル確認
       OVERCLOCK_CARDS,
+      // OC カード引継ぎ：clear.js が stage 遷移直前に参照して sessionStorage に保存する
+      _ocAppliedCards,
       // 延焼（burn）：素では burn 付与不可。OC「点火」取得後に SP 命中 / GC 撃破で発火
       //   SB.BURN_CONFIG.SPREAD_ENABLED = true  → 伝播強制 ON（カード未取得でも検証可）
       //   SB.BURN_CONFIG.DEATH_BLAST_ENABLED = true → 死亡時爆発強制 ON
@@ -4265,6 +4328,14 @@
       collectAllCR,
       // ステージボスの撃破時に OC ジェムを直接 spawn（wave-runner から呼ぶ）
       spawnOcGem: (x, z) => spawnOcGem(x ?? 0, z ?? 0),
+      // デバッグ：ボスフェーズ強制移行（bossTest / stage3 で使用）
+      //   SB.bossPhaseNext()          → enemies 内の最初のボスを次フェーズへ
+      //   SB.bossPhaseNext(myBossRef) → 明示的にボスを指定
+      bossPhaseNext: (bossRef) => {
+        const boss = bossRef ?? enemies.find(e => e.isBoss && e.isAlive);
+        if (!boss) { console.warn('[SB] bossPhaseNext: boss not found'); return false; }
+        return triggerBossPhaseTransition(boss, hitCtx);
+      },
     };
     // window.SB.megaSlow を fxRefs.megaSlow に繋ぐ accessor 定義。
     // hit-engine.js の _triggerRepulseSuccess が window.SB.megaSlow = N と書くと
@@ -4274,6 +4345,12 @@
       set: (v) => fxRefs.megaSlow.set(v),
       configurable: true,
     });
+    // OC カード引継ぎ遅延適用（window.SB / OC_FLAGS が揃ったここで実行）
+    if (_ocCarryIds && Array.isArray(_ocCarryIds) && _ocCarryIds.length > 0) {
+      for (const _id of _ocCarryIds) _applyOCEffect(_id);
+      console.log('[OC] 引継ぎ復元:', _ocCarryIds);
+      _ocCarryIds = null;
+    }
     console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / pad / mega crash / ult) loaded.');
     console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG / SB.KEY_CONFIG');
     console.log('[SCRAP BLITZ] Try: SB.SP_CONFIG.MEGA_CRASH_COST = 10');

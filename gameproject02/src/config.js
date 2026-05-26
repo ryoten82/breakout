@@ -731,30 +731,43 @@ export const ENEMY_ATTACKS = {
   //         multilock 系（CANNON/VIPER）と共通基盤で実装
   boss1_atk_05: {
     name:           'MISSILE BARRAGE',
-    kind:           'swing',  // 暫定（projectile system 未実装のため AOE 一閃で挙動確認）。本実装で 'missile_barrage' へ
+    kind:           'missile_barrage',   // 個別ミサイル制御（時間差着弾・個別AOE・落下mesh）
+    isUltimate:     true,                // 必殺技フラグ：画面薄暗転で強調
     attackCategory: 'melee',
-    windFrames:     120,          // 背中装甲開閉ギミック内蔵想定
-    activeFrames:   25,
-    recoverFrames:  50,
-    cooldownFrames: 360,          // 約 6 秒
-    lungeVx:        0,
-    hitboxRangeX:   500,          // 全画面想定（弾幕に置き換わるまでの暫定）
-    hitboxRangeY:   200,
-    hitboxRangeZ:   320,
-    damage:         18,
-    atk_lv:         5,
-    knockback:      36,
-    hitstop:        9,
-    shake:          14,
+    windFrames:     75,            // 背中ポッド展開→発射準備
+    activeFrames:   270,           // 30(pre-warn) + 180(着弾窓3秒) + 60(後余裕)
+    recoverFrames:  60,
+    cooldownFrames: 420,           // 約 7 秒
+    // 本攻撃は個別ミサイル radial 判定で行う → 共通 hitbox は 0
+    hitboxRangeX:   0,
+    hitboxRangeY:   0,
+    hitboxRangeZ:   0,
+    damage:         0,
+    atk_lv:         4,
+    knockback:      0,
+    hitstop:        6,
+    shake:          10,
     hitColor:       0xff7733,
     pitchWind:     -0.40,
-    pitchActive:   +0.50,
+    pitchActive:   +0.20,
     bossAnim: {
-      wind:    { lArm: { x: -0.4, z: +0.5 }, rArm: { x: -0.4, z: -0.5 } }, // 両腕を広げミサイルポッド強調
-      active:  { lArm: { x: -0.4, z: +0.5 }, rArm: { x: -0.4, z: -0.5 } }, // 発射中も開いたまま
+      wind:    { lArm: { x: -0.4, z: +0.5 }, rArm: { x: -0.4, z: -0.5 } },
+      active:  { lArm: { x: -0.4, z: +0.5 }, rArm: { x: -0.4, z: -0.5 } },
       recover: { lArm: { x:  0.0, z:  0.0 }, rArm: { x:  0.0, z:  0.0 } },
     },
-    aoeDisplay: { shape: 'missiles', count: 9, radius: 120 },  // ランダム着弾サークル × 9 発
+    // ── ミサイル設定（kind='missile_barrage' 専用）─────────────
+    //   将来：missileImpactWindow を伸ばすと「他攻撃と重なる飽和攻撃」になる
+    missileCount:         9,        // 発射数
+    missileImpactWindow:  180,      // 最初〜最後の着弾間隔（F・約3秒）
+    missileWarningFrames: 30,       // AOE 警告→着弾の猶予
+    missileRadius:        110,      // 1 発のヒット半径
+    missileSpreadX:       1400,     // 散布範囲 X（±700）
+    missileSpreadZ:       600,      // 散布範囲 Z（±300）
+    missileTargetMode:    'player', // 'player' = プレイヤー中心 / 'arena' = アリーナ中心
+    missileDamage:        16,
+    missileAtkLv:         4,
+    missileKnockback:     24,
+    missileFallHeight:    700,      // 落下開始高度
   },
   // DOUBLE RUSH TACKLE（Phase 2/3 大技・RC 対象外・SA 崩しトリガー）
   //   D 案再編 2026-05-26：Phase 2 解禁・Phase 3 でも継続使用
@@ -763,16 +776,18 @@ export const ENEMY_ATTACKS = {
   boss1_atk_06: {
     name:           'DOUBLE RUSH TACKLE',
     kind:           'boss_double_tackle',  // 画面端往復タックル（2パス）
+    isUltimate:     true,                  // 必殺技フラグ：画面薄暗転で強調
     attackCategory: 'melee',
-    windFrames:     90,           // 溜め動作（大きく予兆）
-    activeFrames:   160,          // 1パスあたりのタイムアウト保険（壁到達で通常はもっと早く折り返す）
-    recoverFrames:  90,           // 大きな recover 硬直（SA 崩しトリガー対象）
-    cooldownFrames: 480,          // 約 8 秒
-    dashSpeed:      10.0,         // 突進速度
-    dashMaxDist:    1800,         // 1パスの最大突進距離（フォールバック）
-    hitboxRangeX:   120,          // 突進中の当たり判定（ボディ半幅程度）
-    hitboxRangeY:   200,
-    hitboxRangeZ:   140,
+    windFrames:      90,           // 溜め動作（大きく予兆）
+    preChargeFrames: 15,           // 突進前/折り返し後の予備溜め（AOE が player Z へホーミング）
+    activeFrames:    600,          // タイムアウト保険（precharge×2(30F) + rush×2(最大400F) + 余裕）
+    recoverFrames:   90,           // 大きな recover 硬直（SA 崩しトリガー対象）
+    cooldownFrames:  480,          // 約 8 秒
+    dashSpeed:       10.0,         // 突進速度
+    dashMaxDist:     1800,         // 1パスの最大突進距離（フォールバック）
+    hitboxRangeX:    120,          // 突進中の当たり判定（ボディ半幅程度）
+    hitboxRangeY:    200,
+    hitboxRangeZ:    180,          // 140→180：Z 軸ズレ救済（precharge で Z は揃える想定だが余裕を持つ）
     damage:         20,
     atk_lv:         5,
     knockback:      42,
@@ -796,14 +811,15 @@ export const ENEMY_ATTACKS = {
   //   弾き対象は「拳のコア部分」が active 入りする瞬間
   boss1_atk_07: {
     name:           'OVERDRIVE',
-    kind:           'boss_overdrive',   // 追尾 AOE → 4 連コンボ（各スロットに RC）
+    kind:           'boss_overdrive',   // その場 4 連コンボ（各スロットに RC）
+    isUltimate:     true,               // 必殺技フラグ：画面薄暗転で強調
     attackCategory: 'melee',
-    windFrames:     135,           // 追尾サークルが player 位置へ飛ぶ期間
-    activeFrames:   200,           // 4 コンボスロット全体のタイムアウト保険
+    windFrames:     135,           // 構えタメ（追尾は廃止：その場連続技に変更）
+    activeFrames:   380,           // 4 スロット全体のタイムアウト保険（windF=70 × 4 + activeF + 余裕）
     recoverFrames:  70,
     cooldownFrames: 480,           // 約 8 秒
     hitboxRangeX:   280,           // コンボ判定（boss がスナップ後の共通範囲）
-    hitboxRangeY:   200,
+    hitboxRangeY:   700,           // 連続技は player を打ち上げて繋ぐため Y 範囲広め（peakHang 含む最大 apex までカバー）
     hitboxRangeZ:   160,
     hitstop:        8,             // 共通（スロット側で上書き可）
     shake:          12,
@@ -816,14 +832,25 @@ export const ENEMY_ATTACKS = {
       recover: { lArm: { x: 0, z:  0.0 }, rArm: { x: 0, z:  0.0 } },
     },
     aoeDisplay: { shape: 'overdrive_track', radius: 180 },  // boss→player 追尾サークル
-    repulseTargetBox: { offsetX: 60, offsetY: 0, w: 300, h: 220, d: 200 },  // RC 受付ボックス
-    // ── コンボスロット（順番に発動）──────────────────────────────
+    // RC 受付ボックス：連続技は地上/空中問わず軸別 SP で RC するため、縦に大きく取る
+    //   y: -300 〜 1300（地面 SP のロー〜空中昇竜のハイまで網羅）
+    //   x: ±300（ボス両脇・前後どちら向きでも RC 可）
+    repulseTargetBox: { offsetX: 0, offsetY: 500, w: 600, h: 1600, d: 400 },
+    // ── コンボスロット（敵コンボ：バウンド→バウンド→打ち上げ→超吹き飛ばし）─
     // windF: RC 受付期間 / activeF: ヒット後の後隙 / repulseAxis: 対応方向
+    // multiHit: true で hitstun 中の被弾も貫通させてチェイン成立
+    // atk_lv 4 + launchVy 小 = バウンド扱い、lv 4 + launchVy 大 = 打ち上げ、lv 6 = 超吹き飛ばし
+    multiHit: true,                       // 各スロット hit が hitstun ガードを貫通（敵コンボ成立）
     comboSlots: [
-      { name: '振り下ろし', damage: 20, atk_lv: 5, knockback: 32, windF: 28, activeF: 14, repulseAxis: 'aerial'  }, // ↑
-      { name: '振り下ろし', damage: 20, atk_lv: 5, knockback: 32, windF: 22, activeF: 12, repulseAxis: 'aerial'  }, // ↑
-      { name: 'アッパー',   damage: 18, atk_lv: 5, knockback: 28, windF: 20, activeF: 12, repulseAxis: 'ground'  }, // ↓
-      { name: 'ストレート', damage: 30, atk_lv: 6, knockback: 55, windF: 22, activeF: 10, repulseAxis: 'frontal' }, // →
+      // slot 0/1：バウンド（atk_lv 5 叩きつけ → 即着地バウンド）。視覚：slam＋pop の独特な動き
+      //   既存 lv4 launch（down_up）と差別化。3 スロット全部 launch にならない
+      { name: '打ち下ろし', damage: 20, atk_lv: 5, knockback: 28, windF: 70, activeF: 14, repulseAxis: 'aerial'  },
+      { name: '打ち下ろし', damage: 20, atk_lv: 5, knockback: 28, windF: 70, activeF: 12, repulseAxis: 'aerial'  },
+      // slot 2：打ち上げ（lv4 + launchVy + peakHang）。slot 3 hit 時 player y ≈ 177wu で着弾するよう調整
+      //   旧 32 → 22：apex 568wu（hitboxRangeY 700 内）、滞空 105F で slot 3 が空中ヒット
+      { name: 'アッパー',   damage: 22, atk_lv: 4, knockback: 32, launchVy: 22, peakHang: true, windF: 70, activeF: 12, repulseAxis: 'ground' },
+      // slot 3：フィニッシュ・超吹き飛ばし（lv6 down_super → 横方向に大きく飛ぶ）
+      { name: 'ストレート', damage: 36, atk_lv: 6, knockback: 60, windF: 70, activeF: 10, repulseAxis: 'frontal' },
     ],
   },
 };
@@ -951,6 +978,37 @@ export const BOSS01_CONFIG = {
   APPROACH_SPEED:         0.7,   // 接近速度 wu/F（旧 1.0 → 0.7・プレイヤーに逃げ場を残す）
   Z_CHASE_FACTOR:         0.25,  // Z 追従速度のプレイヤー比（旧 0.4 → 0.25・奥手前回避の余地を増やす）
   DASH_CHASE_SPEED:       3.5,   // 遠距離復帰のダッシュ速度（DUMMY=5.5 / 重量級なので控えめ）
+  // スタン（boss1_atk_06 recover 後に発動・ボス専用・フェイタルでも流用予定）
+  STUN_FRAMES:         300,   // 疲れ状態の継続F（5秒）
+  STUN_HEAVY_LV:       5,     // これ以上の atk_lv（または launchVy/forceBurst）はKB2リアクション
+  STUN_PULSE_SPEED:    0.10,  // 黒点滅の sin 速度（旧 0.045 → 0.10：周期短縮で点滅明瞭化）
+  STUN_PULSE_OPACITY:  0.65,  // 黒オーバーレイの最大不透明度（旧 0.30 → 0.65：暗くしてはっきり見える）
+  // 遠距離タックル優先（atk_06 は距離詰め技 → 自機が遠いほど選びやすく）
+  FAR_TACKLE_RANGE:    500,   // この distance（adx）以上でタックル優先抽選を発動
+  FAR_TACKLE_PROB:     0.65,  // 遠距離時にタックル(atk_06)を選ぶ確率
+  // テスト用フラグ：Phase 3 で 100% 連続技 (boss1_atk_07) を選択
+  //   将来本稼働時は false に切替（または削除して通常抽選に戻す）
+  PHASE3_FORCE_OVERDRIVE: true,
+  // 連続用 RC（boss_overdrive スロット途中の RC 成功）
+  //   非フィニッシュ：両者ノーダメージ／プレイヤーは combo_rc_slide で後ろにスライド／ボスは構わず継続
+  //   フィニッシュ ：ボスに KB2 + 大ダメージ + 4秒スタン／プレイヤー SP は出し切り／GC スキップ
+  COMBO_RC_SLIDE_FRAMES:    18,    // スライド state 持続F（短め：RC 連鎖入力タイミング確保）
+  COMBO_RC_SLIDE_VX:        4.0,   // スライド初速 wu/F（facing 反対方向）
+  COMBO_RC_SLIDE_DECAY:     0.88,  // スライド速度減衰（短くなったので減衰やや強め）
+  COMBO_RC_FINISH_DAMAGE:   300,   // フィニッシュ時のダメージ（大ダメージ・基準値）
+  COMBO_RC_FINISH_KB:       90,    // フィニッシュ時のノックバック初速（後方・kbDecay 0.93 で総距離 ≒1280wu）
+  COMBO_RC_FINISH_STUN:     240,   // フィニッシュ後のスタンF（4秒）
+  // パーフェクト RC 倍率：途中スロットを RC（軸一致）で返した回数に応じてフィニッシュ damage に上乗せ
+  //   合計倍率 = (1 + perfectContinues * MULT_STEP) × (finisher RC か RP かの係数)
+  //   0 perfect + RC finisher = 1.0x / 3 perfect + RC finisher = 2.5x
+  COMBO_RC_PERFECT_MULT_STEP: 0.5,   // 途中スロット 1 perfect につき +0.5x
+  COMBO_RC_FINISH_RP_PENALTY: 0.5,   // フィニッシュが RP（軸不一致）の場合のペナルティ倍率
+  // boss_overdrive（連続技）中のホーミング：各スロットでプレイヤーへ間合いを詰める
+  //   理由：振り下ろし系の近距離技なので、ボス側から接近しないと最後の一撃が届かない
+  OVERDRIVE_HOMING_X:       8.4,   // X 方向ホーミング速度 wu/F（旧 12 の 70%）
+  OVERDRIVE_HOMING_Z:       4.2,   // Z 方向ホーミング速度 wu/F（旧 6 の 70%）
+  OVERDRIVE_TARGET_X:       180,   // この距離以内なら停止（X）：振り下ろしの判定圏内
+  OVERDRIVE_TARGET_Z:       60,    // 停止距離（Z）
 };
 
 // ============================================================
@@ -1249,8 +1307,10 @@ export const BURN_CONFIG = {
   SPREAD_MAX_CHAINS:      3,     // 1 burn から派生する連鎖上限
   SPREAD_DURATION_INHERIT:0.7,   // 伝播先 duration 倍率（先細りで無限連鎖防止）
 
-  // 死亡時爆発（OC CHAIN_BLAST カードで ON）
+  // 時限自動爆発（OC CHAIN_BLAST カードで ON）
+  // 延焼開始から AUTO_BLAST_DELAY フレーム後に自動で detonateBurn を起動する
   DEATH_BLAST_ENABLED:    false,
+  AUTO_BLAST_DELAY:       120,   // 延焼開始から爆発までの待ちフレーム（2 秒）
   DEATH_BLAST_RADIUS:     240,
   DEATH_BLAST_DAMAGE:     12,
   DEATH_BLAST_IGNITES:    true,  // 爆風範囲の生存敵に burn 付与
@@ -1528,5 +1588,5 @@ export const OVERCLOCK_CARDS = [
   //  - フィルタは index.html showOCSelection 内の _filterOcPool が担当
   { id: 'IGNITE',      label: '点火',     desc: '必殺技命中 / 敵爆発時に周囲へ延焼を付与', color: '#ff7733', rarity: 'common',    weight: 10 },
   { id: 'SPREAD',      label: '延焼',     desc: '延焼中の敵から周囲へ炎が広がる',         color: '#ff5522', rarity: 'uncommon',  weight: 10 },
-  { id: 'CHAIN_BLAST', label: '連鎖爆発', desc: '延焼中の敵が倒れると爆発し周囲を延焼',   color: '#ff2200', rarity: 'rare',      weight: 10 },
+  { id: 'CHAIN_BLAST', label: '連鎖爆発', desc: '延焼開始から2秒後に自動爆発・周囲を延焼', color: '#ff2200', rarity: 'rare',      weight: 10 },
 ];

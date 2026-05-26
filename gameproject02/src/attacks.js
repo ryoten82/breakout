@@ -167,6 +167,8 @@ export const ATTACKS = {
     partsAnim:    'slam_down',
     repulseAxis:  'ground',
     repulseFrameStart: 1, repulseFrameEnd: 20,
+    // RC 受付ボックス（ground 軸：地面叩きつけ → ボス腰下〜足元を捉える）
+    repulseBox:   { offsetX: 0, offsetY: 100, w: 700, h: 500, d: 200 },
   },
   // 空中版：急降下で敵を地面に引きずり → 着地瞬間に自動ゲイザー発火（2フェーズ）
   //   Phase1: 急降下ヒット（敵を下方に引きずる・横は抑える）
@@ -200,6 +202,8 @@ export const ATTACKS = {
     autoLandGeyser: true,           // 着地瞬間に c01_sp_03_land を自動発火
     repulseAxis:  'ground',
     repulseFrameStart: 1, repulseFrameEnd: 20,
+    // RC 受付ボックス（ground 軸・空中版：dive 軌跡上でボス頭〜胴体を捉える）
+    repulseBox:   { offsetX: 0, offsetY: 100, w: 600, h: 800, d: 200 },
   },
   // 着地ゲイザー（c01_sp_03_air 着地時に内部自動発火・直接入力不可）
   //   hitFrame: 0 で 1 フレーム目から即発生。shockwaveEffect で視覚は即座に出る。
@@ -426,6 +430,8 @@ export const ATTACKS = {
     selfRecoilDecay: 0.85,
     repulseAxis:  'frontal',
     repulseFrameStart: 1, repulseFrameEnd: 20,
+    // RC 受付ボックス（frontal 軸：前方突き → 前方の敵を捉える・facing で反転）
+    repulseBox:   { offsetX: 300, offsetY: 150, w: 600, h: 400, d: 200 },
   },
   // OC IGNITE 専用 SP1：3段ザラつき手触り・着火トリガー付き。ダメージは通常版より低い（後の伸びで逆転）
   c01_sp_01_ignite: {
@@ -458,6 +464,8 @@ export const ATTACKS = {
     igniteTrigger: true,    // OC IGNITE: 2 フェーズ起爆システムを有効化
     repulseAxis:  'frontal',
     repulseFrameStart: 1, repulseFrameEnd: 20,
+    // RC 受付ボックス（frontal 軸：前方突き → 前方の敵を捉える・facing で反転）
+    repulseBox:   { offsetX: 300, offsetY: 150, w: 600, h: 400, d: 200 },
   },
   // 空中版：斜め下方向に発射。rangeY を絞って rangeYDown を大きく取る非対称 hitbox。
   // METEO 固有の挙動（VIPER 等は別の傾向にする予定）。pickSpecialAttackId で地上/空中を分岐
@@ -511,6 +519,8 @@ export const ATTACKS = {
     showHitbox:   true,
     repulseAxis:  'frontal',
     repulseFrameStart: 1, repulseFrameEnd: 20,
+    // RC 受付ボックス（frontal 軸：前方突き → 前方の敵を捉える・facing で反転）
+    repulseBox:   { offsetX: 300, offsetY: 150, w: 600, h: 400, d: 200 },
   },
   // OC IGNITE 空中版：c01_sp_01_air の着火トリガー付きコピー
   c01_sp_01_ignite_air: {
@@ -550,6 +560,8 @@ export const ATTACKS = {
     igniteTrigger: true,
     repulseAxis:  'frontal',
     repulseFrameStart: 1, repulseFrameEnd: 20,
+    // RC 受付ボックス（frontal 軸：前方突き → 前方の敵を捉える・facing で反転）
+    repulseBox:   { offsetX: 300, offsetY: 150, w: 600, h: 400, d: 200 },
   },
   c01_sp_02: {
     label:        'c01_sp_02 (METEO 対空コマンド・粉塵昇竜・地上版)',

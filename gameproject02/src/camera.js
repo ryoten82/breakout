@@ -74,7 +74,8 @@ let _zoomBoostDecayFrames = 0;
 let _zoomTrueBase = null;
 let _zoomBoostDarkenEl = null;
 let _zoomBoostDarkenAlpha = 0;
-export function applyCamZoomBoost(amount, frames, holdFrames, darkenAlpha) {
+let _zoomBoostSkipCenter = false;  // true: zoom 中もカメラ中央寄せをスキップ（連続 continue 用）
+export function applyCamZoomBoost(amount, frames, holdFrames, darkenAlpha, skipCenter) {
   if (!_camera) return;
   // boost 未稼働時にだけ true base を更新（連発で base がブースト値に張り付くのを防ぐ）。
   if (_zoomBoostFrames <= 0) {
@@ -85,6 +86,7 @@ export function applyCamZoomBoost(amount, frames, holdFrames, darkenAlpha) {
   _zoomBoostDecayFrames  = Math.max(1, frames - _zoomBoostHoldFrames);
   _zoomBoostFrames       = _zoomBoostHoldFrames + _zoomBoostDecayFrames;
   _zoomBoostDarkenAlpha  = darkenAlpha ?? 0;
+  _zoomBoostSkipCenter   = !!skipCenter;
   if (!_zoomBoostDarkenEl) _zoomBoostDarkenEl = document.getElementById('rc-darken');
 }
 
@@ -250,7 +252,7 @@ export function updateCamera() {
   // 終了後は通常デッドゾーンが自動的に再開
   if (p.ultActive) {
     camTargetX += (p.x - camTargetX) * 0.25;
-  } else if (_zoomBoostFrames > 0) {
+  } else if (_zoomBoostFrames > 0 && !_zoomBoostSkipCenter) {
     // RC ズーム中はプレイヤーを画面中央へ素早く寄せる（画面端での見切れ防止）。
     // ULT より弱い lerp で素早く追従＆ズーム終了後の通常デッドゾーンへ滑らかに移行。
     camTargetX += (p.x - camTargetX) * 0.30;
@@ -321,7 +323,7 @@ export function updateCamera() {
   const upTarget   = p.y - Y_RATIO * dz - SCREEN_Y_UP   * SCREEN_SCALE;
   const downTarget = p.y - Y_RATIO * dz - SCREEN_Y_DOWN * SCREEN_SCALE;
   let targetCamY;
-  if (_zoomBoostFrames > 0) {
+  if (_zoomBoostFrames > 0 && !_zoomBoostSkipCenter) {
     // RC ズーム中：プレイヤーを画面の縦中央へ。screenY=0 になる camFollowY を直接計算
     //   screenY = (CAM_Z*(p.y - camFollowY) - CAM_Y*dz) / camDist = 0
     //   → camFollowY = p.y - Y_RATIO * dz
@@ -344,7 +346,7 @@ export function updateCamera() {
   // 重力加速を camera に持ち込まない（target が p.y に追従する性質上、step を遅くすることで
   // 「camera 側の加速感」を構造的に出さない設計）。プレイヤーは画面内で多少動く
   // 2026-05-27：RC ズーム中は STEP を大幅に拡大して即追従（画面端での見切れ防止）
-  const STEP = (_zoomBoostFrames > 0) ? 80 : 10;
+  const STEP = (_zoomBoostFrames > 0 && !_zoomBoostSkipCenter) ? 80 : 10;
   const diff = targetCamY - camFollowY;
   if (Math.abs(diff) > STEP) {
     camFollowY += Math.sign(diff) * STEP;

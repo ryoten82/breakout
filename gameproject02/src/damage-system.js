@@ -44,7 +44,7 @@ import {
   ENEMY_ROLL_KB_VX, ENEMY_ROLL_KB_DECAY,
   applyRollHipPivot,
 } from './states.js';
-import { SP_CONFIG, GUARD_CONFIG, PHYSICS, UKEMI_CONFIG, CRIT_CONFIG, PLAYER_PROFILE } from './config.js';
+import { SP_CONFIG, GUARD_CONFIG, PHYSICS, UKEMI_CONFIG, CRIT_CONFIG, PLAYER_PROFILE, BOSS01_CONFIG } from './config.js';
 import { getActiveWallX } from './camera.js';
 
 // ============================================================
@@ -122,6 +122,7 @@ const _HITSTUN_STATES = new Set([
   STATE.down_roll_start, STATE.down_roll_loop,
   STATE.down_bas_start, STATE.down_bas_loop, STATE.down_bas_end,
   STATE.guard_crash, STATE.dying, STATE.dead, STATE.respawning,
+  STATE.combo_rc_slide,  // 連続用 RC 成功後のスライド（被ダメ無敵・受け身も発火しない）
 ]);
 
 export function isHitstunState(p) {
@@ -701,6 +702,17 @@ export function updatePlayerHitstun(p) {
     p.stateTimer--;
     if (p.stateTimer <= 0) {
       p.state = STATE.wait01;
+    }
+  } else if (s === STATE.combo_rc_slide) {
+    // 連続用 RC 成功後：屈みながら後方へスライド（被ダメ無敵）
+    const _decay = BOSS01_CONFIG?.COMBO_RC_SLIDE_DECAY ?? 0.90;
+    p.x += p.kbVx;
+    p.kbVx *= _decay;
+    p.stateTimer--;
+    if (p.stateTimer <= 0) {
+      p.state = STATE.wait01;
+      p.kbVx  = 0;
+      if (p.mesh) p.mesh.scale.y = 1.0;  // 屈み解除
     }
   } else if (s === STATE.dying) {
     // 死亡演出：黒化フェーズ A → 黒↔赤点滅フェーズ B → 爆散 → dead
