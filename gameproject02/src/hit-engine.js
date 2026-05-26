@@ -891,6 +891,10 @@ export function tryHitEnemies(p, attack, ctx) {
     if (e.bossFullSA && !e.bossSAStunTimer)
       e.knockbackVx = Math.sign(e.knockbackVx) * Math.min(Math.abs(e.knockbackVx), 1.5);
     const resolved = resolveAttackAttr(attack);
+    // SA 中かどうかを以降のバーストチェック全体で共有（先に確定させる）
+    //   SA 中はバーストダウンの発動もカウントもしない（唐突バースト抑止）。
+    //   forceBurstDown（ULT等）は SA を無視して通す。
+    const _bossInSA = !!(e.bossFullSA && !e.bossSAStunTimer);
     // === 超吹き飛ばし回数上限（down_super_* 中の敵に lv6 攻撃命中）===
     //   FLIGHT_BURST_LIMIT 回到達でバーストダウン化（2026-05-20 仕様統一）。
     //   旧仕様：lateralCombatInvincible でトラジェクトリ温存 → 統一して burst に。
@@ -900,7 +904,7 @@ export function tryHitEnemies(p, attack, ctx) {
         ? attack.atk_lv_air
         : (attack.atk_lv ?? 1);
       const _inSuperFlight = (e.state === STATE.down_super_start || e.state === STATE.down_super_loop);
-      if (_effectiveLv === 6 && _inSuperFlight) {
+      if (_effectiveLv === 6 && _inSuperFlight && !_bossInSA) {  // SA 中はカウント・発動しない
         e.superFlightCount = (e.superFlightCount ?? 0) + 1;
         if (e.superFlightCount >= FLIGHT_BURST_LIMIT) {
           // burst に遷移して以降の通常 lv6 dispatch をスキップ
@@ -946,8 +950,9 @@ export function tryHitEnemies(p, attack, ctx) {
     //   この敵に対する初撃時のみ attack id を route に追加。
     //   同じパターンが COMBO_LOOP_REPEAT 回連続で繰り返されたら burst。
     //   route のクリア：敵 wait01 復帰時 / メガクラ被弾時（mega は意図的なリセット手段）。
+    //   SA 中はルート記録自体を行わない（カウントに積み上げて唐突バーストを起こさない）。
     let _loopDetectedLen = 0;
-    if (p.attackId) {
+    if (p.attackId && !_bossInSA) {
       if (!p._routeAppendedFor) p._routeAppendedFor = new Set();
       if (!p._routeAppendedFor.has(e)) {
         if (!e.comboRoute) e.comboRoute = [];
@@ -963,8 +968,28 @@ export function tryHitEnemies(p, attack, ctx) {
     }
     const _loopDetected = _loopDetectedLen > 0;
     // ULT 等の forceBurstDown:true は無条件で burst 遷移ルートへ（combo break HUD は出さない）
+    // SA 中は loop/spDuplicate 由来のバースト発動を抑止（forceBurst は SA を貫通）
     const _forceBurst = !!attack.forceBurstDown;
-    if (_spDuplicateOnThisEnemy || _loopDetected || _forceBurst) {
+    if (_forceBurst || ((_spDuplicateOnThisEnemy || _loopDetected) && !_bossInSA)) {
+      // ── ボスに forceBurst（ULT 等）命中：バーストダウンせず knockback02 に留める ──
+      //    バーストダウンは「永久コンボ対策」の概念であり、ボス戦には馴染まない。
+      //    ULT はその代わり SA 崩し（bossSAStunTimer）を発動してリターンを確保。
+      if (_forceBurst && e.isBoss) {
+        e.state          = STATE.knockback02;
+        e.downTimer      = ENEMY_KB02_FRAMES;
+        e.bossSAHitCount = 0;   // SA カウントリセット
+        if (BOSS01_CONFIG.SA_BREAK_ON_ULT) {
+          e.bossSAStunTimer = BOSS01_CONFIG.SA_BREAK_STUN_FRAMES;   // SA 崩しスタン
+        }
+        applyHitInitialPitch(e);
+        spawnHitParticles(e.x, e.y + 60, e.z, attack.hitColor ?? 0xffffff,
+          attack.hitCount ?? 24, { type: 'omni' });
+        bumpCombo(e);
+        triggerHitstop(attack.hitstop);
+        triggerShake(attack.shake, attack.shake * 2 + 4);
+        anyHit = true;
+        continue;
+      }
       // 後方斜め上に吹き飛び・facing と反対方向（プレイヤーから離れる）
       triggerBurstState(e, facing);
       // ULT 由来の burst：起き上がる（wait01 復帰）まで完全無敵・メガクラも不可
@@ -1000,14 +1025,15 @@ export function tryHitEnemies(p, attack, ctx) {
     }
     // 通常 SP ヒット：この敵に対する「このベース ID の累計使用回数」を +1
     //   SPECIAL_USE_LIMIT 到達後の次ヒットで burst（_spDuplicateOnThisEnemy 経由）
-    if (_spBaseIdForMark) {
+    //   SA 中はカウントしない（SA 明けに即バースト、を防ぐ）
+    if (_spBaseIdForMark && !_bossInSA) {
       if (!e.specialHitBy || typeof e.specialHitBy.get !== 'function') e.specialHitBy = new Map();
       const _prev = e.specialHitBy.get(_spBaseIdForMark) ?? 0;
       e.specialHitBy.set(_spBaseIdForMark, _prev + 1);
     }
     // ── ボス常時SA：カウンター制（5発吸収→6発目でknockback01・コンボ切れでリセット）──
     // bossSAStunTimer>0（RC 成功 / ULT 命中）時は SA 解除して通常ディスパッチへ。
-    const _bossInSA = e.bossFullSA && !e.bossSAStunTimer;
+    // _bossInSA は上で既に宣言済み（const _bossInSA = !!(e.bossFullSA && !e.bossSAStunTimer)）
     if (_bossInSA) {
       // ヒットのたびに decay タイマーをリセット（コンボ継続判定）
       e.bossSADecayTimer = BOSS01_CONFIG.SA_DECAY_FRAMES;
@@ -1741,6 +1767,28 @@ export function updateRepulseDetection(p, enemies) {
     const dx = e.x - p.x, dz = e.z - p.z;
     const xzDist = Math.hypot(dx, dz);
     if (xzDist > REPULSE_CONFIG.MAX_WARP_DISTANCE) { if (_dbg && _isJd) console.log(`  [RC fail] dist=${xzDist.toFixed(0)} > ${REPULSE_CONFIG.MAX_WARP_DISTANCE}`); continue; }
+    // 敵がプレイヤー目線付近まで降りてきた時のみ RC 成立（インジケータのトップで反応する設計）
+    //   aim 中（y≈747）や dive 初期（高位置）では不成立、降りてきて目線に達した瞬間に成立する
+    const yGap = e.y - p.y;
+    if (yGap > REPULSE_CONFIG.MAX_Y_GAP) {
+      if (_dbg && _isJd) console.log(`  [RC fail] y-gap too large e.y=${e.y.toFixed(0)} p.y=${p.y.toFixed(0)} gap=${yGap.toFixed(0)} > ${REPULSE_CONFIG.MAX_Y_GAP}`);
+      continue;
+    }
+    // 物理ヒット可能距離内なら RC をスキップ（通常ヒット優先）
+    //   → プレイヤーが本体に近寄って直接 SP2 を当てた場合、RC でなく通常ダメージにする
+    {
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(e.y - p.y);
+      const absDz = Math.abs(dz);
+      const rx = atk.rangeX ?? 0;
+      const ry = atk.rangeY ?? 0;
+      const rz = atk.rangeZ ?? 0;
+      if (rx > 0 && ry > 0 && rz > 0 &&
+          absDx < rx && absDy < ry && absDz < rz) {
+        if (_dbg && _isJd) console.log(`  [RC skip] in physical hit range dx=${absDx.toFixed(0)}/${rx} dy=${absDy.toFixed(0)}/${ry} dz=${absDz.toFixed(0)}/${rz}`);
+        continue;
+      }
+    }
     const eBox = _resolveRepulseBoxToWorld(e.x, e.y, e.z, e.facing, eAtk.repulseTargetBox);
     if (!_aabbOverlap(pBox, eBox)) {
       if (_dbg && _isJd) {

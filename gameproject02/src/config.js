@@ -193,7 +193,7 @@ export const BOSS_MEGA_CONFIG = {
   DARKEN_FADE_OUT: 35,
   RING_COLOR:    0xff2200,  // 赤
   // AoE ヒット設定
-  DAMAGE:        25,
+  DAMAGE:        0,     // 0：フェーズ移行は演出のみ（事故死回避）。knockback/hitstop/shake は維持
   ATK_LV:        5,
   KNOCKBACK:     45,
   HITSTOP:       12,
@@ -601,14 +601,14 @@ export const ENEMY_ATTACKS = {
     name:           'クラッシャー振り下ろし（両拳叩きつけ）',
     kind:           'swing',
     attackCategory: 'melee',
-    windFrames:     60,
+    windFrames:     70,     // 旧 60 → 70：出がかり +10F（読み合い猶予追加）
     activeFrames:   12,
     recoverFrames:  30,
     cooldownFrames: 90,
     lungeVx:        4,
     hitboxRangeX:   400,
     hitboxRangeY:   360,
-    hitboxRangeZ:   280,
+    hitboxRangeZ:   140,    // 旧 280 → 140：振り下ろしは Z 軸前後ステップで回避できる範囲に
     damage:         14,
     atk_lv:         4,
     knockback:      28,
@@ -622,7 +622,7 @@ export const ENEMY_ATTACKS = {
       active:  { lArm: { x: 0, z: -0.3 }, rArm: { x: 0, z: +0.3 } }, // 両腕を内側へ叩き下ろし
       recover: { lArm: { x: 0, z:  0.0 }, rArm: { x: 0, z:  0.0 } },
     },
-    aoeDisplay: { shape: 'rect', w: 440, h: 440 },  // 縦長矩形（叩きつけ縦軸）
+    aoeDisplay: { shape: 'rect', w: 440, h: 220 },  // 縦長矩形（叩きつけ縦軸）・hitboxRangeZ 縮小に同期
   },
   // boss1_atk_02：横薙ぎフック（片腕大振り）
   //   art-reference 統合：素手フック・横軸 AOE 広範囲
@@ -630,7 +630,7 @@ export const ENEMY_ATTACKS = {
     name:           '横薙ぎフック',
     kind:           'swing',
     attackCategory: 'melee',
-    windFrames:     52,
+    windFrames:     62,     // 旧 52 → 62：出がかり +10F（読み合い猶予追加）
     activeFrames:   18,
     recoverFrames:  35,
     cooldownFrames: 100,
@@ -664,6 +664,7 @@ export const ENEMY_ATTACKS = {
     recoverFrames:  40,
     cooldownFrames: 110,
     lungeVx:        0,
+    freezePos:      true,   // wind〜active 中は完全静止（足元に叩きつけるため移動しない）
     hitboxRangeX:   780,
     hitboxRangeY:   50,   // 地上限定（ジャンプ回避可）。ピーク高度 ≈61 なのでタイミング次第で抜けられる
     hitboxRangeZ:   780,
@@ -947,8 +948,8 @@ export const BOSS01_CONFIG = {
   //   DUMMY_ATK_CONFIG を直接いじらず、isBoss 分岐で本値を使う
   APPROACH_RANGE:         700,   // この距離以下で接近開始（DUMMY=400 / 大柄なので広め）
   ATTACK_RANGE:           260,   // 基本拳の発動圏（DUMMY=130 / 拳が大きいので広め）
-  APPROACH_SPEED:         1.0,   // 接近速度 wu/F（DUMMY=1.4 / 重いので遅い）
-  Z_CHASE_FACTOR:         0.4,   // Z 追従速度のプレイヤー比（DUMMY=0.6 / 鈍重）
+  APPROACH_SPEED:         0.7,   // 接近速度 wu/F（旧 1.0 → 0.7・プレイヤーに逃げ場を残す）
+  Z_CHASE_FACTOR:         0.25,  // Z 追従速度のプレイヤー比（旧 0.4 → 0.25・奥手前回避の余地を増やす）
   DASH_CHASE_SPEED:       3.5,   // 遠距離復帰のダッシュ速度（DUMMY=5.5 / 重量級なので控えめ）
 };
 
@@ -1119,6 +1120,7 @@ export const REPULSE_CONFIG = {
   // 旧「攻撃 hit 時の軸照合」を撤去し、専用の repulseBox / repulseTargetBox の AABB 重なり判定で成立させる。
   // 成立すると両者を「お膳立て位置」へワープし、軽い演出後に RC 発動（確定クリ + 100% gc）。
   MAX_WARP_DISTANCE: 350,   // この距離を超えるとワープせず成立しない（2026-05-27：200→350・aim 中ラグ + 退避動作許容）
+  MAX_Y_GAP:         250,   // 敵 y - プレイヤー y がこの値を超えると RC 不成立（インジケータ高さまで降りてきた時のみ成立）
   WARP_FRONT_OFFSET: 80,    // ワープ後の敵 X：プレイヤー facing 前方への距離
   WARP_Y_OFFSET:     120,   // ワープ後の敵 Y：プレイヤー頭上（attack hit 想定位置）
   CAM_ZOOM_BOOST:    0.20,  // 一時的なカメラズーム加算（0.20 ≒ 20% 拡大）

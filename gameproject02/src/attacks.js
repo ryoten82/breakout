@@ -165,6 +165,8 @@ export const ATTACKS = {
     flashOnStart: true,
     showHitbox:   true,
     partsAnim:    'slam_down',
+    repulseAxis:  'ground',
+    repulseFrameStart: 1, repulseFrameEnd: 20,
   },
   // 空中版：急降下で敵を地面に引きずり → 着地瞬間に自動ゲイザー発火（2フェーズ）
   //   Phase1: 急降下ヒット（敵を下方に引きずる・横は抑える）
@@ -196,6 +198,8 @@ export const ATTACKS = {
     showHitbox:   true,
     partsAnim:    'air_slam',
     autoLandGeyser: true,           // 着地瞬間に c01_sp_03_land を自動発火
+    repulseAxis:  'ground',
+    repulseFrameStart: 1, repulseFrameEnd: 20,
   },
   // 着地ゲイザー（c01_sp_03_air 着地時に内部自動発火・直接入力不可）
   //   hitFrame: 0 で 1 フレーム目から即発生。shockwaveEffect で視覚は即座に出る。
@@ -420,6 +424,8 @@ export const ATTACKS = {
     targetOvershootGuard: true,
     selfRecoilVx: 2.4,
     selfRecoilDecay: 0.85,
+    repulseAxis:  'frontal',
+    repulseFrameStart: 1, repulseFrameEnd: 20,
   },
   // OC IGNITE 専用 SP1：3段ザラつき手触り・着火トリガー付き。ダメージは通常版より低い（後の伸びで逆転）
   c01_sp_01_ignite: {
@@ -450,6 +456,8 @@ export const ATTACKS = {
     selfRecoilVx: 2.4,
     selfRecoilDecay: 0.85,
     igniteTrigger: true,    // OC IGNITE: 2 フェーズ起爆システムを有効化
+    repulseAxis:  'frontal',
+    repulseFrameStart: 1, repulseFrameEnd: 20,
   },
   // 空中版：斜め下方向に発射。rangeY を絞って rangeYDown を大きく取る非対称 hitbox。
   // METEO 固有の挙動（VIPER 等は別の傾向にする予定）。pickSpecialAttackId で地上/空中を分岐
@@ -501,6 +509,8 @@ export const ATTACKS = {
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
+    repulseAxis:  'frontal',
+    repulseFrameStart: 1, repulseFrameEnd: 20,
   },
   // OC IGNITE 空中版：c01_sp_01_air の着火トリガー付きコピー
   c01_sp_01_ignite_air: {
@@ -538,6 +548,8 @@ export const ATTACKS = {
     flashOnStart: true,
     showHitbox:   true,
     igniteTrigger: true,
+    repulseAxis:  'frontal',
+    repulseFrameStart: 1, repulseFrameEnd: 20,
   },
   c01_sp_02: {
     label:        'c01_sp_02 (METEO 対空コマンド・粉塵昇竜・地上版)',
@@ -578,6 +590,7 @@ export const ATTACKS = {
     flashOnStart: true,
     showHitbox:   true,
     repulseAxis:  'aerial',   // リパルスカウンター：対空軸（e02_atk_02 などに合わせる）
+    repulseFrameStart: 1, repulseFrameEnd: 20,
     // RC 受付ボックス（パリィボックス・2026-05-26 → 2026-05-27 Y 上方向拡張）：
     //   頭上に大きく広く。攻撃の物理 hitbox とは独立。
     //   敵 e02_atk_02 aim 中ピーク Y ≈ 747wu に対し余裕を持って Y 上限 1600wu まで拾う。
@@ -591,7 +604,15 @@ export const ATTACKS = {
   //   ヒット後（frame 12）に追加上昇 → 「単発で当てて、その後昇る」絵
   c01_sp_02_air: {
     label:        'c01_sp_02_air (METEO 対空コマンド・空中版・単発)',
-    duration:     14, hitFrame: 6, hitDuration: 6, cancelWindow: 20,  // cw 4→20（空中SPキャンセル受付拡張・2026-05-20）
+    // フレーム構成（地上版 c01_sp_02_short と統一）：
+    //   frame  1-7  : startup
+    //   frame  8-13 : 攻撃判定 active（hitFrame=8 / hitDuration=6）
+    //   frame 14-49 : 後隙
+    //   frame 20-45 : キャンセル受付（cancelWindowStart=20 / cancelWindow=45）
+    //   全体 50F / 着地後：landingLag=30F の地上硬直
+    duration:     50, hitFrame: 8, hitDuration: 6,
+    cancelWindowStart: 20,  // キャンセル受付開始（attacking 中のバッファ消化タイミング）
+    cancelWindow: 45,       // hit_confirm 中の cancelTimer 初期値（終了タイミング）
     damage:       25,
     // X 軸前方判定を広げる（200）：plyrLiftVx を 0 にした分、当たり判定で前方の敵を拾う設計（2026-05-19）
     rangeX:       200, rangeZ: 100, rangeY: 200,
@@ -610,11 +631,15 @@ export const ATTACKS = {
     plyrLiftVyDelay:  12,             // ヒット後（frame 6-11 終了直後）に上昇開始
     aerialHop:    true,
     aerialHopVy:  8,                  // 16→8：ヒット時のホップも半分
+    postAirLockout: 45,               // ホップ後に空中攻撃を一定F封鎖（SP2連打防止）
+    landingLag:   30,                 // 着地後 30F の地上硬直（攻撃入力封鎖）
+    cancelToAirJ: true,               // hit_confirm 中に J 入力で空中チェーン始動可（SP2 専用）
     partsAnim:    'upper_cut',
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
     repulseAxis:  'aerial',           // 空中 SP2 も RC（aerial 軸）対応：地上版と揃える（2026-05-26）
+    repulseFrameStart: 1, repulseFrameEnd: 20,
     // RC 受付ボックス（Y 上方向拡張・2026-05-27）：地上版と統一
     repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
     singleTarget: true,
@@ -626,11 +651,15 @@ export const ATTACKS = {
   //   空中短押し時は c01_sp_02_air をそのまま使うため、空中の手触り（コンボ降下しない控えめ上昇）は維持。
   c01_sp_02_short: {
     label:        'c01_sp_02_short (METEO 対空コマンド・地上短押し版・単発)',
-    // フレーム構成（2026-05-26 RC 反応性改善）：
-    //   frame 1-5  : 攻撃判定 active（hitFrame=1 で押下即発・5F 残留）
-    //   frame 6-10 : RC 判定 active（repulseFrameStart/End で限定）
-    //   frame 11-13: 残り（cancel 受付）
-    duration:     14, hitFrame: 1, hitDuration: 5, cancelWindow: 20,
+    // フレーム構成：
+    //   frame  1-7  : startup
+    //   frame  8-13 : 攻撃判定 active（hitFrame=8 / hitDuration=6）
+    //   frame 14-34 : 後隙
+    //   frame 15-45 : キャンセル受付（cancelWindowStart=15 / cancelWindow=45）
+    //   全体 50F / 着地硬直なし
+    duration:     50, hitFrame: 8, hitDuration: 6,
+    cancelWindowStart: 30,
+    cancelWindow: 45,
     damage:       25,
     rangeX:       200, rangeZ: 100, rangeY: 200,
     knockback:    45, hitstop: 12, shake: 7,
@@ -649,6 +678,7 @@ export const ATTACKS = {
     plyrLiftVy:       24,
     plyrLiftVyDelay:  10,
     aerialHop:    false,
+    cancelToAirJ: true,               // ヒット後・自機が浮いた状態で空中 J にキャンセル可
     partsAnim:    'upper_cut',
     isSpecial:    true,
     flashOnStart: true,
@@ -657,13 +687,10 @@ export const ATTACKS = {
     // RC 受付ボックス（Y 上方向拡張・2026-05-27）：地上長押し版と統一
     repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
     singleTarget: true,
-    // RC 判定 active 期間（2026-05-26）：攻撃判定（1-5F）の後、6-10F で 5F 限定 active。
-    // 「攻撃当たり判定 → RC 判定」と段階を分けることで、AOE タイミングに左右されず
-    // 押下の意図を素直に拾える。フィールドなしの attack は duration 中ずっと active（後方互換）。
-    // 2026-05-27：短押しの RC 取りこぼし軽減のため 6-10（5F）→ 4-14（11F）に拡張。
-    // hitFrame=1 / hitDuration=5 なので、攻撃 active と 1F だけ重なるが、RC 成立判定が先に走るので問題なし。
-    repulseFrameStart: 4,
-    repulseFrameEnd:   14,
+    // RC 判定 active 期間：押した瞬間から受け付ける（1-20F）。
+    // SP の発動タイミングに関わらず、入力の意図を確実に拾う設計。
+    repulseFrameStart: 1,
+    repulseFrameEnd:   20,
   },
   // === sp_04 系：N 段階チャージ（stage1=50F / stage2=120F MAX / 将来 stage3+ は _03, _04...）===
   //   stage1 → c01_sp_04_01 / c01_sp_04_01_air：今までの判定そのまま・後方ノックバック付与（lv6）

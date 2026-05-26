@@ -361,6 +361,9 @@ function canStartSpecial(p, opts) {
   if (p.guarding) return false;
   if (p.ultActive) return false;
   if (anyPlayerUlting()) return false;
+  // 空中攻撃ロックアウト中（aerialHop 直後）は空中 SP を封鎖。
+  // ただしヒット確認があれば別の空中 SP へキャンセル可（hit→SP→SP 等のコンボ続行を許容）
+  if (!p.isGrounded && (p.airAttackLockout ?? 0) > 0 && !p.hitDelivered) return false;
   // 空中 SP 使用回数制限は撤廃（2026-05-20）：
   //   旧 1 回制限 → 他の制限（specialUsedIds 同コンボ 3 回 / specialHitBy 敵単位 3 回 / superFlight 3 回）で
   //   十分にループを断ち切れるため、空中での SP キャンセル連鎖の自由度を優先。
@@ -371,9 +374,15 @@ function canStartSpecial(p, opts) {
   if (p.state === STATE.walk_fwd || p.state === STATE.walk_back) return true;
   if (p.state === STATE.hit_confirm) return true;
   if (p.state === STATE.attacking) {
-    // SP 中から SP へのキャンセルはヒット確認必須（空振りキャンセルで無敵ループ防止）
-    const _curAtk = ATTACKS[p.attackId];
-    if (_curAtk?.isSpecial && !p.hitDelivered) return false;
+    // 攻撃中からの SP キャンセルはヒット確認必須（J 空振り・SP 空振り→SP 乱射を防止）
+    if (!p.hitDelivered) return false;
+    // cancelWindowStart が設定されている技は、その F 以降でないと SP キャンセル不可
+    // → 空中 J キャンセルと開始タイミングを統一
+    const _atkDef = ATTACKS[p.attackId];
+    if (_atkDef?.cancelWindowStart) {
+      const elapsed = _atkDef.duration - p.stateTimer;
+      if (elapsed < _atkDef.cancelWindowStart) return false;
+    }
     return true;
   }
   // ジャンプ系 state は wait01 と同じ受付（演出フック）
@@ -874,6 +883,18 @@ export function updatePlayer(p) {
   }
   if (p.invincibleFrames > 0) p.invincibleFrames--;
 
+  // === 空中攻撃ロックアウト（aerialHop 後の連打防止）===
+  if (p.airAttackLockout > 0) {
+    if (p.isGrounded) p.airAttackLockout = 0;  // 着地でリセット
+    else p.airAttackLockout--;
+  }
+
+  // === 着地硬直（landingLag）：空中技着地後の攻撃入力封鎖 ===
+  if ((p.landingLagTimer ?? 0) > 0) {
+    p.landingLagTimer--;
+    return;  // 攻撃・SP・ダッシュ入力をすべてスキップ
+  }
+
   // === SP 自然回復 ===
   p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.REGEN_RATE);
   if (p.dashCooldown > 0) p.dashCooldown--;
@@ -1278,6 +1299,10 @@ export function updatePlayer(p) {
         p.cancelTimer    = 0;
         p.kBuffered      = false;
         p.attackBuffered = false;
+      }
+      // 着地硬直（landingLag）：空中技の着地後に指定 F だけ攻撃入力を封鎖
+      if (_landAtk?.landingLag && (p.state === STATE.attacking || p.state === STATE.hit_confirm || p.state === STATE.wait01)) {
+        p.landingLagTimer = _landAtk.landingLag;
       }
       { let ldx = 0, ldz = 0;
         if (_inp('ArrowLeft')  || _inp('KeyA')) ldx -= 1;

@@ -292,6 +292,8 @@ export function updateAttack(p) {
     ) {
       const hopVy = atk.aerialHopVy ?? PHYSICS.AERIAL_HOP_V;
       p.vy = Math.max(p.vy, hopVy);
+      // aerialHop 発火時に行動不能タイマーをセット（連打防止）
+      if (atk.postAirLockout) p.airAttackLockout = atk.postAirLockout;
       if (atk.aerialHopVx !== undefined) {
         // facing 方向の符号付き初速。負値で「後方ホップ」（c01_sp_01_air 等）
         p.airVx = p.facing * atk.aerialHopVx;
@@ -626,7 +628,15 @@ export function processAttackInput(p) {
       startAttackFromChain(p, Z_CHAIN, 1);
       return;
     }
-    if (p.attackChainIdx < 0) return; // 派生（チェーン外）後は何もしない
+    // cancelToAirJ：SP2 等のヒット後、チェーン外でも空中 J に繋げられる（地上優先で空中のみ）
+    if (p.attackChainIdx < 0) {
+      const _caj = ATTACKS[p.attackId]?.cancelToAirJ;
+      if (_caj && !p.isGrounded && !p.aerialWhiffed) {
+        startAerialAttack(p, 0);
+        return;
+      }
+      return; // 派生（チェーン外）後は何もしない
+    }
     // 同じチェーン配列を継続（地上 or 空中を自動維持）
     const chain = p.attackChainArr || Z_CHAIN;
     const next  = p.attackChainIdx + 1;
@@ -916,7 +926,24 @@ export function consumeAttackBuffer(p) {
   if (!p.attackBuffered) return;
   // チェーン外の攻撃（K 単発・必殺技 sp 系など attackChainIdx<0）はバッファで連鎖しない
   // ※これがないと sp_02 ヒット中 J 連打で地上 c01_atk_01 が起動し、空中ホップが消えて落下する
-  if (p.attackChainIdx < 0) return;
+  // 例外：cancelToAirJ を持つ SP（SP2 系）は専用ルートで空中 J へキャンセル可
+  if (p.attackChainIdx < 0) {
+    const _atk = ATTACKS[p.attackId];
+    if (!_atk?.cancelToAirJ) return;
+    // cancelToAirJ：attacking 中は cancelWindowStart 以降、hit_confirm はそのまま発動
+    if (p.state === STATE.attacking) {
+      const elapsed = _atk.duration - p.stateTimer;
+      const _cwStart = _atk.cancelWindowStart ?? _atk.cancelWindow;
+      if (elapsed < _cwStart) return;  // まだキャンセル受付前
+    } else if (p.state !== STATE.hit_confirm) {
+      return;
+    }
+    if (p.hitDelivered && !p.isGrounded && !p.aerialWhiffed) {
+      p.attackBuffered = false;
+      startAerialAttack(p, 0);
+    }
+    return;
+  }
 
   if (p.state === STATE.hit_confirm) {
     p.attackBuffered = false;
@@ -933,7 +960,9 @@ export function consumeAttackBuffer(p) {
     if (!atk) return;
     const elapsed = atk.duration - p.stateTimer;
     if (window.SB?.DEBUG_CHAIN) console.log(`[CHAIN] attacking | id=${p.attackId} elapsed=${elapsed} cancelWindow=${atk.cancelWindow} hitF+hitD=${atk.hitFrame + atk.hitDuration} buffered=${p.attackBuffered}`);
-    if (elapsed >= atk.cancelWindow) {
+    // cancelWindowStart が定義されていれば開始タイミングを分離（未定義なら cancelWindow を流用）
+    const _cwStart = atk.cancelWindowStart ?? atk.cancelWindow;
+    if (elapsed >= _cwStart) {
       // 空中チェーン（A_CHAIN）の空振り時は同攻撃の再起動を抑止する（2026-05-20）。
       // 空中で連打しても出ない＝着地まで現在の attack が続く。ヒット時はチェーン進行のみ可。
       const chain = p.attackChainArr || Z_CHAIN;
@@ -941,9 +970,14 @@ export function consumeAttackBuffer(p) {
         // 空振り → 何もしない（バッファは捨てない：着地後の wait01 で消える）
       } else {
         p.attackBuffered = false;
-        const targetIdx = p.hitDelivered ? p.attackChainIdx + 1 : p.attackChainIdx;
-        if (window.SB?.DEBUG_CHAIN) console.log(`[CHAIN] attacking → ${chain[targetIdx]} at elapsed=${elapsed}`);
-        if (targetIdx < chain.length) startAttackFromChain(p, chain, targetIdx);
+        // cancelToAirJ：ヒット後・空中なら Z_CHAIN ではなく A_CHAIN へ（SP2 専用フラグ）
+        if (atk.cancelToAirJ && p.hitDelivered && !p.isGrounded) {
+          startAerialAttack(p, 0);
+        } else {
+          const targetIdx = p.hitDelivered ? p.attackChainIdx + 1 : p.attackChainIdx;
+          if (window.SB?.DEBUG_CHAIN) console.log(`[CHAIN] attacking → ${chain[targetIdx]} at elapsed=${elapsed}`);
+          if (targetIdx < chain.length) startAttackFromChain(p, chain, targetIdx);
+        }
       }
     }
   }
