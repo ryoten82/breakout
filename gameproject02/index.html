@@ -1721,19 +1721,11 @@
     //  白背景にデカいタイポを浮かせる漫画パネル風の演出。
     //  bg レイヤー（layer 1）に配置 → bgCamera のパス 1 で描画される。
     // ============================================================
-    function buildFatalBg() {
-      const group = new THREE.Group();
-      // 白プレーン：main camera ortho view（~1244x700）を覆う十分なサイズ
-      //   depth 無効 / 最初に塗る（renderOrder=-1000）→ 後続の char/effect が上に乗る
-      const white = new THREE.Mesh(
-        new THREE.PlaneGeometry(2400, 1400),
-        new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, depthWrite: false }),
-      );
-      white.position.set(0, 200, -1000);
-      white.renderOrder = -1000;
-      group.add(white);
-      // 「SCRAP THEM!!!」テキスト：CanvasTexture でフォントを描く
-      //   ortho view に合わせて 1400x350 程度（画面横ほぼ一杯）
+    // 「SCRAP THEM!!!」テキストプレーン（stun フェーズで通常 BG の上に重ねる）
+    //   - z=-200（壁 z=-380 より手前・キャラ z=0 より奥）
+    //   - depthTest=true + depthWrite=false：キャラの後ろに正しく隠れる
+    //   - renderOrder=100：壁/キャラより後に描画 → depth で適切にマスクされる
+    function buildFatalText() {
       const cvs = document.createElement('canvas');
       cvs.width = 4096; cvs.height = 1024;
       const ctx = cvs.getContext('2d');
@@ -1742,7 +1734,6 @@
       ctx.font  = 'bold 760px "Arial Black", "Impact", sans-serif';
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
-      // 軽い斜体感（横方向に伸ばし）でインパクト
       ctx.save();
       ctx.translate(cvs.width / 2, cvs.height / 2);
       ctx.scale(1.05, 1.0);
@@ -1752,52 +1743,82 @@
       tex.minFilter = THREE.LinearFilter;
       const text = new THREE.Mesh(
         new THREE.PlaneGeometry(1400, 350),
-        new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }),
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: true, depthWrite: false }),
       );
-      text.position.set(0, 300, -900);  // 白より手前・画面やや上
-      text.renderOrder = -900;
-      group.add(text);
-      return group;
+      text.position.set(0, 300, -200);
+      text.renderOrder = 100;
+      return text;
     }
-    const fatalBg = buildFatalBg();
-    // layer 0（main camera のオルソ view で描画）。bgCamera の FOV 5° は狭すぎて
-    // テキスト全文が入らないため main 側に乗せる。
-    fatalBg.traverse(obj => { if (obj.isMesh) obj.layers.set(0); });
-    fatalBg.visible = false;
-    scene.add(fatalBg);
-    // フェイタル中の通常背景隠し / 復帰を一括管理する関数。毎フレーム呼ぶ。
-    //   方針：fatal 入場時に scene.children をスナップショットし、
-    //         player/enemies/fatalBg/Lights 以外をすべて hide。
-    //         fatal 中に追加されるオブジェクト（爆発球・粒子・CR ドロップ等）は
-    //         スナップショットに無いので影響を受けず可視のまま残る。
-    //         fatal 退場時にスナップショット対象を全て元の visible に復元。
-    let _fatalBgPrevState = false;
+    const fatalText = buildFatalText();
+    fatalText.layers.set(0);
+    fatalText.visible = false;
+    scene.add(fatalText);
+
+    // 白背景プレーン（small_explode フェーズ専用）：画面全体を真っ白に塗る
+    function buildFatalWhite() {
+      const white = new THREE.Mesh(
+        new THREE.PlaneGeometry(2400, 1400),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, depthWrite: false }),
+      );
+      white.position.set(0, 200, -1000);
+      white.renderOrder = -1000;
+      return white;
+    }
+    const fatalWhite = buildFatalWhite();
+    fatalWhite.layers.set(0);
+    fatalWhite.visible = false;
+    scene.add(fatalWhite);
+    // フェイタル中の背景 / テキスト / 白塗りの一括管理。毎フレーム呼ぶ。
+    //   フェーズ別動作：
+    //     slow_in / stun       → 通常 BG + SCRAP THEM!!! テキスト表示（白塗りなし）
+    //     small_explode        → 白背景全塗り + テキスト非表示 + 通常 BG 一時隠し
+    //     big_explode / なし   → 全てリセット（白/テキスト消える、BG 復帰）
+    //   通常 BG 隠しは small_explode 突入時にスナップショット → 退場時に復元。
+    let _fatalBgPhase = null;  // 'text' | 'white' | null
     function _updateFatalBgVisibility() {
-      const _anyFatal = enemies.some(e => e && e.bossFatal && !e.dying);
-      // 入場：scene 全体の現状を snapshot し、stage 装飾を一括 hide
-      if (_anyFatal && !_fatalBgPrevState) {
-        const _whitelist = new Set([fatalBg, playerMesh]);
-        for (const e of enemies) {
-          if (e && e.mesh) _whitelist.add(e.mesh);
-        }
-        for (const child of scene.children) {
-          if (child.isLight || child.isCamera) continue;
-          if (_whitelist.has(child)) continue;
-          child._fatalSavedVisible = child.visible;
-          child.visible = false;
+      // フェイタル中のボスを探してフェーズ取得
+      let phase = null;
+      for (const e of enemies) {
+        if (e && e.bossFatal && !e.dying) {
+          phase = e.bossFatalPhase;
+          break;
         }
       }
-      // 退場：snapshot 対象を全て元の visible に戻す
-      if (!_anyFatal && _fatalBgPrevState) {
-        for (const child of scene.children) {
-          if (child._fatalSavedVisible !== undefined) {
-            child.visible = child._fatalSavedVisible;
-            delete child._fatalSavedVisible;
+      // 3 状態に圧縮
+      let newState = null;
+      if (phase === 'slow_in' || phase === 'stun') newState = 'text';
+      else if (phase === 'small_explode')          newState = 'white';
+      // 入退場処理（状態遷移時のみ実行）
+      if (newState !== _fatalBgPhase) {
+        // text 状態：SCRAP THEM!!! 表示・白プレーン非表示・通常 BG はそのまま
+        fatalText.visible  = (newState === 'text');
+        fatalWhite.visible = (newState === 'white');
+        // small_explode 入場時：通常 BG / stage 装飾を一括 hide
+        if (newState === 'white' && _fatalBgPhase !== 'white') {
+          const _whitelist = new Set([fatalText, fatalWhite, playerMesh]);
+          for (const e of enemies) {
+            if (e && e.mesh) _whitelist.add(e.mesh);
+          }
+          for (const child of scene.children) {
+            if (child.isLight || child.isCamera) continue;
+            if (_whitelist.has(child)) continue;
+            if (child._fatalSavedVisible === undefined) {
+              child._fatalSavedVisible = child.visible;
+              child.visible = false;
+            }
           }
         }
+        // small_explode 退場時：snapshot 対象を復元
+        if (_fatalBgPhase === 'white' && newState !== 'white') {
+          for (const child of scene.children) {
+            if (child._fatalSavedVisible !== undefined) {
+              child.visible = child._fatalSavedVisible;
+              delete child._fatalSavedVisible;
+            }
+          }
+        }
+        _fatalBgPhase = newState;
       }
-      fatalBg.visible = _anyFatal;
-      _fatalBgPrevState = _anyFatal;
     }
 
     // ============================================================
@@ -2525,12 +2546,12 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-27 SCRAP THEM!!! テキストを main camera に表示化 + 小爆発フェーズでプレイヤー完全固定';
+    const LAST_UPDATE = '2026-05-27 フェイタル流れ再設計：stun=通常BG+テキスト+ボスのみ黒 / small_explode=白BG+両方黒';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
     // LAST_UPDATE と同時に更新する運用（feedback_last_update_hud.md §1.5）
-    const TAB_LABEL = 'タイポ表示化';
+    const TAB_LABEL = 'フェイタル流れ';
     document.title = TAB_LABEL;
     {
       const _buildInfoEl = document.getElementById('build-info');

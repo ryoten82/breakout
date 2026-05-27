@@ -1482,14 +1482,17 @@ function _updateBossFatal(e) {
   // HP クランプ（フェイタル中の追加ダメージで爆散しないよう保護）
   if (e.hp <= 0) e.hp = 1;
   // 真っ黒フェード（早々に完了）：fade 完了後は固定で真っ黒オーバーレイ
-  //   ボスとプレイヤー両方に同じフェードを適用してシルエット演出に
+  //   ボスのみ slow_in から fade。プレイヤーは small_explode 突入で別途 fade 開始。
   const _fadeDur = _CFG.FATAL_BLACK_FADE_FRAMES ?? 25;
   e._bossFatalFadeProgress = Math.min(1, (e._bossFatalFadeProgress ?? 0) + 1 / _fadeDur);
   _setMeshChargeColor(e, e._bossFatalFadeProgress, 0x000000);
-  // プレイヤー側にも tintBody で黒フェード（同じ進行度）
-  if (_players) {
-    for (const _p of _players) {
-      if (_p && _p.mesh) tintBody(_p.mesh, 0, 0, 0, e._bossFatalFadeProgress);
+  // プレイヤー黒フェード（small_explode/big_explode 限定。stun 中は通常色のまま）
+  if (e.bossFatalPhase === 'small_explode' || e.bossFatalPhase === 'big_explode') {
+    e._fatalPlayerFadeProgress = Math.min(1, (e._fatalPlayerFadeProgress ?? 0) + 1 / _fadeDur);
+    if (_players) {
+      for (const _p of _players) {
+        if (_p && _p.mesh) tintBody(_p.mesh, 0, 0, 0, e._fatalPlayerFadeProgress);
+      }
     }
   }
   // バナー遅延表示（slow_in 中の少し遅れたタイミング）
