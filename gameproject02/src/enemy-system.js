@@ -2610,8 +2610,20 @@ function _updateBossAnim(e) {
 
   // 攻撃フェーズに応じたターゲット決定
   let lTx = 0, lTz = 0, rTx = 0, rTz = 0;
-  if (e.state === STATE.enemy_attacking && e.curAtkId && e.atkPhase) {
-    const ph = ENEMY_ATTACKS[e.curAtkId]?.bossAnim?.[e.atkPhase];
+  if (e.state === STATE.enemy_attacking && e.curAtkId) {
+    const atk = ENEMY_ATTACKS[e.curAtkId];
+    // boss1_atk_07 OVERDRIVE：スロット別 bossAnim を優先（_odSlotIdx / _odSlotPhase 駆動）
+    //   各 comboSlot に bossAnim を定義しておけば、wind→active の腕モーションを個別指定可能。
+    //   atkPhase（wind/active/recover）はトップレベル状態 — OD はスロット内で wind/active を回す。
+    let ph = null;
+    if (atk?.kind === 'boss_overdrive' && atk.comboSlots && e._odSlotPhase) {
+      const slot = atk.comboSlots[e._odSlotIdx ?? 0];
+      ph = slot?.bossAnim?.[e._odSlotPhase] ?? null;
+    }
+    // フォールバック：通常 attack の bossAnim[atkPhase]
+    if (!ph && e.atkPhase) {
+      ph = atk?.bossAnim?.[e.atkPhase] ?? null;
+    }
     if (ph) {
       lTx = ph.lArm?.x ?? 0;  lTz = ph.lArm?.z ?? 0;
       rTx = ph.rArm?.x ?? 0;  rTz = ph.rArm?.z ?? 0;

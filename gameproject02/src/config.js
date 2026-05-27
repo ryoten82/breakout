@@ -842,15 +842,33 @@ export const ENEMY_ATTACKS = {
     // atk_lv 4 + launchVy 小 = バウンド扱い、lv 4 + launchVy 大 = 打ち上げ、lv 6 = 超吹き飛ばし
     multiHit: true,                       // 各スロット hit が hitstun ガードを貫通（敵コンボ成立）
     comboSlots: [
-      // slot 0/1：バウンド（atk_lv 5 叩きつけ → 即着地バウンド）。視覚：slam＋pop の独特な動き
-      //   既存 lv4 launch（down_up）と差別化。3 スロット全部 launch にならない
-      { name: '打ち下ろし', damage: 20, atk_lv: 5, knockback: 28, windF: 70, activeF: 14, repulseAxis: 'aerial'  },
-      { name: '打ち下ろし', damage: 20, atk_lv: 5, knockback: 28, windF: 70, activeF: 12, repulseAxis: 'aerial'  },
-      // slot 2：打ち上げ（lv4 + launchVy + peakHang）。slot 3 hit 時 player y ≈ 177wu で着弾するよう調整
-      //   旧 32 → 22：apex 568wu（hitboxRangeY 700 内）、滞空 105F で slot 3 が空中ヒット
-      { name: 'アッパー',   damage: 22, atk_lv: 4, knockback: 32, launchVy: 22, peakHang: true, windF: 70, activeF: 12, repulseAxis: 'ground' },
-      // slot 3：フィニッシュ・超吹き飛ばし（lv6 down_super → 横方向に大きく飛ぶ）
-      { name: 'ストレート', damage: 36, atk_lv: 6, knockback: 60, windF: 70, activeF: 10, repulseAxis: 'frontal' },
+      // slot 0/1：打ち下ろし（atk_01 流用）— 両腕を外側に振り上げ → 内側に叩き下ろし
+      { name: '打ち下ろし', damage: 20, atk_lv: 5, knockback: 28, windF: 70, activeF: 14, repulseAxis: 'aerial',
+        bossAnim: {
+          wind:   { lArm: { x: 0, z: +1.1 }, rArm: { x: 0, z: -1.1 } },
+          active: { lArm: { x: 0, z: -0.3 }, rArm: { x: 0, z: +0.3 } },
+        },
+      },
+      { name: '打ち下ろし', damage: 20, atk_lv: 5, knockback: 28, windF: 70, activeF: 12, repulseAxis: 'aerial',
+        bossAnim: {
+          wind:   { lArm: { x: 0, z: +1.1 }, rArm: { x: 0, z: -1.1 } },
+          active: { lArm: { x: 0, z: -0.3 }, rArm: { x: 0, z: +0.3 } },
+        },
+      },
+      // slot 2：アッパー — 右腕を後ろ下方に引いてタメ → 前上方へ振り上げ
+      { name: 'アッパー',   damage: 22, atk_lv: 4, knockback: 32, launchVy: 22, peakHang: true, windF: 70, activeF: 12, repulseAxis: 'ground',
+        bossAnim: {
+          wind:   { lArm: { x: 0, z: 0 }, rArm: { x: +0.8, z: -0.2 } },
+          active: { lArm: { x: 0, z: 0 }, rArm: { x: -1.6, z: 0     } },
+        },
+      },
+      // slot 3：ストレート — 右腕を引いて構え → 前方へ突き出し
+      { name: 'ストレート', damage: 36, atk_lv: 6, knockback: 60, windF: 70, activeF: 10, repulseAxis: 'frontal',
+        bossAnim: {
+          wind:   { lArm: { x: 0, z: 0 }, rArm: { x: +0.5, z: -0.5 } },
+          active: { lArm: { x: 0, z: 0 }, rArm: { x: -1.2, z: +0.1 } },
+        },
+      },
     ],
   },
 };
