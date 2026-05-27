@@ -645,25 +645,77 @@
     #result-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.85);
+      background: #08090f;          /* 完全不透明（裏のゲーム画面は隠す） */
       display: none;
-      align-items: center;
-      justify-content: center;
+      align-items: stretch;
+      justify-content: stretch;
       flex-direction: column;
       opacity: 0;
       transition: opacity 0.6s ease;
       z-index: 9800;
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
     }
     .result-card {
-      background: rgba(16, 20, 28, 0.97);
-      border: 2px solid #444;
-      border-radius: 8px;
-      padding: 32px 56px;
-      width: 720px;
-      max-width: 90vw;
+      background: #11141c;
+      border: none;
+      border-radius: 0;
+      padding: 36px 64px 120px 64px;  /* 下に右下ボタン用の余白 */
+      width: 100vw;
+      height: 100vh;
+      box-sizing: border-box;
+      max-width: none;
       text-align: center;
-      box-shadow: 0 12px 48px rgba(0,0,0,0.7);
+      overflow-y: auto;
+      position: relative;
+    }
+    /* 右下に固定するアクションボタン群（次へ / 戻る・帰投） */
+    .result-page-actions {
+      position: absolute;
+      right: 48px;
+      bottom: 36px;
+      display: flex;
+      gap: 18px;
+      z-index: 2;
+    }
+    .result-action-btn {
+      font-family: var(--font-pixel);
+      font-size: 26px;
+      letter-spacing: 6px;
+      padding: 16px 56px;
+      border: 2px solid #888;
+      border-radius: 4px;
+      background: linear-gradient(180deg, #1f2230 0%, #14171f 100%);
+      color: #dde;
+      cursor: pointer;
+      transition: all 0.12s;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    }
+    .result-action-btn:hover:not(.result-action-btn--disabled) {
+      border-color: #ffcc44;
+      color: #ffee99;
+      transform: translateY(-1px);
+    }
+    .result-action-btn--primary {
+      border-color: #ff9922;
+      color: #ffdd88;
+      background: linear-gradient(180deg, #2a2418 0%, #1a1610 100%);
+    }
+    .result-action-btn--focused {
+      border-color: #ffcc44;
+      color: #ffee99;
+      background: linear-gradient(180deg, #443a22 0%, #2a2418 100%);
+      transform: translateY(-2px) scale(1.04);
+      box-shadow: 0 8px 24px rgba(255,204,68,0.5), 0 0 0 2px rgba(255,204,68,0.55);
+    }
+    .result-action-btn--disabled {
+      opacity: 0.32;
+      cursor: not-allowed;
+      filter: grayscale(0.5);
+      box-shadow: none;
+    }
+    .result-action-btn--disabled.result-action-btn--focused {
+      transform: none;
+      box-shadow: 0 0 0 2px rgba(180,180,180,0.4);
     }
     .result-heading {
       font-size: 56px;
@@ -772,9 +824,20 @@
       letter-spacing: 4px;
       margin-bottom: 14px;
     }
-    /* 2 ページ目専用：少し縦長を許容 */
+    /* 2 ページ目専用：横長 2 カラム */
     .result-card--page2 {
-      width: 760px;
+      /* 全画面 .result-card を継承（追加幅指定なし） */
+    }
+    .result-page2-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      align-items: start;
+      margin-top: 6px;
+    }
+    .result-page2-left,
+    .result-page2-right {
+      min-width: 0;
     }
     /* 機体LV */
     .result-lv-block {
@@ -794,7 +857,10 @@
     }
     .result-lv-up {
       color: #ffcc44;
-      text-shadow: 0 0 12px rgba(255,204,68,0.8);
+      font-size: 3.2em;
+      font-weight: bold;
+      vertical-align: -6px;
+      text-shadow: 0 0 24px rgba(255,204,68,0.95), 0 0 6px rgba(255,255,255,0.6);
       animation: result-lv-flash 1.2s ease-in-out infinite;
     }
     @keyframes result-lv-flash {
@@ -813,12 +879,34 @@
       border: 1px solid #444;
       border-radius: 2px;
       overflow: hidden;
+      display: flex;
+      flex-direction: row;
     }
-    .result-lv-bar-inner {
+    /* 既存分（アニメ前から積んでた進行）：落ち着いたシアン */
+    .result-lv-bar-base {
       height: 100%;
       background: linear-gradient(90deg, #44ddff 0%, #66eeff 60%, #aaffff 100%);
       box-shadow: 0 0 8px rgba(102,238,255,0.7) inset;
-      transition: width 0.8s ease-out;
+    }
+    /* 今回獲得分：光る黄色 + パルス */
+    .result-lv-bar-gain {
+      height: 100%;
+      background: linear-gradient(90deg, #ffdd44 0%, #ffee88 60%, #ffffcc 100%);
+      box-shadow: 0 0 10px rgba(255,230,120,0.9) inset, 0 0 14px rgba(255,230,120,0.7);
+      animation: result-lv-bar-gain-pulse 0.9s ease-in-out infinite;
+    }
+    @keyframes result-lv-bar-gain-pulse {
+      0%, 100% { filter: brightness(1);    box-shadow: 0 0 10px rgba(255,230,120,0.9) inset, 0 0 14px rgba(255,230,120,0.7); }
+      50%      { filter: brightness(1.25); box-shadow: 0 0 14px rgba(255,240,160,1)   inset, 0 0 22px rgba(255,240,160,0.95); }
+    }
+    /* アニメ完了時の一発 flash */
+    @keyframes result-lv-bar-pop {
+      0%   { transform: scaleY(1);   filter: brightness(1); }
+      35%  { transform: scaleY(1.4); filter: brightness(1.6); }
+      100% { transform: scaleY(1);   filter: brightness(1); }
+    }
+    .result-lv-bar-pop {
+      animation: result-lv-bar-pop 0.5s ease-out;
     }
     .result-lv-bar-label {
       font-size: 12px;
@@ -827,27 +915,205 @@
       margin-top: 4px;
       text-align: right;
     }
-    /* チップグリッド（取得順アイコン並び） */
+    .result-lv-breakdown {
+      font-size: 12px;
+      color: #aac;
+      letter-spacing: 1px;
+      margin-top: 6px;
+      text-align: left;
+      padding-top: 4px;
+      border-top: 1px dashed rgba(255,255,255,0.08);
+    }
+    .result-lv-breakdown-sub {
+      display: block;
+      color: #777;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    /* 総CR：大きく目立つ表示 */
+    .result-cr-block {
+      padding: 8px 60px 12px 60px;
+      text-align: center;
+    }
+    .result-cr-total {
+      font-size: 64px;
+      font-weight: bold;
+      color: #ffd866;
+      letter-spacing: 4px;
+      text-shadow: 0 0 18px rgba(255,216,102,0.7), 3px 3px 0 #000;
+      line-height: 1.1;
+    }
+    .result-cr-earned {
+      font-size: 18px;
+      color: #aac;
+      letter-spacing: 2px;
+      margin-top: 6px;
+    }
+    /* 総CR カウントアップ完了時の一発パルス */
+    @keyframes result-cr-pop {
+      0%   { transform: scale(1);    text-shadow: 0 0 18px rgba(255,216,102,0.7), 3px 3px 0 #000; }
+      40%  { transform: scale(1.15); text-shadow: 0 0 40px rgba(255,240,170,1),    3px 3px 0 #000; }
+      100% { transform: scale(1);    text-shadow: 0 0 18px rgba(255,216,102,0.7), 3px 3px 0 #000; }
+    }
+    .result-cr-pop {
+      animation: result-cr-pop 0.45s ease-out;
+    }
+    /* チップグリッド（3 行 × 10 列の格子・モンハン風） */
     .result-chip-grid {
-      display: flex;
-      flex-wrap: wrap;
+      display: grid;
+      grid-template-columns: repeat(10, 44px);
+      grid-auto-rows: 44px;
       gap: 6px;
       justify-content: center;
-      padding: 4px 40px 8px 40px;
-      min-height: 44px;
+      padding: 8px 24px;
+      max-height: 156px;     /* 44*3 + gap*2 + padding*2 = 144+12 = 156 で 3 行分 */
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #ff8800 rgba(0,0,0,0.3);
     }
+    .result-chip-grid::-webkit-scrollbar { width: 8px; }
+    .result-chip-grid::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
+    .result-chip-grid::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+    .result-chip-grid::-webkit-scrollbar-thumb:hover { background: #ff8800; }
     .result-chip-cell {
-      background: rgba(0,0,0,0.3);
-      border: 1.5px solid #333;
+      background: rgba(20, 50, 45, 0.4);
+      border: 1.5px solid #2a4a45;
       border-radius: 4px;
-      width: 38px;
-      height: 38px;
+      width: 44px;
+      height: 44px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
       padding: 0;
       transition: border-color 0.1s, transform 0.1s, box-shadow 0.1s;
+    }
+    .result-chip-cell--empty {
+      /* 空セルもフォーカス可能（オレンジ枠が見える）。チェックは不可 */
+    }
+    /* チェック済み：黄色い太いアウトライン + 右上 ✓ */
+    .result-chip-cell--checked {
+      border-color: #ffcc44;
+      border-width: 3px;
+      box-shadow: 0 0 10px rgba(255,204,68,0.6);
+      position: relative;
+    }
+    .result-chip-check {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      width: 16px;
+      height: 16px;
+      background: #ffcc44;
+      color: #000;
+      font-size: 12px;
+      font-weight: bold;
+      line-height: 16px;
+      text-align: center;
+      border-radius: 3px;
+      box-shadow: 0 0 6px rgba(255,204,68,0.8);
+      pointer-events: none;
+      transform: rotate(0);  /* icon の rotate(45) を継承しない */
+    }
+    /* 売却済み：暗くグレーアウト */
+    .result-chip-cell--sold {
+      opacity: 0.25;
+      filter: grayscale(0.8);
+      cursor: default;
+      pointer-events: none;
+    }
+    .result-chip-cell--sold .result-chip-icon {
+      opacity: 0.5;
+    }
+    /* 売却ボタン */
+    .result-chip-sell-actions {
+      padding: 10px 24px 4px 24px;
+      text-align: center;
+    }
+    .result-chip-sell-btn {
+      background: linear-gradient(180deg, #2a2418 0%, #1a1610 100%);
+      border: 2px solid #aa7722;
+      border-radius: 4px;
+      color: #ffcc66;
+      font-family: var(--font-pixel);
+      font-size: 15px;
+      letter-spacing: 3px;
+      padding: 8px 24px;
+      cursor: pointer;
+      transition: all 0.12s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+    .result-chip-sell-btn:hover {
+      background: linear-gradient(180deg, #443a22 0%, #2a2418 100%);
+      border-color: #ffcc44;
+      color: #ffee99;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(255,204,68,0.3);
+    }
+    .result-chip-sell-btn--disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    /* キーボード / ゲームパッド フォーカス時：強調 */
+    .result-chip-sell-btn--focused {
+      background: linear-gradient(180deg, #443a22 0%, #2a2418 100%);
+      border-color: #ffcc44;
+      color: #ffee99;
+      transform: translateY(-1px) scale(1.03);
+      box-shadow: 0 4px 16px rgba(255,204,68,0.45), 0 0 0 2px rgba(255,204,68,0.5);
+    }
+    /* 確認モーダル */
+    .result-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9900;
+    }
+    .result-modal {
+      background: #1a1d28;
+      border: 2px solid #888;
+      border-radius: 6px;
+      padding: 36px 56px 28px 56px;
+      min-width: 480px;
+      max-width: 90vw;
+      text-align: center;
+      box-shadow: 0 16px 56px rgba(0,0,0,0.9), 0 0 24px rgba(255,204,68,0.15);
+    }
+    .result-modal-text {
+      font-family: var(--font-pixel);
+      font-size: 20px;
+      color: #fff;
+      letter-spacing: 2px;
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+    .result-modal-buttons {
+      display: flex;
+      gap: 28px;
+      justify-content: center;
+    }
+    .result-modal-btn {
+      background: rgba(0,0,0,0.4);
+      border: 2px solid #555;
+      border-radius: 4px;
+      color: #bbb;
+      font-family: var(--font-pixel);
+      font-size: 20px;
+      letter-spacing: 6px;
+      padding: 10px 40px;
+      cursor: pointer;
+      transition: all 0.12s;
+      min-width: 120px;
+    }
+    .result-modal-btn--focused {
+      border-color: #ffcc44;
+      color: #ffee99;
+      background: rgba(60, 50, 20, 0.5);
+      transform: translateY(-2px) scale(1.04);
+      box-shadow: 0 6px 18px rgba(255,204,68,0.35);
     }
     .result-chip-cell:focus { outline: none; }
     .result-chip-cell--focused {
@@ -905,6 +1171,13 @@
       color: #666;
       letter-spacing: 3px;
       text-align: right;
+    }
+    .result-chip-panel-empty {
+      color: #555;
+      font-size: 14px;
+      letter-spacing: 4px;
+      padding: 18px 0;
+      text-align: center;
     }
     .result-chip-detail-label--common    { color: #ffffff; }
     .result-chip-detail-label--uncommon  { color: #88ff99; }
