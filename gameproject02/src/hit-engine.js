@@ -1874,22 +1874,12 @@ export function updateRepulseDetection(p, enemies) {
       if (_logAny) console.log(`  [RC fail] y-gap too large e.y=${e.y.toFixed(0)} p.y=${p.y.toFixed(0)} gap=${yGap.toFixed(0)} > ${REPULSE_CONFIG.MAX_Y_GAP}`);
       continue;
     }
-    // 物理ヒット可能距離内なら RC をスキップ（通常ヒット優先）
-    //   → プレイヤーが本体に近寄って直接 SP2 を当てた場合、RC でなく通常ダメージにする
-    //   ※ boss_overdrive はボス完全無敵で通常ヒット 0 ダメ＝意味がないので、このスキップを適用しない
-    if (!_isOd) {
-      const absDx = Math.abs(dx);
-      const absDy = Math.abs(e.y - p.y);
-      const absDz = Math.abs(dz);
-      const rx = atk.rangeX ?? 0;
-      const ry = atk.rangeY ?? 0;
-      const rz = atk.rangeZ ?? 0;
-      if (rx > 0 && ry > 0 && rz > 0 &&
-          absDx < rx && absDy < ry && absDz < rz) {
-        if (_logAny) console.log(`  [RC skip] in physical hit range dx=${absDx.toFixed(0)}/${rx} dy=${absDy.toFixed(0)}/${ry} dz=${absDz.toFixed(0)}/${rz}`);
-        continue;
-      }
-    }
+    // 物理ヒット可能距離内 RC スキップは撤去（2026-05-27）：
+    //   旧：SP2 range（rx/ry/rz＝200/200/100）内に RC 対象敵がいると RC を skip して通常ヒットへ。
+    //   問題：乱戦で SP2 を出すと範囲内にいる jump_dive 中の敵まで RC 失敗扱いになり、
+    //         「タイミング合ってるのに RC 出ない」体感を招いていた。
+    //   方針：repulseWindow が true ＝ RC 受付中の敵は最優先で RC を成立させる。
+    //         「近すぎて通常ヒットしてほしい」場面は repulseWindow の設計で抑える。
     const eBox = _resolveRepulseBoxToWorld(e.x, e.y, e.z, e.facing, eAtk.repulseTargetBox);
     if (!_aabbOverlap(pBox, eBox)) {
       if (_logAny) {
