@@ -52,8 +52,8 @@ import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
 import { isHitstunState, tryHitPlayer, damagePlayer, tintBody, restoreBodyColor } from './damage-system.js';
 import { getActiveWallX, getKnockbackWallX } from './camera.js';
-import { dropCR } from './cr-system.js';
-import { dropSingleRandomChip, dropBossChips } from './item-system.js';
+import { dropCR, collectAllCR } from './cr-system.js';
+import { dropSingleRandomChip, dropBossChips, collectAllItems } from './item-system.js';
 
 let _THREE = null;
 let _scene = null;
@@ -2163,6 +2163,13 @@ function _triggerFinalExplosion(e) {
   // 本ボス（boss01 等 isBoss）：チップ複数散布（dropBossChips：確定レア+ + 通常 + ボーナス）
   if (e.isBoss) {
     dropBossChips(e.x, e.z, e.y + 80);
+    // 10 秒後に画面全体回収（CR + 全アイテム）：取り残し回避・「最後のご褒美をすべて拾える」演出
+    //   setTimeout で実時間ベース。megaSlow 中でもユーザーには 10 秒として伝わる
+    setTimeout(() => {
+      collectAllCR();
+      collectAllItems();
+      console.log('[FATAL] auto-collect all CR + items (10s after boss death)');
+    }, 10000);
   }
   // ゴア・クリティカル armed：キャラ拡張バリアントで方向・追加 FX を上書き
   if (e.goreCritical && e.goreCritical.armed) {

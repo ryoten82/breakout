@@ -223,7 +223,8 @@ export function updateItemSystem() {
       if (armed && p && p.hp > 0) {
         const dx = p.x - it.x, dz = p.z - it.z;
         const dist = Math.hypot(dx, dz);
-        if (dist < M.MAGNET_RANGE && dist > 0.01) {
+        // forceMagnet 中は範囲外でも常に吸引（ボス死亡 10 秒後の全体回収用）
+        if ((it.forceMagnet || dist < M.MAGNET_RANGE) && dist > 0.01) {
           magnet = true;
           it.magnetFrames++;
           const accel = M.MAGNET_ACCEL * (1 + it.magnetFrames * M.MAGNET_RAMP);
@@ -305,6 +306,14 @@ export function updateItemSystem() {
       r.mesh.material.dispose();
       _rings.splice(i, 1);
     }
+  }
+}
+
+// ボス撃破後の全体回収など、画面上の全アイテムをプレイヤーへ強制マグネット吸引する。
+// CR 側の collectAllCR() と対になる。マグネット範囲を無視して全件を吸引対象にする。
+export function collectAllItems() {
+  for (const it of _pickups) {
+    it.forceMagnet = true;
   }
 }
 
