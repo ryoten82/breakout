@@ -53,7 +53,7 @@ import { ATTACKS } from './attacks.js';
 import { isHitstunState, tryHitPlayer, damagePlayer, tintBody, restoreBodyColor } from './damage-system.js';
 import { getActiveWallX, getKnockbackWallX } from './camera.js';
 import { dropCR } from './cr-system.js';
-import { dropSingleRandomChip } from './item-system.js';
+import { dropSingleRandomChip, dropBossChips } from './item-system.js';
 
 let _THREE = null;
 let _scene = null;
@@ -2150,6 +2150,10 @@ function _triggerFinalExplosion(e) {
   // 中ボス：チップ 1 枚確定（レアリティランダム）
   if (e.enemyType === 'midboss01') {
     dropSingleRandomChip(e.x, e.z, e.y + 80);
+  }
+  // 本ボス（boss01 等 isBoss）：チップ複数散布（dropBossChips：確定レア+ + 通常 + ボーナス）
+  if (e.isBoss) {
+    dropBossChips(e.x, e.z, e.y + 80);
   }
   // ゴア・クリティカル armed：キャラ拡張バリアントで方向・追加 FX を上書き
   if (e.goreCritical && e.goreCritical.armed) {
