@@ -28,7 +28,7 @@ function ensureOverlay() {
     'position:fixed', 'inset:0',
     'background:rgba(0,0,0,0)',
     'display:flex', 'align-items:center', 'justify-content:center',
-    'color:#fff', 'font-family:monospace', 'font-weight:bold',
+    'color:#fff', 'font-family:var(--font-pixel)', 'font-weight:bold',
     'font-size:64px', 'letter-spacing:0.2em',
     'opacity:0', 'transition:opacity 1.5s ease, background 1.5s ease',
     'pointer-events:none', 'z-index:9999',

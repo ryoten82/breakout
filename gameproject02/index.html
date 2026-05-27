@@ -4,7 +4,38 @@
   <meta charset="UTF-8">
   <!-- title は LAST_UPDATE / CURRENT_PHASE から起動時に動的設定される（タブ識別用） -->
   <title>SCRAP BLITZ</title>
+  <!-- PixelMplus12 を最優先プリロード（FOIT 期間を最短化） -->
+  <link rel="preload" href="./assets/fonts/PixelMplus12-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="./assets/fonts/PixelMplus12-Bold.ttf" as="font" type="font/ttf" crossorigin>
   <style>
+    @font-face {
+      font-family: "PixelMplus12";
+      src: url("./assets/fonts/PixelMplus12-Regular.ttf") format("truetype");
+      font-weight: normal;
+      font-style: normal;
+      font-display: block;
+    }
+    @font-face {
+      font-family: "PixelMplus12";
+      src: url("./assets/fonts/PixelMplus12-Bold.ttf") format("truetype");
+      font-weight: bold;
+      font-style: normal;
+      font-display: block;
+    }
+    @font-face {
+      font-family: "PixelMplus10";
+      src: url("./assets/fonts/PixelMplus10-Regular.ttf") format("truetype");
+      font-weight: normal;
+      font-style: normal;
+      font-display: block;
+    }
+    @font-face {
+      font-family: "PixelMplus10";
+      src: url("./assets/fonts/PixelMplus10-Bold.ttf") format("truetype");
+      font-weight: bold;
+      font-style: normal;
+      font-display: block;
+    }
     /* === HUD デザイントークン（仕様書 §22）===
        全 HUD の px 値はこの :root 変数を参照する。
        トーン調整（HUD全体を 1.2倍に絞る等）は変数1箇所で完結。 */
@@ -26,6 +57,12 @@
       --ls-tight:     1.5px; /* letter-spacing 標準 */
       --ls-wide:      3px;   /* letter-spacing 強調 */
 
+      /* フォント基本（PixelMplus12 = リッチピクセル UI 基盤・日本語混植対応）。
+         fallback の Courier New と advance width が異なるため、
+         レイアウトずれが出たら個別箇所で letter-spacing / padding を調整する。 */
+      --font-pixel: "PixelMplus12", "Courier New", monospace;
+      --font-pixel-sm: "PixelMplus10", "Courier New", monospace;
+
       /* #hud（左上操作説明）の下に #sp-hud を縦積みするための top 値。
          #hud の行数を増減した時はここを調整する。
          現状：top:120px の #hud が ~21 行 × ~22px ≒ 480px → 余白込み 600px */
@@ -37,7 +74,7 @@
       width: 100%; height: 100%;
       overflow: hidden;
       background: #000;
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       color: #00ddff;
       display: flex;
       align-items: center;
@@ -179,7 +216,7 @@
       padding: 6px 12px;
       background: rgba(20, 30, 0, 0.75);
       border: 2px solid #ffee44;
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 16px;
       font-weight: bold;
       color: #ffee44;
@@ -220,7 +257,7 @@
     /* バーを wrap 内の右端に寄せる（margin-left:auto で flex 右寄せ）*/
     #hp-bar-bg { margin-left: auto; }
     #hp-label {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: var(--fs-md);
       color: #ff4444;
       letter-spacing: var(--ls-wide);
@@ -255,7 +292,7 @@
       position: absolute;
       right: 0;
       top: 0;
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: var(--fs-lg);
       font-weight: bold;
       color: #ff8888;
@@ -276,14 +313,14 @@
     }
     #sp-bar-bg { margin-left: auto; }
     #sp-label {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: var(--fs-md);
       color: #22cc88;
       letter-spacing: var(--ls-wide);
     }
     /* SP ストック数（ゲージの左に表示・カウントアップ・2倍サイズ） */
     #sp-stock-num {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: var(--fs-xl);
       font-weight: bold;
       color: #00ffaa;
@@ -436,7 +473,7 @@
       transform: none;
       pointer-events: none;
       z-index: 60;
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 14px;
       font-weight: bold;
       color: #5cc8ff;
@@ -458,7 +495,7 @@
     }
     #pause-overlay.show { display: flex; }
     #pause-overlay .pause-text {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 84px;
       font-weight: bold;
       color: #ffffff;
@@ -467,7 +504,7 @@
       margin-bottom: 16px;
     }
     #pause-overlay .pause-hint {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 22px;
       color: #ffaa66;
       letter-spacing: 4px;
@@ -507,7 +544,7 @@
       background: rgba(10, 5, 5, 0.78);
       border: 2px solid currentColor;
       border-radius: 4px;
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: var(--fs-sm);
       font-weight: bold;
       letter-spacing: var(--ls-tight);
@@ -537,7 +574,7 @@
       z-index: 210;
     }
     .oc-header {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 64px;
       font-weight: bold;
       color: #ff8800;
@@ -546,7 +583,7 @@
       margin-bottom: 8px;
     }
     .oc-subtitle {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 18px;
       color: #aaa;
       letter-spacing: 4px;
@@ -591,14 +628,14 @@
       transition: opacity 0.18s ease-out;
     }
     .oc-card-label {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 22px;
       font-weight: bold;
       letter-spacing: 3px;
       margin-bottom: 10px;
     }
     .oc-card-desc {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 14px;
       color: #bbb;
       letter-spacing: 1px;
@@ -911,7 +948,7 @@
       pointer-events: none;
     }
     #start-screen-overlay .start-title {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 64px;
       font-weight: bold;
       color: #ffee44;
@@ -920,7 +957,7 @@
       margin-bottom: 28px;
     }
     #start-screen-overlay .start-msg {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 18px;
       color: #cccccc;
       line-height: 1.7;
@@ -939,7 +976,7 @@
     }
     #start-screen-overlay .start-mode-btn {
       pointer-events: auto;   /* オーバーレイは pointer-events:none なのでボタンで再有効化 */
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 22px;
       font-weight: bold;
       letter-spacing: 4px;
@@ -1008,7 +1045,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 10px;
       font-weight: bold;
       color: #ffddcc;
@@ -1030,7 +1067,7 @@
       padding: 0 4px;
     }
     #boss-hp-name-label {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 18px;
       font-weight: bold;
       color: #ff9977;
@@ -1038,7 +1075,7 @@
       text-shadow: 0 0 10px rgba(255, 100, 50, 0.65);
     }
     #boss-hp-phase-label {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 15px;
       color: #cc8866;
       letter-spacing: 2px;
@@ -1196,7 +1233,7 @@
     position: absolute;
     top: 50%; right: var(--sp-xl);
     transform: translateY(-50%);
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-pixel);
     font-size: var(--fs-xl);
     color: #ffff44;
     text-shadow: 0 0 var(--sp-lg) #ff8800, 3px 3px 0 #000;
@@ -1228,7 +1265,7 @@
   <div id="dummy-hp" style="
     position: absolute;
     top: 30px; left: calc(50% + 80px);
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-pixel);
     font-size: var(--fs-md);
     color: #ff8888;
     background: rgba(40, 0, 0, 0.5);
@@ -1245,7 +1282,7 @@
     transform: translateX(-50%);
     display: flex;
     gap: var(--sp-lg);
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-pixel);
     font-size: var(--fs-sm);
     pointer-events: none;
   ">
@@ -1287,7 +1324,7 @@
     z-index: 50;
   ">
     <div id="combo-burst-banner" style="
-      font-family: 'Consolas', 'Source Code Pro', monospace;
+      font-family: var(--font-pixel);
       font-size: 44px;
       font-weight: bold;
       color: #ff3366;
@@ -1302,7 +1339,7 @@
       align-items: center;
       gap: 6px;
       padding: 6px 14px;
-      font-family: 'Consolas', 'Source Code Pro', monospace;
+      font-family: var(--font-pixel);
       font-size: 22px;
       font-weight: bold;
       color: #cfffaa;
