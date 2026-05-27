@@ -1523,31 +1523,44 @@ function _updateBossFatal(e) {
 
   // ── フェーズ C: 小爆発ループ（ポーズ完全固定）──
   if (e.bossFatalPhase === 'small_explode') {
-    // ポーズ固定：state とアニメ進行を毎フレーム上書き
+    // ポーズ完全固定：state / 位置 / 回転 すべてを snapshot に強制スナップ
     if (e._fatalLockState) {
       e.state = e._fatalLockState;
-      e.downTimer = 99999;   // state machine の自動遷移を抑止
+      e.downTimer = 99999;
       e.atkPhase  = null;
       e.atkTimer  = 0;
     }
-    // 小爆発抽選（FATAL_SMALL_BLAST_INTERVAL 間隔で発生）
+    if (e._fatalLockY !== undefined) {
+      e.y  = e._fatalLockY;
+      e.vy = 0;
+      if (e.mesh) e.mesh.position.y = e.y;
+    }
+    if (e._fatalLockRotX !== undefined && e.mesh) {
+      e.mesh.rotation.x = e._fatalLockRotX;
+      e.mesh.rotation.y = e._fatalLockRotY;
+      e.mesh.rotation.z = e._fatalLockRotZ;
+    }
+    // 小爆発抽選：BlastSphere（視認性高）+ 粒子 + shake
     e._fatalSmallBlastCd = (e._fatalSmallBlastCd ?? 0) - 1;
     if (e._fatalSmallBlastCd <= 0) {
-      const _ox = (Math.random() - 0.5) * 200;
-      const _oy = 40 + Math.random() * 220;
-      const _oz = (Math.random() - 0.5) * 80;
-      spawnHitParticles(e.x + _ox, e.y + _oy, e.z + _oz, 0xff7733, 18, { type: 'omni' });
-      spawnHitParticles(e.x + _ox, e.y + _oy, e.z + _oz, 0xffaa44, 10, { type: 'omni' });
-      triggerShake(5, 6);
+      const _ox = (Math.random() - 0.5) * 240;
+      const _oy = 60 + Math.random() * 240;
+      const _oz = (Math.random() - 0.5) * 100;
+      // 視認性の高い blast sphere（オレンジリング）
+      spawnBlastSphere(e.x + _ox, e.y + _oy, e.z + _oz, { maxRadius: 90, life: 14, color: 0xffaa33 });
+      spawnHitParticles(e.x + _ox, e.y + _oy, e.z + _oz, 0xff5522, 24, { type: 'omni' });
+      spawnHitParticles(e.x + _ox, e.y + _oy, e.z + _oz, 0xffdd66, 12, { type: 'omni' });
+      triggerShake(6, 8);
       e._fatalSmallBlastCd = _CFG.FATAL_SMALL_BLAST_INTERVAL ?? 14;
+      if (window.SB?.DEBUG_FATAL) console.log(`[FATAL small_blast] x=${(e.x+_ox).toFixed(0)} y=${(e.y+_oy).toFixed(0)} timer=${e.bossFatalPhaseTimer}`);
     }
     e.bossFatalPhaseTimer = (e.bossFatalPhaseTimer ?? 0) - 1;
     if (e.bossFatalPhaseTimer <= 0) {
-      // 大爆発へ移行：megaSlow をセット → 次ティックで big_explode が走る
       e.bossFatalPhase = 'big_explode';
       if (typeof window !== 'undefined' && window.SB) {
         window.SB.megaSlow = Math.max(window.SB.megaSlow ?? 0, _CFG.FATAL_BIG_SLOW_FRAMES ?? 90);
       }
+      if (window.SB?.DEBUG_FATAL) console.log('[FATAL] → big_explode (megaSlow set)');
     }
     _updateFlyingParts(e);
     return;
@@ -1575,12 +1588,22 @@ function _updateBossFatal(e) {
     e.bossFatalPhaseTimer = (e.bossFatalPhaseTimer ?? 0) - 1;
     const _timeOut        = e.bossFatalPhaseTimer <= 0;
     if (_comboJustBroke || _burstDown || _timeOut) {
-      // small_explode へ移行：ポーズ snapshot + dyingInvincible で完全固定
+      // small_explode へ移行：ポーズ完全 snapshot + dyingInvincible で完全固定
       e.bossFatalPhase      = 'small_explode';
       e.bossFatalPhaseTimer = _CFG.FATAL_SMALL_EXPLODE_FRAMES ?? 120;
-      e._fatalSmallBlastCd  = 0;       // 最初の小爆発は即発
-      e._fatalLockState     = e.state; // ポーズ snapshot
-      e.dyingInvincible     = true;    // hit-engine 側のヒット skip 経路を流用
+      e._fatalSmallBlastCd  = 0;
+      e._fatalLockState     = e.state;
+      e._fatalLockY         = e.y;
+      if (e.mesh) {
+        e._fatalLockRotX = e.mesh.rotation.x;
+        e._fatalLockRotY = e.mesh.rotation.y;
+        e._fatalLockRotZ = e.mesh.rotation.z;
+      }
+      e.dyingInvincible     = true;
+      if (window.SB?.DEBUG_FATAL) {
+        const _reason = _burstDown ? 'burstDown' : (_comboJustBroke ? 'comboBreak' : 'timeOut');
+        console.log(`[FATAL] stun → small_explode (reason=${_reason} prevCombo=${_prevCombo} curCombo=${_curCombo} state=${e.state})`);
+      }
     }
     _updateFlyingParts(e);
     return;
@@ -1591,7 +1614,8 @@ function _updateBossFatal(e) {
   if (e.bossFatalPhaseTimer <= 0 && e.bossFatalPhase === 'slow_in') {
     e.bossFatalPhase      = 'stun';
     e.bossFatalPhaseTimer = _CFG.FATAL_STUN_FRAMES ?? 600;
-    e._fatalPrevCombo     = combo.count ?? 0;  // コンボ追跡開始
+    e._fatalPrevCombo     = combo.count ?? 0;
+    if (window.SB?.DEBUG_FATAL) console.log(`[FATAL] slow_in → stun (combo=${combo.count})`);
   }
   _updateFlyingParts(e);
 }
@@ -2549,6 +2573,7 @@ function _explodeSplitBackBlast(e) {
 // ============================================================
 function _updateBossAnim(e) {
   if (e.dying) return;  // dying 演出中は腕を rest(0) に戻さない
+  if (e.bossFatal) return;  // フェイタル中もアニメ凍結（パーツ脱落 + シルエットを汚さない）
   const parts = e.mesh?.userData?.parts;
   if (!parts?.lArmPivot || !parts?.rArmPivot) return;
   const lp = parts.lArmPivot;
