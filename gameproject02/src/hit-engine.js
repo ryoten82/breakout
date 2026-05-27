@@ -1383,7 +1383,8 @@ export function tryHitEnemies(p, attack, ctx) {
     //   攻撃インスタンスにつき 1 回のみ加算（複数敵巻き込みでも一定量・2026-05-27 仕様）
     //   通常技 / 必殺技で gain 量を切り替え（c01_sp_* は SPECIAL）
     //   死体殴り（e.dying）は半額
-    if (!attack.noSpGain && !p._spGainCounted) {
+    if (!attack.noSpGain && !p._spGainCounted && !e.bossFatal) {
+      // フェイタル中のボスへのヒットでは SP 獲得しない（出し切りターン・2026-05-27）
       const _isSpecial = typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_');
       const _base = _isSpecial ? SP_CONFIG.GAIN_ON_HIT_SPECIAL : SP_CONFIG.GAIN_ON_HIT;
       const _gain = e.dying ? _base * 0.5 : _base;
@@ -1636,7 +1637,8 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     bumpCombo(e);
     // SP 獲得：攻撃インスタンスにつき 1 回（多段技でも 1 回・複数敵巻き込みでも 1 回）
     //   死体殴り（e.dying）は半額
-    if (!attack.noSpGain && !p._spGainCounted) {
+    if (!attack.noSpGain && !p._spGainCounted && !e.bossFatal) {
+      // フェイタル中のボスへのヒットでは SP 獲得しない（出し切りターン・2026-05-27）
       const _isSpecial = typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_');
       const _base = _isSpecial ? SP_CONFIG.GAIN_ON_HIT_SPECIAL : SP_CONFIG.GAIN_ON_HIT;
       const _gain = e.dying ? _base * 0.5 : _base;

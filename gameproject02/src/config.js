@@ -106,10 +106,12 @@ export const MISSION_TIMER_CONFIG = {
 };
 
 export const SP_CONFIG = {
-  // ストック性（5 段階・各 STOCK_SIZE pt）：MAX = STOCK_SIZE * MAX_STOCKS = 100
-  MAX:              100,
+  // ストック性（初期 2 段階・各 STOCK_SIZE pt）：MAX = STOCK_SIZE * MAX_STOCKS = 40
+  //   2026-05-27 ユーザー指示：「最初なので 2 を上限で良い」
+  //   OC カードで MAX_STOCKS / MAX 拡張可（index.html の OC 適用ロジック参照）
+  MAX:              40,
   STOCK_SIZE:       20,    // 1 ストックあたりの SP 量
-  MAX_STOCKS:       5,     // 最大ストック数（Marvel vs Capcom 方式の LEVEL）
+  MAX_STOCKS:       2,     // 初期最大ストック数（OC で拡張可・Marvel vs Capcom 方式の LEVEL）
   INITIAL_STOCKS:   0,     // 戦闘開始時のストック数（2026-05-27 3→0：必殺技は溜めてから）
   REGEN_RATE:       0.005, // フレームごとの自然回復量（2026-05-25 0.01→0.005：通しで潤沢感あり半減）
   // ヒット獲得量
@@ -389,7 +391,7 @@ export const ENEMY_ATTACKS = {
     hitboxRangeX:   110,
     hitboxRangeY:   90,
     hitboxRangeZ:   80,
-    damage:         5,     // 一旦半減（旧 10・敵攻撃力 暫定調整）
+    damage:         4,     // 2026-05-27 ユーザー指示で -20%（5→4）
     atk_lv:         1,
     knockback:      12,
     hitstop:        5,
@@ -413,7 +415,7 @@ export const ENEMY_ATTACKS = {
     hitboxRangeX:   140,
     hitboxRangeY:   90,
     hitboxRangeZ:   100,
-    damage:         9,     // 一旦半減（旧 18・敵攻撃力 暫定調整）
+    damage:         7,     // 2026-05-27 ユーザー指示で -20%（9→7）
     atk_lv:         3,
     knockback:      22,
     hitstop:        7,
@@ -441,7 +443,7 @@ export const ENEMY_ATTACKS = {
     hitboxRangeX:   100,
     hitboxRangeY:   90,   // 空中ヒット用にやや高め
     hitboxRangeZ:   80,
-    damage:         7,
+    damage:         5,    // 2026-05-27 ユーザー指示で -20%（7→5）
     atk_lv:         2,
     knockback:      16,
     hitstop:        5,
@@ -471,7 +473,7 @@ export const ENEMY_ATTACKS = {
     hitboxRangeX:    110,
     hitboxRangeY:    150,   // 縦長（叩きつけ）
     hitboxRangeZ:    110,
-    damage:          14,
+    damage:          11,   // 2026-05-27 ユーザー指示で -20%（14→11）
     atk_lv:          5,     // atklv 5/5/-（溜め・ヒット共に5・recover は無し）
     knockback:       28,
     hitstop:         10,    // 中程度のヒットストップ
@@ -734,10 +736,10 @@ export const ENEMY_ATTACKS = {
     kind:           'missile_barrage',   // 個別ミサイル制御（時間差着弾・個別AOE・落下mesh）
     isUltimate:     true,                // 必殺技フラグ：画面薄暗転で強調
     attackCategory: 'melee',
-    windFrames:     75,            // 背中ポッド展開→発射準備
-    activeFrames:   270,           // 30(pre-warn) + 180(着弾窓3秒) + 60(後余裕)
-    recoverFrames:  60,
-    cooldownFrames: 420,           // 約 7 秒
+    windFrames:     60,            // 75→60：背中ポッド展開（隙削減）
+    activeFrames:   210,           // 270→210：30(pre-warn) + 150(着弾窓2.5秒) + 30(後余裕)
+    recoverFrames:  35,            // 60→35：後隙削減
+    cooldownFrames: 280,           // 420→280：約 4.7 秒（連射感アップ）
     // 本攻撃は個別ミサイル radial 判定で行う → 共通 hitbox は 0
     hitboxRangeX:   0,
     hitboxRangeY:   0,
@@ -969,10 +971,10 @@ export const BOSS01_CONFIG = {
   //   フェイタル前の Phase 3 体験時間が削られるため均等配分を採用。
   PHASE_1_TO_2_GATE_HP:   1200,  // Phase 1 → 2 境界（600 削った地点 = 1/3 削り）
   PHASE_2_TO_3_GATE_HP:    600,  // Phase 2 → 3 境界（1200 削った地点 = 2/3 削り）
-  // Phase 3 逆境スイッチ
-  PHASE_3_WIND_MULT:      0.90,  // wind を -10%
-  PHASE_3_COOLDOWN_MULT:  0.80,  // 攻撃間隔 -20%
-  PHASE_3_MOVE_MULT:      1.20,  // 移動速度 +20%
+  // Phase 3 逆境スイッチ（2026-05-27 強化：通過儀礼化解消 / RC 瞬殺対策）
+  PHASE_3_WIND_MULT:      0.70,  // 0.90→0.70：wind 大幅短縮（RC タイミング難化）
+  PHASE_3_COOLDOWN_MULT:  0.55,  // 0.80→0.55：攻撃間隔半減級（息継ぎ削減）
+  PHASE_3_MOVE_MULT:      1.40,  // 1.20→1.40：移動速度 +40%
   // スーパーアーマー（SA）カウンター制
   SA_HIT_THRESHOLD:        5,    // この発数まで吸収（無反応）→ +1 発目で knockback01
   SA_DECAY_FRAMES:        90,    // 最後のヒットから このフレーム無攻撃でカウントリセット
@@ -1008,7 +1010,7 @@ export const BOSS01_CONFIG = {
   FAR_TACKLE_PROB:     0.65,  // 遠距離時にタックル(atk_06)を選ぶ確率
   // テスト用フラグ：Phase 3 で 100% 連続技 (boss1_atk_07) を選択
   //   将来本稼働時は false に切替（または削除して通常抽選に戻す）
-  PHASE3_FORCE_OVERDRIVE: true,
+  PHASE3_FORCE_OVERDRIVE: false,  // 2026-05-27 false 化：OD だけだと RC 瞬殺で通過儀礼に。通常技と混合で読み合いを残す
   // 連続用 RC（boss_overdrive スロット途中の RC 成功）
   //   非フィニッシュ：両者ノーダメージ／プレイヤーは combo_rc_slide で後ろにスライド／ボスは構わず継続
   //   フィニッシュ ：ボスに KB2 + 大ダメージ + 4秒スタン／プレイヤー SP は出し切り／GC スキップ

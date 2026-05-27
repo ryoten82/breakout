@@ -35,9 +35,37 @@ function _isEnemyDead(e) {
 //   'fall'          : 高所 y に持ち上げ fall_loop（updateEnemies の重力で着地）
 //   'walkin_left'   : 目標 x より左にオフセット（プレイヤー後方/左奥から歩いてくる）
 //   'walkin_right'  : 目標 x より右にオフセット（前方から歩いてくる）
+//
+// 床穴（FLOOR_HOLES）との衝突回避：fall 着地点が穴の中だと fall_loop 状態のまま
+// 着地 → SAFE_FALL_STATES 外で穴落ち → 増援が勝手に落ちる事故が起きる。
+// spawn 位置が登録穴内なら、穴の外（より player 側）へ自動オフセットする。
+function _holeContaining(x, z) {
+  const holes = (typeof window !== 'undefined') ? window.SB?.FLOOR_HOLES : null;
+  if (!Array.isArray(holes)) return null;
+  for (const h of holes) {
+    const r = h.rect ?? h;
+    if (!r) continue;
+    if (x > r.xMin && x < r.xMax && z > r.zMin && z < r.zMax) return r;
+  }
+  return null;
+}
+function _avoidHoleX(x, z) {
+  const r = _holeContaining(x, z);
+  if (!r) return x;
+  // 穴の外側にオフセット（マージン 80wu）：左右どちらか近い方へ
+  const dL = x - r.xMin, dR = r.xMax - x;
+  return (dL <= dR) ? (r.xMin - 80) : (r.xMax + 80);
+}
+
 function _applySpawnVariant(e, s) {
   const v = s.variant || 'ground';
   if (v === 'fall') {
+    // 着地位置が穴に重なっていたら穴外へ退避（Stage 2 等で穴上 fall spawn が落下する事故防止）
+    const _safeX = _avoidHoleX(s.x, s.z ?? 0);
+    if (_safeX !== s.x) {
+      e.x = _safeX;
+      if (e.mesh) e.mesh.position.x = e.x;
+    }
     e.y = FALL_SPAWN_Y;
     e.vy = 0;
     e.state = STATE.fall_loop;

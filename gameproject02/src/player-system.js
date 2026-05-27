@@ -1004,7 +1004,11 @@ export function updatePlayer(p) {
   const _landingLagged = (p.landingLagTimer ?? 0) > 0 && p.isGrounded;
 
   // === SP 自然回復 ===
-  p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.REGEN_RATE);
+  //   フェイタル中はボス前で出し切りターン → 自然回復もスキップ（hit-engine の SP gain と同方針）
+  const _anyBossFatal = (typeof window !== 'undefined' && window.SB?.enemies)
+    ? window.SB.enemies.some(_e => _e && _e.bossFatal && !_e.dying)
+    : false;
+  if (!_anyBossFatal) p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.REGEN_RATE);
   if (p.dashCooldown > 0) p.dashCooldown--;
 
   // === ガード入力（最優先・他入力をブロック）===
