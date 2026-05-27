@@ -9,7 +9,7 @@ function ensureHud() {
   el.id = 'wave-hud';
   el.style.cssText = [
     'position:fixed', 'top:12px', 'right:16px',
-    'color:#fff', 'font-family:monospace', 'font-weight:bold',
+    'color:#fff', 'font-family:var(--font-pixel)', 'font-weight:bold',
     'font-size:18px', 'letter-spacing:0.15em',
     'padding:6px 12px',
     'background:rgba(0,0,0,0.55)',

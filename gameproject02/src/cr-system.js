@@ -62,7 +62,7 @@ export function initCrSystem({ THREE, scene, players, hudLayerEl, spawnEffect })
   el.id = 'cr-counter';
   el.style.cssText =
     'position:absolute;left:18px;top:172px;z-index:83;' +
-    'font-family:"Courier New",monospace;font-weight:bold;font-size:36px;' +
+    'font-family:var(--font-pixel);font-weight:bold;font-size:36px;' +
     'color:#ffdd33;text-shadow:0 0 6px #000,2px 2px 0 #000;pointer-events:none;';
   el.textContent = 'CR: 0';
   (hudLayerEl ?? document.body).appendChild(el);

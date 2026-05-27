@@ -69,12 +69,12 @@ function _buildBomb(scene, THREE) {
   ctx.fillStyle = 'rgba(0,0,0,0.7)';
   ctx.fillRect(0, 0, 256, 80);
   ctx.fillStyle = '#ff4422';
-  ctx.font = 'bold 28px sans-serif';
+  ctx.font = 'bold 28px PixelMplus12, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('PHASE SKIP', 128, 28);
   ctx.fillStyle = '#ffdd44';
-  ctx.font = 'bold 24px sans-serif';
+  ctx.font = 'bold 24px PixelMplus12, sans-serif';
   ctx.fillText('9999 DMG', 128, 58);
   const tex = new THREE.CanvasTexture(c);
   const label = new THREE.Sprite(

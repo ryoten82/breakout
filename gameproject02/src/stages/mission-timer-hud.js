@@ -17,7 +17,7 @@ function ensureHud() {
     'left:50%',
     'transform:translateX(-50%)',
     `font-size:${cfg.HUD_FONT_SIZE_PX}px`,
-    "font-family:'Courier New', monospace",
+    'font-family:var(--font-pixel)',
     'font-weight:bold',
     `color:${cfg.HUD_COLOR_NORMAL}`,
     'letter-spacing:0.10em',
