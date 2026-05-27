@@ -942,6 +942,7 @@ export function triggerBossPhaseTransition(e, ctx) {
     e.atkTimer     = 0;
     e.hitDelivered = false;
     _clearAllTokens(ctx, e);
+    _cleanupMissiles(e);  // missile_barrage 中断時の AOE/メッシュ取り残し防止
   }
   e.state     = STATE.wait01;
   e.aiPhase   = 'idle';
@@ -1444,6 +1445,8 @@ export function enterBossFatal(e, p) {
   e.repulseWindow     = false;
   e._odSlotPhase      = null;
   e.knockbackVx       = 0;  // 既存 KB を即停止（よろめきベース位置を確定するため）
+  // missile_barrage 中断時の取り残し AOE/メッシュをクリア（フェイタル突入時）
+  _cleanupMissiles(e);
   // よろめき位置をその場に固定
   e._bossFatalBaseX   = e.x;
   // パーツ脱落の予定順序（末端→中央）— GC を経由せず順次 _detachOneNamed で 1 個ずつ
@@ -3378,6 +3381,8 @@ export function updateEnemies(ctx) {
         e.atkPhase = null;
         e.hitDelivered = false;
         if (e.atkCooldown < 30) e.atkCooldown = 30;
+        // missile_barrage の取り残しもここで掃除（被弾で攻撃中断時）
+        _cleanupMissiles(e);
       }
     }
     // === 延焼（burn）tick（OC「点火」未取得なら e.burnTimer=0 で no-op）===
