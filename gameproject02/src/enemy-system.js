@@ -54,6 +54,7 @@ import { isHitstunState, tryHitPlayer, damagePlayer } from './damage-system.js';
 import { getActiveWallX, getKnockbackWallX } from './camera.js';
 import { dropCR } from './cr-system.js';
 import { dropSingleRandomChip } from './item-system.js';
+import { recordKill, recordDamage } from './run-stats.js';
 
 let _THREE = null;
 let _scene = null;
@@ -747,6 +748,7 @@ function _updateBurnTick(e, ctx) {
   if (e.burnTickAcc >= cfg.TICK_INTERVAL_FRAMES) {
     e.burnTickAcc = 0;
     e.hp -= cfg.DAMAGE_PER_TICK;
+    recordDamage(cfg.DAMAGE_PER_TICK, 'element');
     e.hitFlashTimer = Math.max(e.hitFlashTimer, 4);
     spawnDamageNumber(e.x, e.y + 130, e.z, cfg.DAMAGE_PER_TICK, { crit: true });
     // hp<=0 になっても updateEnemies の死亡判定が同フレーム後段で動くので、ここでは hp 削るだけで OK
@@ -793,6 +795,7 @@ function _spawnBurnDeathBlast(e) {
     const dx = o.x - e.x, dz = o.z - e.z;
     if (dx * dx + dz * dz > r2) continue;
     o.hp -= cfg.DEATH_BLAST_DAMAGE;
+    recordDamage(cfg.DEATH_BLAST_DAMAGE, 'element');
     o.hitFlashTimer = Math.max(o.hitFlashTimer, 6);
     if (cfg.DEATH_BLAST_IGNITES) {
       igniteEnemy(o, { chain: nextChain, duration: inheritDur, sourceId: 'death_blast' });
@@ -825,6 +828,7 @@ export function detonateBurn(e) {
   triggerShake(14, 20);
   // 本体へボーナスダメージ
   e.hp -= cfg.DEATH_BLAST_DAMAGE * 2;
+  recordDamage(cfg.DEATH_BLAST_DAMAGE * 2, 'element');
   e.hitFlashTimer = Math.max(e.hitFlashTimer, 10);
   // 周囲の敵へ爆風ダメージ（+ OC CHAIN_BLAST 有効なら延焼）
   const r2 = cfg.DEATH_BLAST_RADIUS * cfg.DEATH_BLAST_RADIUS;
@@ -835,6 +839,7 @@ export function detonateBurn(e) {
     const dx = o.x - e.x, dz = o.z - e.z;
     if (dx * dx + dz * dz > r2) continue;
     o.hp -= cfg.DEATH_BLAST_DAMAGE;
+    recordDamage(cfg.DEATH_BLAST_DAMAGE, 'element');
     o.hitFlashTimer = Math.max(o.hitFlashTimer, 6);
     if (cfg.DEATH_BLAST_ENABLED && cfg.DEATH_BLAST_IGNITES) {
       igniteEnemy(o, { chain: nextChain, duration: inheritDur, sourceId: 'detonate' });
@@ -982,6 +987,7 @@ export function triggerBossPhaseTransition(e, ctx) {
 // ============================================================
 export function enterEnemyDying(e, ctx) {
   if (!e || e.dying) return false;
+  recordKill();
   if (window.SB && window.SB.DEBUG_GORE_CRITICAL) {
     console.log(`[GORECRIT] enterEnemyDying called (hp=${e.hp}, y=${e.y|0}, lastHitter=${JSON.stringify(e.lastHitter)})`);
   }
@@ -1416,6 +1422,7 @@ function _setupArmedKinematics(e, variant) {
 // ============================================================
 export function enterEnemyDyingBurst(e, ctx, hitFacing) {
   if (!e || e.dying) return false;
+  recordKill();
   if (window.SB && window.SB.DEBUG_GORE_CRITICAL) {
     console.log(`[GORECRIT] enterEnemyDyingBurst called (hp=${e.hp}, y=${e.y|0}, lastHitter=${JSON.stringify(e.lastHitter)})`);
   }

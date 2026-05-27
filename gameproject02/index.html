@@ -604,6 +604,294 @@
       letter-spacing: 1px;
     }
 
+    /* リザルト画面（Act 通しクリア / ゲームオーバー 共通） */
+    #result-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+      z-index: 9800;
+      font-family: 'Courier New', monospace;
+    }
+    .result-card {
+      background: rgba(16, 20, 28, 0.97);
+      border: 2px solid #444;
+      border-radius: 8px;
+      padding: 32px 56px;
+      width: 720px;
+      max-width: 90vw;
+      text-align: center;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.7);
+    }
+    .result-heading {
+      font-size: 56px;
+      font-weight: bold;
+      letter-spacing: 12px;
+      margin-bottom: 28px;
+    }
+    .result-section-title {
+      font-size: 16px;
+      color: #888;
+      letter-spacing: 4px;
+      margin: 18px 0 10px 0;
+    }
+    .result-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 0 60px;
+    }
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 18px;
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .result-row--sub {
+      padding-left: 20px;
+      border-bottom: none;
+    }
+    .result-row--sub .result-label {
+      color: #777;
+      font-size: 15px;
+    }
+    .result-row--sub .result-value {
+      color: #ccc;
+      font-size: 17px;
+      font-weight: normal;
+    }
+    .result-label {
+      color: #999;
+      letter-spacing: 2px;
+    }
+    .result-value {
+      color: #fff;
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+    .result-oc-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      padding: 6px 40px 4px 40px;
+      min-height: 28px;
+    }
+    .result-oc-chip {
+      display: inline-block;
+      padding: 4px 12px;
+      background: rgba(255,136,0,0.15);
+      border: 1px solid #ff8800;
+      border-radius: 3px;
+      color: #ffcc77;
+      font-size: 14px;
+      letter-spacing: 2px;
+    }
+    .result-oc-none {
+      color: #555;
+      font-size: 14px;
+      letter-spacing: 2px;
+    }
+    /* 獲得チップ一覧（レアリティ別の色付き◆アイコン） */
+    .result-chip-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      padding: 6px 30px 4px 30px;
+      min-height: 32px;
+    }
+    .result-chip-icon {
+      display: inline-block;
+      width: 22px;
+      height: 22px;
+      transform: rotate(45deg);
+      border: 1.5px solid rgba(0,0,0,0.4);
+      box-sizing: border-box;
+      transition: transform 0.1s;
+    }
+    .result-chip-icon--common    { background: #ffffff; box-shadow: 0 0 4px rgba(255,255,255,0.5); }
+    .result-chip-icon--uncommon  { background: #44dd55; box-shadow: 0 0 6px rgba(136,255,153,0.7); }
+    .result-chip-icon--rare      { background: #3388ff; box-shadow: 0 0 8px rgba(119,187,255,0.8); }
+    .result-chip-icon--epic      { background: #aa55ff; box-shadow: 0 0 10px rgba(204,153,255,0.9); }
+    .result-chip-icon--legendary { background: #ff8a22; box-shadow: 0 0 14px rgba(255,204,102,1); }
+    .result-chip-none {
+      color: #555;
+      font-size: 14px;
+      letter-spacing: 2px;
+    }
+    /* ページインジケータ */
+    .result-page-indicator {
+      font-size: 13px;
+      color: #666;
+      letter-spacing: 4px;
+      margin-bottom: 14px;
+    }
+    /* 2 ページ目専用：少し縦長を許容 */
+    .result-card--page2 {
+      width: 760px;
+    }
+    /* 機体LV */
+    .result-lv-block {
+      padding: 4px 60px 6px 60px;
+    }
+    .result-lv-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .result-lv-text {
+      font-size: 22px;
+      font-weight: bold;
+      color: #fff;
+      letter-spacing: 2px;
+    }
+    .result-lv-up {
+      color: #ffcc44;
+      text-shadow: 0 0 12px rgba(255,204,68,0.8);
+      animation: result-lv-flash 1.2s ease-in-out infinite;
+    }
+    @keyframes result-lv-flash {
+      0%, 100% { color: #ffcc44; }
+      50%      { color: #ffeeaa; }
+    }
+    .result-lv-exp {
+      font-size: 16px;
+      color: #44ddff;
+      letter-spacing: 1px;
+    }
+    .result-lv-bar-outer {
+      width: 100%;
+      height: 14px;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid #444;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .result-lv-bar-inner {
+      height: 100%;
+      background: linear-gradient(90deg, #44ddff 0%, #66eeff 60%, #aaffff 100%);
+      box-shadow: 0 0 8px rgba(102,238,255,0.7) inset;
+      transition: width 0.8s ease-out;
+    }
+    .result-lv-bar-label {
+      font-size: 12px;
+      color: #888;
+      letter-spacing: 1px;
+      margin-top: 4px;
+      text-align: right;
+    }
+    /* チップグリッド（取得順アイコン並び） */
+    .result-chip-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      padding: 4px 40px 8px 40px;
+      min-height: 44px;
+    }
+    .result-chip-cell {
+      background: rgba(0,0,0,0.3);
+      border: 1.5px solid #333;
+      border-radius: 4px;
+      width: 38px;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      transition: border-color 0.1s, transform 0.1s, box-shadow 0.1s;
+    }
+    .result-chip-cell:focus { outline: none; }
+    .result-chip-cell--focused {
+      border-color: #ff8800;
+      transform: translateY(-2px) scale(1.08);
+      box-shadow: 0 4px 12px rgba(255,136,0,0.4);
+    }
+    /* チップ詳細パネル（選択中のチップ） */
+    .result-chip-panel {
+      margin: 6px 40px 4px 40px;
+      padding: 12px 18px;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid #555;
+      border-radius: 4px;
+      min-height: 88px;
+    }
+    .result-chip-panel-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .result-chip-panel-header .result-chip-icon {
+      transform: rotate(45deg) scale(1.15);
+    }
+    .result-chip-panel-name {
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+    .result-chip-panel-rarity {
+      font-size: 13px;
+      letter-spacing: 2px;
+      opacity: 0.8;
+    }
+    .result-chip-panel-stats {
+      list-style: none;
+      margin: 0;
+      padding: 0 0 0 6px;
+      color: #ddd;
+      font-size: 14px;
+      letter-spacing: 1px;
+      text-align: left;
+    }
+    .result-chip-panel-stats li {
+      padding: 2px 0;
+    }
+    .result-chip-panel-stats li::before {
+      content: '▸ ';
+      color: #888;
+    }
+    .result-chip-panel-hint {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #666;
+      letter-spacing: 3px;
+      text-align: right;
+    }
+    .result-chip-detail-label--common    { color: #ffffff; }
+    .result-chip-detail-label--uncommon  { color: #88ff99; }
+    .result-chip-detail-label--rare      { color: #77bbff; }
+    .result-chip-detail-label--epic      { color: #cc99ff; }
+    .result-chip-detail-label--legendary { color: #ffcc66; text-shadow: 0 0 8px rgba(255,204,102,0.7); }
+    .result-chip-detail-empty {
+      color: #555;
+      font-size: 14px;
+      letter-spacing: 2px;
+      padding: 8px 0;
+    }
+    .result-footer {
+      margin-top: 28px;
+      font-size: 16px;
+      color: #888;
+      letter-spacing: 4px;
+      animation: result-footer-pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes result-footer-pulse {
+      0%, 100% { opacity: 0.5; }
+      50%      { opacity: 1; }
+    }
+
     /* 開始画面オーバーレイ（初回キー入力で消える・markPlayStart トリガー） */
     #start-screen-overlay {
       position: absolute;
@@ -832,6 +1120,7 @@
       <button class="start-mode-btn" id="mode-play">通しプレイ</button>
       <button class="start-mode-btn" id="mode-actiontest">アクションテスト</button>
       <button class="start-mode-btn" id="mode-bosstest">ボステスト</button>
+      <button class="start-mode-btn" id="mode-uiresult">UIリザルト</button>
     </div>
   </div>
   <!-- デバッグ：時計 HUD（時間の停止/スロー視認用） -->
@@ -2894,7 +3183,7 @@
     //   - 何もなければ stage01 から（F5 リロードもここに来る）
     //   - window.STAGE01_ENABLED = false で完全 OFF（demo 敵のみ）
     const STAGE01_ENABLED = (window.STAGE01_ENABLED !== false);
-    const _validStages = new Set(['stage01', 'stage02', 'stage03', 'actionTest', 'bossTest']);
+    const _validStages = new Set(['stage01', 'stage02', 'stage03', 'actionTest', 'bossTest', 'uiResult']);
     // 自動遷移直後フラグ（1 回限り消費）
     let _autoTransitionStage = null;
     try {
@@ -2919,6 +3208,44 @@
       window.__SB_SELECTED_STAGE = id;
       if (id === 'actionTest') {
         initActionTest({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
+      } else if (id === 'uiResult') {
+        // UI リザルト確認部屋：敵スポーンなし、ダミー戦績を流し込んで即リザルト表示。
+        // R/G キーで clear/gameover 切替（同 URL でもキー操作で見比べ可能）。
+        import('./src/run-stats.js').then(rs => {
+          rs.resetRun();
+          rs.recordCombo(47);
+          rs.recordBurst(12);
+          for (let i = 0; i < 6; i++) rs.recordRcSuccess();
+          for (let i = 0; i < 9; i++) rs.recordCritical();
+          for (let i = 0; i < 38; i++) rs.recordKill();
+          rs.recordDamage(8420, 'base');
+          rs.recordDamage(2360, 'element');
+          // チップ：レアリティの偏りを見るためバラけたダミーセット
+          ['common','common','common','common','common','common','common',
+           'uncommon','uncommon','uncommon','uncommon',
+           'rare','rare','rare',
+           'epic','epic',
+           'legendary'].forEach(rk => rs.recordChip(rk));
+          // CR と OC のダミー値も注入
+          if (window.SB?.addCrTotal) window.SB.addCrTotal(1240);
+          window.SB = window.SB || {};
+          window.SB._ocAppliedCards = ['IGNITE', 'SPREAD', 'BERSERK', 'CHAIN_BLAST'];
+          import('./src/result-screen.js').then(rscr => {
+            const _modeParam = new URLSearchParams(window.location.search).get('mode');
+            const initialMode = (_modeParam === 'gameover') ? 'gameover' : 'clear';
+            rscr.showResultScreen({ mode: initialMode });
+            // R/G キーで切替：一度隠して再表示
+            window.addEventListener('keydown', (e) => {
+              if (e.key === 'r' || e.key === 'R') {
+                rscr.hideResultScreen();
+                setTimeout(() => rscr.showResultScreen({ mode: 'clear' }), 50);
+              } else if (e.key === 'g' || e.key === 'G') {
+                rscr.hideResultScreen();
+                setTimeout(() => rscr.showResultScreen({ mode: 'gameover' }), 50);
+              }
+            });
+          });
+        });
       } else if (id === 'bossTest') {
         initBossTest({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground,
           // フェーズスキップ爆弾コールバック：HP ゲートを尊重して 9999 ダメージ適用
@@ -2989,12 +3316,14 @@
       const _btnPlay = document.getElementById('mode-play');
       const _btnTest = document.getElementById('mode-actiontest');
       const _btnBoss = document.getElementById('mode-bosstest');
+      const _btnUi   = document.getElementById('mode-uiresult');
       // 並び順（DOM 左→右）と stageId を対応付け（左右キー / マウス hover で共用）
       // 将来 mode-XXX ボタンを HTML に増やしたらこの配列にエントリ追加するだけで連動する。
       const _modeBtnEntries = [
         { el: _btnPlay, id: 'stage01' },
         { el: _btnTest, id: 'actionTest' },
         { el: _btnBoss, id: 'bossTest' },
+        { el: _btnUi,   id: 'uiResult' },
       ].filter(e => e.el);
       _modeMenuOptions = _modeBtnEntries.map(e => e.id);
       _modeMenuFocusIdx = 0;
@@ -3976,6 +4305,13 @@
         _fpsEl.textContent = `${v} FPS`;
         _fpsEl.style.color            = v >= 55 ? '#66ffaa' : v >= 40 ? '#ffdd44' : '#ff5555';
         _fpsEl.style.borderRightColor = v >= 55 ? '#446655' : v >= 40 ? '#887700' : '#882222';
+      }
+
+      // リザルト表示中：ゲーム内情報は全停止（モード選択・OC選択・pause 等すべての update を skip）
+      //   result-screen 側のキーハンドラ（ENTER/←→）だけが有効
+      if (window.SB?.isResultShown?.()) {
+        requestAnimationFrame(loop);
+        return;
       }
 
       pollGamepad();

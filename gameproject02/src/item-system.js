@@ -25,6 +25,7 @@ import {
 } from './config.js';
 import { CR_CONFIG } from './cr-system.js';
 import { getActiveWallX } from './camera.js';
+import { recordChip } from './run-stats.js';
 
 let _THREE = null;
 let _scene = null;
@@ -341,6 +342,7 @@ function _applyPickup(kind, p) {
     //   将来 p.chipInventory.push({ kind, rarityKey, rolledStats... }) を想定
     const rarityKey = CHIP_KIND_RARITY[kind];
     const r = CHIP_RARITY[rarityKey];
+    recordChip(rarityKey);
     if (typeof window !== 'undefined' && window.SB?.DEBUG_CHIP) {
       console.log(`[chip] +1 ${r.label}`);
     }
