@@ -1723,16 +1723,17 @@
     // ============================================================
     function buildFatalBg() {
       const group = new THREE.Group();
-      // 白プレーン：bg を完全に塗りつぶす（深度書き込み無しで最初に塗る）
+      // 白プレーン：main camera ortho view（~1244x700）を覆う十分なサイズ
+      //   depth 無効 / 最初に塗る（renderOrder=-1000）→ 後続の char/effect が上に乗る
       const white = new THREE.Mesh(
-        new THREE.PlaneGeometry(20000, 20000),
+        new THREE.PlaneGeometry(2400, 1400),
         new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, depthWrite: false }),
       );
-      white.position.set(0, 0, -3000);
+      white.position.set(0, 200, -1000);
       white.renderOrder = -1000;
       group.add(white);
-      // 「SCRAP THEM!!!」テキスト：CanvasTexture でフォントを描いてプレーンに貼る
-      //   キャンバスサイズ：横長 4096×1024 で広い視野に対応（白背景全面に大字）
+      // 「SCRAP THEM!!!」テキスト：CanvasTexture でフォントを描く
+      //   ortho view に合わせて 1400x350 程度（画面横ほぼ一杯）
       const cvs = document.createElement('canvas');
       cvs.width = 4096; cvs.height = 1024;
       const ctx = cvs.getContext('2d');
@@ -1750,16 +1751,18 @@
       const tex = new THREE.CanvasTexture(cvs);
       tex.minFilter = THREE.LinearFilter;
       const text = new THREE.Mesh(
-        new THREE.PlaneGeometry(8000, 2000),
+        new THREE.PlaneGeometry(1400, 350),
         new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }),
       );
-      text.position.set(0, 600, -2500);  // 白より少し手前、画面上寄り
+      text.position.set(0, 300, -900);  // 白より手前・画面やや上
       text.renderOrder = -900;
       group.add(text);
       return group;
     }
     const fatalBg = buildFatalBg();
-    fatalBg.traverse(obj => { if (obj.isMesh) obj.layers.set(1); });
+    // layer 0（main camera のオルソ view で描画）。bgCamera の FOV 5° は狭すぎて
+    // テキスト全文が入らないため main 側に乗せる。
+    fatalBg.traverse(obj => { if (obj.isMesh) obj.layers.set(0); });
     fatalBg.visible = false;
     scene.add(fatalBg);
     // フェイタル中の通常背景隠し / 復帰を一括管理する関数。毎フレーム呼ぶ。
@@ -2522,12 +2525,12 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-27 フェイタル背景隠しを scene 全 children スナップショット方式に拡張（Stage 2 壁/床も対応）';
+    const LAST_UPDATE = '2026-05-27 SCRAP THEM!!! テキストを main camera に表示化 + 小爆発フェーズでプレイヤー完全固定';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
     // LAST_UPDATE と同時に更新する運用（feedback_last_update_hud.md §1.5）
-    const TAB_LABEL = 'BG全隠し';
+    const TAB_LABEL = 'タイポ表示化';
     document.title = TAB_LABEL;
     {
       const _buildInfoEl = document.getElementById('build-info');

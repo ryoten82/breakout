@@ -890,6 +890,12 @@ function updatePartAnims(p) {
 //  Step E-4b で player-system.js に分離
 // ============================================================
 export function updatePlayer(p) {
+  // フェイタル小爆発フェーズ：プレイヤーを完全固定（入力・移動・攻撃すべて遮断）
+  //   ボスの「終了」を明示するため、爆発演出中はキャラ操作を奪う。
+  //   big_explode 突入で window.SB._fatalPlayerFreeze=false に戻る → 通常フローへ復帰。
+  if (typeof window !== 'undefined' && window.SB?._fatalPlayerFreeze) {
+    return;
+  }
   // 受け身用：ジャンプキーの押下エッジを毎フレーム検出（被弾中の受け身入力に使う）
   const _spaceDown = _inp('Space');
   const _ukemiJumpEdge = _spaceDown && !p._ukemiJumpPrev;

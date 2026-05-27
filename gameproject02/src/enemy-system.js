@@ -1521,6 +1521,8 @@ function _updateBossFatal(e) {
         if (_p && _p.mesh) restoreBodyColor(_p.mesh);
       }
     }
+    // プレイヤー固定解除（大爆発開始 → 後はリザルト/ステージ遷移へ）
+    if (typeof window !== 'undefined' && window.SB) window.SB._fatalPlayerFreeze = false;
     enterEnemyDyingBurst(e, e.lastHitter, 1);
     return;
   }
@@ -1609,6 +1611,9 @@ function _updateBossFatal(e) {
         e._fatalLockRotZ = e.mesh.rotation.z;
       }
       e.dyingInvincible     = true;
+      // プレイヤーも完全固定：小爆発フェーズ＝「終了」表明のため、入力・移動・攻撃を遮断
+      //   player-system 側で window.SB._fatalPlayerFreeze を読んで updatePlayer を skip
+      if (typeof window !== 'undefined' && window.SB) window.SB._fatalPlayerFreeze = true;
       if (window.SB?.DEBUG_FATAL) {
         const _reason = _burstDown ? 'burstDown' : (_comboJustBroke ? 'comboBreak' : 'timeOut');
         console.log(`[FATAL] stun → small_explode (reason=${_reason} prevCombo=${_prevCombo} curCombo=${_curCombo} state=${e.state})`);
