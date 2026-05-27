@@ -2440,12 +2440,12 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-27 ボス OVERDRIVE 4 スロット個別アニメ追加（打ち下ろし×2/アッパー/ストレート）';
+    const LAST_UPDATE = '2026-05-27 ボス HP 0 到達で常にフェイタル発火（RC finish 以外の通常殴り倒し経路も対応）';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
     // LAST_UPDATE と同時に更新する運用（feedback_last_update_hud.md §1.5）
-    const TAB_LABEL = 'OD腕モーション';
+    const TAB_LABEL = 'フェイタル汎用';
     document.title = TAB_LABEL;
     {
       const _buildInfoEl = document.getElementById('build-info');

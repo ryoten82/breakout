@@ -814,6 +814,12 @@ export function tryHitEnemies(p, attack, ctx) {
     // ヒット
     e.hp = Math.max(0, e.hp - _finalDamage);
     if (_bossGateTriggered) triggerBossPhaseTransition(e, ctx);
+    // ボス HP 0 到達 → フェイタル発火（RC finish 以外の通常攻撃殴り倒し経路）
+    //   一度フェイタルへ入れば後続ヒットは HP=1 保護で再発火しない
+    if (e.isBoss && e.hp <= 0 && !e.dying && !e.bossFatal) {
+      const _entered = enterBossFatal(e, p);
+      if (_entered) e.hp = 1;  // 後続フローで爆散しないよう即保護
+    }
     // 与ダメージ数値ポップ（本体ダメージ＝橙/白、盾ダメージ＝水色を別行で）
     if (_finalDamage > 0) spawnDamageNumber(e.x, e.y + 110, e.z, _finalDamage, { crit: _isCrit });
     if (_shieldDmg > 0)   spawnDamageNumber(e.x, e.y + 150, e.z, _shieldDmg, { shield: true });
@@ -1533,6 +1539,11 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     }
     e.hp = Math.max(0, e.hp - _midDamage);
     if (_bossGateTriggered) triggerBossPhaseTransition(e, ctx);
+    // ボス HP 0 到達 → フェイタル発火（マルチヒット中間弾でも対応）
+    if (e.isBoss && e.hp <= 0 && !e.dying && !e.bossFatal) {
+      const _entered = enterBossFatal(e, p);
+      if (_entered) e.hp = 1;
+    }
     if (_midDamage > 0) spawnDamageNumber(e.x, e.y + 110, e.z, _midDamage, {});
     // 最終ヒッター記録（マルチヒットでも毎発上書き：最終ヒットの attackId が記録される）
     // 中間ヒットの lv は便宜上 attack.atk_lv（最終ヒットの想定値）を使う
