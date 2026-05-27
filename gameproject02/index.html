@@ -1762,13 +1762,39 @@
     fatalBg.traverse(obj => { if (obj.isMesh) obj.layers.set(1); });
     fatalBg.visible = false;
     scene.add(fatalBg);
-    // フェイタル中の通常背景隠し / 復帰を一括管理する関数。毎フレーム呼ぶ
+    // フェイタル中の通常背景隠し / 復帰を一括管理する関数。毎フレーム呼ぶ。
+    //   方針：fatal 入場時に scene.children をスナップショットし、
+    //         player/enemies/fatalBg/Lights 以外をすべて hide。
+    //         fatal 中に追加されるオブジェクト（爆発球・粒子・CR ドロップ等）は
+    //         スナップショットに無いので影響を受けず可視のまま残る。
+    //         fatal 退場時にスナップショット対象を全て元の visible に復元。
+    let _fatalBgPrevState = false;
     function _updateFatalBgVisibility() {
       const _anyFatal = enemies.some(e => e && e.bossFatal && !e.dying);
-      fatalBg.visible       = _anyFatal;
-      bgElements.visible    = !_anyFatal;
-      backWallPillars.visible = !_anyFatal;
-      ground.visible        = !_anyFatal;
+      // 入場：scene 全体の現状を snapshot し、stage 装飾を一括 hide
+      if (_anyFatal && !_fatalBgPrevState) {
+        const _whitelist = new Set([fatalBg, playerMesh]);
+        for (const e of enemies) {
+          if (e && e.mesh) _whitelist.add(e.mesh);
+        }
+        for (const child of scene.children) {
+          if (child.isLight || child.isCamera) continue;
+          if (_whitelist.has(child)) continue;
+          child._fatalSavedVisible = child.visible;
+          child.visible = false;
+        }
+      }
+      // 退場：snapshot 対象を全て元の visible に戻す
+      if (!_anyFatal && _fatalBgPrevState) {
+        for (const child of scene.children) {
+          if (child._fatalSavedVisible !== undefined) {
+            child.visible = child._fatalSavedVisible;
+            delete child._fatalSavedVisible;
+          }
+        }
+      }
+      fatalBg.visible = _anyFatal;
+      _fatalBgPrevState = _anyFatal;
     }
 
     // ============================================================
@@ -2496,12 +2522,12 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-27 フェイタル中の白背景 + 巨大「SCRAP THEM!!!」テキスト追加（漫画パネル風）';
+    const LAST_UPDATE = '2026-05-27 フェイタル背景隠しを scene 全 children スナップショット方式に拡張（Stage 2 壁/床も対応）';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
     // LAST_UPDATE と同時に更新する運用（feedback_last_update_hud.md §1.5）
-    const TAB_LABEL = '白背景タイポ';
+    const TAB_LABEL = 'BG全隠し';
     document.title = TAB_LABEL;
     {
       const _buildInfoEl = document.getElementById('build-info');
