@@ -947,8 +947,10 @@ export const BOSS01_CONFIG = {
   // HP（仮値・midboss01=300 × 6 = 1800）
   MAX_HP:                 1800,
   // フェーズ境界 HP（HP ゲートで必ず 1 残して停止 → メガクラ移行発火）
-  PHASE_1_TO_2_GATE_HP:   1080,  // Phase 1 → 2 境界（40% 削った地点）
-  PHASE_2_TO_3_GATE_HP:    360,  // Phase 2 → 3 境界（80% 削った地点）
+  //   1:1:1 配分（各 600 HP）。Phase 3 に大ダメージ集中設計だが、フェーズが短いと
+  //   フェイタル前の Phase 3 体験時間が削られるため均等配分を採用。
+  PHASE_1_TO_2_GATE_HP:   1200,  // Phase 1 → 2 境界（600 削った地点 = 1/3 削り）
+  PHASE_2_TO_3_GATE_HP:    600,  // Phase 2 → 3 境界（1200 削った地点 = 2/3 削り）
   // Phase 3 逆境スイッチ
   PHASE_3_WIND_MULT:      0.90,  // wind を -10%
   PHASE_3_COOLDOWN_MULT:  0.80,  // 攻撃間隔 -20%
