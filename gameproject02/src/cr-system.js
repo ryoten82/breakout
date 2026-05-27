@@ -77,6 +77,7 @@ export function dropCR(x, z, spawnY = 80, opts = {}) {
   const C = CR_CONFIG;
   const cMin = opts.countMin ?? C.DROP_COUNT_MIN;
   const cMax = opts.countMax ?? C.DROP_COUNT_MAX;
+  const scatterMult = opts.scatterMult ?? 1.0;  // 散らばり強度倍率（ボスのご褒美用）
   const n = cMin + Math.floor(Math.random() * (cMax - cMin + 1));
   for (let i = 0; i < n; i++) {
     // コイングループ：立てたシリンダーを Y 回転でスピン
@@ -91,9 +92,9 @@ export function dropCR(x, z, spawnY = 80, opts = {}) {
     _scene.add(group);
     _pickups.push({
       mesh: group, x, y: spawnY, z,
-      vx: (Math.random() * 2 - 1) * C.SCATTER_VX,
-      vy: C.SCATTER_VY * (0.7 + Math.random() * 0.6),
-      vz: (Math.random() * 2 - 1) * C.SCATTER_VX * 0.7,
+      vx: (Math.random() * 2 - 1) * C.SCATTER_VX * scatterMult,
+      vy: C.SCATTER_VY * (0.7 + Math.random() * 0.6) * (0.8 + scatterMult * 0.4),
+      vz: (Math.random() * 2 - 1) * C.SCATTER_VX * 0.7 * scatterMult,
       bounceCount: 0,
       landed: false,
       magnetFrames: 0,

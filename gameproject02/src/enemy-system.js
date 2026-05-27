@@ -2146,7 +2146,16 @@ function _enterDyingFinal(e, ctx) {
 //   - 既に飛翔中の flyingParts（hit で抽選分離済）はそのまま継続（自然にバウンド・フェード）
 //   - 爆発感は spawnDeathExplosion に集約
 function _triggerFinalExplosion(e) {
-  dropCR(e.x, e.z, e.y + 80);  // 爆発タイミングで CR ドロップ
+  // CR ドロップ：本ボスは派手にたくさん散らばる「ご褒美」モード
+  if (e.isBoss) {
+    // メイン中央：50-70 枚を高散布
+    dropCR(e.x, e.z, e.y + 80, { countMin: 50, countMax: 70, scatterMult: 2.4 });
+    // 左右展開：両サイドにも追加散布（画面いっぱいに広がる絵作り）
+    dropCR(e.x - 80, e.z, e.y + 100, { countMin: 20, countMax: 30, scatterMult: 1.8 });
+    dropCR(e.x + 80, e.z, e.y + 100, { countMin: 20, countMax: 30, scatterMult: 1.8 });
+  } else {
+    dropCR(e.x, e.z, e.y + 80);
+  }
   // 中ボス：チップ 1 枚確定（レアリティランダム）
   if (e.enemyType === 'midboss01') {
     dropSingleRandomChip(e.x, e.z, e.y + 80);
