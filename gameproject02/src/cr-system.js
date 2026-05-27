@@ -8,6 +8,7 @@
 //  ES Module：index.html から initCrSystem / updateCrSystem を import。
 //  dropCR は enemy-system.js（敵死亡フロー突入時）から呼ばれる。
 // ============================================================
+import { getActiveWallX } from './camera.js';
 
 let _THREE = null;
 let _scene = null;
@@ -116,6 +117,10 @@ export function registerCrBarrier(rect) {
 export function updateCrSystem() {
   const p = (_players && _players[0]) || null;
   const C = CR_CONFIG;
+  // ステージ壁の有効範囲：超えたコインは反対側へ跳ね返す（壁外飛び出し防止）
+  //   getActiveWallX は levelWalls 優先・無ければ画面端を返す
+  const _wallL = (typeof getActiveWallX === 'function') ? getActiveWallX('left')  : -Infinity;
+  const _wallR = (typeof getActiveWallX === 'function') ? getActiveWallX('right') :  Infinity;
   for (let i = _pickups.length - 1; i >= 0; i--) {
     const c = _pickups[i];
     c.spawnFrames++;
@@ -126,6 +131,9 @@ export function updateCrSystem() {
       // 散らばり＆バウンド：重力で落下 → 地面で最大 MAX_BOUNCES 回跳ね返る
       c.vy -= C.GRAVITY;
       c.x += c.vx; c.y += c.vy; c.z += c.vz;
+      // ステージ壁クランプ：壁外飛び出しを跳ね返しで止める
+      if (c.x < _wallL) { c.x = _wallL; if (c.vx < 0) c.vx = -c.vx * 0.4; }
+      else if (c.x > _wallR) { c.x = _wallR; if (c.vx > 0) c.vx = -c.vx * 0.4; }
       if (c.y <= 0) {
         c.y = 0;
         if (c.bounceCount < C.MAX_BOUNCES && Math.abs(c.vy) > C.BOUNCE_MIN_VY) {
@@ -167,6 +175,9 @@ export function updateCrSystem() {
       }
       if (!magnet) { c.vx *= C.GROUND_FRICTION; c.vz *= C.GROUND_FRICTION; }
       c.x += c.vx; c.z += c.vz;
+      // 地上滑走中も壁クランプ（マグネット移動含む）
+      if (c.x < _wallL) { c.x = _wallL; if (c.vx < 0) c.vx = -c.vx * 0.4; }
+      else if (c.x > _wallR) { c.x = _wallR; if (c.vx > 0) c.vx = -c.vx * 0.4; }
 
       // 残存タイマー：プレイヤー範囲外なら経過時間で点滅 → 消滅
       // 強制マグネット中はタイマーを進めない（GAME CLEAR 回収中に消える事故防止）

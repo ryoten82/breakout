@@ -2146,13 +2146,13 @@ function _enterDyingFinal(e, ctx) {
 //   - 既に飛翔中の flyingParts（hit で抽選分離済）はそのまま継続（自然にバウンド・フェード）
 //   - 爆発感は spawnDeathExplosion に集約
 function _triggerFinalExplosion(e) {
-  // CR ドロップ：本ボスは派手にたくさん散らばる「ご褒美」モード
+  // CR ドロップ：本ボスは派手にたくさん散らばる「ご褒美」モード（V11 比 90%）
   if (e.isBoss) {
-    // メイン中央：50-70 枚を高散布
-    dropCR(e.x, e.z, e.y + 80, { countMin: 50, countMax: 70, scatterMult: 2.4 });
+    // メイン中央：45-63 枚を高散布
+    dropCR(e.x, e.z, e.y + 80, { countMin: 45, countMax: 63, scatterMult: 2.4 });
     // 左右展開：両サイドにも追加散布（画面いっぱいに広がる絵作り）
-    dropCR(e.x - 80, e.z, e.y + 100, { countMin: 20, countMax: 30, scatterMult: 1.8 });
-    dropCR(e.x + 80, e.z, e.y + 100, { countMin: 20, countMax: 30, scatterMult: 1.8 });
+    dropCR(e.x - 80, e.z, e.y + 100, { countMin: 18, countMax: 27, scatterMult: 1.8 });
+    dropCR(e.x + 80, e.z, e.y + 100, { countMin: 18, countMax: 27, scatterMult: 1.8 });
   } else {
     dropCR(e.x, e.z, e.y + 80);
   }
