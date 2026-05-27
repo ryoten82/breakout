@@ -1505,6 +1505,10 @@ function _updateBossFatal(e) {
   e.knockbackVx = 0;
   e.x = (e._bossFatalBaseX ?? e.x);
   if (e.mesh) e.mesh.position.x = e.x;
+  // bossStun を強制 ON 維持（hit-engine の KB1/KB2 降格ロジックを確実に効かせる）
+  //   タイマー自然減衰で false に切れるとフェイタル中のリアクションが打ち上げに戻る
+  e.bossStun      = true;
+  e.bossStunTimer = Math.max(e.bossStunTimer ?? 0, 999);
   // === フェーズ機械（A: slow_in → B: stun → C: small_explode → D: big_explode）===
 
   // ── フェーズ D: 大爆発（前ティックで megaSlow セット済み・このティックで爆散）──

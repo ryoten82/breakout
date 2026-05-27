@@ -1110,6 +1110,17 @@ export function tryHitEnemies(p, attack, ctx) {
         e.vy          = KB_LV07_HOP_VY;   // 小バウンド（ダウン姿勢のまま少し浮く）
         e.knockbackVx = 0;
       }
+    } else if (e.bossStun && e.isBoss) {
+      // === ボススタン中：launchVy / lv 高位の打ち上げ・打ち下ろしを KB1/KB2 に降格 ===
+      //   フェイタル / atk_06 recover スタン中はボスを浮かさず地上リアクションに揃える。
+      //   大型ボスは身体が大きいので KB2 でも空中コンボはある程度繋がる想定。
+      const _heavyLv  = BOSS01_CONFIG?.STUN_HEAVY_LV ?? 5;
+      const _effectLv = attack.atk_lv ?? 1;
+      const _isHeavy  = !!(attack.launchVy) || _effectLv >= _heavyLv || !!attack.forceBurstDown;
+      e.state    = _isHeavy ? STATE.knockback02 : STATE.knockback01;
+      e.downTimer = _isHeavy ? ENEMY_KB02_FRAMES : ENEMY_KB01_FRAMES;
+      e.vy = 0;   // 浮き上がりを阻止（前フレームの残り vy も潰す）
+      applyHitInitialPitch(e);
     } else if (
       attack.launchVy && (attack.atk_lv ?? 1) !== 5 &&
       // 連続打ち上げ抑止：空中敵 × atk_lv_air 定義あり の場合は通常 lv dispatch を優先
