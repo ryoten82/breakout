@@ -1444,7 +1444,26 @@ export function enterBossFatal(e, p) {
   e.atkCooldown       = 99999;
   e.repulseWindow     = false;
   e._odSlotPhase      = null;
+  e._odSlotAxis       = null;
+  e._odSlotIdx        = null;
+  e._odSlotTimer      = 0;
+  e._odInitDone       = false;
+  e._odComboRcLockedOut = false;
+  e._odPerfectRcCount = 0;
   e.knockbackVx       = 0;  // 既存 KB を即停止（よろめきベース位置を確定するため）
+  e.hitFlashTimer     = 0;  // 直前の被弾フラッシュ残り（シルエットを汚さないため）
+  e._chargeT          = 0;  // 黄色チャージ発光（atk_06 等の予兆色を消す）
+  // 状態異常解除：燃焼 DoT / shell-outline / status_stun を停止
+  //   フェイタル中は HP=1 保護で DoT は無害だが、shell-outline がシルエット上に
+  //   重なって絵が濁る + status_stun の演出が競合するため明示的に切る
+  if (e.burnTimer > 0) {
+    e.burnTimer         = 0;
+    e.burnBlastReady    = false;
+    e.burnAutoBlastTimer = 0;
+    e.detonateTimer     = 0;
+    _detachBurnOutline(e);
+  }
+  e.statusStunTimer   = 0;
   // missile_barrage 中断時の取り残し AOE/メッシュをクリア（フェイタル突入時）
   _cleanupMissiles(e);
   // よろめき位置をその場に固定
@@ -2179,12 +2198,18 @@ function _triggerFinalExplosion(e) {
   if (e.isBoss) {
     dropBossChips(e.x, e.z, e.y + 80);
     // 10 秒後に画面全体回収（CR + 全アイテム）：取り残し回避・「最後のご褒美をすべて拾える」演出
-    //   setTimeout で実時間ベース。megaSlow 中でもユーザーには 10 秒として伝わる
-    setTimeout(() => {
-      collectAllCR();
-      collectAllItems();
-      console.log('[FATAL] auto-collect all CR + items (10s after boss death)');
-    }, 10000);
+    //   setTimeout は実時間ベース。megaSlow 中でもユーザーには 10 秒として伝わる
+    //   ハンドルを window.SB._fatalCollectTimer に保持 → ステージ遷移 / リセット時に
+    //   clearFatalCollectTimer() でキャンセル可能（リスポーン直後の新規アイテムを巻き込まないため）
+    if (typeof window !== 'undefined' && window.SB) {
+      if (window.SB._fatalCollectTimer) clearTimeout(window.SB._fatalCollectTimer);
+      window.SB._fatalCollectTimer = setTimeout(() => {
+        window.SB._fatalCollectTimer = null;
+        collectAllCR();
+        collectAllItems();
+        console.log('[FATAL] auto-collect all CR + items (10s after boss death)');
+      }, 10000);
+    }
   }
   // ゴア・クリティカル armed：キャラ拡張バリアントで方向・追加 FX を上書き
   if (e.goreCritical && e.goreCritical.armed) {

@@ -308,4 +308,10 @@ export function resetCrSystem() {
   _pickups.length = 0;
   _crTotal = 0;
   if (_crHudEl) _crHudEl.textContent = 'CR: 0';
+  // フェイタル 10 秒後の遅延回収タイマーをキャンセル（次ステージ開始時に
+  // リスポーンする新しいアイテムを巻き込まないため）
+  if (typeof window !== 'undefined' && window.SB?._fatalCollectTimer) {
+    clearTimeout(window.SB._fatalCollectTimer);
+    window.SB._fatalCollectTimer = null;
+  }
 }
