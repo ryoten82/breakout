@@ -41,6 +41,7 @@ import { resolveAttackAttr, ATTACKS } from './attacks.js';
 import { handleEnemyDyingHit, enterEnemyDyingBurst, enterBossFatal, triggerShieldBreak, forceArmGoreCriticalIfPossible, triggerBossPhaseTransition, igniteEnemy, detonateBurn } from './enemy-system.js';
 import { _cancelPlayerAction } from './damage-system.js';
 import { spawnDamageNumber, spawnBanner } from './hud-system.js';
+import { recordCombo, recordBurst, recordCritical, recordRcSuccess, recordDamage } from './run-stats.js';
 
 let _THREE = null;
 let _scene = null;
@@ -87,6 +88,7 @@ const FLIGHT_BURST_LIMIT = 3;   // 2026-05-20: 旧 2 → 3 に拡張、かつ la
 //   ULT の forceBurstDown など、複数箇所から再利用する。
 //   FX（hitstop/shake/particle）と HUD 更新はトリガ側の責務（必要な情報を持っているため）。
 export function triggerBurstState(e, facing) {
+  recordBurst(combo.count);
   e.vy            = KB_BURST_VY;
   e.knockbackVx   = facing * KB_BURST_VX;
   e.kbDecay       = KB_BURST_VX_DECAY;
@@ -169,6 +171,7 @@ export function bumpCombo(hitEnemy) {
     }
   }
   combo.count += 1;
+  recordCombo(combo.count);
   combo.lastHitEnemy = hitEnemy;
   combo.framesSinceLastHit = 0;
   // route スナップショット更新（コンボ break 時に "直前の最終 route" を HUD で 3 秒保持するため）
@@ -822,6 +825,8 @@ export function tryHitEnemies(p, attack, ctx) {
     }
     // 与ダメージ数値ポップ（本体ダメージ＝橙/白、盾ダメージ＝水色を別行で）
     if (_finalDamage > 0) spawnDamageNumber(e.x, e.y + 110, e.z, _finalDamage, { crit: _isCrit });
+    if (_finalDamage > 0 && _isCrit) recordCritical();
+    if (_finalDamage > 0) recordDamage(_finalDamage, 'base');
     if (_shieldDmg > 0)   spawnDamageNumber(e.x, e.y + 150, e.z, _shieldDmg, { shield: true });
     // 旧 RC 成立演出ブロックは新方式（updateRepulseDetection / triggerRepulseSuccess）へ移行（2026-05-26）
     // 最終ヒッター記録（ゴア・クリティカル抽選で参照・enterEnemyDying 内で profile lookup に使う）
@@ -1927,6 +1932,7 @@ export function updateRepulseDetection(p, enemies) {
       console.log(`[RC HIT] attack=${p.attackId} | enemy.phase=${phase} dist=${dist.toFixed(0)}wu diveGrace残=${grace}F`);
     }
     p._repulseFiredForAttackId = p.attackId;
+    recordRcSuccess();
     return;
   }
 }
@@ -2242,6 +2248,7 @@ function _triggerComboRcFinish(p, e, atk, eAtk, isPerfect = true) {
     gateHit   = true;
   }
   e.hp = Math.max(0, e.hp - actualDmg);
+  if (actualDmg > 0) recordDamage(actualDmg, 'base');
   spawnDamageNumber(e.x, e.y + 110, e.z, actualDmg, { crit: true });
   if (gateHit) triggerBossPhaseTransition(e, null);
   // HP 0 → SCRAP THEM!!! フェイタルフェーズへ（§10）

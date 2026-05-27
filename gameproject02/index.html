@@ -4,7 +4,38 @@
   <meta charset="UTF-8">
   <!-- title は LAST_UPDATE / CURRENT_PHASE から起動時に動的設定される（タブ識別用） -->
   <title>SCRAP BLITZ</title>
+  <!-- PixelMplus12 を最優先プリロード（FOIT 期間を最短化） -->
+  <link rel="preload" href="./assets/fonts/PixelMplus12-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="./assets/fonts/PixelMplus12-Bold.ttf" as="font" type="font/ttf" crossorigin>
   <style>
+    @font-face {
+      font-family: "PixelMplus12";
+      src: url("./assets/fonts/PixelMplus12-Regular.ttf") format("truetype");
+      font-weight: normal;
+      font-style: normal;
+      font-display: block;
+    }
+    @font-face {
+      font-family: "PixelMplus12";
+      src: url("./assets/fonts/PixelMplus12-Bold.ttf") format("truetype");
+      font-weight: bold;
+      font-style: normal;
+      font-display: block;
+    }
+    @font-face {
+      font-family: "PixelMplus10";
+      src: url("./assets/fonts/PixelMplus10-Regular.ttf") format("truetype");
+      font-weight: normal;
+      font-style: normal;
+      font-display: block;
+    }
+    @font-face {
+      font-family: "PixelMplus10";
+      src: url("./assets/fonts/PixelMplus10-Bold.ttf") format("truetype");
+      font-weight: bold;
+      font-style: normal;
+      font-display: block;
+    }
     /* === HUD デザイントークン（仕様書 §22）===
        全 HUD の px 値はこの :root 変数を参照する。
        トーン調整（HUD全体を 1.2倍に絞る等）は変数1箇所で完結。 */
@@ -26,6 +57,12 @@
       --ls-tight:     1.5px; /* letter-spacing 標準 */
       --ls-wide:      3px;   /* letter-spacing 強調 */
 
+      /* フォント基本（PixelMplus12 = リッチピクセル UI 基盤・日本語混植対応）。
+         fallback の Courier New と advance width が異なるため、
+         レイアウトずれが出たら個別箇所で letter-spacing / padding を調整する。 */
+      --font-pixel: "PixelMplus12", "Courier New", monospace;
+      --font-pixel-sm: "PixelMplus10", "Courier New", monospace;
+
       /* #hud（左上操作説明）の下に #sp-hud を縦積みするための top 値。
          #hud の行数を増減した時はここを調整する。
          現状：top:120px の #hud が ~21 行 × ~22px ≒ 480px → 余白込み 600px */
@@ -37,7 +74,7 @@
       width: 100%; height: 100%;
       overflow: hidden;
       background: #000;
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       color: #00ddff;
       display: flex;
       align-items: center;
@@ -179,7 +216,7 @@
       padding: 6px 12px;
       background: rgba(20, 30, 0, 0.75);
       border: 2px solid #ffee44;
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 16px;
       font-weight: bold;
       color: #ffee44;
@@ -220,7 +257,7 @@
     /* バーを wrap 内の右端に寄せる（margin-left:auto で flex 右寄せ）*/
     #hp-bar-bg { margin-left: auto; }
     #hp-label {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: var(--fs-md);
       color: #ff4444;
       letter-spacing: var(--ls-wide);
@@ -255,7 +292,7 @@
       position: absolute;
       right: 0;
       top: 0;
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: var(--fs-lg);
       font-weight: bold;
       color: #ff8888;
@@ -276,14 +313,14 @@
     }
     #sp-bar-bg { margin-left: auto; }
     #sp-label {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: var(--fs-md);
       color: #22cc88;
       letter-spacing: var(--ls-wide);
     }
     /* SP ストック数（ゲージの左に表示・カウントアップ・2倍サイズ） */
     #sp-stock-num {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: var(--fs-xl);
       font-weight: bold;
       color: #00ffaa;
@@ -436,7 +473,7 @@
       transform: none;
       pointer-events: none;
       z-index: 60;
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 14px;
       font-weight: bold;
       color: #5cc8ff;
@@ -458,7 +495,7 @@
     }
     #pause-overlay.show { display: flex; }
     #pause-overlay .pause-text {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 84px;
       font-weight: bold;
       color: #ffffff;
@@ -467,7 +504,7 @@
       margin-bottom: 16px;
     }
     #pause-overlay .pause-hint {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 22px;
       color: #ffaa66;
       letter-spacing: 4px;
@@ -507,7 +544,7 @@
       background: rgba(10, 5, 5, 0.78);
       border: 2px solid currentColor;
       border-radius: 4px;
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: var(--fs-sm);
       font-weight: bold;
       letter-spacing: var(--ls-tight);
@@ -537,7 +574,7 @@
       z-index: 210;
     }
     .oc-header {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 64px;
       font-weight: bold;
       color: #ff8800;
@@ -546,7 +583,7 @@
       margin-bottom: 8px;
     }
     .oc-subtitle {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 18px;
       color: #aaa;
       letter-spacing: 4px;
@@ -591,17 +628,578 @@
       transition: opacity 0.18s ease-out;
     }
     .oc-card-label {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 22px;
       font-weight: bold;
       letter-spacing: 3px;
       margin-bottom: 10px;
     }
     .oc-card-desc {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 14px;
       color: #bbb;
       letter-spacing: 1px;
+    }
+
+    /* リザルト画面（Act 通しクリア / ゲームオーバー 共通） */
+    #result-overlay {
+      position: fixed;
+      inset: 0;
+      background: #08090f;          /* 完全不透明（裏のゲーム画面は隠す） */
+      display: none;
+      align-items: stretch;
+      justify-content: stretch;
+      flex-direction: column;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+      z-index: 9800;
+      font-family: var(--font-pixel);
+    }
+    .result-card {
+      background: #11141c;
+      border: none;
+      border-radius: 0;
+      padding: 36px 64px 120px 64px;  /* 下に右下ボタン用の余白 */
+      width: 100vw;
+      height: 100vh;
+      box-sizing: border-box;
+      max-width: none;
+      text-align: center;
+      overflow-y: auto;
+      position: relative;
+    }
+    /* 右下に固定するアクションボタン群（次へ / 戻る・帰投） */
+    .result-page-actions {
+      position: absolute;
+      right: 48px;
+      bottom: 36px;
+      display: flex;
+      gap: 18px;
+      z-index: 2;
+    }
+    .result-action-btn {
+      font-family: var(--font-pixel);
+      font-size: 26px;
+      letter-spacing: 6px;
+      padding: 16px 56px;
+      border: 2px solid #888;
+      border-radius: 4px;
+      background: linear-gradient(180deg, #1f2230 0%, #14171f 100%);
+      color: #dde;
+      cursor: pointer;
+      transition: all 0.12s;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    }
+    .result-action-btn:hover:not(.result-action-btn--disabled) {
+      border-color: #ffcc44;
+      color: #ffee99;
+      transform: translateY(-1px);
+    }
+    .result-action-btn--primary {
+      border-color: #ff9922;
+      color: #ffdd88;
+      background: linear-gradient(180deg, #2a2418 0%, #1a1610 100%);
+    }
+    .result-action-btn--focused {
+      border-color: #ffcc44;
+      color: #ffee99;
+      background: linear-gradient(180deg, #443a22 0%, #2a2418 100%);
+      transform: translateY(-2px) scale(1.04);
+      box-shadow: 0 8px 24px rgba(255,204,68,0.5), 0 0 0 2px rgba(255,204,68,0.55);
+    }
+    .result-action-btn--disabled {
+      opacity: 0.32;
+      cursor: not-allowed;
+      filter: grayscale(0.5);
+      box-shadow: none;
+    }
+    .result-action-btn--disabled.result-action-btn--focused {
+      transform: none;
+      box-shadow: 0 0 0 2px rgba(180,180,180,0.4);
+    }
+    .result-heading {
+      font-size: 56px;
+      font-weight: bold;
+      letter-spacing: 12px;
+      margin-bottom: 28px;
+    }
+    .result-section-title {
+      font-size: 16px;
+      color: #888;
+      letter-spacing: 4px;
+      margin: 18px 0 10px 0;
+    }
+    .result-rows {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 0 60px;
+    }
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 18px;
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .result-row--sub {
+      padding-left: 20px;
+      border-bottom: none;
+    }
+    .result-row--sub .result-label {
+      color: #777;
+      font-size: 15px;
+    }
+    .result-row--sub .result-value {
+      color: #ccc;
+      font-size: 17px;
+      font-weight: normal;
+    }
+    .result-label {
+      color: #999;
+      letter-spacing: 2px;
+    }
+    .result-value {
+      color: #fff;
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+    .result-oc-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      padding: 6px 40px 4px 40px;
+      min-height: 28px;
+    }
+    .result-oc-chip {
+      display: inline-block;
+      padding: 4px 12px;
+      background: rgba(255,136,0,0.15);
+      border: 1px solid #ff8800;
+      border-radius: 3px;
+      color: #ffcc77;
+      font-size: 14px;
+      letter-spacing: 2px;
+    }
+    .result-oc-none {
+      color: #555;
+      font-size: 14px;
+      letter-spacing: 2px;
+    }
+    /* 獲得チップ一覧（レアリティ別の色付き◆アイコン） */
+    .result-chip-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+      padding: 6px 30px 4px 30px;
+      min-height: 32px;
+    }
+    .result-chip-icon {
+      display: inline-block;
+      width: 22px;
+      height: 22px;
+      transform: rotate(45deg);
+      border: 1.5px solid rgba(0,0,0,0.4);
+      box-sizing: border-box;
+      transition: transform 0.1s;
+    }
+    .result-chip-icon--common    { background: #ffffff; box-shadow: 0 0 4px rgba(255,255,255,0.5); }
+    .result-chip-icon--uncommon  { background: #44dd55; box-shadow: 0 0 6px rgba(136,255,153,0.7); }
+    .result-chip-icon--rare      { background: #3388ff; box-shadow: 0 0 8px rgba(119,187,255,0.8); }
+    .result-chip-icon--epic      { background: #aa55ff; box-shadow: 0 0 10px rgba(204,153,255,0.9); }
+    .result-chip-icon--legendary { background: #ff8a22; box-shadow: 0 0 14px rgba(255,204,102,1); }
+    .result-chip-none {
+      color: #555;
+      font-size: 14px;
+      letter-spacing: 2px;
+    }
+    /* ページインジケータ */
+    .result-page-indicator {
+      font-size: 13px;
+      color: #666;
+      letter-spacing: 4px;
+      margin-bottom: 14px;
+    }
+    /* 2 ページ目専用：横長 2 カラム */
+    .result-card--page2 {
+      /* 全画面 .result-card を継承（追加幅指定なし） */
+    }
+    .result-page2-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+      align-items: start;
+      margin-top: 6px;
+    }
+    .result-page2-left,
+    .result-page2-right {
+      min-width: 0;
+    }
+    /* 機体LV */
+    .result-lv-block {
+      padding: 4px 60px 6px 60px;
+    }
+    .result-lv-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .result-lv-text {
+      font-size: 22px;
+      font-weight: bold;
+      color: #fff;
+      letter-spacing: 2px;
+    }
+    .result-lv-up {
+      color: #ffcc44;
+      font-size: 3.2em;
+      font-weight: bold;
+      vertical-align: -6px;
+      text-shadow: 0 0 24px rgba(255,204,68,0.95), 0 0 6px rgba(255,255,255,0.6);
+      animation: result-lv-flash 1.2s ease-in-out infinite;
+    }
+    @keyframes result-lv-flash {
+      0%, 100% { color: #ffcc44; }
+      50%      { color: #ffeeaa; }
+    }
+    .result-lv-exp {
+      font-size: 16px;
+      color: #44ddff;
+      letter-spacing: 1px;
+    }
+    .result-lv-bar-outer {
+      width: 100%;
+      height: 14px;
+      background: rgba(0,0,0,0.5);
+      border: 1px solid #444;
+      border-radius: 2px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: row;
+    }
+    /* 既存分（アニメ前から積んでた進行）：落ち着いたシアン */
+    .result-lv-bar-base {
+      height: 100%;
+      background: linear-gradient(90deg, #44ddff 0%, #66eeff 60%, #aaffff 100%);
+      box-shadow: 0 0 8px rgba(102,238,255,0.7) inset;
+    }
+    /* 今回獲得分：光る黄色 + パルス */
+    .result-lv-bar-gain {
+      height: 100%;
+      background: linear-gradient(90deg, #ffdd44 0%, #ffee88 60%, #ffffcc 100%);
+      box-shadow: 0 0 10px rgba(255,230,120,0.9) inset, 0 0 14px rgba(255,230,120,0.7);
+      animation: result-lv-bar-gain-pulse 0.9s ease-in-out infinite;
+    }
+    @keyframes result-lv-bar-gain-pulse {
+      0%, 100% { filter: brightness(1);    box-shadow: 0 0 10px rgba(255,230,120,0.9) inset, 0 0 14px rgba(255,230,120,0.7); }
+      50%      { filter: brightness(1.25); box-shadow: 0 0 14px rgba(255,240,160,1)   inset, 0 0 22px rgba(255,240,160,0.95); }
+    }
+    /* アニメ完了時の一発 flash */
+    @keyframes result-lv-bar-pop {
+      0%   { transform: scaleY(1);   filter: brightness(1); }
+      35%  { transform: scaleY(1.4); filter: brightness(1.6); }
+      100% { transform: scaleY(1);   filter: brightness(1); }
+    }
+    .result-lv-bar-pop {
+      animation: result-lv-bar-pop 0.5s ease-out;
+    }
+    .result-lv-bar-label {
+      font-size: 12px;
+      color: #888;
+      letter-spacing: 1px;
+      margin-top: 4px;
+      text-align: right;
+    }
+    .result-lv-breakdown {
+      font-size: 12px;
+      color: #aac;
+      letter-spacing: 1px;
+      margin-top: 6px;
+      text-align: left;
+      padding-top: 4px;
+      border-top: 1px dashed rgba(255,255,255,0.08);
+    }
+    .result-lv-breakdown-sub {
+      display: block;
+      color: #777;
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    /* 総CR：大きく目立つ表示 */
+    .result-cr-block {
+      padding: 8px 60px 12px 60px;
+      text-align: center;
+    }
+    .result-cr-total {
+      font-size: 64px;
+      font-weight: bold;
+      color: #ffd866;
+      letter-spacing: 4px;
+      text-shadow: 0 0 18px rgba(255,216,102,0.7), 3px 3px 0 #000;
+      line-height: 1.1;
+    }
+    .result-cr-earned {
+      font-size: 18px;
+      color: #aac;
+      letter-spacing: 2px;
+      margin-top: 6px;
+    }
+    /* 総CR カウントアップ完了時の一発パルス */
+    @keyframes result-cr-pop {
+      0%   { transform: scale(1);    text-shadow: 0 0 18px rgba(255,216,102,0.7), 3px 3px 0 #000; }
+      40%  { transform: scale(1.15); text-shadow: 0 0 40px rgba(255,240,170,1),    3px 3px 0 #000; }
+      100% { transform: scale(1);    text-shadow: 0 0 18px rgba(255,216,102,0.7), 3px 3px 0 #000; }
+    }
+    .result-cr-pop {
+      animation: result-cr-pop 0.45s ease-out;
+    }
+    /* チップグリッド（3 行 × 10 列の格子・モンハン風） */
+    .result-chip-grid {
+      display: grid;
+      grid-template-columns: repeat(10, 44px);
+      grid-auto-rows: 44px;
+      gap: 6px;
+      justify-content: center;
+      padding: 8px 24px;
+      max-height: 156px;     /* 44*3 + gap*2 + padding*2 = 144+12 = 156 で 3 行分 */
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #ff8800 rgba(0,0,0,0.3);
+    }
+    .result-chip-grid::-webkit-scrollbar { width: 8px; }
+    .result-chip-grid::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
+    .result-chip-grid::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+    .result-chip-grid::-webkit-scrollbar-thumb:hover { background: #ff8800; }
+    .result-chip-cell {
+      background: rgba(20, 50, 45, 0.4);
+      border: 1.5px solid #2a4a45;
+      border-radius: 4px;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      transition: border-color 0.1s, transform 0.1s, box-shadow 0.1s;
+    }
+    .result-chip-cell--empty {
+      /* 空セルもフォーカス可能（オレンジ枠が見える）。チェックは不可 */
+    }
+    /* チェック済み：黄色い太いアウトライン + 右上 ✓ */
+    .result-chip-cell--checked {
+      border-color: #ffcc44;
+      border-width: 3px;
+      box-shadow: 0 0 10px rgba(255,204,68,0.6);
+      position: relative;
+    }
+    .result-chip-check {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      width: 16px;
+      height: 16px;
+      background: #ffcc44;
+      color: #000;
+      font-size: 12px;
+      font-weight: bold;
+      line-height: 16px;
+      text-align: center;
+      border-radius: 3px;
+      box-shadow: 0 0 6px rgba(255,204,68,0.8);
+      pointer-events: none;
+      transform: rotate(0);  /* icon の rotate(45) を継承しない */
+    }
+    /* 売却済み：暗くグレーアウト */
+    .result-chip-cell--sold {
+      opacity: 0.25;
+      filter: grayscale(0.8);
+      cursor: default;
+      pointer-events: none;
+    }
+    .result-chip-cell--sold .result-chip-icon {
+      opacity: 0.5;
+    }
+    /* 売却ボタン */
+    .result-chip-sell-actions {
+      padding: 10px 24px 4px 24px;
+      text-align: center;
+    }
+    .result-chip-sell-btn {
+      background: linear-gradient(180deg, #2a2418 0%, #1a1610 100%);
+      border: 2px solid #aa7722;
+      border-radius: 4px;
+      color: #ffcc66;
+      font-family: var(--font-pixel);
+      font-size: 15px;
+      letter-spacing: 3px;
+      padding: 8px 24px;
+      cursor: pointer;
+      transition: all 0.12s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    }
+    .result-chip-sell-btn:hover {
+      background: linear-gradient(180deg, #443a22 0%, #2a2418 100%);
+      border-color: #ffcc44;
+      color: #ffee99;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(255,204,68,0.3);
+    }
+    .result-chip-sell-btn--disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    /* キーボード / ゲームパッド フォーカス時：強調 */
+    .result-chip-sell-btn--focused {
+      background: linear-gradient(180deg, #443a22 0%, #2a2418 100%);
+      border-color: #ffcc44;
+      color: #ffee99;
+      transform: translateY(-1px) scale(1.03);
+      box-shadow: 0 4px 16px rgba(255,204,68,0.45), 0 0 0 2px rgba(255,204,68,0.5);
+    }
+    /* 確認モーダル */
+    .result-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9900;
+    }
+    .result-modal {
+      background: #1a1d28;
+      border: 2px solid #888;
+      border-radius: 6px;
+      padding: 36px 56px 28px 56px;
+      min-width: 480px;
+      max-width: 90vw;
+      text-align: center;
+      box-shadow: 0 16px 56px rgba(0,0,0,0.9), 0 0 24px rgba(255,204,68,0.15);
+    }
+    .result-modal-text {
+      font-family: var(--font-pixel);
+      font-size: 20px;
+      color: #fff;
+      letter-spacing: 2px;
+      margin-bottom: 28px;
+      line-height: 1.6;
+    }
+    .result-modal-buttons {
+      display: flex;
+      gap: 28px;
+      justify-content: center;
+    }
+    .result-modal-btn {
+      background: rgba(0,0,0,0.4);
+      border: 2px solid #555;
+      border-radius: 4px;
+      color: #bbb;
+      font-family: var(--font-pixel);
+      font-size: 20px;
+      letter-spacing: 6px;
+      padding: 10px 40px;
+      cursor: pointer;
+      transition: all 0.12s;
+      min-width: 120px;
+    }
+    .result-modal-btn--focused {
+      border-color: #ffcc44;
+      color: #ffee99;
+      background: rgba(60, 50, 20, 0.5);
+      transform: translateY(-2px) scale(1.04);
+      box-shadow: 0 6px 18px rgba(255,204,68,0.35);
+    }
+    .result-chip-cell:focus { outline: none; }
+    .result-chip-cell--focused {
+      border-color: #ff8800;
+      transform: translateY(-2px) scale(1.08);
+      box-shadow: 0 4px 12px rgba(255,136,0,0.4);
+    }
+    /* チップ詳細パネル（選択中のチップ） */
+    .result-chip-panel {
+      margin: 6px 40px 4px 40px;
+      padding: 12px 18px;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid #555;
+      border-radius: 4px;
+      min-height: 88px;
+    }
+    .result-chip-panel-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .result-chip-panel-header .result-chip-icon {
+      transform: rotate(45deg) scale(1.15);
+    }
+    .result-chip-panel-name {
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+    .result-chip-panel-rarity {
+      font-size: 13px;
+      letter-spacing: 2px;
+      opacity: 0.8;
+    }
+    .result-chip-panel-stats {
+      list-style: none;
+      margin: 0;
+      padding: 0 0 0 6px;
+      color: #ddd;
+      font-size: 14px;
+      letter-spacing: 1px;
+      text-align: left;
+    }
+    .result-chip-panel-stats li {
+      padding: 2px 0;
+    }
+    .result-chip-panel-stats li::before {
+      content: '▸ ';
+      color: #888;
+    }
+    .result-chip-panel-hint {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #666;
+      letter-spacing: 3px;
+      text-align: right;
+    }
+    .result-chip-panel-empty {
+      color: #555;
+      font-size: 14px;
+      letter-spacing: 4px;
+      padding: 18px 0;
+      text-align: center;
+    }
+    .result-chip-detail-label--common    { color: #ffffff; }
+    .result-chip-detail-label--uncommon  { color: #88ff99; }
+    .result-chip-detail-label--rare      { color: #77bbff; }
+    .result-chip-detail-label--epic      { color: #cc99ff; }
+    .result-chip-detail-label--legendary { color: #ffcc66; text-shadow: 0 0 8px rgba(255,204,102,0.7); }
+    .result-chip-detail-empty {
+      color: #555;
+      font-size: 14px;
+      letter-spacing: 2px;
+      padding: 8px 0;
+    }
+    .result-footer {
+      margin-top: 28px;
+      font-size: 16px;
+      color: #888;
+      letter-spacing: 4px;
+      animation: result-footer-pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes result-footer-pulse {
+      0%, 100% { opacity: 0.5; }
+      50%      { opacity: 1; }
     }
 
     /* 開始画面オーバーレイ（初回キー入力で消える・markPlayStart トリガー） */
@@ -623,7 +1221,7 @@
       pointer-events: none;
     }
     #start-screen-overlay .start-title {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 64px;
       font-weight: bold;
       color: #ffee44;
@@ -632,7 +1230,7 @@
       margin-bottom: 28px;
     }
     #start-screen-overlay .start-msg {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 18px;
       color: #cccccc;
       line-height: 1.7;
@@ -651,7 +1249,7 @@
     }
     #start-screen-overlay .start-mode-btn {
       pointer-events: auto;   /* オーバーレイは pointer-events:none なのでボタンで再有効化 */
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 22px;
       font-weight: bold;
       letter-spacing: 4px;
@@ -720,7 +1318,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 10px;
       font-weight: bold;
       color: #ffddcc;
@@ -742,7 +1340,7 @@
       padding: 0 4px;
     }
     #boss-hp-name-label {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 18px;
       font-weight: bold;
       color: #ff9977;
@@ -750,7 +1348,7 @@
       text-shadow: 0 0 10px rgba(255, 100, 50, 0.65);
     }
     #boss-hp-phase-label {
-      font-family: 'Courier New', monospace;
+      font-family: var(--font-pixel);
       font-size: 15px;
       color: #cc8866;
       letter-spacing: 2px;
@@ -832,6 +1430,7 @@
       <button class="start-mode-btn" id="mode-play">通しプレイ</button>
       <button class="start-mode-btn" id="mode-actiontest">アクションテスト</button>
       <button class="start-mode-btn" id="mode-bosstest">ボステスト</button>
+      <button class="start-mode-btn" id="mode-uiresult">UIリザルト</button>
     </div>
   </div>
   <!-- デバッグ：時計 HUD（時間の停止/スロー視認用） -->
@@ -907,7 +1506,7 @@
     position: absolute;
     top: 50%; right: var(--sp-xl);
     transform: translateY(-50%);
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-pixel);
     font-size: var(--fs-xl);
     color: #ffff44;
     text-shadow: 0 0 var(--sp-lg) #ff8800, 3px 3px 0 #000;
@@ -939,7 +1538,7 @@
   <div id="dummy-hp" style="
     position: absolute;
     top: 30px; left: calc(50% + 80px);
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-pixel);
     font-size: var(--fs-md);
     color: #ff8888;
     background: rgba(40, 0, 0, 0.5);
@@ -956,7 +1555,7 @@
     transform: translateX(-50%);
     display: flex;
     gap: var(--sp-lg);
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-pixel);
     font-size: var(--fs-sm);
     pointer-events: none;
   ">
@@ -998,7 +1597,7 @@
     z-index: 50;
   ">
     <div id="combo-burst-banner" style="
-      font-family: 'Consolas', 'Source Code Pro', monospace;
+      font-family: var(--font-pixel);
       font-size: 44px;
       font-weight: bold;
       color: #ff3366;
@@ -1013,7 +1612,7 @@
       align-items: center;
       gap: 6px;
       padding: 6px 14px;
-      font-family: 'Consolas', 'Source Code Pro', monospace;
+      font-family: var(--font-pixel);
       font-size: 22px;
       font-weight: bold;
       color: #cfffaa;
@@ -3000,7 +3599,7 @@
     //   - 何もなければ stage01 から（F5 リロードもここに来る）
     //   - window.STAGE01_ENABLED = false で完全 OFF（demo 敵のみ）
     const STAGE01_ENABLED = (window.STAGE01_ENABLED !== false);
-    const _validStages = new Set(['stage01', 'stage02', 'stage03', 'actionTest', 'bossTest']);
+    const _validStages = new Set(['stage01', 'stage02', 'stage03', 'actionTest', 'bossTest', 'uiResult']);
     // 自動遷移直後フラグ（1 回限り消費）
     let _autoTransitionStage = null;
     try {
@@ -3025,6 +3624,44 @@
       window.__SB_SELECTED_STAGE = id;
       if (id === 'actionTest') {
         initActionTest({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground });
+      } else if (id === 'uiResult') {
+        // UI リザルト確認部屋：敵スポーンなし、ダミー戦績を流し込んで即リザルト表示。
+        // R/G キーで clear/gameover 切替（同 URL でもキー操作で見比べ可能）。
+        import('./src/run-stats.js').then(rs => {
+          rs.resetRun();
+          rs.recordCombo(47);
+          rs.recordBurst(12);
+          for (let i = 0; i < 6; i++) rs.recordRcSuccess();
+          for (let i = 0; i < 9; i++) rs.recordCritical();
+          for (let i = 0; i < 38; i++) rs.recordKill();
+          rs.recordDamage(8420, 'base');
+          rs.recordDamage(2360, 'element');
+          // チップ：レアリティの偏りを見るためバラけたダミーセット
+          ['common','common','common','common','common','common','common',
+           'uncommon','uncommon','uncommon','uncommon',
+           'rare','rare','rare',
+           'epic','epic',
+           'legendary'].forEach(rk => rs.recordChip(rk));
+          // CR と OC のダミー値も注入
+          if (window.SB?.addCrTotal) window.SB.addCrTotal(1240);
+          window.SB = window.SB || {};
+          window.SB._ocAppliedCards = ['IGNITE', 'SPREAD', 'BERSERK', 'CHAIN_BLAST'];
+          import('./src/result-screen.js').then(rscr => {
+            const _modeParam = new URLSearchParams(window.location.search).get('mode');
+            const initialMode = (_modeParam === 'gameover') ? 'gameover' : 'clear';
+            rscr.showResultScreen({ mode: initialMode });
+            // R/G キーで切替：一度隠して再表示
+            window.addEventListener('keydown', (e) => {
+              if (e.key === 'r' || e.key === 'R') {
+                rscr.hideResultScreen();
+                setTimeout(() => rscr.showResultScreen({ mode: 'clear' }), 50);
+              } else if (e.key === 'g' || e.key === 'G') {
+                rscr.hideResultScreen();
+                setTimeout(() => rscr.showResultScreen({ mode: 'gameover' }), 50);
+              }
+            });
+          });
+        });
       } else if (id === 'bossTest') {
         initBossTest({ spawnDummy, players, enemies, scene, THREE, backWallPillars, bgElements, ground,
           // フェーズスキップ爆弾コールバック：HP ゲートを尊重して 9999 ダメージ適用
@@ -3095,12 +3732,14 @@
       const _btnPlay = document.getElementById('mode-play');
       const _btnTest = document.getElementById('mode-actiontest');
       const _btnBoss = document.getElementById('mode-bosstest');
+      const _btnUi   = document.getElementById('mode-uiresult');
       // 並び順（DOM 左→右）と stageId を対応付け（左右キー / マウス hover で共用）
       // 将来 mode-XXX ボタンを HTML に増やしたらこの配列にエントリ追加するだけで連動する。
       const _modeBtnEntries = [
         { el: _btnPlay, id: 'stage01' },
         { el: _btnTest, id: 'actionTest' },
         { el: _btnBoss, id: 'bossTest' },
+        { el: _btnUi,   id: 'uiResult' },
       ].filter(e => e.el);
       _modeMenuOptions = _modeBtnEntries.map(e => e.id);
       _modeMenuFocusIdx = 0;
@@ -4083,6 +4722,13 @@
         _fpsEl.textContent = `${v} FPS`;
         _fpsEl.style.color            = v >= 55 ? '#66ffaa' : v >= 40 ? '#ffdd44' : '#ff5555';
         _fpsEl.style.borderRightColor = v >= 55 ? '#446655' : v >= 40 ? '#887700' : '#882222';
+      }
+
+      // リザルト表示中：ゲーム内情報は全停止（モード選択・OC選択・pause 等すべての update を skip）
+      //   result-screen 側のキーハンドラ（ENTER/←→）だけが有効
+      if (window.SB?.isResultShown?.()) {
+        requestAnimationFrame(loop);
+        return;
       }
 
       pollGamepad();

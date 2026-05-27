@@ -9,10 +9,13 @@
 // MVP: URL リロード方式（scene 再構築の衝突リスク回避）。
 // 将来 in-place 遷移にする時はここを差し替える。
 
+import { showResultScreen } from '../../result-screen.js';
+
 const CLEAR_TO_TRANSITION_MS = 5000;  // バナー表示 → 遷移開始までの待ち（コイン回収時間込み）
 const FADE_OUT_MS = 800;              // 黒フェードアウト時間
 const POLL_OC_INTERVAL_MS = 200;       // OC 完了ポーリング間隔
 const GAME_CLEAR_AUTO_COLLECT_DELAY_MS = 1500;  // GAME CLEAR 表示からコイン自動回収開始まで
+const GAME_CLEAR_RESULT_DELAY_MS = 5000;        // GAME CLEAR 表示からリザルト画面表示まで
 
 let overlayEl = null;
 let cleared = false;
@@ -25,7 +28,7 @@ function ensureOverlay() {
     'position:fixed', 'inset:0',
     'background:rgba(0,0,0,0)',
     'display:flex', 'align-items:center', 'justify-content:center',
-    'color:#fff', 'font-family:monospace', 'font-weight:bold',
+    'color:#fff', 'font-family:var(--font-pixel)', 'font-weight:bold',
     'font-size:64px', 'letter-spacing:0.2em',
     'opacity:0', 'transition:opacity 1.5s ease, background 1.5s ease',
     'pointer-events:none', 'z-index:9999',
@@ -80,6 +83,10 @@ function _beginClearPresentation(nextStageId) {
         window.SB.collectAllCR();
       }
     }, GAME_CLEAR_AUTO_COLLECT_DELAY_MS);
+    // Act 通しクリア → リザルト画面（CR 回収完了を見せた後）
+    setTimeout(() => {
+      showResultScreen({ mode: 'clear' });
+    }, GAME_CLEAR_RESULT_DELAY_MS);
     return;
   }
 

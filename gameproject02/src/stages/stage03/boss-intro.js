@@ -57,7 +57,7 @@ function _ensureBanner() {
   el.id = 'boss-intro-banner';
   el.style.cssText = [
     'position:fixed', 'top:38%', 'left:50%', 'transform:translate(-50%,-50%)',
-    'color:#ff3344', 'font-family:monospace', 'font-weight:bold',
+    'color:#ff3344', 'font-family:var(--font-pixel)', 'font-weight:bold',
     'font-size:84px', 'letter-spacing:0.3em',
     'opacity:0', 'pointer-events:none', 'z-index:9600',
     'text-shadow:0 0 16px #ff3344, 0 0 36px rgba(255,0,0,0.55)',

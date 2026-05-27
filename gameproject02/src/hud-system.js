@@ -197,7 +197,7 @@ function _getAiPhaseEl(idx) {
     el.style.transform = 'translate(-50%, -50%)';
     el.style.pointerEvents = 'none';
     el.style.zIndex = '82';
-    el.style.fontFamily = "'Courier New', monospace";
+    el.style.fontFamily = "var(--font-pixel)";
     el.style.fontSize = '14px';
     el.style.fontWeight = 'bold';
     el.style.textShadow = '0 0 4px #000, 2px 2px 0 #000';
@@ -245,7 +245,7 @@ function _getStunEl(idx) {
     el.style.transform = 'translate(-50%, -50%)';
     el.style.pointerEvents = 'none';
     el.style.zIndex = '83';
-    el.style.fontFamily = "'Courier New', monospace";
+    el.style.fontFamily = "var(--font-pixel)";
     el.style.fontSize = '24px';
     el.style.fontWeight = 'bold';
     el.style.color = '#ffee44';
@@ -299,7 +299,7 @@ function _getPersonaEl(idx) {
     el.style.transform = 'translate(-50%, -50%)';
     el.style.pointerEvents = 'none';
     el.style.zIndex = '82';
-    el.style.fontFamily = "'Courier New', monospace";
+    el.style.fontFamily = "var(--font-pixel)";
     el.style.fontSize = '13px';
     el.style.fontWeight = 'bold';
     el.style.textShadow = '0 0 4px #000, 2px 2px 0 #000';
@@ -352,7 +352,7 @@ function _getDmgNumEl() {
   el.style.position = 'absolute';
   el.style.pointerEvents = 'none';
   el.style.zIndex = '84';
-  el.style.fontFamily = "'Courier New', monospace";
+  el.style.fontFamily = "var(--font-pixel)";
   el.style.fontWeight = 'bold';
   el.style.whiteSpace = 'nowrap';
   el.style.lineHeight = '1';
@@ -452,7 +452,7 @@ function _getBannerEl() {
   el.style.zIndex = '86';
   el.style.left = '50%';
   el.style.top = '18%';
-  el.style.fontFamily = "'Courier New', monospace";
+  el.style.fontFamily = "var(--font-pixel)";
   el.style.fontWeight = 'bold';
   el.style.whiteSpace = 'nowrap';
   el.style.lineHeight = '1';
@@ -548,7 +548,7 @@ function _getIgnitePanelEl() {
   el.style.transform   = 'translateX(-50%)';
   el.style.pointerEvents = 'none';
   el.style.zIndex      = '999';
-  el.style.fontFamily  = "'Courier New', monospace";
+  el.style.fontFamily  = "var(--font-pixel)";
   el.style.fontSize    = '13px';
   el.style.fontWeight  = 'bold';
   el.style.textShadow  = '0 0 4px #000, 1px 1px 0 #000';

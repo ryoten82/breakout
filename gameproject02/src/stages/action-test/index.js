@@ -71,10 +71,10 @@ function _makeLabel(THREE, lv, caption) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffd24a';
-  ctx.font = 'bold 50px sans-serif';
+  ctx.font = 'bold 50px PixelMplus12, sans-serif';
   ctx.fillText('atk_lv ' + lv, 128, 44);
   ctx.fillStyle = '#ffffff';
-  ctx.font = '28px sans-serif';
+  ctx.font = '28px PixelMplus12, sans-serif';
   ctx.fillText(caption, 128, 92);
   const tex = new THREE.CanvasTexture(c);
   tex.magFilter = THREE.LinearFilter;

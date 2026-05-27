@@ -21,7 +21,7 @@ function ensureArrow() {
   const parent = buildInfo?.parentElement || document.body;
   el.style.cssText = [
     'position:absolute', 'top:240px', 'right:var(--sp-lg, 24px)',
-    'color:#ffe44a', 'font-family:monospace', 'font-weight:bold',
+    'color:#ffe44a', 'font-family:var(--font-pixel)', 'font-weight:bold',
     'font-size:140px', 'line-height:1',
     'text-shadow:0 0 20px rgba(255,200,40,0.9), 0 0 40px rgba(255,120,0,0.6)',
     'opacity:0', 'transition:opacity 0.35s ease',

@@ -45,6 +45,7 @@ import {
   applyRollHipPivot,
 } from './states.js';
 import { SP_CONFIG, GUARD_CONFIG, PHYSICS, UKEMI_CONFIG, CRIT_CONFIG, PLAYER_PROFILE, BOSS01_CONFIG } from './config.js';
+import { showResultScreen, isResultShown } from './result-screen.js';
 import { getActiveWallX } from './camera.js';
 
 // ============================================================
@@ -754,6 +755,12 @@ export function updatePlayerHitstun(p) {
       if (p.mesh) p.mesh.visible = false;
       p.state = STATE.dead;
       p.deadTimer = HP_CONFIG.DEAD_FRAMES;
+      // ゲームオーバー → 2秒後にリザルト画面
+      if (!isResultShown()) {
+        setTimeout(() => {
+          showResultScreen({ mode: 'gameover' });
+        }, 2000);
+      }
     }
   } else if (s === STATE.dead) {
     p.deadTimer--;

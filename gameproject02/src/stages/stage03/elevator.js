@@ -297,7 +297,7 @@ function _ensureHud() {
   el.id = 'elevator-hud';
   el.style.cssText = [
     'position:fixed', 'top:12px', 'left:50%', 'transform:translateX(-50%)',
-    'color:#fff', 'font-family:monospace', 'font-weight:bold',
+    'color:#fff', 'font-family:var(--font-pixel)', 'font-weight:bold',
     'font-size:18px', 'letter-spacing:0.15em', 'padding:6px 14px',
     'background:rgba(0,0,0,0.6)',
     'border:1px solid rgba(120,180,255,0.7)',
