@@ -1540,19 +1540,24 @@ function _updateBossFatal(e) {
       e.mesh.rotation.y = e._fatalLockRotY;
       e.mesh.rotation.z = e._fatalLockRotZ;
     }
-    // 小爆発抽選：BlastSphere（視認性高）+ 粒子 + shake
+    // 小爆発抽選：spawnDeathExplosion を流用（小スケール・hitstop なし）+ 二重 BlastSphere で派手に
     e._fatalSmallBlastCd = (e._fatalSmallBlastCd ?? 0) - 1;
     if (e._fatalSmallBlastCd <= 0) {
       const _ox = (Math.random() - 0.5) * 240;
       const _oy = 60 + Math.random() * 240;
       const _oz = (Math.random() - 0.5) * 100;
-      // 視認性の高い blast sphere（オレンジリング）
-      spawnBlastSphere(e.x + _ox, e.y + _oy, e.z + _oz, { maxRadius: 90, life: 14, color: 0xffaa33 });
-      spawnHitParticles(e.x + _ox, e.y + _oy, e.z + _oz, 0xff5522, 24, { type: 'omni' });
-      spawnHitParticles(e.x + _ox, e.y + _oy, e.z + _oz, 0xffdd66, 12, { type: 'omni' });
-      triggerShake(6, 8);
+      const _bx = e.x + _ox, _by = e.y + _oy, _bz = e.z + _oz;
+      // 多層 BlastSphere：外殻（大・オレンジ）+ 内殻（小・黄白）→ 視認性 MAX
+      spawnBlastSphere(_bx, _by, _bz, { maxRadius: 220, life: 16, color: 0xff7722 });
+      spawnBlastSphere(_bx, _by, _bz, { maxRadius: 130, life: 12, color: 0xffdd55 });
+      // 粒子（外側に散らす）
+      spawnHitParticles(_bx, _by, _bz, 0xff4422, 32, { type: 'omni' });
+      spawnHitParticles(_bx, _by, _bz, 0xffaa33, 20, { type: 'omni' });
+      spawnHitParticles(_bx, _by, _bz, 0xffffaa, 14, { type: 'omni' });
+      triggerShake(8, 10);
+      triggerHitstop(2);  // 1 ティック分の体感ストップで「爆発感」を補強
       e._fatalSmallBlastCd = _CFG.FATAL_SMALL_BLAST_INTERVAL ?? 14;
-      if (window.SB?.DEBUG_FATAL) console.log(`[FATAL small_blast] x=${(e.x+_ox).toFixed(0)} y=${(e.y+_oy).toFixed(0)} timer=${e.bossFatalPhaseTimer}`);
+      if (window.SB?.DEBUG_FATAL) console.log(`[FATAL small_blast] x=${_bx.toFixed(0)} y=${_by.toFixed(0)} timer=${e.bossFatalPhaseTimer}`);
     }
     e.bossFatalPhaseTimer = (e.bossFatalPhaseTimer ?? 0) - 1;
     if (e.bossFatalPhaseTimer <= 0) {
