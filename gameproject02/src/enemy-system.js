@@ -4943,12 +4943,20 @@ export function updateEnemies(ctx) {
     // ボス専用：腕ピボットアニメーション + AOE 表示管理（攻撃フェーズ別）
     if (e.isBoss) { _updateBossAnim(e); _updateBossAoe(e); _updateBossCollision(e); }
 
+    // SA 吸収シェイク：mesh.x にジグザグ offset（カメラには影響しない・スマブラ風）
+    //   timer 8→1 で振幅 8→1wu に減衰しながら左右反転
+    let _eSaShakeOffsetX = 0;
+    if ((e._saShakeTimer ?? 0) > 0) {
+      e._saShakeTimer--;
+      const _t = e._saShakeTimer;
+      _eSaShakeOffsetX = (_t % 2 === 0 ? 1 : -1) * _t;
+    }
     // 転がり中は腰ピボット補正（敵・プレイヤー共用ヘルパ）。それ以外は素の座標。
     if (e.state === STATE.down_roll_start || e.state === STATE.down_roll_loop) {
       applyRollHipPivot(e.mesh, e.x, e.y, e.z, e.rollDebugAngle);
     } else {
       // 転がり以外の状態：オフセット解除（前フレームの補正値が残らないよう毎フレーム正規化）
-      e.mesh.position.x = e.x;
+      e.mesh.position.x = e.x + _eSaShakeOffsetX;
       e.mesh.position.y = e.y;
       e.mesh.position.z = e.z;
     }

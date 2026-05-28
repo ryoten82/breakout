@@ -285,6 +285,7 @@ export function damagePlayer(p, attack, source) {
   if ((p.playerSAHp ?? 0) > 0 && p.hp > 0) {
     p.playerSAHp -= 1;
     p.saFlashTimer = 12;
+    p.saShakeTimer = 8;   // SA 吸収シェイク：mesh.x ジグザグ（カメラには影響なし）
     if (_spawnHitParticles) _spawnHitParticles(p.x, p.y + 70, p.z, 0xffffff, 12, { type: 'omni' });
     if (_triggerHitstop) _triggerHitstop(4);
     console.log(`[SA absorb] damage=${finalDamage} hp=${p.hp} remaining=${p.playerSAHp} attackId=${p.attackId}`);

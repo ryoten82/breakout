@@ -907,6 +907,7 @@ export function tryHitEnemies(p, attack, ctx) {
       if (e.saHp > 0) {   // 装甲残り有り → 通常リアクションをスキップ
         e.hitFlashTimer = 6;
         e._saFlashTimer = 12;   // SA 吸収白フラッシュ（2026-05-28）：体を軽く白く光らせる
+        e._saShakeTimer = 8;    // SA 吸収シェイク：mesh.x ジグザグ（カメラに影響しない・スマブラ風）
         spawnHitParticles(e.x, e.y + 100, e.z, 0xff8800, 14, { type: 'omni' });  // 橙：SA 吸収
         anyHit = true;
         continue;
