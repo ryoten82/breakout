@@ -300,7 +300,7 @@ export const ATTACKS = {
     // 全画面 AoE：rangeX/Y/Z を巨大値で omni 全方向
     rangeX:       5000, rangeZ: 5000, rangeY: 5000, rangeYDown: 5000,
     knockback:    60,
-    hitstop:      8, shake: 16,        // 2026-05-27 SP hitstop -30%（12→8）
+    hitstop:      12, shake: 16,       // ULT は SP 一括 -30% の対象外（演出尺維持）
     atk_lv:       3,             // 地上敵：吹き飛び
     atk_lv_air:   3,             // 空中敵：吹き飛び
     atk_lv_down:  7,             // ダウン中：knockback03（小バウンド・ダウン継続）
@@ -329,7 +329,7 @@ export const ATTACKS = {
     label:        'c01_sp_mega01 (METEO メガクラッシュ)',
     damage:       30,
     knockback:    45,
-    hitstop:      4, shake: 8,         // 2026-05-27 SP hitstop -30%（6→4）
+    hitstop:      6, shake: 8,         // メガクラは SP 一括 -30% の対象外（リバーサル決め感維持）
     atk_lv:       2,    // 通常時：knockback02（軽フリンチ・コンボ繋ぎ）
     atk_lv_air:   2,    // 空中敵：knockback_air01
     atk_lv_down:  5,    // ダウン中：down_bound_start（拾い直し）
