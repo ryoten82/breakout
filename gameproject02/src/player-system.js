@@ -1598,17 +1598,19 @@ export function updatePlayer(p) {
   updateInvincibleBlink(p);
   updateSaFlash(p);    // SA 吸収白フラッシュ（残量に応じて tintBody 白）
 
-  // SA 吸収シェイク：mesh.x にジグザグ offset（カメラには影響しない・スマブラ風）
-  //   timer 8→1 で振幅 8→1wu に減衰しながら左右反転
-  let _saShakeOffsetX = 0;
-  if ((p.saShakeTimer ?? 0) > 0) {
-    p.saShakeTimer--;
-    const _t = p.saShakeTimer;
-    _saShakeOffsetX = (_t % 2 === 0 ? 1 : -1) * _t;
+  // キャラ単独シェイク：mesh.x にジグザグ offset（カメラ非影響・スマブラ風）
+  //   triggerCharShake() で _charShakeTimer / _charShakeAmp が立つ。
+  //   時間と共に振幅減衰しながら左右反転、最後 0 で解除。
+  let _shakeOffsetX = 0;
+  if ((p._charShakeTimer ?? 0) > 0) {
+    p._charShakeTimer--;
+    const _t   = p._charShakeTimer;
+    const _amp = p._charShakeAmp ?? 8;
+    _shakeOffsetX = (_t % 2 === 0 ? 1 : -1) * (_t / 8) * _amp;
   }
 
   // === メッシュへ反映 ===
-  p.mesh.position.set(p.x + _saShakeOffsetX, p.y + bobY, p.z);
+  p.mesh.position.set(p.x + _shakeOffsetX, p.y + bobY, p.z);
   const targetRot = (p.facing > 0) ? Math.PI * 0.5 : -Math.PI * 0.5;
   p.mesh.rotation.y += (targetRot - p.mesh.rotation.y) * 0.2;
   const atkForTilt = (p.state === STATE.attacking && p.attackId) ? ATTACKS[p.attackId] : null;

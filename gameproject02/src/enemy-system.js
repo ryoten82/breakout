@@ -46,7 +46,7 @@ import {
   applyRollHipPivot,
 } from './states.js';
 import { PHYSICS, ENEMY_AI, DUMMY_ATK_CONFIG, ENEMY_ATTACKS, ENEMY_ATTACK_RELAY, SPECIAL_CONFIG, STATUS_STUN_CONFIG, GORE_CONFIG, GORE_CRITICAL_CONFIG, PLAYER_PROFILE, ENEMY_PERSONALITY, ENEMY_REACT_CONFIG, ENEMY_ENRAGE_CONFIG, MIDBOSS_SHIELD_CONFIG, BOSS01_CONFIG, BURN_CONFIG, BOSS_MEGA_CONFIG, SP_CONFIG } from './config.js';
-import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, spawnBlastSphere, spawnLaunchSmoke, fxState } from './hit-engine.js';
+import { spawnHitParticles, spawnTrailDot, triggerShake, triggerHitstop, triggerCharShake, tryThrownChainHit, triggerBurstState, combo, spawnDeathExplosion, spawnBlastSphere, spawnLaunchSmoke, fxState } from './hit-engine.js';
 import { spawnBanner, spawnDamageNumber } from './hud-system.js';
 import { tryPinballHit } from './pinball.js';
 import { ATTACKS } from './attacks.js';
@@ -4494,7 +4494,11 @@ export function updateEnemies(ctx) {
                 e.repulseWindow = false;
                 e._odSlotAxis   = null;
                 const _hitAtk = Object.assign({}, atk, slot);  // スロット値で damage/knockback 上書き
-                tryHitPlayer(e, _hitAtk);
+                const _isLastSlot = (e._odSlotIdx ?? 0) === slots.length - 1;
+                if (tryHitPlayer(e, _hitAtk) && _isLastSlot && _players?.[0]) {
+                  // 連続技最終段（ストレート）命中：プレイヤーにキャラ単独シェイク
+                  triggerCharShake(_players[0], 14, 16);
+                }
                 e.slashHitFlash = 6;
               }
               // else: wind 中 or grace 中（timer 0 ～ -_windGrace） → repulseWindow=true 維持で RC 受付継続
@@ -4943,20 +4947,23 @@ export function updateEnemies(ctx) {
     // ボス専用：腕ピボットアニメーション + AOE 表示管理（攻撃フェーズ別）
     if (e.isBoss) { _updateBossAnim(e); _updateBossAoe(e); _updateBossCollision(e); }
 
-    // SA 吸収シェイク：mesh.x にジグザグ offset（カメラには影響しない・スマブラ風）
-    //   timer 8→1 で振幅 8→1wu に減衰しながら左右反転
-    let _eSaShakeOffsetX = 0;
-    if ((e._saShakeTimer ?? 0) > 0) {
-      e._saShakeTimer--;
-      const _t = e._saShakeTimer;
-      _eSaShakeOffsetX = (_t % 2 === 0 ? 1 : -1) * _t;
+    // キャラ単独シェイク：mesh.x にジグザグ offset（カメラ非影響・スマブラ風）
+    //   triggerCharShake() で _charShakeTimer / _charShakeAmp が立つ。
+    //   ピーク振幅から線形減衰しながら左右反転（時間と共に振幅が落ち、最後 0 で解除）。
+    let _eShakeOffsetX = 0;
+    if ((e._charShakeTimer ?? 0) > 0) {
+      e._charShakeTimer--;
+      const _t   = e._charShakeTimer;
+      const _amp = e._charShakeAmp ?? 8;
+      const _peak = Math.max(1, _amp);
+      _eShakeOffsetX = (_t % 2 === 0 ? 1 : -1) * (_t / 8) * _peak;
     }
     // 転がり中は腰ピボット補正（敵・プレイヤー共用ヘルパ）。それ以外は素の座標。
     if (e.state === STATE.down_roll_start || e.state === STATE.down_roll_loop) {
       applyRollHipPivot(e.mesh, e.x, e.y, e.z, e.rollDebugAngle);
     } else {
       // 転がり以外の状態：オフセット解除（前フレームの補正値が残らないよう毎フレーム正規化）
-      e.mesh.position.x = e.x + _eSaShakeOffsetX;
+      e.mesh.position.x = e.x + _eShakeOffsetX;
       e.mesh.position.y = e.y;
       e.mesh.position.z = e.z;
     }

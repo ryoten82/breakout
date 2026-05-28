@@ -275,6 +275,18 @@ export function triggerShake(strength, frames) {
   if (frames > fxState.shakeTimer) fxState.shakeTimer = frames;
 }
 
+// キャラ単独シェイク（カメラに影響しない・スマブラ風の mesh.x ジグザグ）
+//   2026-05-28：旧 saShakeTimer / _saShakeTimer を統一する汎用機構として新設。
+//   呼び元：SA 吸収・RC 後敵ヒット・SP4 / atklv6 / GC ヒット・敵連続技最終段（プレイヤー）等。
+//   既値を超えなければ上書きしない（連続ヒットで強度が落ちないよう Math.max）。
+export function triggerCharShake(entity, frames = 8, amplitude = 8) {
+  if (!entity) return;
+  if ((frames > (entity._charShakeTimer ?? 0))) {
+    entity._charShakeTimer = frames;
+    entity._charShakeAmp   = amplitude;
+  }
+}
+
 // ============================================================
 //  パーティクル系（ヒット火花・打ち上げ煙）
 // ============================================================
@@ -817,6 +829,16 @@ export function tryHitEnemies(p, attack, ctx) {
     // ヒット
     e.hp = Math.max(0, e.hp - _finalDamage);
     if (_bossGateTriggered) triggerBossPhaseTransition(e, ctx);
+    // 大技 / atklv6 ヒットでキャラ単独シェイク（2026-05-28）：決定打感を強化
+    //   SP4 系（c01_sp_04_*）/ atk_lv 6 / GC armed のいずれかで発火
+    {
+      const _isSp4   = typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_04');
+      const _isAtkL6 = _hitLv === 6;
+      const _isGc    = !!(e.goreCritical && e.goreCritical.armed);
+      if (_isSp4 || _isAtkL6 || _isGc) {
+        triggerCharShake(e, _isAtkL6 || _isGc ? 12 : 10, _isAtkL6 || _isGc ? 14 : 12);
+      }
+    }
     // ボス HP 0 到達 → フェイタル発火（RC finish 以外の通常攻撃殴り倒し経路）
     //   一度フェイタルへ入れば後続ヒットは HP=1 保護で再発火しない
     if (e.isBoss && e.hp <= 0 && !e.dying && !e.bossFatal) {
@@ -907,7 +929,7 @@ export function tryHitEnemies(p, attack, ctx) {
       if (e.saHp > 0) {   // 装甲残り有り → 通常リアクションをスキップ
         e.hitFlashTimer = 6;
         e._saFlashTimer = 12;   // SA 吸収白フラッシュ（2026-05-28）：体を軽く白く光らせる
-        e._saShakeTimer = 8;    // SA 吸収シェイク：mesh.x ジグザグ（カメラに影響しない・スマブラ風）
+        triggerCharShake(e, 8, 8);  // SA 吸収シェイク（mesh.x ジグザグ・カメラ非影響）
         spawnHitParticles(e.x, e.y + 100, e.z, 0xff8800, 14, { type: 'omni' });  // 橙：SA 吸収
         anyHit = true;
         continue;
@@ -2250,6 +2272,8 @@ function _triggerComboRcFinish(p, e, atk, eAtk, isPerfect = true) {
   e.bossStun         = true;
   e.bossStunTimer    = BOSS01_CONFIG.COMBO_RC_FINISH_STUN ?? 240;
   e._bossStunFrame   = 0;
+  // RC フィニッシュ：ボスにキャラ単独シェイク（決定打感の補強・2026-05-28）
+  triggerCharShake(e, 12, 14);
 
   // ── ダメージ適用（HP ゲート尊重・フェイタル委譲）──
   //   基本値 × (1 + perfectContinues * MULT_STEP) × (フィニッシュ RC なら 1.0 / RP なら PENALTY)
