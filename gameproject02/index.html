@@ -3145,12 +3145,12 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-28 アクション部屋に実装済みテストOC自動有効化（最初から効果ON）';
+    const LAST_UPDATE = '2026-05-28 SP4 stage2 を基本状態から撤廃（OC専用化）+ 波動拳デバッグログ';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
     // LAST_UPDATE と同時に更新する運用（feedback_last_update_hud.md §1.5）
-    const TAB_LABEL = 'OC自動付与';
+    const TAB_LABEL = 'SP4 stage1のみ';
     document.title = TAB_LABEL;
     {
       const _buildInfoEl = document.getElementById('build-info');
@@ -4906,6 +4906,7 @@
       // ── デバッグフラグ（標準 ON 中：仕様確定後に false / 削除） ─────
       DEBUG_BOSS_OD: true,  // boss_overdrive（連続技）の slot 遷移・RC マッチ・失敗理由をログ出力
       DEBUG_FATAL:   true,  // SCRAP THEM!!! フェイタルのフェーズ遷移ログ（一時 ON）
+      DEBUG_CHN_SP4: true,  // CHN-e04 波動拳即発の入力検出ログ（一時 ON・デバッグ完了後 false に）
       // ─────────────────────────────────────────────────
       scene, camera, bgCamera, renderer, players, enemies,
       CHARACTER_ASSETS,
@@ -5074,7 +5075,7 @@
       //   SB.OC_FLAGS                           → IGNITE/SPREAD/CHAIN_BLAST 取得状態
       BURN_CONFIG,
       OC_FLAGS: { ignite: false, spread: false, chainBlast: false, berserk: false,
-                  chnSp4Instant: false },
+                  chnSp4Instant: false, sp4Stage2: false },
       igniteEnemy,
       // 外部モジュール（hazards 等）からトークン解放したい場合：SB.releaseEnemyTokens(e)
       //   floor-hole が敵を removed 扱いにする前に呼ぶ。呼ばないと

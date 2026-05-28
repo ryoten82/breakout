@@ -332,9 +332,11 @@ export function updateChargeJ(p) {
   if (jHeld && canCharge) {
     p.chargeJFrames++;
     p.jHeldDuringCharge = true;
-    // 2 段階成立：STAGE2 で level=2（→ sp_03_max）、STAGE1 で level=1（→ sp_03）
-    // 将来 OC/チップで stage3+ を追加する場合は閾値配列化を検討。
-    if (p.chargeJFrames >= SPECIAL_CONFIG.CHARGE_FRAMES_STAGE2) {
+    // 2 段階成立：stage2 は 2026-05-28 基本状態から撤廃（OC 専用枠として温存）。
+    //   将来「stage2 解放 OC」（BRN-l04 SOLAR FLARE 等）で window.SB.OC_FLAGS.sp4Stage2 を立てる想定。
+    //   通常状態では stage1（level=1）止まりにキャップ。チャージ continue させても level は上がらない。
+    const _stage2Unlocked = !!(typeof window !== 'undefined' && window.SB?.OC_FLAGS?.sp4Stage2);
+    if (_stage2Unlocked && p.chargeJFrames >= SPECIAL_CONFIG.CHARGE_FRAMES_STAGE2) {
       p.chargeLevel = 2;
       p.chargeReady = true;
     } else if (p.chargeJFrames >= SPECIAL_CONFIG.CHARGE_FRAMES_STAGE1) {
@@ -352,12 +354,12 @@ export function updateChargeJ(p) {
   } else {
     // 押下中だがチャージ条件を満たさない（攻撃中など）→ 蓄積停止だがリセットはしない
   }
-  // 収束粒子：チャージ進行中（stage2 未到達まで）毎フレーム放出
-  //   level 0（0-30F 充填中）→ 黄色（既定）
-  //   level 1（30-60F 充填中・stage2 へ向けて高温化）→ 白
-  //   level 2 到達後はスポーン停止（MAX 表現）
+  // 収束粒子：チャージ進行中（最大 level 未到達まで）毎フレーム放出
+  //   level 0 → 黄色 / level 1 → 白 / 最大到達後はスポーン停止（MAX 表現）
+  //   2026-05-28 基本状態の最大 level は 1（stage2 は OC 解放）。OC 取得時のみ level 2 まで上がる。
   const curLevel = p.chargeLevel ?? 0;
-  if (p.chargeJFrames > 0 && curLevel < 2) {
+  const _maxLevel = (typeof window !== 'undefined' && window.SB?.OC_FLAGS?.sp4Stage2) ? 2 : 1;
+  if (p.chargeJFrames > 0 && curLevel < _maxLevel) {
     const partColor = curLevel >= 1 ? 0xffffff : CHARGE_PARTICLE_CONFIG.COLOR;
     for (let i = 0; i < CHARGE_PARTICLE_CONFIG.SPAWN_PER_FRAME; i++) {
       _spawnChargeParticle(p.x, p.y, p.z, partColor);
@@ -649,11 +651,21 @@ export function processStrongAttackInput(p) {
 
   // CHN-e04 波動拳即発：↓→K 検出で SP4 stage1 を即発動（チャージ不要）。
   //   通常の K 分岐より先にチェック。成立時は stage1（c01_sp_04_01 / _air）へ直行。
-  if (window.SB?.OC_FLAGS?.chnSp4Instant && _matchesHadoukenCmd(p) && canStartSpecial(p)) {
-    const sp4Id = pickSpecialAttackId('c01_sp_04_01', p.isGrounded);
-    if (window.SB?.DEBUG_SPECIAL) console.log(`[CHN-e04] hadouken matched → ${sp4Id}`);
-    startSpecial(p, sp4Id);
-    return;
+  //   2026-05-28 デバッグ：window.SB.DEBUG_CHN_SP4 で詳細ログ出力可
+  const _chnFlag = !!window.SB?.OC_FLAGS?.chnSp4Instant;
+  if (_chnFlag) {
+    const _hadou = _matchesHadoukenCmd(p);
+    const _canSp = canStartSpecial(p);
+    if (window.SB?.DEBUG_CHN_SP4) {
+      const _hist = (p.dirHistory ?? []).map(e => `${e.dir}@${e.frame}`).join(',');
+      console.log(`[CHN-e04 check] flag=${_chnFlag} hadou=${_hadou} canSp=${_canSp} facing=${p.facing} state=${p.state} dirHist=[${_hist}]`);
+    }
+    if (_hadou && _canSp) {
+      const sp4Id = pickSpecialAttackId('c01_sp_04_01', p.isGrounded);
+      console.log(`[CHN-e04] hadouken matched → ${sp4Id}`);
+      startSpecial(p, sp4Id);
+      return;
+    }
   }
 
   const upHeld  = _inp('ArrowUp')    || _inp('KeyW');
