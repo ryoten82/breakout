@@ -196,17 +196,11 @@ export function damagePlayer(p, attack, source) {
   if (p.ukemiInvuln) return false;        // 受け身上昇中の無敵
   if (p.state === STATE.dying || p.state === STATE.dead) return false;
 
-  // (1.5) スーパーアーマー（SA）吸収：attack.armor を持つ player 攻撃の startup 中。
-  //   playerSAHp が 0 より大なら 1 消費して被弾を完全無効化（ダメージ・KB・state 変更なし）。
-  //   visual：白パーティクル + body 軽く白フラッシュ（敵 SA と対の表現）。
-  if ((p.playerSAHp ?? 0) > 0) {
-    p.playerSAHp -= 1;
-    p.saFlashTimer = 12;   // 体を軽く白く光らせる（updatePlayer 末尾で tintBody 経由）
-    if (_spawnHitParticles) _spawnHitParticles(p.x, p.y + 70, p.z, 0xffffff, 12, { type: 'omni' });
-    if (_triggerHitstop) _triggerHitstop(4);
-    console.log(`[SA absorb] hit blocked. damage=${attack.damage ?? 0} atkLv=${attack.atk_lv ?? '?'} remaining=${p.playerSAHp} attackId=${p.attackId} state=${p.state}`);
-    return false;
-  }
+  // (1.5) SA 仕様：「リアクション無効化」のみ。ダメージは食らう。
+  //   旧実装はダメージごと無効化していたが、ユーザー仕様確認（2026-05-28）で修正：
+  //   「SA の数字分、攻撃を食らってもリアクションせず無視して行動する。ダメージ自体は食らう」
+  //   → ダメージ適用は (5) 以降の通常フローで実施。本ブロックでは KB / state 変更を抑止する
+  //     ためのフラグ（_saAbsorbedThisHit）を立てるだけ。
 
   // (2) 被弾中は完全無敵（プレイヤー区別化）：吹き飛び中・ダウン中は一切ヒットを受けず
   //   コンボでハメられない。guard_crash はガード崩れの隙なので無敵にしない（反撃を受ける）。
@@ -284,6 +278,18 @@ export function damagePlayer(p, attack, source) {
   const finalDamage = Math.max(0, damage);
   p.hp = Math.max(0, p.hp - finalDamage);
   p.sp = Math.min(SP_CONFIG.MAX, p.sp + SP_CONFIG.GAIN_ON_TAKEN);
+
+  // (5.5) SA 吸収：ダメージは適用済み・HP が 0 でなければ KB と state 変更をスキップして即 return。
+  //   攻撃モーションを継続するために attack 中断（(6)）も走らせない。
+  //   HP 0 の場合のみ通常の死亡フロー（(7)）に流す → 死ぬときは死ぬ。
+  if ((p.playerSAHp ?? 0) > 0 && p.hp > 0) {
+    p.playerSAHp -= 1;
+    p.saFlashTimer = 12;
+    if (_spawnHitParticles) _spawnHitParticles(p.x, p.y + 70, p.z, 0xffffff, 12, { type: 'omni' });
+    if (_triggerHitstop) _triggerHitstop(4);
+    console.log(`[SA absorb] damage=${finalDamage} hp=${p.hp} remaining=${p.playerSAHp} attackId=${p.attackId}`);
+    return true;
+  }
 
   // (6) 攻撃中断 & グラブ強制解除 & ガード解除 & コンボリセット
   if (p.state === STATE.grabbing && p.grabTarget) {
