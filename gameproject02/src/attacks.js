@@ -148,7 +148,7 @@ export const ATTACKS = {
     rangeY:       50,                 // 2026-05-25 90→50：上方向判定を弱める
     rangeYDown:   20,                 // 2026-05-25 30→20
     knockback:    32,
-    hitstop:      12, shake: 10,
+    hitstop:      8, shake: 10,        // 2026-05-27 SP hitstop -30%（12→8）
     atk_lv:       5,
     atk_lv_air:   5,
     atk_lv_down:  4,                  // ダウン中の敵は軽め（爆発的な巻き込みより抑制）
@@ -181,7 +181,7 @@ export const ATTACKS = {
     rangeY:       60,
     rangeYDown:   300,
     knockback:    14,
-    hitstop:      8,  shake: 6,
+    hitstop:      6,  shake: 6,        // 2026-05-27 SP hitstop -30%（8→6）
     diveVy:       -22,
     divePause:    16,
     atk_lv:       5,
@@ -215,7 +215,7 @@ export const ATTACKS = {
     rangeY:       50,
     rangeYDown:   20,
     knockback:    32,
-    hitstop:      12, shake: 10,
+    hitstop:      8, shake: 10,        // 2026-05-27 SP hitstop -30%（12→8）
     atk_lv:       5,
     atk_lv_air:   5,
     atk_lv_down:  4,
@@ -300,7 +300,7 @@ export const ATTACKS = {
     // 全画面 AoE：rangeX/Y/Z を巨大値で omni 全方向
     rangeX:       5000, rangeZ: 5000, rangeY: 5000, rangeYDown: 5000,
     knockback:    60,
-    hitstop:      12, shake: 16,
+    hitstop:      8, shake: 16,        // 2026-05-27 SP hitstop -30%（12→8）
     atk_lv:       3,             // 地上敵：吹き飛び
     atk_lv_air:   3,             // 空中敵：吹き飛び
     atk_lv_down:  7,             // ダウン中：knockback03（小バウンド・ダウン継続）
@@ -329,7 +329,7 @@ export const ATTACKS = {
     label:        'c01_sp_mega01 (METEO メガクラッシュ)',
     damage:       30,
     knockback:    45,
-    hitstop:      6, shake: 8,
+    hitstop:      4, shake: 8,         // 2026-05-27 SP hitstop -30%（6→4）
     atk_lv:       2,    // 通常時：knockback02（軽フリンチ・コンボ繋ぎ）
     atk_lv_air:   2,    // 空中敵：knockback_air01
     atk_lv_down:  5,    // ダウン中：down_bound_start（拾い直し）
@@ -411,7 +411,7 @@ export const ATTACKS = {
     damageLastHit:  14,   // 最終 1 発：14 ダメ + atk_lv 3 dispatch
     damage:         20,   // 互換用（6 + 14 = 20 総合）
     rangeX:       250, rangeZ: 80, rangeY: 100,
-    knockback:    50, hitstop: 8, shake: 6,
+    knockback:    50, hitstop: 6, shake: 6,   // 2026-05-27 SP hitstop -30%（8→6）
     atk_lv:       3,    // 地上敵：吹き飛び（down_front_start）
     atk_lv_air:   3,    // 空中敵も吹き飛び
     hitColor:     0x44ccff,
@@ -444,7 +444,7 @@ export const ATTACKS = {
     damageLastHit:  8,    // 最終 1 発：8 ダメ + 着火トリガー
     damage:         16,   // 互換用（4×2 + 8 = 16 総合）
     rangeX:       250, rangeZ: 80, rangeY: 100,
-    knockback:    50, hitstop: 8, shake: 6,
+    knockback:    50, hitstop: 6, shake: 6,   // 2026-05-27 SP hitstop -30%（8→6）
     atk_lv:       3,
     atk_lv_air:   3,
     hitColor:     0xff4400,  // 赤み強め
@@ -486,7 +486,7 @@ export const ATTACKS = {
     rangeX:       220, rangeZ: 90,
     rangeY:       30,
     rangeYDown:   260,
-    knockback:    35, hitstop: 8, shake: 6,
+    knockback:    35, hitstop: 6, shake: 6,   // 2026-05-27 SP hitstop -30%（8→6）
     atk_lv:       3,        // 2026-05-27 5→3：吹き飛び start（軽め）
     atk_lv_air:   3,        // 2026-05-27 6→3：超吹き飛ばし剥奪（チェイン軸 OC へ移管予定）
     // === lv 別ベクトル上書き（lv3 用は標準でカバー・lv5/lv6 用は将来 OC で再追加）===
@@ -525,7 +525,7 @@ export const ATTACKS = {
     rangeX:       220, rangeZ: 90,
     rangeY:       30,
     rangeYDown:   260,
-    knockback:    45, hitstop: 8, shake: 6,
+    knockback:    45, hitstop: 6, shake: 6,   // 2026-05-27 SP hitstop -30%（8→6）
     // 2026-05-27 修正：最終段 atk_lv 5 統一 + やや下目軌道でバウンドダウンへ
     //   atk_lv_air 6 を撤廃（超吹き飛ばし→チェイン軸 OC 検討中）。地上/空中どちらも lv5 叩きつけ。
     //   kb_vy_lv5 -8→-14：下方向初速を強化（軌道がやや下目に）→ down_rakka_start → 着地 down_bound_start
@@ -570,8 +570,8 @@ export const ATTACKS = {
     lungeVx:      14,                  // plyrLiftVx の代わりに地上ダッシュ
     lungeDecay:   0.92,                // 緩減衰で 10F 持続
     rangeX:       110, rangeZ: 100, rangeY: 200,
-    knockback:    40, hitstop: 7, shake: 6,  // 最終段 KB 10→40：通過防止のため横方向押し出し強化（2026-05-20）
-    hitstopLastHit: 12,  // 最終昇竜段のみ重め（空中版 sp_02_air と同等・コンボ繋ぎ余地確保）
+    knockback:    40, hitstop: 5, shake: 6,  // 2026-05-27 SP hitstop -30%（7→5）
+    hitstopLastHit: 8,  // 2026-05-27 SP hitstop -30%（12→8・最終昇竜段のみ重め）
     atk_lv:       4,    // 最終ヒット：打ち上げ（down_up_start）
     atk_lv_air:   4,    // 空中敵も打ち上げ
     launchVy:     22,   // 最終ヒットで発動（中間はホールドのみ）
@@ -616,7 +616,7 @@ export const ATTACKS = {
     damage:       25,
     // X 軸前方判定を広げる（200）：plyrLiftVx を 0 にした分、当たり判定で前方の敵を拾う設計（2026-05-19）
     rangeX:       200, rangeZ: 100, rangeY: 200,
-    knockback:    45, hitstop: 12, shake: 7,    // KB 10→25→45：通過防止のため横方向押し出し更に強化（2026-05-20）
+    knockback:    45, hitstop: 8, shake: 7,     // 2026-05-27 SP hitstop -30%（12→8）
     atk_lv:       4,
     atk_lv_air:   4,
     launchVy:     22,
@@ -662,7 +662,7 @@ export const ATTACKS = {
     cancelWindow: 45,
     damage:       25,
     rangeX:       200, rangeZ: 100, rangeY: 200,
-    knockback:    45, hitstop: 12, shake: 7,
+    knockback:    45, hitstop: 8, shake: 7,     // 2026-05-27 SP hitstop -30%（12→8）
     atk_lv:       4,
     atk_lv_air:   4,
     launchVy:     22,
@@ -704,7 +704,7 @@ export const ATTACKS = {
     rangeX:       220, rangeZ: 140,   // 2026-05-25 rangeX 160→220（狭すぎ緩和）/ rangeZ 140 維持
     rangeY:       130,
     rangeYDown:   30,
-    knockback:    60, hitstop: 12, shake: 10,
+    knockback:    60, hitstop: 8, shake: 10,    // 2026-05-27 SP hitstop -30%（12→8）
     atk_lv:       6,                       // 2026-05-15：3→6 で「超吹き飛ばし」に格上げ（後方奥まで飛ばす）
     atk_lv_air:   6,
     // atk_lv_down は無し
@@ -732,7 +732,7 @@ export const ATTACKS = {
     rangeX:       220, rangeZ: 140,   // 2026-05-25 rangeX 160→220：地上版に同期
     rangeY:       130,
     rangeYDown:   30,
-    knockback:    60, hitstop: 12, shake: 10,
+    knockback:    60, hitstop: 8, shake: 10,    // 2026-05-27 SP hitstop -30%（12→8）
     atk_lv:       6,                       // 2026-05-15：3→6
     atk_lv_air:   6,
     // atk_lv_down 無し
@@ -762,7 +762,7 @@ export const ATTACKS = {
     rangeX:       280, rangeZ: 160,         // 2026-05-25 rangeX 200→280（狭すぎ緩和）/ rangeZ 160 維持
     rangeY:       170,                      // 上方向もやや拡張
     rangeYDown:   50,
-    knockback:    70, hitstop: 14, shake: 14,
+    knockback:    70, hitstop: 10, shake: 14,   // 2026-05-27 SP hitstop -30%（14→10）
     atk_lv:       6,
     atk_lv_air:   6,
     // atk_lv_down 無し
@@ -791,7 +791,7 @@ export const ATTACKS = {
     rangeX:       280, rangeZ: 160,   // 2026-05-25 rangeX 200→280：地上版に同期
     rangeY:       170,
     rangeYDown:   50,
-    knockback:    70, hitstop: 14, shake: 14,
+    knockback:    70, hitstop: 10, shake: 14,   // 2026-05-27 SP hitstop -30%（14→10）
     atk_lv:       6,
     atk_lv_air:   6,
     kb_vy_lv6:        12,                   // 浮き上がる軌道（2026-05-15・8→12）
