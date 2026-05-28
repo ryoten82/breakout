@@ -456,6 +456,13 @@ export function tickFlameUpperQueue(p) {
     _resetFlameQueue(p);
     return;
   }
+  // 歩行・ダッシュ・ガード突入でキューを破棄（2026-05-28・v4 残問題対応）：
+  //   連打で蓄積した残 mids が「歩いていると一定間隔で空振りし続ける」体感バグの根治。
+  //   ユーザーが歩き出した時点で「このコンボはもう終わり」と判定する。
+  if (p.state === STATE.walk_fwd || p.state === STATE.walk_back || p.dashActive || p.guarding) {
+    _resetFlameQueue(p);
+    return;
+  }
   // 攻撃中（mid 発動中）は何もしない → 完走後 wait01 で次段判定
   if (p.state === STATE.attacking || p.state === STATE.hit_confirm) return;
   // windup タイマー減算（初回の wait01 中のみ）
