@@ -526,13 +526,14 @@ export const ATTACKS = {
     rangeY:       30,
     rangeYDown:   260,
     knockback:    45, hitstop: 8, shake: 6,
+    // 2026-05-27 修正：最終段 atk_lv 5 統一 + やや下目軌道でバウンドダウンへ
+    //   atk_lv_air 6 を撤廃（超吹き飛ばし→チェイン軸 OC 検討中）。地上/空中どちらも lv5 叩きつけ。
+    //   kb_vy_lv5 -8→-14：下方向初速を強化（軌道がやや下目に）→ down_rakka_start → 着地 down_bound_start
+    //   kb_vx_mult_lv5 0.5→0.3：水平を抑えて「落とす」感を強調
     atk_lv:       5,
-    atk_lv_air:   6,
-    kb_vy_lv6:        -10,
-    kb_vx_mult_lv6:   5.0,
-    kb_vx_decay_lv6:  0.92,
-    kb_vy_lv5:        -8,
-    kb_vx_mult_lv5:   0.5,
+    atk_lv_air:   5,
+    kb_vy_lv5:        -14,
+    kb_vx_mult_lv5:    0.3,
     hitColor:     0xff4400,
     hitCount:     22,
     launcher:     false,
