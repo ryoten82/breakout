@@ -1757,6 +1757,10 @@
       initDamageArea, addStaticArea, addRectArea, addSemicircleArea, updateAreaPosition, updateAreaScale, updateAreaRotation, removeArea,
       spawnExpandPulse, updateAreas,
     } from './src/fx/damage-area.js';
+    // === magma-vent（OC BRN-e08 マグマ vent システム）===
+    import {
+      initMagmaVent, updateMagmaVents, clearAllMagmaVents,
+    } from './src/magma-vent.js';
     // === stages（背景部屋・stage-room worktree 由来）===
     import {
       initStage01, tickStage01, getStage01DebugState,
@@ -3160,7 +3164,7 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-28 FLAME UPPER 出し切り後リセット保証 + 掴み/ダッシュ/メガクラ ロック横展開';
+    const LAST_UPDATE = '2026-05-28 BRN-e08 MAGMA VENT 実装：SP3 命中で床マグマ設置（残留+延焼+軽KB）';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
@@ -3480,6 +3484,12 @@
     initEnemyGoreBlack(THREE);  // 黒フェード目標色（gore-scrap）の初期化
     // damage-area 初期化（ダメージ範囲リング・パルスの共通基盤）
     initDamageArea({ scene, THREE });
+    // magma-vent 初期化（OC BRN-e08）
+    initMagmaVent({
+      enemies,
+      damageArea: { addStaticArea, removeArea },
+      igniteEnemy,
+    });
     // debug-invariants 初期化（STATE 値セットを登録して state 妥当性検査を有効化）
     _invSetKnownStates(STATE);
     // 開始画面オーバーレイの制御：初回入力で dismiss + markPlayStart 発火
@@ -4413,6 +4423,8 @@
       updateEnemies(hitCtx);
       // 壊れ物プロップ：フラッシュ進行・飛び散りパーツ物理
       updateBreakables();
+      // OC BRN-e08 MAGMA VENT：床マグマの寿命・敵への tick 適用
+      updateMagmaVents();
       // OC ジェム：湧き上がり → 滞在 → 取得演出
       updateOcGem();
       // OC ジェム取得フラッシュ後、ディレイ経過で OC 選択画面を開く
@@ -4932,6 +4944,7 @@
       DEBUG_FATAL:   true,  // SCRAP THEM!!! フェイタルのフェーズ遷移ログ（一時 ON）
       DEBUG_CHN_SP4: true,  // CHN-e04 波動拳即発の入力検出ログ（一時 ON・デバッグ完了後 false に）
       DEBUG_FLAME_UPPER: false,  // BRN-e11 FLAME UPPER キューのライフサイクル全ログ（一旦凍結・残問題未解決）
+      DEBUG_MAGMA_VENT: false,   // BRN-e08 MAGMA VENT のスポーン/スタック/期限切れログ
       // ─────────────────────────────────────────────────
       scene, camera, bgCamera, renderer, players, enemies,
       CHARACTER_ASSETS,
@@ -5100,7 +5113,7 @@
       //   SB.OC_FLAGS                           → IGNITE/SPREAD/CHAIN_BLAST 取得状態
       BURN_CONFIG,
       OC_FLAGS: { ignite: false, spread: false, chainBlast: false, berserk: false,
-                  chnSp4Instant: false, sp4Stage2: false, brnFlameUpper: false },
+                  chnSp4Instant: false, sp4Stage2: false, brnFlameUpper: false, magmaVent: false },
       igniteEnemy,
       // 外部モジュール（hazards 等）からトークン解放したい場合：SB.releaseEnemyTokens(e)
       //   floor-hole が敵を removed 扱いにする前に呼ぶ。呼ばないと

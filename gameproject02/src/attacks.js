@@ -161,6 +161,7 @@ export const ATTACKS = {
     hitColor:     0xff8822,
     hitCount:     28,
     shockwaveEffect: true,            // hitFrame で地面衝撃波リング演出（attack-engine が発火）
+    magmaVentTrigger: true,           // OC BRN-e08：命中地点にマグマ vent 設置
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
@@ -200,6 +201,7 @@ export const ATTACKS = {
     showHitbox:   true,
     partsAnim:    'air_slam',
     autoLandGeyser: true,           // 着地瞬間に c01_sp_03_land を自動発火
+    magmaVentTrigger: true,         // OC BRN-e08：命中地点にマグマ vent 設置
     repulseAxis:  'ground',
     repulseFrameStart: 1, repulseFrameEnd: 20,
     // RC 受付ボックス（ground 軸・空中版：dive 軌跡上でボス頭〜胴体を捉える）
@@ -228,6 +230,7 @@ export const ATTACKS = {
     hitColor:     0xff8822,
     hitCount:     28,
     shockwaveEffect: true,
+    magmaVentTrigger: true,         // OC BRN-e08：着地ゲイザーでも vent 設置
     isSpecial:    true,
     flashOnStart: false,            // 空中phase で既にフラッシュ済み
     showHitbox:   true,
