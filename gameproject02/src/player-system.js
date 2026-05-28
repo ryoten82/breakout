@@ -560,6 +560,28 @@ export function processSpecialInput(p) {
   const kJust = kHeld && !p._kWasDownSpecial;
   p._kWasDownSpecial = kHeld;
 
+  // === CHN-e04 波動拳即発：J ジャストプレス + ↓→J コマンド成立で SP4 stage1 を即発動 ===
+  //   通常チャージ（J 長押し）より先にチェック。成立時は SP4 を即発射してチャージ蓄積を破棄。
+  //   2026-05-28：K → J へ移管（ユーザー指示・波動 J で出るのが直感的）。
+  if (jJust && window.SB?.OC_FLAGS?.chnSp4Instant) {
+    const _hadou = _matchesHadoukenCmd(p);
+    const _canSp = canStartSpecial(p);
+    if (window.SB?.DEBUG_CHN_SP4) {
+      const _hist = (p.dirHistory ?? []).map(e => `${e.dir}@${e.frame}`).join(',');
+      console.log(`[CHN-e04 check] jJust hadou=${_hadou} canSp=${_canSp} facing=${p.facing} state=${p.state} dirHist=[${_hist}]`);
+    }
+    if (_hadou && _canSp) {
+      const sp4Id = pickSpecialAttackId('c01_sp_04_01', p.isGrounded);
+      console.log(`[CHN-e04] hadouken matched (J) → ${sp4Id}`);
+      // チャージ蓄積を破棄して即発射（連続入力で chargeReady が立つのを防ぐ）
+      p.chargeJFrames = 0;
+      p.chargeLevel   = 0;
+      p.chargeReady   = false;
+      startSpecial(p, sp4Id);
+      return;
+    }
+  }
+
   // === チャージ発動：J リリースエッジ + chargeReady ===
   // リリースは必ず chargeReady を消費する（発動不可でも畳む。さもないと明滅が残り続ける）
   // 重複（specialUsedIds に既出）でも発動は通す → ヒット時に敵側を down_burst_* に強制遷移
@@ -649,24 +671,7 @@ export function processStrongAttackInput(p) {
   }
   // SP2（RC）は canStartSP2ForRC で後処理。SP1/SP3 は後述の canStartSpecial チェックで制限。
 
-  // CHN-e04 波動拳即発：↓→K 検出で SP4 stage1 を即発動（チャージ不要）。
-  //   通常の K 分岐より先にチェック。成立時は stage1（c01_sp_04_01 / _air）へ直行。
-  //   2026-05-28 デバッグ：window.SB.DEBUG_CHN_SP4 で詳細ログ出力可
-  const _chnFlag = !!window.SB?.OC_FLAGS?.chnSp4Instant;
-  if (_chnFlag) {
-    const _hadou = _matchesHadoukenCmd(p);
-    const _canSp = canStartSpecial(p);
-    if (window.SB?.DEBUG_CHN_SP4) {
-      const _hist = (p.dirHistory ?? []).map(e => `${e.dir}@${e.frame}`).join(',');
-      console.log(`[CHN-e04 check] flag=${_chnFlag} hadou=${_hadou} canSp=${_canSp} facing=${p.facing} state=${p.state} dirHist=[${_hist}]`);
-    }
-    if (_hadou && _canSp) {
-      const sp4Id = pickSpecialAttackId('c01_sp_04_01', p.isGrounded);
-      console.log(`[CHN-e04] hadouken matched → ${sp4Id}`);
-      startSpecial(p, sp4Id);
-      return;
-    }
-  }
+  // CHN-e04 波動拳即発は K → J へ移管（2026-05-28）→ processSpecialInput 側で処理
 
   const upHeld  = _inp('ArrowUp')    || _inp('KeyW');
   const dnHeld  = _inp('ArrowDown')  || _inp('KeyS');

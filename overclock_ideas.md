@@ -570,7 +570,7 @@ OC-EX（オーバークロックエクスペンダブル）
 | `IGNITE` | 点火 | 必殺技命中 / 敵爆発時に周囲へ延焼を付与 | common | 10 | **BRN-c06 IGNITION ROUNDS と同趣旨**（必殺技に点火追加） |
 | `SPREAD` | 延焼 | 延焼中の敵から周囲へ炎が広がる | uncommon | 10 | **BRN-e03 PYRE SPREAD と同趣旨** |
 | `CHAIN_BLAST` | 連鎖爆発 | 延焼中の敵が倒れると爆発し周囲を延焼 | rare | 10 | **BRN-e02 WILDFIRE と同趣旨** |
-| `CHN_SP4_INSTANT` | 波動拳即発 | ↓→K で SP4 stage1 を即発動（チャージ不要） | rare | 8 | **CHN-e04（2026-05-28 実装）** |
+| `CHN_SP4_INSTANT` | 波動拳即発 | ↓→J で SP4 stage1 を即発動（チャージ不要） | rare | 8 | **CHN-e04（2026-05-28 実装・J 発動に統一）** |
 
 ### 3-2. 取得順ロック（積層型・延焼ビルド）
 
