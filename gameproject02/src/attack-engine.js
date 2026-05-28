@@ -734,6 +734,15 @@ export function triggerMegaCrash(p) {
   if (_mDark > 0 || _mSlow > 0 || (_mRing > 0 && _mRing < 1)) return;
   // 被弾中だった場合は state を強制クリア（リバーサル発動）
   if (isHitstunState(p)) _cancelHitstunForReversal(p);
+  // FLAME UPPER キュー中（windup / mid 間）にメガクラ発動：キューを破棄してパニックボタン優先。
+  // 残骸 _flameQActive のまま attacking に入ると tickFlameUpperQueue が誤動作するため必ずリセット。
+  if (p._flameQActive) {
+    p._flameQActive  = false;
+    p._flameQWindup  = 0;
+    p._flameQMids    = 0;
+    p._flameQStarted = false;
+    p._flameQStallFrames = 0;
+  }
   // 通常攻撃・ステップ攻撃・必殺技進行中なら強制キャンセルして wait01 へ戻す
   //   （ダッシュ中メガクラでスライディング姿勢のまま発動する事故を防ぐ）
   if (p.state === STATE.attacking || p.state === STATE.hit_confirm) {
@@ -1033,6 +1042,7 @@ export function tryGrabActivate(p) {
   if (!p.isGrounded)             return;
   if (p.guarding || p.ultActive) return;
   if (p.dashActive)              return; // ダッシュ中は発動させない（密着判定が暴発するため）
+  if (p._flameQActive)           return; // FLAME UPPER キュー中（windup / mid 間）は掴み発動不可
   // 掴み発動 readiness：wait01 中に自分の意思で移動したフレーム以降のみ true。
   // hitstun / attacking / grabbing 等を経由すると updatePlayer の冒頭で false にリセットされる。
   // → ノックバックからの復帰直後・攻撃終了直後に「キーが押しっぱなし」「速度残留」等で
@@ -1328,9 +1338,11 @@ export function processDashInput(p) {
   _dTapWasU = nowU;  _dTapWasD = nowD;
 
   // ダッシュ可能条件（タイマー判定より先にチェック）
+  // FLAME UPPER キュー中（windup / mid 間の wait01）は方向キーでダッシュ起動させない。
   const canDash = p.dashCooldown <= 0
                && !p.dashActive
-               && p.state !== STATE.attacking;
+               && p.state !== STATE.attacking
+               && !p._flameQActive;
 
   // 長押しダッシュ用カウンタ（2026-05-19 仕様改修）：
   //   いずれかの方向キーが押されている限り wait01 中はインクリメント。

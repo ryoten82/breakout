@@ -394,10 +394,35 @@ export function updateChargeJ(p) {
 const FLAME_QUEUE_WINDUP_FRAMES = 18;
 const FLAME_QUEUE_MAX_MIDS      = 3;
 
+// 現在 flame 系攻撃を実行中か判定（残骸 _flameQActive と区別するため）
+function _isInFlameAttack(p) {
+  return (
+    p.attackId === 'c01_sp_02_short_flame_mid'   ||
+    p.attackId === 'c01_sp_02_air_flame_mid'     ||
+    p.attackId === 'c01_sp_02_short_flame_final' ||
+    p.attackId === 'c01_sp_02_air_flame_final'
+  );
+}
+
+function _resetFlameQueue(p) {
+  p._flameQActive  = false;
+  p._flameQWindup  = 0;
+  p._flameQMids    = 0;
+  p._flameQStarted = false;
+}
+
 // SP2 ↑K プレス時に呼ばれる：キュー新規作成 or 既存キューへ mid 追加
 //   戻り値：true = この入力を消費した（fallthrough しない）
 export function handleFlameUpperPress(p) {
   if (!window.SB?.OC_FLAGS?.brnFlameUpper) return false;
+  // === 出し切り後の stale queue 回収 ===
+  // final 発火後にユーザーがしばらく置いて再度 ↑K した時、_flameQActive が
+  // なんらかの理由で true 残りしていたら「中間版が単独で出る」誤動作に繋がる。
+  // flame 系攻撃を実行中でなく、windup も mids も 0 ならキューは実体上終わっている → 新規扱い。
+  if (p._flameQActive && !_isInFlameAttack(p) &&
+      (p._flameQWindup ?? 0) === 0 && (p._flameQMids ?? 0) === 0) {
+    _resetFlameQueue(p);
+  }
   if (!p._flameQActive) {
     // 新規キュー
     if (p.guarding || p.ultActive || isHitstunState(p)) {
@@ -428,7 +453,7 @@ export function tickFlameUpperQueue(p) {
   if (!p._flameQActive) return;
   // hitstun でキャンセル
   if (isHitstunState(p)) {
-    p._flameQActive = false; p._flameQWindup = 0; p._flameQMids = 0; p._flameQStarted = false;
+    _resetFlameQueue(p);
     return;
   }
   // 攻撃中（mid 発動中）は何もしない → 完走後 wait01 で次段判定
@@ -441,12 +466,20 @@ export function tickFlameUpperQueue(p) {
   // 発火フェーズ：mid > 0 なら mid、0 なら final 発射
   if ((p._flameQMids ?? 0) > 0) {
     const ok = startSpecial(p, _flameMidId(p));
-    if (ok) p._flameQMids--;
+    if (ok) {
+      p._flameQMids--;
+      p._flameQStallFrames = 0;
+    } else {
+      // mid 発火が連続失敗（airUsedSpecialIds / cooldown 等）するとキューが永遠に残る。
+      // 60F 経っても出ないなら諦めて全リセット → 次の単押しが新規扱いになる。
+      p._flameQStallFrames = (p._flameQStallFrames ?? 0) + 1;
+      if (p._flameQStallFrames > 60) _resetFlameQueue(p);
+    }
     return;
   }
-  // 最終段
+  // 最終段：出し切ったら全フィールド完全リセット（次の単押しが新規キュー扱いになるように）
   startSpecial(p, _flameFinalId(p));
-  p._flameQActive = false; p._flameQStarted = false;
+  _resetFlameQueue(p);
 }
 
 // FLAME UPPER 中はキャラを他技で割り込ませない（windup / mid 中・final は通常 SP2 同等で扱う）

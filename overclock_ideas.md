@@ -368,9 +368,14 @@ DoT・属性派生効果はコンボにカウントしないが、**コンボタ
 
 - **BRN-e09. PYRO BEAM** [×1] — **【SP1 性能変化】** SP1 地上ビーム（`c01_sp_01`）命中時、弾道に**炎残留エリア**（短時間・触れた敵に点火）。"撃ち抜いた線が燃える" 演出。`damage-area.js` 流用想定
 - **BRN-e10. THERMAL LANCE** [×1] — **【SP1 性能変化】** SP1 空中パイルバンカー（`c01_sp_01_air`）最終段命中時、突き刺し点から**放射状に火の粉飛散**（小範囲・触れた敵に点火）
-- **BRN-e11. FLAME UPPER** [×1] — **【SP2 性能変化】** SP2 を地上・空中ともに3ヒット化（`c01_sp_02_short` / `c01_sp_02_short_air` 両方）+ 各ヒットで延焼付与。単発アッパー → 連続多段になり、ダメージ・コンボ寄与・体感が底上げされる
-  - 接続点：SP2 攻撃定義の hit カウント拡張 + 各ヒットフレームで延焼トリガー
-  - 差別化：BRN-l05 POWDER SHORYUKEN（多段4ヒット昇竜化・Legendary）とは「3ヒット増幅 (Epic) vs 4ヒット技格上げ (Legendary)」で住み分け
+- **BRN-e11. FLAME UPPER** [×1] — **【SP2 性能変化・v4 キュー思想】** SP2 を「windup → 連打入力で挿入される短いアッパー（mid）→ 最終段 launcher」のキュー構造に置換。
+  - **押し放置（単押し）**：18F windup → `c01_sp_02_short_flame_final`（launcher・自機浮上）のみ発火
+  - **連打**：windup 中／mid 中の追加 ↑K を最大 3 回まで蓄積 → mid×N → final
+  - mid（`c01_sp_02_short_flame_mid` / `_air_flame_mid`）：atk_lv 2 / hitFrame 6 / knockbackY 6 / 各ヒットで延焼付与
+  - final（`c01_sp_02_short_flame_final` / `_air_flame_final`）：通常 SP2 short 同等の launcher・自機 plyrLiftVy 24 で浮上
+  - キュー中（windup / mid 進行中）は他技（J / SP1 / SP3 / 派生 J / 掴み / ダッシュ）割り込み禁止／メガクラのみキュー破棄して優先
+  - burst 判定対象外（一連のコンボ扱い）/ comboRoute 記録対象外
+  - 差別化：BRN-l05 POWDER SHORYUKEN（多段4ヒット昇竜化・Legendary）とは「キュー構造 + 延焼 (Epic) vs 4ヒット技格上げ (Legendary)」で住み分け
 - **BRN-e12. ASH PLUME** [×1] — **【SP2 性能変化】** SP2 命中後、上昇軌道に**火の粉柱**が一定時間残る。後続攻撃が触れると追加点火
 - **BRN-e13. GROUND TREMOR** [×1] — **【SP3 性能変化】** SP3（`c01_sp_03`）命中時、地面を伝う**炎の波**が前方短距離進行（線状ダメ + 点火）。BRN-e08 MAGMA VENT との差別化＝点ではなく線方向に走る
 - **BRN-e14. FAULT LINE** [×1] — **【SP3 性能変化】** SP3 が延焼中の敵に当たると tick ダメ ×2 ＋ クリ判定（"焼け切る" 専用相互作用）。点火源ではなく増幅枠
@@ -689,7 +694,7 @@ OC 選択画面に SKIP カードあり。プレイヤーが「2 枚どっちも
 
 | SP | カード | 効果概要 | 実装状況 |
 |----|--------|---------|---------|
-| SP2 | **BRN-e11 FLAME UPPER** | 【SP2 性能変化】v4 キュー思想で再構築（押し放置=launcher のみ・連打=合間に short upper 挿入最大3）+ 各ヒット点火 | **🟡 実装中（2026-05-28・残問題あり）** |
+| SP2 | **BRN-e11 FLAME UPPER** | 【SP2 性能変化】v4 キュー思想で再構築（押し放置=launcher のみ・連打=合間に short upper 挿入最大3）+ 各ヒット点火 | **🟡 実装中（2026-05-28・出し切り後リセット & 掴み/ダッシュ/メガクラ ロック対応済 / 実機検証待ち）** |
 | SP3 | **BRN-e08 MAGMA VENT** | 【SP3 性能変化】命中地点に地面マグマ設置（残留・KB付） | 未実装 |
 | SP4 | **BRN-l04 SOLAR FLARE** | 【SP4 性能変化・stage2 解放】stage2 命中で周囲炎フィールド5秒 | 未実装 |
 
