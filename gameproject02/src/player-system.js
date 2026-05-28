@@ -582,6 +582,15 @@ function canStartSpecial(p, opts) {
   // 連続用 RC スライド中も SP 開始可（次スロットの RC を即座に繰り出せるように）
   if (p.state === STATE.combo_rc_slide) return true;
   if (p.state === STATE.attacking) {
+    // CHN-e01 c01_sp_03_leap 中：別 SP へのキャンセルは「飛び跳ねの頂上付近」以降のみ許可。
+    //   cancelWindowStart 14 = diveStartFrame（leap 頂上）。それより前は SP キャンセル拒否。
+    //   疑似空中ジャンプ用途として、跳ぶ前の前ジャンプ予備動作中の擦り上げ防止。
+    if (p.attackId === 'c01_sp_03_leap') {
+      const _atk = ATTACKS[p.attackId];
+      const _elapsed = (_atk?.duration ?? 0) - (p.stateTimer ?? 0);
+      if (_elapsed < (_atk?.cancelWindowStart ?? 14)) return false;
+      return true;  // 頂上以降は hitDelivered 不要で即キャンセル可
+    }
     // 攻撃中からの SP キャンセルはヒット確認必須。
     //   ★空中の場合：本攻撃が当たってなくても airHitOccurred（同ジャンプ中の SP ヒット履歴）があれば許可。
     //   これで「SP2 ヒット → SP1 whiff → SP3」のような連鎖を可能にする（2026-05-26）。
@@ -623,6 +632,10 @@ function canStartSP2ForRC(p) {
 // 必殺技 ID の正規化：地上/空中の派生は同じ base として 1 コンボ 1 回ルールを共有する
 //   例: 'c01_sp_01' と 'c01_sp_01_air' は同じ base 'c01_sp_01' として扱う
 function specialBaseId(id) {
+  // 攻撃定義側で baseSpecialId を明示宣言していればそれを優先（2026-05-28・OC 変種で suffix regex 越えの統合用）。
+  //   例：c01_sp_03_leap / c01_sp_03_leap_land を 'c01_sp_03' に統合 → 連発時のバースト回避。
+  const _explicit = ATTACKS[id]?.baseSpecialId;
+  if (_explicit) return _explicit;
   // 派生サフィックスを順に剥がす：_air → _NN（チャージ段階）→ 基底 ID
   // 例: c01_sp_04_02_air → c01_sp_04_02 → c01_sp_04
   // burst トリガ（敵単位 1 回制限）は基底 ID で共有させたいので
@@ -721,7 +734,10 @@ function startSpecial(p, id) {
   p._specialFireIds[baseId] = id;  // 地上⇄空中クロス判定用：直近の発動 id を記録
   // 必殺技終了直後の振り向き禁止：duration + 40F の間 facing を固定
   // SP2 等は着地余韻まで「キャラが前向きのまま」見せたい（最終ヒット失敗の振り向き混乱対策）
-  p._facingLockUntil = getGameFrame() + _atkDur + 40;
+  // attack 側で facingLockFrames を明示宣言していればそちらを優先（長 duration 技の固定 lock 廃止）。
+  //   例：c01_sp_03_leap は duration 120 だが land 後即反対方向へ撃てるよう facingLockFrames: 30 を指定。
+  const _atkLock = ATTACKS[id]?.facingLockFrames;
+  p._facingLockUntil = getGameFrame() + ((_atkLock !== undefined) ? _atkLock : (_atkDur + 40));
   p.specialFlashTimer  = SPECIAL_CONFIG.FLASH_FRAMES;
   // チャージは消費しない：J 押しっぱなしで他 SP を撃った場合に蓄積を保持して
   // 後から J リリースで sp_03 を連結できるようにする。sp_03 自身を J リリース
@@ -906,10 +922,37 @@ export function processStrongAttackInput(p) {
   if (!canStartSpecial(p)) return;
 
   let baseId;
-  if (dnHeld) baseId = 'c01_sp_03';
-  else        baseId = window.SB?.OC_FLAGS?.ignite ? 'c01_sp_01_ignite' : 'c01_sp_01';
+  if (dnHeld) {
+    // OC CHN-e01 飛び上がり SP3：地上・空中ともに leap up + 膝 + 急降下 + 着地衝撃波（同挙動）。
+    //   2026-05-28 仕様確定：地上版と空中版で使い勝手を完全統一する。
+    //   c01_sp_03_leap_land は magmaVentTrigger を持たないので、着地マグマも自動的に出ない。
+    if (window.SB?.OC_FLAGS?.chnLeapSp3) {
+      // 同 SP 着地後 20F ロック：着地直後は再発動不可（疑似空中ジャンプ用途で乱用防止）
+      const _gf = getGameFrame();
+      if (p._leapLandedFrame !== undefined && (_gf - p._leapLandedFrame) < 20) {
+        if (window.SB?.DEBUG_CHN_LEAP_SP3) {
+          console.log(`[CHN-LEAP-SP3 REJECT] landing cooldown gap=${_gf - p._leapLandedFrame} < 20`);
+        }
+        return;
+      }
+      baseId = 'c01_sp_03_leap';
+      if (window.SB?.DEBUG_CHN_LEAP_SP3) {
+        console.log(`[CHN-LEAP-SP3 DISPATCH] grounded=${p.isGrounded} state=${p.state} attackId(before)=${p.attackId} sp=${p.sp.toFixed(1)}`);
+      }
+    } else {
+      baseId = 'c01_sp_03';
+    }
+  } else {
+    baseId = window.SB?.OC_FLAGS?.ignite ? 'c01_sp_01_ignite' : 'c01_sp_01';
+  }
 
-  startSpecial(p, pickSpecialAttackId(baseId, p.isGrounded));
+  // c01_sp_03_leap は地上単独定義（pickSpecialAttackId の _air サフィックス分岐対象外）
+  const targetId = (baseId === 'c01_sp_03_leap') ? baseId : pickSpecialAttackId(baseId, p.isGrounded);
+  const _firedBefore = p.attackId;
+  const ok = startSpecial(p, targetId);
+  if (baseId === 'c01_sp_03_leap' && window.SB?.DEBUG_CHN_LEAP_SP3) {
+    console.log(`[CHN-LEAP-SP3 START] ok=${ok} attackId(after)=${p.attackId} stateTimer=${p.stateTimer} y=${p.y.toFixed(1)} vy=${p.vy.toFixed(2)}`);
+  }
 }
 
 // ============================================================
@@ -1627,7 +1670,22 @@ export function updatePlayer(p) {
     if (p.diveCountdown > 0) {
       p.vy = 0;
       p.diveCountdown--;
-      if (p.diveCountdown === 0) p.vy = ATTACKS[p.attackId]?.diveVy ?? -22;
+      if (p.diveCountdown === 0) {
+        const _diveAtk = ATTACKS[p.attackId];
+        // 空中発動なら diveVyAir 優先（指定があれば）
+        const _dvy = (p._startedAirborneAtAttack && _diveAtk?.diveVyAir !== undefined)
+          ? _diveAtk.diveVyAir
+          : (_diveAtk?.diveVy ?? -22);
+        p.vy = _dvy;
+        p._diveActive = true;
+        // 空中発動なら diveVxAir 優先（指定があれば）
+        const _dvx = (p._startedAirborneAtAttack && _diveAtk?.diveVxAir !== undefined)
+          ? _diveAtk.diveVxAir
+          : _diveAtk?.diveVx;
+        if (_dvx !== undefined) {
+          p.airVx = p.facing * _dvx;
+        }
+      }
     } else {
       // 空中コンボ中＋コンボ後の猶予フレームは重力軽減（拾い直しの余裕）。通常ジャンプには適用しない（2026-05-20）。
       const inAerialCombo = !p.isGrounded && p.attackChainArr !== null;
@@ -1647,7 +1705,29 @@ export function updatePlayer(p) {
       p.vy -= PHYSICS.GRAVITY * pGravFactor;
       // 終端速度クランプ：空中コンボで滞空フレームが長くなると vy が際限なく溜まり、
       // コンボ離脱後に異常な急降下になる事象を抑える（2026-05-19 追加）。
-      if (p.vy < PHYSICS.MAX_FALL_VY) p.vy = PHYSICS.MAX_FALL_VY;
+      //   diveVy 持ち攻撃の急降下中はクランプ免除：CHN-e01 leap が dive 中に -18 で頭打ちになり
+      //   失速して bound 接続崩れる事象の対策（2026-05-28）。
+      const _hasDive = curAtk?.diveVy !== undefined;
+      if (!_hasDive && p.vy < PHYSICS.MAX_FALL_VY) p.vy = PHYSICS.MAX_FALL_VY;
+      // dive 中は重力を無効化して vy を diveVy / diveVyAir に固定 → 直線軌道で斜め下に落ちる（2026-05-29）。
+      //   失速して軌道が湾曲する見た目を防ぐ。p._diveActive ガードで attack 開始直後の plyrLiftVy 上昇を潰さない。
+      if (_hasDive && p._diveActive) {
+        const _dvy = (p._startedAirborneAtAttack && curAtk?.diveVyAir !== undefined)
+          ? curAtk.diveVyAir
+          : curAtk?.diveVy;
+        if (_dvy !== undefined) p.vy = _dvy;
+      }
+      // dive 中（diveCountdown===0 で diveVx 持ち）は AIR_FRICTION で減衰する airVx を毎フレーム再付与
+      //   c01_sp_03_leap 高高度発動時、長い dive で airVx が減衰しきって失速 → 前方着地できない問題対策（2026-05-28）。
+      //   ただし body hit がまだ 1 発も当たってない（空振り状態）の時は再付与しない：
+      //   敵を捉えていない時の永続前進で「空振りすると前方へすごい飛んでいく」事故防止（2026-05-29）。
+      const _bodyHitLanded = (p._bodyHitsFired ?? 0) > 0;
+      if (_hasDive && curAtk?.diveVx !== undefined && p._diveActive && _bodyHitLanded) {
+        const _dvxRe = (p._startedAirborneAtAttack && curAtk?.diveVxAir !== undefined)
+          ? curAtk.diveVxAir
+          : curAtk.diveVx;
+        p.airVx = p.facing * _dvxRe;
+      }
     }
     p.y += p.vy;
     // 受け身：上昇から頂点（vy<=0）に達したら無敵終了

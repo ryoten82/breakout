@@ -118,6 +118,21 @@ export function startAttackById(p, id, chainIdx) {
   p._sameAtkCounted = false;
   // 着地ゲイザー：新攻撃開始でリセット（二重発火防止フラグ）
   p._landGeyserFired = false;
+  // autoLandGeyser「一度離地した」履歴：新攻撃開始でリセット
+  //   地上スタートでも一度上昇 → 着地 のサイクルを正しく検知するため
+  p._airborneDuringAttack = !p.isGrounded;
+  // 本体ヒット（dive 中の自機 body hitbox・CHN-e01 leap 用カスタム）の発火カウンタ
+  p._bodyHitsFired = 0;
+  // 攻撃発動時の grounded 状態を記録（空中発動なら body hit を 2-3 連発で敵をロック）
+  p._startedAirborneAtAttack = !p.isGrounded;
+  // dive 実発生中フラグ：divePause 経過後に true。重力クランプ等の dive 専用処理ガード用。
+  p._diveActive = false;
+  // CHN-e01 leap シーケンスの burst カウント：1 シーケンスにつき敵 1 体 1 回。
+  //   c01_sp_03_leap 開始でリセット → 後続の c01_sp_03_leap_land では維持（同シーケンス扱い）。
+  if (id === 'c01_sp_03_leap') {
+    if (!p._leapBurstCountedFor) p._leapBurstCountedFor = new Set();
+    else p._leapBurstCountedFor.clear();
+  }
   // 地面AoEリング：前の攻撃のリングが残っていればクリア
   if (p._aoeRingId != null) { removeArea(p._aoeRingId); p._aoeRingId = null; }
   // shockwaveEffect 技（SP3 など）：攻撃開始と同時に射程リングを床に表示（予兆）
@@ -133,7 +148,10 @@ export function startAttackById(p, id, chainIdx) {
   // MAGMA VENT 用：新攻撃インスタンスにつき 1 回だけ vent を設置（複数敵巻き込みでも 1 個）
   p._magmaVentSpawned = false;
   // 急降下技：発動時はホバー（vy=0）→ divePause F 後に急降下
-  if (ATTACKS[id].diveVy !== undefined && !p.isGrounded) {
+  //   diveStartFrame 指定技（c01_sp_03_leap 等）は遅延 dive なので、発動瞬間の dive 突入は **スキップ**。
+  //   旧 c01_sp_03_air（diveStartFrame 無し）は従来通り即 dive 突入で legacy 挙動維持。
+  if (ATTACKS[id].diveVy !== undefined && !p.isGrounded &&
+      ATTACKS[id].diveStartFrame === undefined) {
     p.vy = 0;
     p.diveCountdown = ATTACKS[id].divePause ?? 0;
   }
@@ -146,9 +164,19 @@ export function startAttackById(p, id, chainIdx) {
   if (ATTACKS[id].plyrLiftVx !== undefined) {
     p.airVx = p.facing * ATTACKS[id].plyrLiftVx;
   }
-  const _plyrLiftDelay = ATTACKS[id].plyrLiftVyDelay ?? 0;
-  if (ATTACKS[id].plyrLiftVy !== undefined && _plyrLiftDelay === 0) {
-    p.vy = Math.max(p.vy, ATTACKS[id].plyrLiftVy);
+  // 空中発動の場合は屈み delay をスキップして即上昇（前ジャンプ感覚を出すため）。
+  //   c01_sp_03_leap 等の delay 付き leap 技を air から撃つと、屈み 5F の間に airVx だけ進んで
+  //   「正面に滑る」絵になる問題の対策（2026-05-28）。
+  const _plyrLiftDelayRaw = ATTACKS[id].plyrLiftVyDelay ?? 0;
+  const _plyrLiftDelay = p.isGrounded ? _plyrLiftDelayRaw : 0;
+  // 空中専用 plyrLiftVy 上書き：地上の高跳びをそのまま使うと空中発動時高すぎ → plyrLiftVyAir で控えめに。
+  const _plyrLiftVy = (!p.isGrounded && ATTACKS[id].plyrLiftVyAir !== undefined)
+    ? ATTACKS[id].plyrLiftVyAir
+    : ATTACKS[id].plyrLiftVy;
+  p._plyrLiftAppliedAtStart = false;
+  if (_plyrLiftVy !== undefined && _plyrLiftDelay === 0) {
+    p.vy = Math.max(p.vy, _plyrLiftVy);
+    p._plyrLiftAppliedAtStart = true;
     if (p.isGrounded) p.isGrounded = false;  // 地上発動なら離地
   }
   // 空中滞空攻撃（airGravFactor 指定）：発動時に vy を airStartVy へリセット。
@@ -243,9 +271,10 @@ export function updateAttack(p) {
   const elapsed = atk.duration - p.stateTimer;
 
   // === 遅延 plyrLiftVy 発火（粉塵昇竜パターン：前進フェーズ → 指定フレームで上昇）===
+  //   開始時に既適用（空中発動で _plyrLiftAppliedAtStart=true）ならスキップして二重適用回避。
   if (atk.plyrLiftVy !== undefined &&
       atk.plyrLiftVyDelay !== undefined && atk.plyrLiftVyDelay > 0 &&
-      elapsed === atk.plyrLiftVyDelay) {
+      elapsed === atk.plyrLiftVyDelay && !p._plyrLiftAppliedAtStart) {
     p.vy = Math.max(p.vy, atk.plyrLiftVy);
     if (p.isGrounded) p.isGrounded = false;
   }
@@ -333,6 +362,9 @@ export function updateAttack(p) {
       if (hitIdx < total) {
         const isLast = (hitIdx === total - 1);
         const hit = tryHitEnemiesMultiHit(p, atk, isLast, _hitCtx);
+        if (window.SB?.DEBUG_CHN_LEAP_SP3 && (p.attackId === 'c01_sp_03_leap')) {
+          console.log(`[CHN-LEAP-SP3 HIT] idx=${hitIdx}/${total - 1} isLast=${isLast} hit=${hit} elapsed=${elapsed} py=${p.y.toFixed(1)} pvy=${p.vy.toFixed(2)}`);
+        }
         if (hit) {
           p.hitDelivered = true;
           if (!p.isGrounded) p.airHitOccurred = true;   // 空中ヒット成立フラグ（着地でクリア・SP→SP whiff チェーン許可）
@@ -383,10 +415,70 @@ export function updateAttack(p) {
     }
   }
 
+  // === 本体ヒット（dive 中の自機 body hitbox・CHN-e01 leap 用カスタム）===
+  // 主ヒット（hitFrame＝膝蹴り）とは別の窓 / 別 atk_lv で発火する。
+  // 該当フィールド：bodyHitFrame / bodyHitDuration / bodyAtkLv / bodyAtkLvAir / bodyAtkLvDown
+  //   / bodyDamage / bodyKnockback / bodyRangeX/Y/Z / bodyHitColor / bodyHitCount
+  //   / bodyMaxHits（地上発動時の最大ヒット数）/ bodyMaxHitsAir（空中発動時）/ bodyHitInterval
+  // 空中発動時は連続ヒットで敵をロック → 自機が高高度から降りても bound 接続が崩れない（2026-05-28）。
+  const _bodyMaxHits = p._startedAirborneAtAttack
+    ? (atk.bodyMaxHitsAir ?? atk.bodyMaxHits ?? 1)
+    : (atk.bodyMaxHits ?? 1);
+  const _bodyInterval = atk.bodyHitInterval ?? 6;
+  const _bodyFired = p._bodyHitsFired ?? 0;
+  if (atk.bodyHitFrame !== undefined && _bodyFired < _bodyMaxHits &&
+      elapsed >= atk.bodyHitFrame &&
+      elapsed <  atk.bodyHitFrame + (atk.bodyHitDuration ?? 6) &&
+      ((elapsed - atk.bodyHitFrame) % _bodyInterval) === 0) {
+    const bodyAtk = {
+      ...atk,
+      damage:     atk.bodyDamage     ?? atk.damage,
+      knockback:  atk.bodyKnockback  ?? atk.knockback,
+      rangeX:     atk.bodyRangeX     ?? atk.rangeX,
+      rangeY:     atk.bodyRangeY     ?? atk.rangeY,
+      rangeZ:     atk.bodyRangeZ     ?? atk.rangeZ,
+      atk_lv:     atk.bodyAtkLv      ?? atk.atk_lv,
+      atk_lv_air: atk.bodyAtkLvAir   ?? atk.atk_lv_air,
+      atk_lv_down: atk.bodyAtkLvDown, // 未指定なら undefined（ダウン中の敵には当たらない）
+      hitColor:   atk.bodyHitColor   ?? atk.hitColor,
+      hitCount:   atk.bodyHitCount   ?? atk.hitCount,
+      hitstop:    atk.bodyHitstop    ?? 4,
+      shake:      atk.bodyShake      ?? 4,
+      // lv 3 既定 vy=12 (上向き) を下向き override：自機と一緒に斜め下に突っ込ませる
+      // 2026-05-28: kb_vx_mult_lv3 1.5→2.8（敵の前方 KB 強化・着地点を前にズラして座標分離）
+      // 2026-05-29: 高高度発動時に自機 dive -28 と差で敵が空中に取り残される → 自機 dive 速度に合わせる
+      //   _startedAirborneAtAttack なら diveVyAir 相当の -28、地上なら従来通り -12 で控えめ。
+      // 2026-05-29: 空中版は kb_vx_mult_lv3 を 2.8 → 4.0 で更に前方 KB 強化（追い抜き → 重なり対策）。
+      kb_vy_lv3:      atk.bodyKbVyLv3      ?? (p._startedAirborneAtAttack ? -28 : -12),
+      kb_vx_mult_lv3: atk.bodyKbVxMultLv3 ?? (p._startedAirborneAtAttack ? 4.0 : 2.8),
+      // 別ヒットなので launcher / launchVy / attrGroup は持ち越さない
+      launcher:   false,
+      launchVy:   undefined,
+      launchVyAirborne: undefined,
+      attrGroup:  undefined,
+      singleTarget: atk.bodySingleTarget ?? false,
+    };
+    // 2026-05-28 改：斜め突っ込みコンセプト維持のため airVx 停止は廃止。
+    //   敵が lv 3 (down_front) で前方に飛ばされる + 自機は diveVx でそのまま突っ込む形。
+    if (tryHitEnemies(p, bodyAtk, _hitCtx)) {
+      p._bodyHitsFired = _bodyFired + 1;
+    }
+  }
+
   // === 着地ゲイザー：autoLandGeyser 技が着地した瞬間に地上ゲイザーを自動発火 ===
-  if (atk.autoLandGeyser && p.isGrounded && !p._landGeyserFired) {
+  //   "一度離地した" 履歴を p._airborneDuringAttack で記録し、再度 grounded になった時のみ発火。
+  //   これにより地上発動 leap → 上昇 → 急降下 → 着地 の流れでも 1 サイクルで正しく動く。
+  //   旧挙動：地上発動だと離地前に即発火していた（c01_sp_03_leap 即衝撃波バグ・2026-05-28 修正）。
+  if (!p.isGrounded) p._airborneDuringAttack = true;
+  if (atk.autoLandGeyser && p.isGrounded && p._airborneDuringAttack && !p._landGeyserFired) {
     p._landGeyserFired = true;
-    startAttackById(p, 'c01_sp_03_land', -1);
+    // 同 SP 着地後ロック：c01_sp_03_leap 着地 = leap 再発動禁止フレーム記録（20F は player-system 側で判定）
+    if (p.attackId === 'c01_sp_03_leap') {
+      p._leapLandedFrame = _getGameFrameFnForMegaGrace ? _getGameFrameFnForMegaGrace() : 0;
+    }
+    // autoLandGeyserId で発火対象を override 可（c01_sp_03_leap は専用版 c01_sp_03_leap_land を使う）
+    const _landId = atk.autoLandGeyserId ?? 'c01_sp_03_land';
+    startAttackById(p, _landId, -1);
     return;
   }
 

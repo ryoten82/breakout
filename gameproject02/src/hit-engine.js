@@ -1022,9 +1022,17 @@ export function tryHitEnemies(p, attack, ctx) {
       p.attackId === 'c01_sp_02_short_flame_final' ||
       p.attackId === 'c01_sp_02_air_flame_final'
     );
+    // CHN-e01 leap chain（膝 + 多段 body + 着地衝撃波）は 1 シーケンスにつき敵 1 体 1 カウント扱い。
+    //   個別ヒット（knee / body×N / smash）の全部をカウントすると 1 回で burst 到達してしまうため、
+    //   leap シーケンス内では p._leapBurstCountedFor で「既にカウント済の敵」をスキップする（2026-05-29）。
+    const _isLeapChainAtk = (
+      p.attackId === 'c01_sp_03_leap' ||
+      p.attackId === 'c01_sp_03_leap_land'
+    );
+    const _leapAlreadyCountedThisSeq = _isLeapChainAtk && p._leapBurstCountedFor && p._leapBurstCountedFor.has(e);
     let _spDuplicateOnThisEnemy = false;
     let _spBaseIdForMark = null;
-    if (attack.isSpecial && p.attackId && !_isFlameChainAtk) {
+    if (attack.isSpecial && p.attackId && !_isFlameChainAtk && !_leapAlreadyCountedThisSeq) {
       const _aid = p.attackId;
       _spBaseIdForMark = _aid.endsWith('_air') ? _aid.slice(0, -4) : _aid;
       // 敵単位カウント：specialHitBy Map<baseId, count>。LIMIT 回目のヒットで burst（2026-05-20）。
@@ -1040,8 +1048,10 @@ export function tryHitEnemies(p, attack, ctx) {
     //   route のクリア：敵 wait01 復帰時 / メガクラ被弾時（mega は意図的なリセット手段）。
     //   SA 中はルート記録自体を行わない（カウントに積み上げて唐突バーストを起こさない）。
     let _loopDetectedLen = 0;
-    // FLAME UPPER チェーンは comboRoute / aggregateRoute にも追加しない（一連のコンボ扱い・loop 検出対象外）
-    if (p.attackId && !_bossInSA && !_isFlameChainAtk) {
+    // FLAME UPPER / CHN-e01 leap チェーンは comboRoute / aggregateRoute 対象外（一連のコンボ扱い・loop 検出対象外）
+    // ※leap は per-sequence で 1 回はカウントしたいので「既カウント以外の最初の 1 ヒット」のみ通す。
+    if (p.attackId && !_bossInSA && !_isFlameChainAtk &&
+        !(_isLeapChainAtk && _leapAlreadyCountedThisSeq)) {
       if (!p._routeAppendedFor) p._routeAppendedFor = new Set();
       if (!p._routeAppendedFor.has(e)) {
         if (!e.comboRoute) e.comboRoute = [];
@@ -1119,6 +1129,11 @@ export function tryHitEnemies(p, attack, ctx) {
       if (!e.specialHitBy || typeof e.specialHitBy.get !== 'function') e.specialHitBy = new Map();
       const _prev = e.specialHitBy.get(_spBaseIdForMark) ?? 0;
       e.specialHitBy.set(_spBaseIdForMark, _prev + 1);
+      // leap シーケンスはここで「このシーケンス内で 1 回カウント済」を記録 → 続く body/smash はスキップ。
+      if (_isLeapChainAtk) {
+        if (!p._leapBurstCountedFor) p._leapBurstCountedFor = new Set();
+        p._leapBurstCountedFor.add(e);
+      }
     }
     // ── ボス常時SA：カウンター制（5発吸収→6発目でknockback01・コンボ切れでリセット）──
     // bossSAStunTimer>0（RC 成功 / ULT 命中）時は SA 解除して通常ディスパッチへ。
@@ -1157,10 +1172,22 @@ export function tryHitEnemies(p, attack, ctx) {
         e.downTimer   = ENEMY_DOWN_BOUND_FRAMES;
         e.knockbackVx = 0;
       } else if (lv === 7) {
-        e.state       = STATE.knockback03;
-        e.downTimer   = ENEMY_KB03_FRAMES;
-        e.vy          = KB_LV07_HOP_VY;   // 小バウンド（ダウン姿勢のまま少し浮く）
-        e.knockbackVx = 0;
+        // launchVy 持ち技で lv 7（拾い）に到達した場合は、軽 hop ではなく本格 launch に切替（2026-05-29）。
+        //   理由：CHN-e01 leap の knee で起き上がり際の down_bas_end 敵を拾うと knockback03 hop だけで終わり、
+        //   後段の body / smash chain に乗らなかった問題への対処。
+        if (attack.launchVy) {
+          e.state            = STATE.down_up_start;
+          e.vy               = attack.launchVy;
+          e.downTimer        = ENEMY_FALL_FRAMES;
+          e.knockbackVx      = 0;
+          const _r           = resolveAttackAttr(attack);
+          e.launcherAirborne = !!_r.peakHang;
+        } else {
+          e.state       = STATE.knockback03;
+          e.downTimer   = ENEMY_KB03_FRAMES;
+          e.vy          = KB_LV07_HOP_VY;   // 小バウンド（ダウン姿勢のまま少し浮く）
+          e.knockbackVx = 0;
+        }
       }
     } else if (e.bossStun && e.isBoss) {
       // === ボススタン中：launchVy / lv 高位の打ち上げ・打ち下ろしを KB1/KB2 に降格 ===
@@ -1309,8 +1336,10 @@ export function tryHitEnemies(p, attack, ctx) {
         }
       } else if (lv === 3) {
         // 吹き飛び（汎用後方ブロー）
-        e.vy           = KB_LV03_VY;
-        e.knockbackVx *= KB_LV03_VX_MULT;
+        // 攻撃側で kb_vy_lv3 / kb_vx_mult_lv3 を上書き可能（lv3 専用・2026-05-28 追加）
+        //   用途：CHN-e01 leap の body hit で敵を斜め下に押す（既定上向きを下向きに）
+        e.vy           = attack.kb_vy_lv3      ?? attack.kb_vy      ?? KB_LV03_VY;
+        e.knockbackVx *= attack.kb_vx_mult_lv3 ?? attack.kb_vx_mult ?? KB_LV03_VX_MULT;
         e.state       = STATE.down_front_start;
         e.downTimer    = Math.round(ENEMY_DOWN_FRONT_FRAMES * (attack.kbTimeMult ?? 1.0));
       } else if (e.y > ENEMY_AIRBORNE_Y_THRESHOLD) {
@@ -1339,6 +1368,15 @@ export function tryHitEnemies(p, attack, ctx) {
       }
       applyHitInitialPitch(e);
       }  // end else (通常 atk_lv ディスパッチ)
+    }
+    // === forceBoundDown：attack.forceBoundDown:true なら敵 state を強制的に down_bound_start へ ===
+    //   通常 dispatch 後に上書きするため、enemy が down_front/_bas/_rakka どれにいても
+    //   バウンドダウン演出に統一できる。CHN-e01 leap の land smash で使用（2026-05-28）。
+    if (attack.forceBoundDown && !e.dying) {
+      e.state       = STATE.down_bound_start;
+      e.vy          = KB_LV05_BOUNCE_VY;
+      e.downTimer   = ENEMY_DOWN_BOUND_FRAMES;
+      e.knockbackVx = 0;
     }
     // 空中の敵へのヒット：敵もホップで浮遊継続(非打ち上げ技共通・地上技でも適用)
     // ※叩きつけ/吹き飛ばし系はホップで vy を上書きされたくないので除外

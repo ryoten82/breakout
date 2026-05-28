@@ -234,6 +234,119 @@ export const ATTACKS = {
     showHitbox:   true,
     partsAnim:    'slam_down',
   },
+  // ── OC CHN-e01「飛び上がり SP3」（2026-05-28 新規）───────────────────
+  // チェーン軸 SP3 完全置換 OC。SP3 を「自機 leap up + 多段ヒット + 最終段 launcher」に再設計し、
+  // 空中コンボの起点 / 締めに使えるようにする。粉塵昇竜（c01_sp_02）の SP3 版イメージ。
+  //   - 自機は plyrLiftVy で leap up
+  //   - 3 ヒット（中間2 + launcher1）の multi-hit
+  //   - 最終ヒットで打ち上げ（launcher / launchVy）
+  // OC CHN-e01「飛び上がり SP3」(2026-05-28 ユーザー仕様確定)：
+  //   フレーム構成（2 ヒット 2 フェーズ）：
+  //     frame  1- 5  : 屈み（windup・無敵動作なし）
+  //     frame  5     : plyrLiftVy/Vx 起動 → 前方ジャンプ離地
+  //     frame  6     : hitFrame = 上り際に膝蹴り（1 ヒット）
+  //     frame 14     : diveStartFrame → vy = 0 で divePause 開始（空中静止）
+  //     frame 14-22  : 8F ホバー
+  //     frame 22+    : diveVy = -28 で前方の地面に急降下
+  //     着地瞬間     : autoLandGeyser → c01_sp_03_land 自動発火（腕叩きつけ + 衝撃波・既存資産再利用）
+  c01_sp_03_leap: {
+    label:        'c01_sp_03_leap (METEO CHN-e01・飛び上がり SP3・前ジャンプ + 膝 + 急降下)',
+    // 2026-05-28: バースト対策：3 段（膝→body→着地衝撃波）を 1 技として括る → c01_sp_03 ベースに統合。
+    //   これで連発時に同 base 重複ヒット扱いで burst トリガされる事故を防ぐ。
+    baseSpecialId: 'c01_sp_03',
+    duration:     120,                  // 2026-05-29: 60→120 高高度発動で attack 終了前に着地→autoLandGeyser 確実発火
+    hitFrame: 6, hitDuration: 5,
+    cancelWindowStart: 14,  // 頂上付近以降のみ別 SP キャンセル可（疑似空中ジャンプ用途）
+    cancelWindow: 8,
+    facingLockFrames: 30,               // 2026-05-29: duration+40=160F の振り向き lock が長すぎ → 30F に短縮（連射時の方向転換許可）
+    damage:       8,
+    rangeX:       140, rangeZ: 110, rangeY: 200,
+    knockback:    40,   // 2026-05-28: 14→28→40（敵を後方に強く押す・通り抜け抑止）
+    hitstop:      6, shake: 5,
+    atk_lv:       3,                  // 膝蹴り：中フリンチ
+    atk_lv_air:   3,
+    // 2026-05-29: ダウン中の敵にも当たる（lv 7 拾い）= 連発時に「最初の打ち上げが downed 敵に当たらない」事故防止。
+    //   ユーザー spec の "-" を再解釈：ダウン中無視ではなく、拾い直して chain 継続させる。
+    atk_lv_down:  7,
+    // === 軽打ち上げ + peakHang で敵を浮かせて 2 段目に繋ぐ（2026-05-28）===
+    // launchVy 設定で hit-engine 側が atk_lv より優先して down_up_start 経路を取り、敵を浮かせる。
+    // attrGroup: 'LAUNCH_COMBO' で peakHang フラグ立て → 頂点付近で ENEMY_PEAK_HANG_DEPTH まで重力減衰。
+    launchVy:     18,                  // 2026-05-28: 10→18（高さアップ・滞空時間延長）
+    launcher:     true,
+    attrGroup:    'LAUNCH_COMBO',
+    // === Phase 1：前方ジャンプ離地（自機高めに飛ばして 2 段目を追いつかせる）===
+    plyrLiftVy:       30,              // 2026-05-28: 22→30（敵の上昇に追いつくため自機も高く）
+    plyrLiftVyAir:    20,              // 2026-05-28: 空中発動時は控えめに（地面が遠くなって bound 接続が崩れるのを防ぐ）
+    plyrLiftVyDelay:  5,
+    plyrLiftVx:       7,
+    // === Phase 2：頂点付近で空中静止 → 急降下（diveVx で前方推進あり：真下落下回避）===
+    diveStartFrame:   14,
+    divePause:        23,
+    diveVy:           -42,
+    diveVyAir:        -28,             // 2026-05-29: 空中発動時は急降下を控えめに（速すぎ対策）
+    diveVx:           26,              // 地上版：bound 後の追い打ち距離確保
+    diveVxAir:        18,              // 2026-05-29: 空中版は控えめ（追い抜き防止・敵 KB 減衰と同期）
+    // === Phase 2.5：dive 中の自機本体に当たり判定（atk_lv 3/3/-）===
+    bodyHitFrame:     38,              // diveStartFrame 14 + divePause 23 + 1F = 急降下開始直後
+    bodyHitDuration:  60,              // 高高度発動時も着地までカバー（空中マルチヒット用に長め）
+    bodyDamage:       8,
+    bodyKnockback:    36,
+    bodyRangeX:       140, bodyRangeY: 180, bodyRangeZ: 110,
+    bodyAtkLv:        3,
+    bodyAtkLvAir:     3,
+    bodyHitColor:     0xff8822,
+    bodyHitCount:     12,
+    bodySingleTarget: true,
+    // 地上発動：1 ヒットのみ / 空中発動：最大 3 ヒット連発で敵をロック（高高度発動 → 着地までの距離を埋める）
+    bodyMaxHits:      1,
+    bodyMaxHitsAir:   3,
+    bodyHitInterval:  6,               // 6F おきに次ヒット判定（最大 18F 分連続）
+    // === Phase 3：着地で衝撃波（leap 専用版・magmaVent 無し）===
+    autoLandGeyser: true,
+    autoLandGeyserId: 'c01_sp_03_leap_land',  // 標準の c01_sp_03_land ではなく専用版（magmaVentTrigger 無し）
+    aerialHop:    false,
+    cancelToAirJ: false,
+    hitColor:     0xff8822,
+    hitCount:     14,
+    partsAnim:    'air_slam',          // 空中急降下と同系アニメ
+    isSpecial:    true,
+    flashOnStart: true,
+    showHitbox:   true,
+    // 膝蹴り部分は frontal 軸（前方突き出し的なヒット形）
+    repulseAxis:  'frontal',
+    repulseFrameStart: 1, repulseFrameEnd: 14,
+    repulseBox:   { offsetX: 250, offsetY: 200, w: 500, h: 400, d: 180 },
+  },
+  // c01_sp_03_leap_land: leap SP3 専用の着地衝撃波（c01_sp_03_land の派生・magmaVent 無し）
+  //   ユーザー指定 atk_lv 5/5/7（叩きつけ + ダウン中拾い）
+  c01_sp_03_leap_land: {
+    label:        'c01_sp_03_leap_land (METEO CHN-e01 leap 専用着地衝撃波)',
+    baseSpecialId: 'c01_sp_03',  // 2026-05-28: leap の 3 段目もまとめて c01_sp_03 base 扱い（バースト対策）
+    duration:     30, hitFrame: 0, hitDuration: 14, cancelWindow: 8,
+    damage:       12,
+    // 2026-05-29: body hit の強 KB で敵が範囲外まで押し出される事故への対策で X 範囲拡張（173→240）。
+    //   60% 縮小指示は維持しつつ、forceBoundDown 接続を優先。
+    rangeX:       240, rangeZ: 160,
+    rangeY:       180,                 // 浮いた敵も拾える上方向に拡張（旧 50）
+    rangeYDown:   60,
+    knockback:    20,
+    hitstop:      8, shake: 10,
+    atk_lv:       5,
+    atk_lv_air:   5,
+    atk_lv_down:  7,
+    kbRadial:     true,
+    omni:         true,
+    launcher:     false,
+    aerialHop:    false,
+    hitColor:     0xff8822,
+    hitCount:     28,
+    shockwaveEffect: true,
+    forceBoundDown: true,   // 2026-05-28: state を問わず必ず down_bound_start に統一（叩きつけ → バウンド演出）
+    isSpecial:    true,
+    flashOnStart: false,
+    showHitbox:   true,
+    partsAnim:    'slam_down',
+  },
   // ── 旧 c01_sp_03_air（急降下版）温存 ───────────────────────────────
   // 再利用候補：単発重ヒット・dive → 叩きつけの OC 強化版 or 別 SP 枠として。
   // 復帰手順：下のコメントブロックを c01_sp_03_air: { ... } に差し戻すだけ。

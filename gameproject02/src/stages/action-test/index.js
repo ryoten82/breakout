@@ -161,6 +161,7 @@ const ACTION_TEST_AUTO_OC_FLAGS = [
   'chnSp4Instant',   // CHN-e04 SP4 波動拳即発（2026-05-28 実装）
   'brnFlameUpper',   // BRN-e11 FLAME UPPER（2026-05-28 v4 キュー実装・押し放置=最終段 / 連打=mid 挿入最大3）
   'magmaVent',       // BRN-e08 MAGMA VENT（2026-05-28 実装・SP3 命中地点に床マグマ）
+  'chnLeapSp3',      // CHN-e01 飛び上がり SP3（2026-05-28 実装・SP3 完全置換 / leap up + 多段 + 最終 launcher）
 ];
 
 function _applyTestRoomOCFlags() {
