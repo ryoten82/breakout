@@ -393,6 +393,8 @@ export function updateChargeJ(p) {
 //   windup 終了 or mid 完走後：キュー残量 > 0 → mid 発火、0 → final launcher 発火
 const FLAME_QUEUE_WINDUP_FRAMES = 18;
 const FLAME_QUEUE_MAX_MIDS      = 3;
+// 最後の press からこの F 数を超えたら残 mid を捨てて final にスキップ（テール短縮）。
+const FLAME_QUEUE_TAIL_DROP_FRAMES = 18;
 
 // === FLAME UPPER デバッグログ ===
 // window.SB.DEBUG_FLAME_UPPER で ON/OFF。デフォルト ON（残問題の検証中・2026-05-28）。
@@ -456,12 +458,14 @@ export function handleFlameUpperPress(p) {
     p._flameQMidsIssued = 0;
     p._flameQAir     = !p.isGrounded;
     p._flameQStarted = true;
+    p._flameQLastPressFrame = getGameFrame?.() ?? 0;
     _flog('PRESS → NEW queue', p);
     return true;
   }
   // 既存キューに mid 積み増し（累計 MAX_MIDS で打ち切り）
   // 旧バグ：p._flameQMids が fire で減算 → 連打で refill 無限ループ。
   // _flameQMidsIssued（累計発行数）で上限管理に切替（2026-05-28）。
+  p._flameQLastPressFrame = getGameFrame?.() ?? 0;
   const issued = p._flameQMidsIssued ?? 0;
   if (issued >= FLAME_QUEUE_MAX_MIDS) {
     _flog('PRESS → ADD mid CAPPED', p, { issued, max: FLAME_QUEUE_MAX_MIDS });
@@ -493,18 +497,41 @@ export function tickFlameUpperQueue(p) {
     _resetFlameQueue(p, `move/guard:${p.state}${p.guarding?'+guard':''}`);
     return;
   }
-  if (p.state === STATE.attacking || p.state === STATE.hit_confirm) return;
+  // 攻撃中ブロックの例外：flame mid 中で cancel window 内なら次段発火を許可（chain 高速化）。
+  //   旧挙動：mid を全 duration 再生（26F）してから次 → chain 緩慢。
+  //   新挙動：cancelWindowStart（=14F）以降は即次段発火可 → mid 間 14F に短縮。
+  if (p.state === STATE.attacking || p.state === STATE.hit_confirm) {
+    const inFlameMid = (
+      p.attackId === 'c01_sp_02_short_flame_mid' ||
+      p.attackId === 'c01_sp_02_air_flame_mid'
+    );
+    if (!inFlameMid) return;
+    const atk = ATTACKS[p.attackId];
+    const elapsed = (atk?.duration ?? 0) - (p.stateTimer ?? 0);
+    if (elapsed < (atk?.cancelWindowStart ?? Infinity)) return;
+    // cancel window 内：fall through して fire ロジックへ
+  }
   // windup タイマー減算
   if (p._flameQWindup > 0) {
     p._flameQWindup--;
     if (p._flameQWindup === 0) _flog('WINDUP done', p);
     return;
   }
-  // 発火フェーズ
+  // 発火フェーズ：mid > 0 だが「直近 N F に追加 press 無し」なら残 mid を捨てて final へ飛ばす（テール短縮）。
+  //   "触ってなくても空振りが続く" 対策（2026-05-28）：
+  //   ユーザーが press をやめた時点で chain を畳む。閾値は windup と同じ 18F。
   if ((p._flameQMids ?? 0) > 0) {
+    const lastPress = p._flameQLastPressFrame ?? 0;
+    const sinceLast = (getGameFrame?.() ?? 0) - lastPress;
+    if (sinceLast > FLAME_QUEUE_TAIL_DROP_FRAMES) {
+      _flog('TAIL DROP → skip to final', p, { sinceLast, threshold: FLAME_QUEUE_TAIL_DROP_FRAMES, droppedMids: p._flameQMids });
+      p._flameQMids = 0;
+      // 次のフレームで最終段が走る（fall through せずに return）
+      return;
+    }
     const midId = _flameMidId(p);
     const ok = startSpecial(p, midId);
-    _flog(ok ? 'FIRE mid OK' : 'FIRE mid FAIL', p, { midId, midsBefore: p._flameQMids });
+    _flog(ok ? 'FIRE mid OK' : 'FIRE mid FAIL', p, { midId, midsBefore: p._flameQMids, sinceLastPress: sinceLast });
     if (ok) {
       p._flameQMids--;
       p._flameQStallFrames = 0;
