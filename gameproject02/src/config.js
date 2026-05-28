@@ -1637,4 +1637,7 @@ export const OVERCLOCK_CARDS = [
   { id: 'IGNITE',      label: '点火',     desc: '必殺技命中 / 敵爆発時に周囲へ延焼を付与', color: '#ff7733', rarity: 'common',    weight: 10 },
   { id: 'SPREAD',      label: '延焼',     desc: '延焼中の敵から周囲へ炎が広がる',         color: '#ff5522', rarity: 'uncommon',  weight: 10 },
   { id: 'CHAIN_BLAST', label: '連鎖爆発', desc: '延焼開始から2秒後に自動爆発・周囲を延焼', color: '#ff2200', rarity: 'rare',      weight: 10 },
+  // ===== チェーン軸（CHN）テスト投入：2026-05-28 OC アイデア部屋から段階移管 =====
+  //   CHN-e04 SP4 波動拳即発：↓→K でチャージ不要に SP4 stage1 を発動
+  { id: 'CHN_SP4_INSTANT', label: '波動拳即発', desc: '↓→K で SP4 stage1 を即発動（チャージ不要）', color: '#aa66ff', rarity: 'rare', weight: 8 },
 ];

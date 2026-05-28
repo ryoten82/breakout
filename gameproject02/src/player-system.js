@@ -287,6 +287,28 @@ export function dirMatchesForFacing(actual, expected, facing) {
   return actual === expected;
 }
 
+// 波動拳コマンド（D → R / DR）が dirHistory に存在するか判定。
+//   K 入力時に true なら「↓→K」シーケンス成立。CHN-e04（SP4 波動拳即発）等で使用。
+//   facing 反転対応：左向き時は D → L になる。
+function _matchesHadoukenCmd(p) {
+  const h = p.dirHistory;
+  if (!h || h.length < 2) return false;
+  let sawDown = false;
+  for (const entry of h) {
+    if (!sawDown) {
+      // D / DR / DL のいずれかを「↓押下」とみなす
+      if (entry.dir === 'D' || entry.dir === 'DR' || entry.dir === 'DL') sawDown = true;
+    } else {
+      // ↓ を踏んだ後で前方（R）または前下（DR）を検出すれば成立
+      if (dirMatchesForFacing(entry.dir, 'R', p.facing) ||
+          dirMatchesForFacing(entry.dir, 'DR', p.facing)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export function updateChargeJ(p) {
   const jHeld = _inp('KeyJ');
   // チャージ可能条件：グラブ/ガード/ULT 中でない。
@@ -624,6 +646,15 @@ export function processStrongAttackInput(p) {
     console.log(`[K PRESS] up=${upH} dn=${dnH} state=${p.state} curAttack=${p.attackId}`);
   }
   // SP2（RC）は canStartSP2ForRC で後処理。SP1/SP3 は後述の canStartSpecial チェックで制限。
+
+  // CHN-e04 波動拳即発：↓→K 検出で SP4 stage1 を即発動（チャージ不要）。
+  //   通常の K 分岐より先にチェック。成立時は stage1（c01_sp_04_01 / _air）へ直行。
+  if (window.SB?.OC_FLAGS?.chnSp4Instant && _matchesHadoukenCmd(p) && canStartSpecial(p)) {
+    const sp4Id = pickSpecialAttackId('c01_sp_04_01', p.isGrounded);
+    if (window.SB?.DEBUG_SPECIAL) console.log(`[CHN-e04] hadouken matched → ${sp4Id}`);
+    startSpecial(p, sp4Id);
+    return;
+  }
 
   const upHeld  = _inp('ArrowUp')    || _inp('KeyW');
   const dnHeld  = _inp('ArrowDown')  || _inp('KeyS');
