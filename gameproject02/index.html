@@ -2995,6 +2995,12 @@
       specialIsDuplicate:   false,     // 今回発動した必殺技が「既に使用済 ID の再発動」かどうか
                                        // → ヒット時に敵を down_burst_* に強制遷移するためのフラグ
       specialFlashTimer:    0,     // 白フラッシュ残フレーム
+      // === スーパーアーマー（SA）===
+      //   攻撃の startup 中（state=attacking かつ elapsed < hitFrame）に被弾しても
+      //   ヒットを吸収（SA Hp 1 消費）。SP4 等の重い溜め技で被弾中断を防ぐ。
+      //   attack.armor = N でセット、damagePlayer がデクリメント、hitFrame 到達で 0 にクリア。
+      playerSAHp:           0,
+      _saArmedAttackId:     null,  // SA を保持中の attackId（state 抜けで自動解除）
       _jWasDownSpecial:     false, // 必殺技用 J エッジ検出（processAttackInput と独立）
 
       // === SP ゲージ ===
@@ -3145,12 +3151,12 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-28 CHN-e04 波動拳の発動キーを K → J に移管（↓→J で SP4 stage1 即発動）';
+    const LAST_UPDATE = '2026-05-28 SP4 stage1/2 に SA 1 を付与（攻撃発生まで 1 ヒット吸収）+ プレイヤー SA フレーム新設';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
     // LAST_UPDATE と同時に更新する運用（feedback_last_update_hud.md §1.5）
-    const TAB_LABEL = '波動J発動';
+    const TAB_LABEL = 'SP4にSA1';
     document.title = TAB_LABEL;
     {
       const _buildInfoEl = document.getElementById('build-info');

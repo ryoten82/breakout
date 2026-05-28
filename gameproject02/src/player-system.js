@@ -516,6 +516,14 @@ function startSpecial(p, id) {
   }
   // ※ 空中必殺技のホップ（空振り含む）は updateAttack の hitFrame タイミングで適用する。
   //    発動瞬間ではなく「攻撃が出る瞬間（パイルバンカー射出など）の反動」として表現するため。
+  // === スーパーアーマー（SA）付与：attack.armor > 0 なら startup 中の被弾を吸収 ===
+  //   damagePlayer 側で playerSAHp > 0 なら無効化 + デクリメント。
+  //   hitFrame 到達（または state 抜け）で updatePlayer が自動クリア。
+  const _atkDef = ATTACKS[id];
+  if (_atkDef?.armor && _atkDef.armor > 0) {
+    p.playerSAHp        = _atkDef.armor;
+    p._saArmedAttackId  = id;
+  }
   // 使用済 ID は地上/空中で共有するため base ID で記録（重複時も add は冪等）
   p.specialUsedIds.add(baseId);
   // 空中使用済み ID を記録（同ジャンプ中の出戻り連打を防ぐ）
@@ -955,6 +963,26 @@ export function updatePlayer(p) {
   // 物理移動セクション後（mvx/mvz 確定後）に「実際に動いていた」なら true に立てる。
   // → 被弾のけぞり後・攻撃終了後にユーザーが新規に移動を入力するまで掴めない。
   if (p.state !== STATE.wait01 && p.state !== STATE.walk_fwd && p.state !== STATE.walk_back) p._grabReady = false;
+
+  // === スーパーアーマー（SA）の自動クリア ===
+  //   armor を持つ攻撃の startup（state=attacking かつ elapsed < hitFrame）でのみ SA 有効。
+  //   hitFrame 到達 / 攻撃キャンセル / state 抜け で playerSAHp をクリアする。
+  if ((p.playerSAHp ?? 0) > 0) {
+    let _saExpire = false;
+    if (p.state !== STATE.attacking || p.attackId !== p._saArmedAttackId) {
+      _saExpire = true;  // state 抜け or 別 attack へ切替 → SA 失効
+    } else {
+      const _saAtk = ATTACKS[p.attackId];
+      const _elapsed = (_saAtk?.duration ?? 0) - (p.stateTimer ?? 0);
+      if (_saAtk && _elapsed >= _saAtk.hitFrame) {
+        _saExpire = true;  // hitFrame 到達 → SA 失効（startup 終了）
+      }
+    }
+    if (_saExpire) {
+      p.playerSAHp       = 0;
+      p._saArmedAttackId = null;
+    }
+  }
 
   // === 被弾中：入力一切受け付けず、hitstun の自動進行のみ走らせて return ===
   if (isHitstunState(p)) {

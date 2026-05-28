@@ -196,6 +196,18 @@ export function damagePlayer(p, attack, source) {
   if (p.ukemiInvuln) return false;        // 受け身上昇中の無敵
   if (p.state === STATE.dying || p.state === STATE.dead) return false;
 
+  // (1.5) スーパーアーマー（SA）吸収：attack.armor を持つ player 攻撃の startup 中。
+  //   playerSAHp が 0 より大なら 1 消費して被弾を完全無効化（ダメージ・KB・state 変更なし）。
+  //   visual：白フラッシュで「SA で受けた」フィードバック。
+  if ((p.playerSAHp ?? 0) > 0) {
+    p.playerSAHp -= 1;
+    // SA 吸収演出：プレイヤー位置に白パーティクル + 短い hitstop
+    if (_spawnHitParticles) _spawnHitParticles(p.x, p.y + 70, p.z, 0xffffff, 12, { type: 'omni' });
+    if (_triggerHitstop) _triggerHitstop(4);
+    if (window.SB?.DEBUG_SPECIAL) console.log(`[SA absorb] hit blocked. remaining=${p.playerSAHp}`);
+    return false;
+  }
+
   // (2) 被弾中は完全無敵（プレイヤー区別化）：吹き飛び中・ダウン中は一切ヒットを受けず
   //   コンボでハメられない。guard_crash はガード崩れの隙なので無敵にしない（反撃を受ける）。
   if (isHitstunState(p) && p.state !== STATE.guard_crash && !attack.multiHit) return false;

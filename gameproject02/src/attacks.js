@@ -699,7 +699,9 @@ export const ATTACKS = {
   c01_sp_04_01: {
     label:        'c01_sp_04_01 (METEO 溜めパンチ・stage1・地上版)',
     // 2026-05-19：発生前硬直 +8F（溜め技は溜めで補えるがリスク付与）
+    // 2026-05-28：armor 1（startup 中 SA 1）追加 — 攻撃発生まで 1 ヒット吸収
     duration:     44, hitFrame: 24, hitDuration: 6, cancelWindow: 16,
+    armor:        1,
     damage:       28,
     rangeX:       220, rangeZ: 140,   // 2026-05-25 rangeX 160→220（狭すぎ緩和）/ rangeZ 140 維持
     rangeY:       130,
@@ -727,7 +729,9 @@ export const ATTACKS = {
   c01_sp_04_01_air: {
     label:        'c01_sp_04_01_air (METEO 溜めパンチ・stage1・空中版)',
     // 2026-05-19：発生前硬直 +8F
+    // 2026-05-28：armor 1（startup 中 SA 1）追加
     duration:     44, hitFrame: 24, hitDuration: 6, cancelWindow: 25,
+    armor:        1,
     damage:       28,
     rangeX:       220, rangeZ: 140,   // 2026-05-25 rangeX 160→220：地上版に同期
     rangeY:       130,
@@ -757,7 +761,9 @@ export const ATTACKS = {
   c01_sp_04_02: {
     label:        'c01_sp_04_02 (METEO 溜めパンチ・stage2 MAX・地上版)',
     // 2026-05-19：発生前硬直 +8F
+    // 2026-05-28：armor 1（startup 中 SA 1）追加 — stage1 と同等の SA 強度
     duration:     48, hitFrame: 26, hitDuration: 7, cancelWindow: 16,
+    armor:        1,
     damage:       32,                       // 2026-05-25 40→32：ULT 同等は強すぎたため stage1(28) と ULT(40) の中間に
     rangeX:       280, rangeZ: 160,         // 2026-05-25 rangeX 200→280（狭すぎ緩和）/ rangeZ 160 維持
     rangeY:       170,                      // 上方向もやや拡張
@@ -786,7 +792,9 @@ export const ATTACKS = {
   c01_sp_04_02_air: {
     label:        'c01_sp_04_02_air (METEO 溜めパンチ・stage2 MAX・空中版)',
     // 2026-05-19：発生前硬直 +8F
+    // 2026-05-28：armor 1（startup 中 SA 1）追加
     duration:     48, hitFrame: 26, hitDuration: 7, cancelWindow: 25,
+    armor:        1,
     damage:       32,                       // 2026-05-25 40→32：地上版と同期
     rangeX:       280, rangeZ: 160,   // 2026-05-25 rangeX 200→280：地上版に同期
     rangeY:       170,
