@@ -155,6 +155,21 @@ function _hide(obj) {
   else obj.visible = false;
 }
 
+// テスト投入対象 OC：アクション部屋では「実装済み」のテスト OC を最初から全部 ON にする。
+//   実装が完了する度にここに ID を追加していく（overclock_ideas.md §2-X と同期）。
+const ACTION_TEST_AUTO_OC_FLAGS = [
+  'chnSp4Instant',   // CHN-e04 SP4 波動拳即発（2026-05-28 実装）
+];
+
+function _applyTestRoomOCFlags() {
+  if (typeof window === 'undefined' || !window.SB) return;
+  if (!window.SB.OC_FLAGS) window.SB.OC_FLAGS = {};
+  for (const flag of ACTION_TEST_AUTO_OC_FLAGS) {
+    window.SB.OC_FLAGS[flag] = true;
+  }
+  console.log('[action-test] OC flags auto-enabled:', ACTION_TEST_AUTO_OC_FLAGS.join(', '));
+}
+
 export function initActionTest(deps) {
   const { scene, THREE, spawnDummy, enemies, ground, backWallPillars, bgElements } = deps;
   if (!scene || !THREE) return;
@@ -168,6 +183,8 @@ export function initActionTest(deps) {
   _hide(backWallPillars);
   _hide(bgElements);
   _buildRoom(scene, THREE);
+  // テスト投入対象 OC を最初から ON：取得しに行かずに挙動確認できる
+  _applyTestRoomOCFlags();
   // ダミー敵 2 体：性格の挙動差（dodge/guard 頻度）を見比べる用に brave / cunning を 1 体ずつ。
   //   頭上ラベル＝橙 BRAVE / 紫 CUNNING。基本 brave 雑魚・基本 cunning 雑魚の調整起点。
   //   死亡したら tickActionTest が同スロットへ即リスポーンする。
