@@ -470,39 +470,26 @@ export const ATTACKS = {
   // 空中版：斜め下方向に発射。rangeY を絞って rangeYDown を大きく取る非対称 hitbox。
   // METEO 固有の挙動（VIPER 等は別の傾向にする予定）。pickSpecialAttackId で地上/空中を分岐
   c01_sp_01_air: {
-    label:        'c01_sp_01_air (METEO 波動コマンド・空中版・パイルバンカー連続ヒット)',
-    // 2026-05-19：発生前硬直 +10F（敵に対するリスク付与・発生に重み）
+    label:        'c01_sp_01_air (METEO 波動コマンド・空中版・パイルバンカー 2 段)',
+    // 2026-05-27 修正：ヒット数 3→2、atk_lv 5/6→3。atklv6 はチェイン軸 OC へ移管予定。
     duration:     36, hitFrame: 20, hitDuration: 6, cancelWindow: 22,
-    // === 連続ヒット：3 段（フレーム 20 / 24 / 28）===
-    // パイルバンカーの「ドリル」感を多段で表現。最終ヒットで叩きつけ or 超吹き飛ばし
+    // === 連続ヒット：2 段（フレーム 20 / 26）===
     isMultiHit:     true,
-    multiHitCount:  3,
-    hitInterval:    4,    // ドリル感のためインターバル短め
-    // 多段の空中保持：中間ヒットで空中の敵をプレイヤー側へ寄せ、落下で最終段を取りこぼさない
+    multiHitCount:  2,
+    hitInterval:    6,    // 2 段になったので間隔を少し広めに
     multiHitVacuum: true,
-    // 空中滞空：撃った反動で直 軽く浮き上がる。沈みは入れない。
-    //   airStartVy で発射時に上方初速 → airGravFactor 緩めの正重力で減速 → ふわっと浮く弧。
-    //   通常重力で落ちると敵を取りこぼし、ビタ止まりだと無機質なため、その中間の手触り。
-    airStartVy:    3,      // 発射時の上方初速（反動で直浮き上がる）
-    airGravFactor: 0.2,    // 緩い正重力（上昇を減速・軽い浮きに収める）
+    airStartVy:    3,
+    airGravFactor: 0.2,
     damagePerHit:   4,
-    damageLastHit:  8,    // 最終 1 発：8 ダメ + atk_lv 5/6 dispatch
-    damage:         16,   // 互換用（4×2 + 8 = 16 総合・旧 14 から微増）
+    damageLastHit:  10,   // 最終 1 発：火力を 8→10 に強化（2 段化補填）
+    damage:         14,   // 互換用（4+10）
     rangeX:       220, rangeZ: 90,
-    rangeY:       30,       // 上方向は薄く
-    rangeYDown:   260,      // 下方向は大きく（斜め下射撃の表現）
-    knockback:    45, hitstop: 8, shake: 6,
-    atk_lv:       5,        // 地上敵：叩きつけ → バウンド（距離は開くがフレーバー優先・カッコよさ重視）
-    atk_lv_air:   6,        // 空中敵：超吹き飛ばし（c01_atk_l_01_air から移管）
-    // atk_lv_down は撤去
-    // === lv 別ベクトル上書き（dispatcher で kb_*_lv5 / kb_*_lv6 を個別参照）===
-    // lv6（空中敵 → 超吹き飛ばし）：後方斜め下に叩きつけ・ほぼ一直線軌道
-    kb_vy_lv6:        -10,
-    kb_vx_mult_lv6:   5.0,
-    kb_vx_decay_lv6:  0.92,
-    // lv5（地上敵 → 叩きつけ）：少し前に落とすくらい・距離は開くがフレーバー
-    kb_vy_lv5:        -8,    // 軽い下向き（既定 -18 より弱め）
-    kb_vx_mult_lv5:   0.5,   // 水平を抑える（既定 0.1 よりは前進・既定 2.5 よりは抑制）
+    rangeY:       30,
+    rangeYDown:   260,
+    knockback:    35, hitstop: 8, shake: 6,
+    atk_lv:       3,        // 2026-05-27 5→3：吹き飛び start（軽め）
+    atk_lv_air:   3,        // 2026-05-27 6→3：超吹き飛ばし剥奪（チェイン軸 OC へ移管予定）
+    // === lv 別ベクトル上書き（lv3 用は標準でカバー・lv5/lv6 用は将来 OC で再追加）===
     hitColor:     0x44ccff,
     hitCount:     22,
     launcher:     false,

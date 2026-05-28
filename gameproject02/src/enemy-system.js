@@ -4657,6 +4657,15 @@ export function updateEnemies(ctx) {
         e.statusStunTimer = 0;
       }
     }
+    // RP 経由の post-KB スタン follow-up（2026-05-27）：
+    //   _triggerRepulseParry が _postKbStunFrames を立てる → KB 系 state（knockback02 /
+    //   knockback_air01 → fall_loop → land）が完了して wait01 に戻った瞬間にここで拾い、
+    //   status_stun を 120F (2 秒) かける。空中で発生した場合も着地→wait01 経由で同じ流れに乗る。
+    if ((e._postKbStunFrames ?? 0) > 0 && e.state === STATE.wait01 && !e.dying) {
+      e.state           = STATE.status_stun;
+      e.statusStunTimer = e._postKbStunFrames;
+      e._postKbStunFrames = 0;
+    }
     // ダウン・被弾ステート機械（タイマー駆動の遷移のみ・tiltAngle は後段で一括計算）
     if (e.state === STATE.down_up_start) {
       if (--e.downTimer <= 0) e.state = STATE.down_up_loop;

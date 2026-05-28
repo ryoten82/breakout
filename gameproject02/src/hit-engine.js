@@ -2105,9 +2105,19 @@ function _triggerRepulseParry(p, e, atk, eAtk) {
     // ボス：kill せず敵 attack は継続させる（連続技以外の単発 RC 用フォールバック）
     //   ボスの SA / 重量級バランスを崩さないため、KB2 にはしない
   } else {
-    // 雑魚：KB2 状態に強制遷移。攻撃中断 + 後方ノックバックで仕切り直し
-    e.state         = STATE.knockback02;
-    e.downTimer     = ENEMY_KB02_FRAMES;
+    // 雑魚：KB2 + 後方ノックバック + 2 秒スタン follow-up（2026-05-27 仕様）
+    //   空中敵（ジャンパー dive 中等）は knockback_air01 から fall→land 経由で着地後にスタン。
+    //   _postKbStunFrames は updateEnemies の post-KB stun check（line ~4654）が
+    //   wait01 復帰時に拾って status_stun へ遷移させる。
+    const _enemyAirborne = e.y > ENEMY_AIRBORNE_Y_THRESHOLD;
+    if (_enemyAirborne) {
+      e.state       = STATE.knockback_air01;
+      e.downTimer   = ENEMY_KB_AIR_FRAMES;
+      e.vy          = 2;     // 軽く浮かして fall→land の経路に乗せる
+    } else {
+      e.state       = STATE.knockback02;
+      e.downTimer   = ENEMY_KB02_FRAMES;
+    }
     e.atkPhase      = null;
     e.atkTimer      = 0;
     e.atkCooldown   = (eAtk?.cooldownFrames ?? 60);
@@ -2116,6 +2126,8 @@ function _triggerRepulseParry(p, e, atk, eAtk) {
     // 後方ノックバック：プレイヤーから離れる方向
     e.knockbackVx   = (e.x >= p.x ? 1 : -1) * 18;
     e.kbDecay       = 0.86;
+    // 2 秒スタン予約：knockback / fall / land 経由で wait01 復帰した瞬間に status_stun へ
+    e._postKbStunFrames = 120;
     applyHitInitialPitch(e);
     // jump_dive 等の aim マーカーが残っていたら撤去（呼べる場合）
     if (typeof e._jdAimTimer === 'number') e._jdAimTimer = 0;
