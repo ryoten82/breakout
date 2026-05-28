@@ -4967,6 +4967,13 @@ export function updateEnemies(ctx) {
     const _hR = ((_bc.head >> 16) & 0xff) / 255;
     const _hG = ((_bc.head >>  8) & 0xff) / 255;
     const _hB = ( _bc.head        & 0xff) / 255;
+    // state が enemy_attacking 外なら chargeT を強制クリア（地雷等の非ヒット経由 KB で
+    // 黄色予兆色が残り続けるバグ修正・2026-05-28）。
+    //   旧実装は hitFlashTimer > 0 のときしか chargeT を消していなかったため、
+    //   プレイヤー攻撃以外の damage（地雷 AOE 等）で KB された時に色が残った。
+    if (e._chargeT > 0 && e.state !== STATE.enemy_attacking) {
+      e._chargeT = 0;
+    }
     if (e.hitFlashTimer > 0) {
       e.hitFlashTimer--;
       // 被弾した瞬間にチャージ発光をキャンセル
@@ -4987,6 +4994,12 @@ export function updateEnemies(ctx) {
     }
     // チャージ発光が active な場合は hitFlash の上書きを戻す（最後に書いて勝つ）
     if (e._chargeT > 0) _setMeshChargeColor(e, e._chargeT);
+    // SA 吸収フラッシュ（2026-05-28）：軽く白く光る・残量に応じて減衰
+    if ((e._saFlashTimer ?? 0) > 0) {
+      e._saFlashTimer--;
+      const _t = Math.min(0.7, e._saFlashTimer / 12 * 0.7);  // ピーク 0.7 で「軽く白」
+      _setMeshChargeColor(e, _t, 0xffffff);
+    }
     // ボススタン中の黒点滅も同じく毎フレーム再適用（hitFlash 等で base color に戻された後）
     //   フィニッシュ RC 後の knockback02 + bossStun 中、視覚的にスタン状態を明示
     if (e.bossStun && (e.bossStunTimer ?? 0) > 0) {

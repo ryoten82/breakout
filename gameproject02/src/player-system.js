@@ -50,7 +50,7 @@ import {
 } from './attack-engine.js';
 import {
   isHitstunState, updatePlayerHitstun,
-  updateCrisisEffect, updateInvincibleBlink,
+  updateCrisisEffect, updateInvincibleBlink, updateSaFlash,
   _cancelHitstunForReversal,
 } from './damage-system.js';
 import { spawnHitParticles } from './hit-engine.js';
@@ -1589,6 +1589,7 @@ export function updatePlayer(p) {
 
   updateCrisisEffect(p);
   updateInvincibleBlink(p);
+  updateSaFlash(p);    // SA 吸収白フラッシュ（残量に応じて tintBody 白）
 
   // === メッシュへ反映 ===
   p.mesh.position.set(p.x, p.y + bobY, p.z);

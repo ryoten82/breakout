@@ -198,10 +198,10 @@ export function damagePlayer(p, attack, source) {
 
   // (1.5) スーパーアーマー（SA）吸収：attack.armor を持つ player 攻撃の startup 中。
   //   playerSAHp が 0 より大なら 1 消費して被弾を完全無効化（ダメージ・KB・state 変更なし）。
-  //   visual：白フラッシュで「SA で受けた」フィードバック。
+  //   visual：白パーティクル + body 軽く白フラッシュ（敵 SA と対の表現）。
   if ((p.playerSAHp ?? 0) > 0) {
     p.playerSAHp -= 1;
-    // SA 吸収演出：プレイヤー位置に白パーティクル + 短い hitstop
+    p.saFlashTimer = 12;   // 体を軽く白く光らせる（updatePlayer 末尾で tintBody 経由）
     if (_spawnHitParticles) _spawnHitParticles(p.x, p.y + 70, p.z, 0xffffff, 12, { type: 'omni' });
     if (_triggerHitstop) _triggerHitstop(4);
     if (window.SB?.DEBUG_SPECIAL) console.log(`[SA absorb] hit blocked. remaining=${p.playerSAHp}`);
@@ -840,6 +840,25 @@ export function updatePlayerHitstun(p) {
   }
   // 無敵中の透明点滅（dying/dead/respawning は別演出が visibility を制御するので除外）
   updateInvincibleBlink(p);
+}
+
+// ============================================================
+//  SA 吸収白フラッシュ（2026-05-28）
+//   damagePlayer の SA 吸収で p.saFlashTimer を立てる → 本関数が毎フレーム
+//   tintBody で軽く白くする（残量に応じてフェードアウト）。0 で restoreBodyColor。
+//   敵側 _saFlashTimer と対の表現。
+// ============================================================
+export function updateSaFlash(p) {
+  if (!p || !p.mesh) return;
+  if ((p.saFlashTimer ?? 0) <= 0) return;
+  p.saFlashTimer--;
+  // ピーク 0.7 で軽い白み（強すぎない）。残量に応じて減衰
+  const mix = Math.min(0.7, (p.saFlashTimer / 12) * 0.7);
+  if (mix > 0) {
+    tintBody(p.mesh, 1, 1, 1, mix);
+  } else {
+    restoreBodyColor(p.mesh);
+  }
 }
 
 // ============================================================
