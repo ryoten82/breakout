@@ -41,6 +41,7 @@ import {
 } from './hit-engine.js';
 import { isHitstunState, _cancelHitstunForReversal } from './damage-system.js';
 import { addStaticArea, removeArea, spawnExpandPulse } from './fx/damage-area.js';
+import { spawnMagmaVent } from './magma-vent.js';
 
 let _inp = null;
 let _dirMatchesForFacing = null;
@@ -358,6 +359,15 @@ export function updateAttack(p) {
       elapsed >= atk.hitFrame &&
       elapsed <  atk.hitFrame + atk.hitDuration
     ) {
+      // OC BRN-e08 MAGMA VENT：hitFrame 到達で自機足元に vent 設置。
+      //   命中可否に依らず必ず発火（空振りでも出る）。攻撃インスタンスにつき 1 回（_magmaVentSpawned ガード）。
+      if (atk.magmaVentTrigger && window.SB?.OC_FLAGS?.magmaVent && !p._magmaVentSpawned) {
+        if (window.SB?.DEBUG_MAGMA_VENT) {
+          console.log(`[MAGMA SP3-TRIGGER] attackId=${p.attackId} elapsed=${elapsed} hitFrame=${atk.hitFrame} px=${p.x.toFixed(0)} pz=${p.z.toFixed(0)} grounded=${p.isGrounded}`);
+        }
+        spawnMagmaVent(p.x, p.z);
+        p._magmaVentSpawned = true;
+      }
       if (tryHitEnemies(p, atk, _hitCtx)) {
         p.hitDelivered = true;
         if (!p.isGrounded) p.airHitOccurred = true;   // 空中ヒット成立フラグ（着地でクリア・SP→SP whiff チェーン許可）

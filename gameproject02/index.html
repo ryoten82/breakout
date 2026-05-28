@@ -1759,7 +1759,7 @@
     } from './src/fx/damage-area.js';
     // === magma-vent（OC BRN-e08 マグマ vent システム）===
     import {
-      initMagmaVent, updateMagmaVents, clearAllMagmaVents,
+      initMagmaVent, attachMagmaVentScene, updateMagmaVents, clearAllMagmaVents,
     } from './src/magma-vent.js';
     // === stages（背景部屋・stage-room worktree 由来）===
     import {
@@ -3164,7 +3164,7 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-28 BRN-e08 MAGMA VENT 実装：SP3 命中で床マグマ設置（残留+延焼+軽KB）';
+    const LAST_UPDATE = '2026-05-28 SP3 本体弱体化（atk_lv 5→2 / damage・kb 半減）+ MAGMA VENT spawn 即時 tick';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
@@ -3487,9 +3487,14 @@
     // magma-vent 初期化（OC BRN-e08）
     initMagmaVent({
       enemies,
-      damageArea: { addStaticArea, removeArea },
+      damageArea: { addStaticArea, removeArea, spawnExpandPulse },
       igniteEnemy,
+      spawnDamageNumber,
+      spawnHitParticles,
+      STATE,
+      getGameFrame,
     });
+    attachMagmaVentScene({ scene, THREE });
     // debug-invariants 初期化（STATE 値セットを登録して state 妥当性検査を有効化）
     _invSetKnownStates(STATE);
     // 開始画面オーバーレイの制御：初回入力で dismiss + markPlayStart 発火
@@ -4944,7 +4949,7 @@
       DEBUG_FATAL:   true,  // SCRAP THEM!!! フェイタルのフェーズ遷移ログ（一時 ON）
       DEBUG_CHN_SP4: true,  // CHN-e04 波動拳即発の入力検出ログ（一時 ON・デバッグ完了後 false に）
       DEBUG_FLAME_UPPER: false,  // BRN-e11 FLAME UPPER キューのライフサイクル全ログ（一旦凍結・残問題未解決）
-      DEBUG_MAGMA_VENT: false,   // BRN-e08 MAGMA VENT のスポーン/スタック/期限切れログ
+      DEBUG_MAGMA_VENT: false,   // BRN-e08 MAGMA VENT 全ライフサイクルログ（実戦調整時に true）
       // ─────────────────────────────────────────────────
       scene, camera, bgCamera, renderer, players, enemies,
       CHARACTER_ASSETS,

@@ -142,18 +142,18 @@ export const ATTACKS = {
   c01_sp_03: {
     label:        'c01_sp_03 (METEO パワーゲイザー・地上衝撃波・↓↓K 地上版)',
     // 振り上げ（windup）→ 叩きつけ → 衝撃波 → リカバリー
-    duration:     60, hitFrame: 32, hitDuration: 10, cancelWindow: 10,  // hitFrame 24→32（出がかり延長）/ duration 52→60 / cw 22→10（連打無敵ループ防止）
-    damage:       20,
-    rangeX:       288, rangeZ: 224,   // 2026-05-25 360/280 → 80% = 288/224（広すぎ緩和）
-    rangeY:       50,                 // 2026-05-25 90→50：上方向判定を弱める
-    rangeYDown:   20,                 // 2026-05-25 30→20
-    knockback:    32,
-    hitstop:      8, shake: 10,        // 2026-05-27 SP hitstop -30%（12→8）
-    atk_lv:       5,
-    atk_lv_air:   5,
-    atk_lv_down:  4,                  // ダウン中の敵は軽め（爆発的な巻き込みより抑制）
-    kb_vy_lv5:        -20,            // 若干浮き上がってから地面へ（lv5 既定の強叩きつけより緩め）
-    kb_vx_mult_lv5:   1.2,            // 放射方向へ適度に飛ばす
+    duration:     60, hitFrame: 32, hitDuration: 10, cancelWindow: 10,
+    // 2026-05-28 弱体化：MAGMA VENT OC 前提で本体は軽め。
+    //   atk_lv 5→2（rakka_start バウンド廃止）/ damage 20→10 / knockback 32→14
+    damage:       10,
+    rangeX:       288, rangeZ: 224,
+    rangeY:       50,
+    rangeYDown:   20,
+    knockback:    14,
+    hitstop:      8, shake: 10,
+    atk_lv:       3,
+    atk_lv_air:   3,
+    atk_lv_down:  7,                  // 2026-05-28: ダウン中は拾い（knockback03 + 小バウンド）
     kbRadial:     true,               // 攻撃者中心から各敵への方向ベクトルでノックバック
     omni:         true,
     launcher:     false,
@@ -177,19 +177,18 @@ export const ATTACKS = {
   c01_sp_03_air: {
     label:        'c01_sp_03_air (METEO 急降下→着地ゲイザー・↓↓K 空中版)',
     duration:     80, hitFrame: 18, hitDuration: 40, cancelWindow: 8,
-    damage:       12,
+    // 2026-05-28 弱体化：本体軽量化。dive 中の hit は擦るだけで、本命は着地ゲイザー（c01_sp_03_land）。
+    damage:       6,
     rangeX:       145, rangeZ: 130,
     rangeY:       60,
     rangeYDown:   300,
-    knockback:    14,
-    hitstop:      6,  shake: 6,        // 2026-05-27 SP hitstop -30%（8→6）
+    knockback:    8,
+    hitstop:      6,  shake: 6,
     diveVy:       -22,
     divePause:    16,
-    atk_lv:       5,
-    atk_lv_air:   5,
-    atk_lv_down:  4,
-    kb_vy_lv5:        -50,          // 敵を強く下方に引きずる
-    kb_vx_mult_lv5:   0.2,          // 横はほぼ飛ばさない（まとめて落とす）
+    atk_lv:       3,
+    atk_lv_air:   3,
+    atk_lv_down:  7,
     omni:         true,
     launcher:     false,
     aerialHop:    false,
@@ -212,17 +211,16 @@ export const ATTACKS = {
   c01_sp_03_land: {
     label:        'c01_sp_03_land (着地ゲイザー・内部自動発火)',
     duration:     30, hitFrame: 0, hitDuration: 14, cancelWindow: 8,
-    damage:       20,
+    // 2026-05-28 弱体化：地上 SP3 と揃える。
+    damage:       10,
     rangeX:       288, rangeZ: 224,
     rangeY:       50,
     rangeYDown:   20,
-    knockback:    32,
-    hitstop:      8, shake: 10,        // 2026-05-27 SP hitstop -30%（12→8）
-    atk_lv:       5,
-    atk_lv_air:   5,
-    atk_lv_down:  4,
-    kb_vy_lv5:        -20,
-    kb_vx_mult_lv5:   1.2,
+    knockback:    14,
+    hitstop:      8, shake: 10,
+    atk_lv:       3,
+    atk_lv_air:   3,
+    atk_lv_down:  7,
     kbRadial:     true,
     omni:         true,
     launcher:     false,

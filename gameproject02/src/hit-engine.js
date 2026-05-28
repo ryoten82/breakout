@@ -39,7 +39,6 @@ import {
 } from './config.js';
 import { resolveAttackAttr, ATTACKS } from './attacks.js';
 import { handleEnemyDyingHit, enterEnemyDyingBurst, enterBossFatal, triggerShieldBreak, forceArmGoreCriticalIfPossible, triggerBossPhaseTransition, igniteEnemy, detonateBurn } from './enemy-system.js';
-import { spawnMagmaVent } from './magma-vent.js';
 import { _cancelPlayerAction } from './damage-system.js';
 import { spawnDamageNumber, spawnBanner } from './hud-system.js';
 import { recordCombo, recordBurst, recordCritical, recordRcSuccess, recordDamage } from './run-stats.js';
@@ -1433,12 +1432,8 @@ export function tryHitEnemies(p, attack, ctx) {
       p.sp = Math.min(SP_CONFIG.MAX, p.sp + _gain);
       p._spGainCounted = true;
     }
-    // OC BRN-e08 MAGMA VENT：SP3 系（magmaVentTrigger）命中時に命中地点へ vent 設置。
-    //   攻撃インスタンスにつき 1 回（複数敵巻き込みでも 1 個）。
-    if (attack.magmaVentTrigger && window.SB?.OC_FLAGS?.magmaVent && !p._magmaVentSpawned) {
-      spawnMagmaVent(e.x, e.z);
-      p._magmaVentSpawned = true;
-    }
+    // OC BRN-e08 MAGMA VENT のスポーンは attack-engine.js（hitFrame 到達時）に移管（2026-05-28）。
+    //   理由：hit-engine 内だと SP3 が空振りした時に vent が出なくなるため。
     // OC IGNITE × igniteTrigger 技（SP1）：起爆システム
     //   blastReady=true → 即起爆
     //   延焼中（SPREAD/GC 由来含む）→ 即起爆（SP1 で点火した敵と同等に扱う）

@@ -47,6 +47,7 @@ import {
 import { SP_CONFIG, GUARD_CONFIG, PHYSICS, UKEMI_CONFIG, CRIT_CONFIG, PLAYER_PROFILE, BOSS01_CONFIG } from './config.js';
 import { showResultScreen, isResultShown } from './result-screen.js';
 import { getActiveWallX } from './camera.js';
+import { removeArea } from './fx/damage-area.js';
 
 // ============================================================
 //  依存注入（initDamageSystem で外部関数とグローバル参照をバインド）
@@ -144,6 +145,10 @@ const _UKEMI_AIRBORNE_STATES = new Set([
 
 // 攻撃系フィールドの一括クリーンアップ（被弾で攻撃中断する時に呼ぶ）
 export function _cancelPlayerAction(p) {
+  // 攻撃中の AoE 予兆リング（shockwaveEffect 系：SP3 など）を必ずクリアする。
+  //   attack-engine の通常終了パスでは line 417 で消えるが、被弾 → _cancelPlayerAction
+  //   経由のキャンセルだとリング mesh が床に残ったままになっていた（2026-05-28 修正）。
+  if (p._aoeRingId != null) { removeArea(p._aoeRingId); p._aoeRingId = null; }
   p.attackId           = null;
   p.attackChainIdx     = -1;
   p.attackChainArr     = null;
