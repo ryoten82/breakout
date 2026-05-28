@@ -31,7 +31,7 @@ function ensureOverlay() {
     'color:#fff', 'font-family:var(--font-pixel)', 'font-weight:bold',
     'font-size:64px', 'letter-spacing:0.2em',
     'opacity:0', 'transition:opacity 1.5s ease, background 1.5s ease',
-    'pointer-events:none', 'z-index:9999',
+    'pointer-events:none', 'z-index:9700',   // result-overlay (9800) より下：GAME CLEAR 後にリザルトが完全に被せる
     'text-shadow:0 0 16px rgba(255,80,80,0.8)',
   ].join(';');
   el.textContent = 'STAGE CLEAR';

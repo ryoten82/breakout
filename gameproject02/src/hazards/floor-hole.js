@@ -26,6 +26,7 @@ import { registerCrBarrier } from '../cr-system.js';
 // knockback_air01（空中ヒット）は含まない（空中で被弾＝叩き落とし対象）。
 const SAFE_FALL_STATES = new Set([
   STATE.wait01, STATE.walk_fwd, STATE.walk_back,
+  STATE.dash,             // 走り中（タックル等の能動ダッシュ）も穴を素通り（2026-05-27：背後からの走り敵が落ちる事故防止）
   STATE.knockback01,
 ]);
 

@@ -603,7 +603,7 @@ export const ENEMY_ATTACKS = {
     name:           'クラッシャー振り下ろし（両拳叩きつけ）',
     kind:           'swing',
     attackCategory: 'melee',
-    windFrames:     70,     // 旧 60 → 70：出がかり +10F（読み合い猶予追加）
+    windFrames:     85,     // 70→85：+15F（2026-05-27 ユーザー指示・読み合い猶予追加）
     activeFrames:   12,
     recoverFrames:  30,
     cooldownFrames: 90,
@@ -632,7 +632,7 @@ export const ENEMY_ATTACKS = {
     name:           '横薙ぎフック',
     kind:           'swing',
     attackCategory: 'melee',
-    windFrames:     62,     // 旧 52 → 62：出がかり +10F（読み合い猶予追加）
+    windFrames:     77,     // 62→77：+15F（2026-05-27 ユーザー指示・読み合い猶予追加）
     activeFrames:   18,
     recoverFrames:  35,
     cooldownFrames: 100,
@@ -661,7 +661,7 @@ export const ENEMY_ATTACKS = {
     name:           '地響きスマッシュ',
     kind:           'swing',  // TODO: 専用 kind='shockwave_aoe' を別セッションで設計
     attackCategory: 'melee',
-    windFrames:     75,
+    windFrames:     90,     // 75→90：+15F（2026-05-27 ユーザー指示・読み合い猶予追加）
     activeFrames:   20,
     recoverFrames:  40,
     cooldownFrames: 110,
@@ -906,12 +906,14 @@ export const ENEMY_ATTACK_RELAY = {
 //    - retreatMult：攻撃後 retreat の長さ倍率（brave ≈0＝退却拒否で前のめり）
 //    - punishesHitstun：true なら「プレイヤー被弾中」でも攻撃可（brave の追撃確定）
 export const ENEMY_PERSONALITY = {
-  brave:    { guardTendency: 0.12, dodgeTendency: 0.08, staggerThreshold: 6, enragedHp: 0.50,
-              atk02Weight: 0.18, cooldownMult: 0.7, retreatMult: 0.15, punishesHitstun: true },  // 2026-05-25 タックル選択率 0.60→0.35→0.18
-  cunning:  { guardTendency: 0.40, dodgeTendency: 0.45, staggerThreshold: 4, enragedHp: 0.38,
-              atk02Weight: 0.15, cooldownMult: 1.0, retreatMult: 1.0,  punishesHitstun: false },  // 2026-05-25 タックル選択率 0.50→0.30→0.15
-  // guardian：盾特化。頻繁にガード姿勢を取り、隙を見て攻撃。dodge はほぼしない
-  guardian: { guardTendency: 0.65, dodgeTendency: 0.05, staggerThreshold: 5, enragedHp: 0.30,
+  // 2026-05-27 ユーザー指示：雑魚スウェー回避は削除（自機ができないので理不尽）。
+  //   全 personality で dodgeTendency=0 に統一。guardian の guard はそのまま残す。
+  brave:    { guardTendency: 0.12, dodgeTendency: 0.0,  staggerThreshold: 6, enragedHp: 0.50,
+              atk02Weight: 0.18, cooldownMult: 0.7, retreatMult: 0.15, punishesHitstun: true },
+  cunning:  { guardTendency: 0.40, dodgeTendency: 0.0,  staggerThreshold: 4, enragedHp: 0.38,
+              atk02Weight: 0.15, cooldownMult: 1.0, retreatMult: 1.0,  punishesHitstun: false },
+  // guardian：盾特化。頻繁にガード姿勢を取り、隙を見て攻撃。dodge は無し
+  guardian: { guardTendency: 0.65, dodgeTendency: 0.0,  staggerThreshold: 5, enragedHp: 0.30,
               atk02Weight: 0.50, cooldownMult: 1.0, retreatMult: 0.5,  punishesHitstun: false },
   // berserker：中ボス専用。読み合い・回避・退却をしない前のめりの攻め。
   //   guard/dodgeTendency 0＝防御抽選が常に不成立。retreatMult 0＝攻撃後に退かない。
