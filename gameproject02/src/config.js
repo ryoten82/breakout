@@ -1179,15 +1179,19 @@ export const ITEM_CONFIG = {
 //   SP は単一（15）
 //   将来 buff 追加時は { kind:'buff', w:15 } に分割して miss を w:55 に減らす。
 export const CONTAINER_LOOT_TABLE = {
+  // 2026-05-27 ユーザー指示：chip 5% 追加・miss を 5 削減
+  // chip は item-system.rollAndDropFromContainer で CHIP_DROP_TABLE_NORMAL から抽選
   crate:    [
     { kind: 'hp_apple',  w: 10 }, { kind: 'hp_burger', w: 4 }, { kind: 'hp_meat', w: 1 },
     { kind: 'sp_tank',   w: 15 },
-    { kind: 'miss',      w: 70 },
+    { kind: 'chip',      w:  5 },
+    { kind: 'miss',      w: 65 },
   ],
   canister: [
     { kind: 'hp_apple',  w: 10 }, { kind: 'hp_burger', w: 4 }, { kind: 'hp_meat', w: 1 },
     { kind: 'sp_tank',   w: 15 },
-    { kind: 'miss',      w: 70 },
+    { kind: 'chip',      w:  5 },
+    { kind: 'miss',      w: 65 },
   ],
   // ボス前専用：HP が確定で出る回復セット（miss / sp なし）
   //   ステージ配置 props に `lootTable: 'pre_boss_hp'` を書くと有効化。

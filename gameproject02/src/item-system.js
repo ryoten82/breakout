@@ -173,6 +173,11 @@ export function rollAndDropFromContainer(containerKind, x, z, spawnY = 80) {
     r -= e.w;
   }
   if (chosen === 'miss' || chosen === 'buff') return chosen;
+  // 'chip' 特殊抽選：CHIP_DROP_TABLE_NORMAL から 1 枚（雑魚撃破ドロップと同経路）
+  if (chosen === 'chip') {
+    dropSingleRandomChip(x, z, spawnY);
+    return 'chip';
+  }
   dropItem(chosen, x, z, spawnY);
   return chosen;
 }

@@ -2201,6 +2201,11 @@ function _triggerFinalExplosion(e) {
   if (e.enemyType === 'midboss01') {
     dropSingleRandomChip(e.x, e.z, e.y + 80);
   }
+  // 雑魚（!isBoss && !midboss01）：10% でチップ 1 枚ドロップ（2026-05-27 ユーザー指示）
+  //   レアリティは CHIP_DROP_TABLE_NORMAL に従う（common 60% / uncommon 25% / rare 12% / epic 2.5% / legendary 0.5%）
+  if (!e.isBoss && e.enemyType !== 'midboss01' && Math.random() < 0.10) {
+    dropSingleRandomChip(e.x, e.z, e.y + 80);
+  }
   // 本ボス（boss01 等 isBoss）：チップ複数散布（dropBossChips：確定レア+ + 通常 + ボーナス）
   if (e.isBoss) {
     dropBossChips(e.x, e.z, e.y + 80);
@@ -3050,13 +3055,14 @@ function _selectEnemyAtk(e, adx) {
     //   背中装甲開放と同時にミサイル(atk_05) と 大技(atk_06) が使えるようになる
     //   atk_05/atk_06 は cooldown 長め（連打抑止）
     if (phase === 2) {
+      // 2026-05-27 ミサイル選択率 25→18%（連射感抑制）、空いた 7% は他 5 技に均等 ≒ 各 +1.4%
       const r = Math.random();
-      if (r < 0.25) return 'boss1_atk_05';   // ミサイル散布
-      if (r < 0.40) return 'boss1_atk_06';   // タックル大技
-      if (r < 0.55) return 'boss1_atk_04';   // 派生 二段フック
-      if (r < 0.70) return 'boss1_atk_01';
-      if (r < 0.85) return 'boss1_atk_02';
-      return 'boss1_atk_03';
+      if (r < 0.18) return 'boss1_atk_05';   // ミサイル散布 18%
+      if (r < 0.34) return 'boss1_atk_06';   // タックル大技 16.4%
+      if (r < 0.51) return 'boss1_atk_04';   // 派生 二段フック 16.4%
+      if (r < 0.67) return 'boss1_atk_01';   // 16.4%
+      if (r < 0.84) return 'boss1_atk_02';   // 16.4%
+      return 'boss1_atk_03';                  // 16.4%
     }
     // Phase 3：拳の必殺 atk_07 解禁（D 案再編 2026-05-26）
     //   ゼロ距離タメ突き・RC 対象。Phase 2 ミサイル避け（遠距離）の逆を突く
