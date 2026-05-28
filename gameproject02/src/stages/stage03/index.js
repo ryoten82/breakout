@@ -38,8 +38,11 @@ const _STAGE3_PROPS = [
   // W3–W4 合間（ボンベ）
   { type: 'canister',     x: 3750, z: -20 },
   { type: 'crate',        x: 4000, z:   0 },
-  // W4–BOSS（D 区画）：ボス前 OC コンテナ + ボンベ
+  // W4–BOSS（D 区画）：ボス前 OC コンテナ + ボンベ + HP 確定 crate
+  //   pre_boss_hp テーブル（apple 20 / burger 75 / meat 5）：ボス前に HP を回復させる安全網
+  //   2026-05-27 ユーザー指摘：ST3 で確定回復コンテナが出ていなかった → 追加
   { type: 'oc-container', x: 5550, z:   0 },
+  { type: 'crate',        x: 5400, z:  30, lootTable: 'pre_boss_hp', preset: 'hp' },
   { type: 'canister',     x: 5800, z: -20 },
 ];
 
