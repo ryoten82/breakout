@@ -523,6 +523,7 @@ function startSpecial(p, id) {
   if (_atkDef?.armor && _atkDef.armor > 0) {
     p.playerSAHp        = _atkDef.armor;
     p._saArmedAttackId  = id;
+    console.log(`[SA arm] id=${id} armor=${_atkDef.armor} hitFrame=${_atkDef.hitFrame}`);
   }
   // 使用済 ID は地上/空中で共有するため base ID で記録（重複時も add は冪等）
   p.specialUsedIds.add(baseId);
@@ -979,6 +980,9 @@ export function updatePlayer(p) {
       }
     }
     if (_saExpire) {
+      const _reason = p.state !== STATE.attacking ? 'state-out'
+        : (p.attackId !== p._saArmedAttackId ? 'attackId-change' : 'hitFrame-reached');
+      console.log(`[SA expire] reason=${_reason} state=${p.state} attackId=${p.attackId} arm=${p._saArmedAttackId} sa=${p.playerSAHp}`);
       p.playerSAHp       = 0;
       p._saArmedAttackId = null;
     }
@@ -1045,6 +1049,9 @@ export function updatePlayer(p) {
     // ガードシールド：hitstun 中も syncGuardShield を呼ぶことで
     // クラッシュアニメの進行・ドーム残留の両方を解消する。
     syncGuardShield(p);
+    // SA 吸収後に被弾でも、saFlashTimer は確実にティックダウンさせる
+    //   （updatePlayer 末尾の updateSaFlash は hitstun 中 return で呼ばれないため）
+    updateSaFlash(p);
     return;
   }
   if (p.invincibleFrames > 0) p.invincibleFrames--;

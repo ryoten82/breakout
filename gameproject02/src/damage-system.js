@@ -204,7 +204,7 @@ export function damagePlayer(p, attack, source) {
     p.saFlashTimer = 12;   // 体を軽く白く光らせる（updatePlayer 末尾で tintBody 経由）
     if (_spawnHitParticles) _spawnHitParticles(p.x, p.y + 70, p.z, 0xffffff, 12, { type: 'omni' });
     if (_triggerHitstop) _triggerHitstop(4);
-    if (window.SB?.DEBUG_SPECIAL) console.log(`[SA absorb] hit blocked. remaining=${p.playerSAHp}`);
+    console.log(`[SA absorb] hit blocked. damage=${attack.damage ?? 0} atkLv=${attack.atk_lv ?? '?'} remaining=${p.playerSAHp} attackId=${p.attackId} state=${p.state}`);
     return false;
   }
 
