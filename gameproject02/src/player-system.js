@@ -383,10 +383,84 @@ export function updateChargeJ(p) {
   }
 }
 
+// FLAME UPPER チェーン中ロック判定（2026-05-28）：
+//   flame 系攻撃の発動中は SP2 以外で割り込ませない。
+//   チェーン最終段（通常 SP2 launcher）に到達するまで他技干渉を遮断。
+// === OC BRN-e11 FLAME UPPER キュー（2026-05-28 v4 思想再構築）===
+//   "押し放置 → 最終段 launcher が出し切りで出る / 連打 → 合間に short upper 混ぜ込む"
+//   初回 ↑K：windup タイマー（FLAME_QUEUE_WINDUP_FRAMES）を仕込む
+//   windup 中 / mid 中の追加 ↑K：mid キュー +1（最大 FLAME_QUEUE_MAX_MIDS）
+//   windup 終了 or mid 完走後：キュー残量 > 0 → mid 発火、0 → final launcher 発火
+const FLAME_QUEUE_WINDUP_FRAMES = 18;
+const FLAME_QUEUE_MAX_MIDS      = 3;
+
+// SP2 ↑K プレス時に呼ばれる：キュー新規作成 or 既存キューへ mid 追加
+//   戻り値：true = この入力を消費した（fallthrough しない）
+export function handleFlameUpperPress(p) {
+  if (!window.SB?.OC_FLAGS?.brnFlameUpper) return false;
+  if (!p._flameQActive) {
+    // 新規キュー
+    if (p.guarding || p.ultActive || isHitstunState(p)) {
+      // hitstun はリバーサル経由で起動するのが想定だが、ここではシンプルに不可
+      return false;
+    }
+    p._flameQActive  = true;
+    p._flameQWindup  = FLAME_QUEUE_WINDUP_FRAMES;
+    p._flameQMids    = 0;
+    p._flameQAir     = !p.isGrounded;
+    p._flameQStarted = true;   // first-fire 待ちフラグ（windup 終了で初発動）
+    return true;
+  }
+  // 既存キューに mid 積み増し
+  p._flameQMids = Math.min(FLAME_QUEUE_MAX_MIDS, (p._flameQMids ?? 0) + 1);
+  return true;
+}
+
+function _flameMidId(p) {
+  return p._flameQAir ? 'c01_sp_02_air_flame_mid' : 'c01_sp_02_short_flame_mid';
+}
+function _flameFinalId(p) {
+  return p._flameQAir ? 'c01_sp_02_air_flame_final' : 'c01_sp_02_short_flame_final';
+}
+
+// updatePlayer から毎フレーム呼ばれる：windup / 次段発火 / キャンセル判定
+export function tickFlameUpperQueue(p) {
+  if (!p._flameQActive) return;
+  // hitstun でキャンセル
+  if (isHitstunState(p)) {
+    p._flameQActive = false; p._flameQWindup = 0; p._flameQMids = 0; p._flameQStarted = false;
+    return;
+  }
+  // 攻撃中（mid 発動中）は何もしない → 完走後 wait01 で次段判定
+  if (p.state === STATE.attacking || p.state === STATE.hit_confirm) return;
+  // windup タイマー減算（初回の wait01 中のみ）
+  if (p._flameQWindup > 0) {
+    p._flameQWindup--;
+    return;
+  }
+  // 発火フェーズ：mid > 0 なら mid、0 なら final 発射
+  if ((p._flameQMids ?? 0) > 0) {
+    const ok = startSpecial(p, _flameMidId(p));
+    if (ok) p._flameQMids--;
+    return;
+  }
+  // 最終段
+  startSpecial(p, _flameFinalId(p));
+  p._flameQActive = false; p._flameQStarted = false;
+}
+
+// FLAME UPPER 中はキャラを他技で割り込ませない（windup / mid 中・final は通常 SP2 同等で扱う）
+export function isFlameChainLocked(p) {
+  if (p._flameQActive) return true;   // キュー中はロック
+  return false;
+}
+
 function canStartSpecial(p, opts) {
   if (p.guarding) return false;
   if (p.ultActive) return false;
   if (anyPlayerUlting()) return false;
+  // FLAME UPPER チェーン中：SP1/SP3 は遮断（SP2 のみ別経路で許可）
+  if (isFlameChainLocked(p)) return false;
   // 連続用 RC フィニッシュ中の SP は出し切り強制（キャンセル不可）。
   //   `_triggerComboRcFinish` がフラグを立て、SP 完走（state が attacking から抜ける）で自動解除。
   //   トドメの一撃を別 SP で塗り潰さず、演出的決着を保証する。
@@ -492,11 +566,18 @@ function startSpecial(p, id) {
   // === 短期連発抑止 ===
   // 「同じ id」を _SPECIAL_COOLDOWN_FRAMES 以内に再発動するなら拒否（地上ループ防止）。
   // 「地上 SP2 → 空中 SP2」のような地上⇄空中の派生切替は別 id なので cooldown 無視 → 繋がる
-  const _lastFire = p._specialFireFrames?.[baseId] ?? -Infinity;
-  const _lastFireId = p._specialFireIds?.[baseId];
-  if (_lastFireId === id && getGameFrame() - _lastFire < _SPECIAL_COOLDOWN_FRAMES) {
-    if (_dbg) console.log(`  [SP REJECT] cooldown gap=${getGameFrame() - _lastFire} < ${_SPECIAL_COOLDOWN_FRAMES}`);
-    return false;
+  // FLAME UPPER チェーン変種は chain カウンタ側で連打を管理しているので cooldown 不要（2026-05-28）
+  const _isFlameVariant = (
+    id === 'c01_sp_02_short_flame_mid' || id === 'c01_sp_02_air_flame_mid' ||
+    id === 'c01_sp_02_short_flame_final' || id === 'c01_sp_02_air_flame_final'
+  );
+  if (!_isFlameVariant) {
+    const _lastFire = p._specialFireFrames?.[baseId] ?? -Infinity;
+    const _lastFireId = p._specialFireIds?.[baseId];
+    if (_lastFireId === id && getGameFrame() - _lastFire < _SPECIAL_COOLDOWN_FRAMES) {
+      if (_dbg) console.log(`  [SP REJECT] cooldown gap=${getGameFrame() - _lastFire} < ${_SPECIAL_COOLDOWN_FRAMES}`);
+      return false;
+    }
   }
   // === 空中 SP 出戻り禁止 ===
   // 同ジャンプ中に一度使った base ID は着地まで再使用不可（SP2→SP1→SP2 の無限チェーン防止）
@@ -697,6 +778,11 @@ export function processStrongAttackInput(p) {
   if (upHeld) {
     if (!canStartSP2ForRC(p)) return;
     if (isHitstunState(p)) _cancelHitstunForReversal(p);
+    // OC BRN-e11 FLAME UPPER：キュー思想（2026-05-28 v4）
+    //   ↑K 押下 → handleFlameUpperPress でキュー操作。実発火は updatePlayer の tickFlameUpperQueue が担当。
+    if (window.SB?.OC_FLAGS?.brnFlameUpper) {
+      if (handleFlameUpperPress(p)) return;
+    }
     const id = p.isGrounded ? 'c01_sp_02_short' : 'c01_sp_02_air';
     _logSp2Snapshot(p, id);  // タイミング検証ログ（window.SB.DEBUG_SP2_LOG で ON/OFF）
     const _attackIdBefore = p.attackId;
@@ -768,7 +854,12 @@ export function updateSp2Hold(p) {
       id = pickSpecialAttackId('c01_sp_02', p.isGrounded);
     } else {
       // 短押し：地上 c01_sp_02_short（大昇り単発）/ 空中 c01_sp_02_air（控えめ単発）
-      id = p.isGrounded ? 'c01_sp_02_short' : 'c01_sp_02_air';
+      // OC BRN-e11 FLAME UPPER：取得時は 3 ヒット + 点火変種に差し替え
+      if (window.SB?.OC_FLAGS?.brnFlameUpper) {
+        id = p.isGrounded ? 'c01_sp_02_short_flame' : 'c01_sp_02_air_flame';
+      } else {
+        id = p.isGrounded ? 'c01_sp_02_short' : 'c01_sp_02_air';
+      }
     }
     startSpecial(p, id);
   }
@@ -957,6 +1048,9 @@ export function updatePlayer(p) {
   const _spaceDown = _inp('Space');
   const _ukemiJumpEdge = _spaceDown && !p._ukemiJumpPrev;
   p._ukemiJumpPrev = _spaceDown;
+
+  // OC BRN-e11 FLAME UPPER キュー（windup / mid 発火 / 最終 launcher）
+  tickFlameUpperQueue(p);
 
   // === 掴み発動 readiness フラグ ===
   // 仕様：「wait01 中に自分の意思で移動した」状態でのみ tryGrabActivate を許可。

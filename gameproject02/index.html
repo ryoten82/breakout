@@ -3004,6 +3004,13 @@
       saFlashTimer:         0,     // SA 吸収時の白フラッシュ残 F（updatePlayer 末尾で tintBody 経由・敵 _saFlashTimer と対）
       saShakeTimer:         0,     // SA 吸収時のキャラ単独シェイク残 F（mesh.x をジグザグ・カメラには影響しない）
       _jWasDownSpecial:     false, // 必殺技用 J エッジ検出（processAttackInput と独立）
+      // OC BRN-e11 FLAME UPPER 連打チェーン（2026-05-28）
+      // OC BRN-e11 FLAME UPPER キュー（v4・2026-05-28）
+      _flameQActive:  false,       // キュー稼働中（windup or mid 発火待ち or mid 進行中）
+      _flameQWindup:  0,           // 初回 ↑K 後の windup カウントダウン（F）
+      _flameQMids:    0,           // 蓄積された mid キュー数（最大 3）
+      _flameQAir:     false,       // 初回押下時の地上/空中ロック
+      _flameQStarted: false,       // first-fire 待ちフラグ
 
       // === SP ゲージ ===
       sp:               SP_CONFIG.STOCK_SIZE * SP_CONFIG.INITIAL_STOCKS,  // 初期 3 ストック
@@ -3153,12 +3160,12 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-28 triggerCharShake ヘルパー化 + RC finish / SP4 / atklv6 / GC / 敵連続技最終段へ展開';
+    const LAST_UPDATE = '2026-05-28 FLAME UPPER v4：キュー思想 / 押し放置=最終段のみ・連打=mid 挿入（最大3）';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
     // LAST_UPDATE と同時に更新する運用（feedback_last_update_hud.md §1.5）
-    const TAB_LABEL = 'シェイク展開';
+    const TAB_LABEL = 'FU調整';
     document.title = TAB_LABEL;
     {
       const _buildInfoEl = document.getElementById('build-info');
@@ -3445,6 +3452,14 @@
           if (!_ocMods.chnSp4Instant) {
             _ocMods.chnSp4Instant = true;
             window.SB.OC_FLAGS.chnSp4Instant = true;
+          }
+          break;
+        // BRN-e11 FLAME UPPER：SP2（短押し）を 3 ヒット化 + 各ヒット点火
+        //   player-system.processSpecialInput が brnFlameUpper を見て _flame 変種に分岐
+        case 'BRN_FLAME_UPPER':
+          if (!_ocMods.brnFlameUpper) {
+            _ocMods.brnFlameUpper = true;
+            window.SB.OC_FLAGS.brnFlameUpper = true;
           }
           break;
       }
@@ -5084,7 +5099,7 @@
       //   SB.OC_FLAGS                           → IGNITE/SPREAD/CHAIN_BLAST 取得状態
       BURN_CONFIG,
       OC_FLAGS: { ignite: false, spread: false, chainBlast: false, berserk: false,
-                  chnSp4Instant: false, sp4Stage2: false },
+                  chnSp4Instant: false, sp4Stage2: false, brnFlameUpper: false },
       igniteEnemy,
       // 外部モジュール（hazards 等）からトークン解放したい場合：SB.releaseEnemyTokens(e)
       //   floor-hole が敵を removed 扱いにする前に呼ぶ。呼ばないと

@@ -968,7 +968,10 @@ export function triggerBossPhaseTransition(e, ctx) {
       hitColor:     0xff2200,
       shake:        BOSS_MEGA_CONFIG.SHAKE,
     };
-    tryHitPlayer(e, _bmAtk);
+    if (tryHitPlayer(e, _bmAtk) && _players?.[0]) {
+      // ボス メガクラ命中：プレイヤーにキャラ単独シェイク（大型衝撃の被弾感）
+      triggerCharShake(_players[0], 14, 18);
+    }
   }
   triggerHitstop(BOSS_MEGA_CONFIG.HITSTOP);
   triggerShake(BOSS_MEGA_CONFIG.SHAKE, 42);

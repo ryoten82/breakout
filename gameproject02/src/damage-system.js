@@ -226,6 +226,8 @@ export function damagePlayer(p, attack, source) {
       _spawnHitParticles(p.x + p.facing * 60, p.y + 80, p.z, 0x66ccff, 14);
       _triggerHitstop(GUARD_CONFIG.HIT_HITSTOP);
       if (attack.shake) _triggerShake(Math.max(1, attack.shake - 2), 4);
+      // ガード成功キャラシェイク（小・2026-05-28）：受け止めた重みを被ガード側に
+      if (_triggerCharShake) _triggerCharShake(p, 6, 5);
       // (4) ガードクラッシュ判定（14-E）：atk_lv がガード強度を超えるとクラッシュ。
       //   lv7（追い打ち）は強度に関わらずクリーン。SP 枯渇でも従来どおりクラッシュ。
       const _lvCrash = (incomingLv !== 7) && (incomingLv > PLAYER_PROFILE.METEO.guardStrength);
@@ -249,6 +251,8 @@ export function damagePlayer(p, attack, source) {
         _spawnHitParticles(p.x, _shieldY, p.z, GUARD_CONFIG.SHIELD_COLOR, 28, { type: 'omni' });
         _triggerHitstop(GUARD_CONFIG.HIT_HITSTOP + 3);
         _triggerShake(12, 20);
+        // ガードクラッシュ・キャラシェイク（中・2026-05-28）：盾が砕けた衝撃を被ガード側に
+        if (_triggerCharShake) _triggerCharShake(p, 10, 10);
         if (incomingLv >= 6) {
           // lv6 クラッシュ：バリア砕け → lv6 直撃扱い。return せず下流の被弾処理へ
           _guardCrashThrough = true;

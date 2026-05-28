@@ -611,6 +611,13 @@ export function processAttackInput(p) {
   zKeyWasDown = zPressed;
   if (p.guarding || p.ultActive) return;  // ガード中・ULT中は攻撃不可
   if (p.state === STATE.grabbing) return; // グラブ中は processGrabInput 側で扱う
+  // FLAME UPPER キュー中：J / 派生 J は割り込み不可（v4 思想・2026-05-28）
+  //   キューが active な間（windup 中・_flame_mid 中含む）は他技で抜けられない。
+  if (p._flameQActive) return;
+  // _flame_final はキュー完了後の通常 SP2 同等扱い：attacking 中（startup）のみ J ブロック、hit_confirm 以降は可。
+  if (p.attackId === 'c01_sp_02_short_flame_final' || p.attackId === 'c01_sp_02_air_flame_final') {
+    if (p.state === STATE.attacking) return;
+  }
   if (!justPressed) return;
 
   // ジャンプ系 state（離陸/空中/着地）は wait01 と同じ「即攻撃可能」扱い。

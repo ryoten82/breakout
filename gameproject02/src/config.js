@@ -1640,4 +1640,6 @@ export const OVERCLOCK_CARDS = [
   // ===== チェーン軸（CHN）テスト投入：2026-05-28 OC アイデア部屋から段階移管 =====
   //   CHN-e04 SP4 波動拳即発：↓→K でチャージ不要に SP4 stage1 を発動
   { id: 'CHN_SP4_INSTANT', label: '波動拳即発', desc: '↓→J で SP4 stage1 を即発動（チャージ不要）', color: '#aa66ff', rarity: 'rare', weight: 8 },
+  //   BRN-e11 FLAME UPPER：SP2 短押しを 3 ヒット化 + 各ヒット点火（地上 / 空中 両対応）
+  { id: 'BRN_FLAME_UPPER', label: 'FLAME UPPER', desc: 'SP2 が 3 ヒット化＋各ヒットで点火', color: '#ff7733', rarity: 'rare', weight: 8 },
 ];

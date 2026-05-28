@@ -833,10 +833,15 @@ export function tryHitEnemies(p, attack, ctx) {
     //   SP4 系（c01_sp_04_*）/ atk_lv 6 / GC armed のいずれかで発火
     {
       const _isSp4   = typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_04');
+      const _isUlt   = p.attackId === 'c01_sp_ult01';
+      const _isMega  = p.attackId === 'c01_sp_mega01';
       const _isAtkL6 = _hitLv === 6;
       const _isGc    = !!(e.goreCritical && e.goreCritical.armed);
-      if (_isSp4 || _isAtkL6 || _isGc) {
-        triggerCharShake(e, _isAtkL6 || _isGc ? 12 : 10, _isAtkL6 || _isGc ? 14 : 12);
+      if (_isSp4 || _isUlt || _isMega || _isAtkL6 || _isGc) {
+        // ULT 最大 / メガクラ 大 / atklv6・GC 中 / SP4 通常
+        const _f = _isUlt ? 14 : (_isMega ? 12 : (_isAtkL6 || _isGc ? 12 : 10));
+        const _a = _isUlt ? 18 : (_isMega ? 16 : (_isAtkL6 || _isGc ? 14 : 12));
+        triggerCharShake(e, _f, _a);
       }
     }
     // ボス HP 0 到達 → フェイタル発火（RC finish 以外の通常攻撃殴り倒し経路）
@@ -880,6 +885,8 @@ export function tryHitEnemies(p, attack, ctx) {
       applyHitInitialPitch(e);
       spawnHitParticles(e.x + e.facing * 50, e.y + 90, e.z, 0x66ccff, 12);  // 青＝ガード
       triggerHitstop(3);
+      // ガード成功キャラシェイク（小・2026-05-28）：受け止めた重みを被ガード側（敵）に
+      triggerCharShake(e, 6, 5);
       anyHit = true;
       continue;
     }
@@ -889,6 +896,8 @@ export function tryHitEnemies(p, attack, ctx) {
       triggerShieldBreak(e, ctx);
       bumpCombo(e);   // 「割った」達成感のためコンボ加点
       spawnHitParticles(e.x, e.y + 100, e.z, 0xffdd44, 28, { type: 'omni' });
+      // ガードクラッシュ（盾破壊）キャラシェイク（中・2026-05-28）：被ガード側（敵）に
+      triggerCharShake(e, 10, 10);
       anyHit = true;
       continue;
     }
@@ -1006,9 +1015,16 @@ export function tryHitEnemies(p, attack, ctx) {
     //   この敵が同 baseId の必殺技で既にヒットを受けていたら burst。
     //   別の敵への切替（A→B）は B 視点で「初撃」になるので burst しない。
     //   敵の specialHitBy は updateEnemies 側で wait01 復帰時にクリアされる。
+    //   FLAME UPPER は一連のコンボ扱い・burst 対象外（v4 / 2026-05-28）
+    const _isFlameChainAtk = (
+      p.attackId === 'c01_sp_02_short_flame_mid' ||
+      p.attackId === 'c01_sp_02_air_flame_mid'   ||
+      p.attackId === 'c01_sp_02_short_flame_final' ||
+      p.attackId === 'c01_sp_02_air_flame_final'
+    );
     let _spDuplicateOnThisEnemy = false;
     let _spBaseIdForMark = null;
-    if (attack.isSpecial && p.attackId) {
+    if (attack.isSpecial && p.attackId && !_isFlameChainAtk) {
       const _aid = p.attackId;
       _spBaseIdForMark = _aid.endsWith('_air') ? _aid.slice(0, -4) : _aid;
       // 敵単位カウント：specialHitBy Map<baseId, count>。LIMIT 回目のヒットで burst（2026-05-20）。
@@ -1024,7 +1040,8 @@ export function tryHitEnemies(p, attack, ctx) {
     //   route のクリア：敵 wait01 復帰時 / メガクラ被弾時（mega は意図的なリセット手段）。
     //   SA 中はルート記録自体を行わない（カウントに積み上げて唐突バーストを起こさない）。
     let _loopDetectedLen = 0;
-    if (p.attackId && !_bossInSA) {
+    // FLAME UPPER チェーンは comboRoute / aggregateRoute にも追加しない（一連のコンボ扱い・loop 検出対象外）
+    if (p.attackId && !_bossInSA && !_isFlameChainAtk) {
       if (!p._routeAppendedFor) p._routeAppendedFor = new Set();
       if (!p._routeAppendedFor.has(e)) {
         if (!e.comboRoute) e.comboRoute = [];
@@ -1626,6 +1643,10 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     const iKbVx = attack.intermediateKnockbackVx ?? Math.max(6, Math.floor((attack.knockback ?? 40) * 0.12));
     e.knockbackVx = facing * iKbVx;
     e.kbDecay     = attack.intermediateKbDecay ?? 0.92;  // 緩い減衰で「ライドアロング」
+    // 中間ヒット軽浮かせ（FLAME UPPER 等用・2026-05-28）：↑派生 knockbackY と同型の lift
+    if (attack.intermediateKnockbackVy !== undefined && !_preserveState) {
+      e.vy = Math.max(e.vy, attack.intermediateKnockbackVy);
+    }
     // 多段ヒットの空中保持（multiHitVacuum）：空中の敵を毎ヒット プレイヤー側へ寄せ、
     //   落下・横ズレで最終段を取りこぼさない（ドリルで「つかんで」いるイメージ）。
     if (attack.multiHitVacuum && e.y > ENEMY_AIRBORNE_Y_THRESHOLD) {

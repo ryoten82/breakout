@@ -159,6 +159,7 @@ function _hide(obj) {
 //   実装が完了する度にここに ID を追加していく（overclock_ideas.md §2-X と同期）。
 const ACTION_TEST_AUTO_OC_FLAGS = [
   'chnSp4Instant',   // CHN-e04 SP4 波動拳即発（2026-05-28 実装）
+  'brnFlameUpper',   // BRN-e11 FLAME UPPER（2026-05-28 実装・SP2 3ヒット+点火）
 ];
 
 function _applyTestRoomOCFlags() {
