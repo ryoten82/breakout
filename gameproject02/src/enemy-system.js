@@ -4662,7 +4662,19 @@ export function updateEnemies(ctx) {
       if (--e.statusStunTimer <= 0) {
         e.state = STATE.wait01;
         e.statusStunTimer = 0;
+        _setMeshChargeColor(e, 0);  // 黒オーバーレイ解除
+      } else {
+        // ボススタンと同じ黒点滅演出を status_stun にも適用（2026-05-29 追加）
+        //   モデルに黒オーバーレイを sin 波でかけて「動けない」感を視覚化
+        e._statusStunFrame = (e._statusStunFrame ?? 0) + 1;
+        const _pSpeed = BOSS01_CONFIG.STUN_PULSE_SPEED   ?? 0.10;
+        const _pMax   = BOSS01_CONFIG.STUN_PULSE_OPACITY ?? 0.65;
+        const _pFactor = _pMax * (0.5 + 0.5 * Math.sin(e._statusStunFrame * _pSpeed));
+        _setMeshChargeColor(e, _pFactor, 0x000000);
       }
+    } else if ((e._statusStunFrame ?? 0) > 0) {
+      // status_stun 外なら frame カウンタリセット
+      e._statusStunFrame = 0;
     }
     // RP 経由の post-KB スタン follow-up（2026-05-27）：
     //   _triggerRepulseParry が _postKbStunFrames を立てる → KB 系 state（knockback02 /
@@ -4712,7 +4724,18 @@ export function updateEnemies(ctx) {
     } else if (e.state === STATE.down_bas_end) {
       if (--e.downTimer <= 0) e.state = STATE.wait01;
     } else if (e.state === STATE.knockback01 || e.state === STATE.knockback02) {
-      if (--e.downTimer <= 0) e.state = STATE.wait01;
+      if (--e.downTimer <= 0) {
+        // OC BRN-l04 SOLAR FLARE：knockback02 復帰時に pending スタン適用（2026-05-29）。
+        //   hit-engine で attack.solarFlareTrigger + !isBoss の場合のみフラグ立てる。
+        //   SA 吸収時は hit-engine が continue するためフラグは立たない。
+        if (e._solarPendingStun) {
+          e._solarPendingStun = false;
+          e.state = STATE.wait01;   // applyStatusStun の前提（wait01 / enemy_attacking）に合わせる
+          applyStatusStun(e, undefined, ctx);   // 既定 1.5 秒
+        } else {
+          e.state = STATE.wait01;
+        }
+      }
     } else if (e.state === STATE.knockback03) {
       if (--e.downTimer <= 0) {
         e.state    = STATE.down_bas_loop;
@@ -4726,7 +4749,16 @@ export function updateEnemies(ctx) {
     } else if (e.state === STATE.fall_loop) {
       // 自由落下中（着地は y<=0 ブロック）
     } else if (e.state === STATE.land) {
-      if (--e.downTimer <= 0) e.state = STATE.wait01;
+      if (--e.downTimer <= 0) {
+        // OC BRN-l04 SOLAR FLARE：空中ヒット → knockback_air01 → fall → land → wait01 経路でも pending stun を適用
+        if (e._solarPendingStun) {
+          e._solarPendingStun = false;
+          e.state = STATE.wait01;
+          applyStatusStun(e, undefined, ctx);
+        } else {
+          e.state = STATE.wait01;
+        }
+      }
     } else if (e.state === STATE.jump_start) {
       if (--e.downTimer <= 0) e.state = STATE.jump_loop;
     } else if (e.state === STATE.jump_d_start) {

@@ -674,6 +674,9 @@ export function tryHitEnemies(p, attack, ctx) {
     if (e.ultBurstInvincible) { if (_DBG_SP2AIR) console.log('[SP2AIR] skip ultBurstInvincible'); continue; }
     if (e.lateralCombatInvincible) { if (_DBG_SP2AIR) console.log('[SP2AIR] skip lateralCombatInvincible'); continue; }
     if (e.dodgeInvuln) continue;  // #14-B：バックステップ回避の前半無敵
+    // ここまで来たら「攻撃が敵に到達した」扱い（SA 吸収 / SP 重複 burst / 各種 anyHit+continue 経由でも）。
+    // 後段の anyHit+continue が複数あるため、_lastHitEnemy 記録はここで一括して行う（2026-05-29）。
+    p._lastHitEnemy = e;
     // 連続技 (boss_overdrive) 実行中はボス完全無敵：
     //   ヒットは "発生扱い"（コンボ HUD・0ダメ数値ポップで視覚フィードバック）だが
     //   ダメージ 0 / state 変更なし / knockback なし / フリンチなし。
@@ -940,6 +943,8 @@ export function tryHitEnemies(p, attack, ctx) {
         e._saFlashTimer = 12;   // SA 吸収白フラッシュ（2026-05-28）：体を軽く白く光らせる
         triggerCharShake(e, 8, 8);  // SA 吸収シェイク（mesh.x ジグザグ・カメラ非影響）
         spawnHitParticles(e.x, e.y + 100, e.z, 0xff8800, 14, { type: 'omni' });  // 橙：SA 吸収
+        // SOLAR FLARE 等の遅延発動：SA 吸収時もドーム発動位置は記録（SA 吸収時はスタン無しの仕様だが、命中地点としては有効）
+        p._lastHitEnemy = e;
         anyHit = true;
         continue;
       }
@@ -1347,6 +1352,10 @@ export function tryHitEnemies(p, attack, ctx) {
         e.state    = STATE.knockback_air01;
         e.downTimer = Math.round(ENEMY_KB_AIR_FRAMES * (attack.kbTimeMult ?? 1.0));
         e.kbFromMega = false;  // 通常ヒット時はメガクラフラグをクリア
+        // SOLAR FLARE：空中ヒットでも pending stun（着地後の wait01 で適用）
+        if (attack.solarFlareTrigger && !e.isBoss) {
+          e._solarPendingStun = true;
+        }
       } else if (lv === 2) {
         // #14-B：連続被弾の累積が閾値超なら小フリンチを enemy_stagger に降格
         if (e.accumStagger > e.staggerThreshold) {
@@ -1355,6 +1364,17 @@ export function tryHitEnemies(p, attack, ctx) {
         } else {
           e.state    = STATE.knockback02;
           e.downTimer = Math.round(ENEMY_KB02_FRAMES * (attack.kbTimeMult ?? 1.0));
+        }
+        // 攻撃側で kb_vy_lv2 / kb_vx_mult_lv2 を上書き可能（2026-05-29 追加）。
+        //   用途：BRN-l04 SOLAR FLARE で軽フリンチのまま超 KB を実現するため。
+        if (attack.kb_vy_lv2 !== undefined) e.vy = attack.kb_vy_lv2;
+        if (attack.kb_vx_mult_lv2 !== undefined) e.knockbackVx *= attack.kb_vx_mult_lv2;
+        // OC BRN-l04 SOLAR FLARE：ノックバック後の wait01 復帰時にスタン付与（2026-05-29）。
+        //   - SA 吸収時はそもそもここに到達しない（line 944 で continue 済）
+        //   - 大ボスはスタン免疫（中ボス以下はスタン対象）
+        //   - 実際の status_stun 遷移は enemy-system.js が knockback02 → wait01 タイミングで適用
+        if (attack.solarFlareTrigger && !e.isBoss) {
+          e._solarPendingStun = true;
         }
       } else {
         // lv01 / それ以外（未指定）地上 → knockback01（accumStagger 閾値超で enemy_stagger）
@@ -1509,6 +1529,8 @@ export function tryHitEnemies(p, attack, ctx) {
         else { enterEnemyDyingBurst(e, ctx, p.facing); }
       }
     }
+    // 直近ヒット敵を player に記録（OC BRN-l04 SOLAR FLARE 等の遅延発動で参照）
+    p._lastHitEnemy = e;
     anyHit = true;
   }
   return anyHit;

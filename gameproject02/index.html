@@ -1761,6 +1761,10 @@
     import {
       initMagmaVent, attachMagmaVentScene, updateMagmaVents, clearAllMagmaVents,
     } from './src/magma-vent.js';
+    // === solar-flare（OC BRN-l04 SP4 stage2 解放 + 炎フィールド）===
+    import {
+      initSolarFlare, attachSolarFlareScene, updateSolarFlares, clearAllSolarFlares,
+    } from './src/solar-flare.js';
     // === stages（背景部屋・stage-room worktree 由来）===
     import {
       initStage01, tickStage01, getStage01DebugState,
@@ -3164,7 +3168,7 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-29 OC CHN-e01 飛び上がり SP3 完成：地上/空中統一・前ジャンプ膝→急降下身体ヒット→着地衝撃波 forceBoundDown';
+    const LAST_UPDATE = '2026-05-29 OC BRN-l04 SOLAR FLARE 完成：超 KB → 1.5 秒後ドーム + 炎残留 + スタン（大ボス免疫）';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
     const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
@@ -3495,6 +3499,15 @@
       getGameFrame,
     });
     attachMagmaVentScene({ scene, THREE });
+    // solar-flare 初期化（OC BRN-l04）
+    initSolarFlare({
+      enemies,
+      damageArea: { addStaticArea, removeArea, spawnExpandPulse },
+      igniteEnemy,
+      STATE,
+      getGameFrame,
+    });
+    attachSolarFlareScene({ scene, THREE });
     // debug-invariants 初期化（STATE 値セットを登録して state 妥当性検査を有効化）
     _invSetKnownStates(STATE);
     // 開始画面オーバーレイの制御：初回入力で dismiss + markPlayStart 発火
@@ -4430,6 +4443,8 @@
       updateBreakables();
       // OC BRN-e08 MAGMA VENT：床マグマの寿命・敵への tick 適用
       updateMagmaVents();
+      // OC BRN-l04 SOLAR FLARE：炎フィールドの寿命・敵への 1 秒延焼スタック
+      updateSolarFlares();
       // OC ジェム：湧き上がり → 滞在 → 取得演出
       updateOcGem();
       // OC ジェム取得フラッシュ後、ディレイ経過で OC 選択画面を開く
@@ -4951,6 +4966,7 @@
       DEBUG_FLAME_UPPER: false,  // BRN-e11 FLAME UPPER キューのライフサイクル全ログ（一旦凍結・残問題未解決）
       DEBUG_MAGMA_VENT: false,   // BRN-e08 MAGMA VENT 全ライフサイクルログ（実戦調整時に true）
       DEBUG_CHN_LEAP_SP3: false, // CHN-e01 飛び上がり SP3 ライフサイクルログ（実戦調整時に true）
+      DEBUG_SOLAR_FLARE: false,  // BRN-l04 SOLAR FLARE ライフサイクルログ（実戦調整時に true）
       // ─────────────────────────────────────────────────
       scene, camera, bgCamera, renderer, players, enemies,
       CHARACTER_ASSETS,
@@ -5120,7 +5136,7 @@
       BURN_CONFIG,
       OC_FLAGS: { ignite: false, spread: false, chainBlast: false, berserk: false,
                   chnSp4Instant: false, sp4Stage2: false, brnFlameUpper: false, magmaVent: false,
-                  chnLeapSp3: false },
+                  chnLeapSp3: false, solarFlare: false },
       igniteEnemy,
       // 外部モジュール（hazards 等）からトークン解放したい場合：SB.releaseEnemyTokens(e)
       //   floor-hole が敵を removed 扱いにする前に呼ぶ。呼ばないと

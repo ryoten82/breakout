@@ -162,6 +162,8 @@ const ACTION_TEST_AUTO_OC_FLAGS = [
   'brnFlameUpper',   // BRN-e11 FLAME UPPER（2026-05-28 v4 キュー実装・押し放置=最終段 / 連打=mid 挿入最大3）
   'magmaVent',       // BRN-e08 MAGMA VENT（2026-05-28 実装・SP3 命中地点に床マグマ）
   'chnLeapSp3',      // CHN-e01 飛び上がり SP3（2026-05-28 実装・SP3 完全置換 / leap up + 多段 + 最終 launcher）
+  'sp4Stage2',       // BRN-l04 同梱：SP4 stage2 解放（チャージ MAX 解放）
+  'solarFlare',      // BRN-l04 SOLAR FLARE（2026-05-29 実装・SP4 stage2 命中で持続炎フィールド 5 秒）
 ];
 
 function _applyTestRoomOCFlags() {

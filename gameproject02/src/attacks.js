@@ -1001,59 +1001,56 @@ export const ATTACKS = {
     label:        'c01_sp_04_02 (METEO 溜めパンチ・stage2 MAX・地上版)',
     // 2026-05-19：発生前硬直 +8F
     // 2026-05-28：armor 1（startup 中 SA 1）追加 — stage1 と同等の SA 強度
+    // 2026-05-29 SOLAR FLARE 化：判定縮小・atk_lv 2 軽フリンチ・超 KB → ノックバック先で 1.5 秒後に巨大ドーム発生（ヒット時のみ）
     duration:     48, hitFrame: 26, hitDuration: 7, cancelWindow: 16,
+    facingLockFrames: 30,    // 2026-05-29: 旧 duration+40=88F の振り向き lock 短縮（技完了後即振り向き可）
     armor:        1,
-    damage:       32,                       // 2026-05-25 40→32：ULT 同等は強すぎたため stage1(28) と ULT(40) の中間に
-    rangeX:       280, rangeZ: 160,         // 2026-05-25 rangeX 200→280（狭すぎ緩和）/ rangeZ 160 維持
-    rangeY:       170,                      // 上方向もやや拡張
-    rangeYDown:   50,
-    knockback:    70, hitstop: 10, shake: 14,   // 2026-05-27 SP hitstop -30%（14→10）
-    atk_lv:       6,
-    atk_lv_air:   6,
-    // atk_lv_down 無し
-    // 後方ノックバック（lv6 ベクトル個別上書き）— 2026-05-25 再々調整
-    kb_vy_lv6:        12,                   // 浮き上がる軌道へ（旧 -10 → +8 → +12）
-    kb_vx_mult_lv6:   1.8,                  // 旧 5.0 → 2.5 → 1.8（追撃可能距離まで戻す）
-    kb_vx_decay_lv6:  0.92,
-    hitColor:     0x44aaff,                 // 高温の青炎（stage1 のオレンジから昇格）
-    hitCount:     44,                       // 30 → 44：粒数増しで強さを可視化
-    hitboxColor:  0x44aaff,                 // showHitbox の AABB も青に（既定の赤を上書き）
+    damage:       18,                       // 32→18：フィールドダメが本命なので軽量化
+    rangeX:       240, rangeZ: 110,         // 2026-05-29: 120→240（リーチ 2 倍）
+    rangeY:       150,
+    rangeYDown:   30,
+    knockback:    70, hitstop: 10, shake: 14,
+    atk_lv:       2,
+    atk_lv_air:   2,
+    // atk_lv_down 未指定 = ダウン中の敵には当たらない
+    kb_vy_lv2:        8,                    // 2026-05-29: 0→8（軽い上方ベクトル追加）
+    kb_vx_mult_lv2:   2.0,
+    hitColor:     0xff7733,                 // 火属性らしいオレンジに（旧青炎から変更）
+    hitCount:     30,
     launcher:     false,
     aerialHop:    false,
     partsAnim:    'strong_punch_r',
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
-    // 攻撃発生時の自己ノックバック（大反動・ULT を除く METEO の最大技扱い・2026-05-18）
+    // OC BRN-l04 SOLAR FLARE：命中時に 1.5 秒遅延 → 敵の到達位置に巨大ドーム発生
+    solarFlareTrigger: true,
     selfRecoilVx: 32,
     selfRecoilDecay: 0.82,
   },
   c01_sp_04_02_air: {
     label:        'c01_sp_04_02_air (METEO 溜めパンチ・stage2 MAX・空中版)',
-    // 2026-05-19：発生前硬直 +8F
-    // 2026-05-28：armor 1（startup 中 SA 1）追加
     duration:     48, hitFrame: 26, hitDuration: 7, cancelWindow: 25,
+    facingLockFrames: 30,    // 2026-05-29: 振り向き lock 短縮（地上版と同期）
     armor:        1,
-    damage:       32,                       // 2026-05-25 40→32：地上版と同期
-    rangeX:       280, rangeZ: 160,   // 2026-05-25 rangeX 200→280：地上版に同期
-    rangeY:       170,
-    rangeYDown:   50,
-    knockback:    70, hitstop: 10, shake: 14,   // 2026-05-27 SP hitstop -30%（14→10）
-    atk_lv:       6,
-    atk_lv_air:   6,
-    kb_vy_lv6:        12,                   // 浮き上がる軌道（2026-05-15・8→12）
-    kb_vx_mult_lv6:   1.8,                  // 2026-05-25 2.5→1.8：地上版と同期
-    kb_vx_decay_lv6:  0.92,
-    hitColor:     0x44aaff,                 // 高温の青炎
-    hitCount:     44,
-    hitboxColor:  0x44aaff,                 // showHitbox の AABB も青に
+    damage:       18,
+    rangeX:       240, rangeZ: 110,         // 2026-05-29: 120→240（地上版と同期）
+    rangeY:       150,
+    rangeYDown:   30,
+    knockback:    70, hitstop: 10, shake: 14,
+    atk_lv:       2,
+    atk_lv_air:   2,
+    kb_vy_lv2:        8,                    // 2026-05-29: 軽い上方ベクトル
+    kb_vx_mult_lv2:   2.0,
+    hitColor:     0xff7733,
+    hitCount:     30,
     launcher:     false,
     aerialHop:    true,
     partsAnim:    'strong_punch_r',
     isSpecial:    true,
     flashOnStart: true,
     showHitbox:   true,
-    // 攻撃発生時の自己ノックバック（大反動・地上版と同じ・2026-05-18）
+    solarFlareTrigger: true,
     selfRecoilVx: 32,
     selfRecoilDecay: 0.82,
   },

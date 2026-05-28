@@ -42,6 +42,7 @@ import {
 import { isHitstunState, _cancelHitstunForReversal } from './damage-system.js';
 import { addStaticArea, removeArea, spawnExpandPulse } from './fx/damage-area.js';
 import { spawnMagmaVent } from './magma-vent.js';
+import { schedulePendingFlare } from './solar-flare.js';
 
 let _inp = null;
 let _dirMatchesForFacing = null;
@@ -121,6 +122,8 @@ export function startAttackById(p, id, chainIdx) {
   // autoLandGeyser「一度離地した」履歴：新攻撃開始でリセット
   //   地上スタートでも一度上昇 → 着地 のサイクルを正しく検知するため
   p._airborneDuringAttack = !p.isGrounded;
+  // OC BRN-l04 SOLAR FLARE：攻撃 1 インスタンスにつき 1 個のみ
+  p._solarFlareSpawned = false;
   // 本体ヒット（dive 中の自機 body hitbox・CHN-e01 leap 用カスタム）の発火カウンタ
   p._bodyHitsFired = 0;
   // 攻撃発動時の grounded 状態を記録（空中発動なら body hit を 2-3 連発で敵をロック）
@@ -411,6 +414,16 @@ export function updateAttack(p) {
         if (atk.isStepAttack && !atk.keepMomentumOnHit) p.stepMomentum = 0;
         // 踏み込み攻撃のヒット時も同様：当てたら止まる（オーバーシュート抑止）
         if (atk.lungeVx !== undefined) p.lungeMomentum = 0;
+        // OC BRN-l04 SOLAR FLARE：stage2 SP4 命中時に「敵 ref + 命中地点」を pending 登録。
+        //   1.5 秒後に敵の現在位置で巨大ドーム + 炎フィールド発動（敵が死んでたら登録時座標で fallback）。
+        if (atk.solarFlareTrigger && window.SB?.OC_FLAGS?.solarFlare && !p._solarFlareSpawned) {
+          const _target = p._lastHitEnemy;
+          if (window.SB?.DEBUG_SOLAR_FLARE) {
+            console.log(`[SOLAR SP4-TRIGGER] attackId=${p.attackId} target=${_target?.enemyType ?? '?'} x=${_target?.x?.toFixed(0) ?? '-'} z=${_target?.z?.toFixed(0) ?? '-'}`);
+          }
+          schedulePendingFlare(_target, _target?.x ?? p.x, _target?.z ?? p.z);
+          p._solarFlareSpawned = true;
+        }
       }
     }
   }
@@ -863,6 +876,10 @@ export function triggerMegaCrash(p) {
     p.kBuffered       = false;
     p.lungeMomentum   = 0;
     p.stepMomentum    = 0;
+    // 振り向き lock もクリア（2026-05-29）：
+    //   メガクラでキャンセルした旧 SP の _facingLockUntil が残って
+    //   メガクラ後しばらく振り向けない事象の対策。
+    p._facingLockUntil = 0;
   }
   // ダッシュ姿勢解除（純ダッシュ中の発動・ステップ攻撃中の発動どちらも対象）
   if (p.dashActive) {
