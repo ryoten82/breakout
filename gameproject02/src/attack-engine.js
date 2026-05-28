@@ -737,6 +737,9 @@ export function triggerMegaCrash(p) {
   // FLAME UPPER キュー中（windup / mid 間）にメガクラ発動：キューを破棄してパニックボタン優先。
   // 残骸 _flameQActive のまま attacking に入ると tickFlameUpperQueue が誤動作するため必ずリセット。
   if (p._flameQActive) {
+    if (window.SB?.DEBUG_FLAME_UPPER !== false) {
+      console.log('[FLAME RESET (megacrash)]', { active: p._flameQActive, windup: p._flameQWindup, mids: p._flameQMids });
+    }
     p._flameQActive  = false;
     p._flameQWindup  = 0;
     p._flameQMids    = 0;

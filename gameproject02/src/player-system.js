@@ -394,6 +394,27 @@ export function updateChargeJ(p) {
 const FLAME_QUEUE_WINDUP_FRAMES = 18;
 const FLAME_QUEUE_MAX_MIDS      = 3;
 
+// === FLAME UPPER デバッグログ ===
+// window.SB.DEBUG_FLAME_UPPER で ON/OFF。デフォルト ON（残問題の検証中・2026-05-28）。
+// 切る時はコンソールで `window.SB.DEBUG_FLAME_UPPER = false`
+function _flogOn() {
+  return typeof window !== 'undefined' && window.SB?.DEBUG_FLAME_UPPER !== false;
+}
+function _flog(label, p, extra) {
+  if (!_flogOn()) return;
+  const snap = {
+    f: getGameFrame?.() ?? '-',
+    state: p.state,
+    atk: p.attackId,
+    active: p._flameQActive,
+    windup: p._flameQWindup,
+    mids: p._flameQMids,
+    air: p._flameQAir,
+    grounded: p.isGrounded,
+  };
+  console.log(`[FLAME ${label}]`, snap, extra ?? '');
+}
+
 // 現在 flame 系攻撃を実行中か判定（残骸 _flameQActive と区別するため）
 function _isInFlameAttack(p) {
   return (
@@ -404,40 +425,51 @@ function _isInFlameAttack(p) {
   );
 }
 
-function _resetFlameQueue(p) {
+function _resetFlameQueue(p, reason) {
+  if (_flogOn() && p._flameQActive) _flog(`RESET (${reason ?? '?'})`, p);
   p._flameQActive  = false;
   p._flameQWindup  = 0;
   p._flameQMids    = 0;
+  p._flameQMidsIssued = 0;
   p._flameQStarted = false;
+  p._flameQStallFrames = 0;
 }
 
 // SP2 ↑K プレス時に呼ばれる：キュー新規作成 or 既存キューへ mid 追加
 //   戻り値：true = この入力を消費した（fallthrough しない）
 export function handleFlameUpperPress(p) {
   if (!window.SB?.OC_FLAGS?.brnFlameUpper) return false;
+  _flog('PRESS in', p);
   // === 出し切り後の stale queue 回収 ===
-  // final 発火後にユーザーがしばらく置いて再度 ↑K した時、_flameQActive が
-  // なんらかの理由で true 残りしていたら「中間版が単独で出る」誤動作に繋がる。
-  // flame 系攻撃を実行中でなく、windup も mids も 0 ならキューは実体上終わっている → 新規扱い。
   if (p._flameQActive && !_isInFlameAttack(p) &&
       (p._flameQWindup ?? 0) === 0 && (p._flameQMids ?? 0) === 0) {
-    _resetFlameQueue(p);
+    _resetFlameQueue(p, 'stale-on-press');
   }
   if (!p._flameQActive) {
-    // 新規キュー
     if (p.guarding || p.ultActive || isHitstunState(p)) {
-      // hitstun はリバーサル経由で起動するのが想定だが、ここではシンプルに不可
+      _flog('PRESS REJECT (guarding/ult/hitstun)', p);
       return false;
     }
     p._flameQActive  = true;
     p._flameQWindup  = FLAME_QUEUE_WINDUP_FRAMES;
     p._flameQMids    = 0;
+    p._flameQMidsIssued = 0;
     p._flameQAir     = !p.isGrounded;
-    p._flameQStarted = true;   // first-fire 待ちフラグ（windup 終了で初発動）
+    p._flameQStarted = true;
+    _flog('PRESS → NEW queue', p);
     return true;
   }
-  // 既存キューに mid 積み増し
-  p._flameQMids = Math.min(FLAME_QUEUE_MAX_MIDS, (p._flameQMids ?? 0) + 1);
+  // 既存キューに mid 積み増し（累計 MAX_MIDS で打ち切り）
+  // 旧バグ：p._flameQMids が fire で減算 → 連打で refill 無限ループ。
+  // _flameQMidsIssued（累計発行数）で上限管理に切替（2026-05-28）。
+  const issued = p._flameQMidsIssued ?? 0;
+  if (issued >= FLAME_QUEUE_MAX_MIDS) {
+    _flog('PRESS → ADD mid CAPPED', p, { issued, max: FLAME_QUEUE_MAX_MIDS });
+    return true;
+  }
+  p._flameQMids = (p._flameQMids ?? 0) + 1;
+  p._flameQMidsIssued = issued + 1;
+  _flog('PRESS → ADD mid', p, { issued: p._flameQMidsIssued, midsInFlight: p._flameQMids });
   return true;
 }
 
@@ -451,42 +483,42 @@ function _flameFinalId(p) {
 // updatePlayer から毎フレーム呼ばれる：windup / 次段発火 / キャンセル判定
 export function tickFlameUpperQueue(p) {
   if (!p._flameQActive) return;
-  // hitstun でキャンセル
   if (isHitstunState(p)) {
-    _resetFlameQueue(p);
+    _resetFlameQueue(p, 'hitstun');
     return;
   }
-  // 歩行・ダッシュ・ガード突入でキューを破棄（2026-05-28・v4 残問題対応）：
-  //   連打で蓄積した残 mids が「歩いていると一定間隔で空振りし続ける」体感バグの根治。
-  //   ユーザーが歩き出した時点で「このコンボはもう終わり」と判定する。
-  if (p.state === STATE.walk_fwd || p.state === STATE.walk_back || p.dashActive || p.guarding) {
-    _resetFlameQueue(p);
+  // 歩行・ガード突入でキューを破棄（ユーザーが歩き出した=このコンボはもう終わり判定）。
+  // dashActive は対象外：過去のダッシュ残骸で queue が即死するのを避ける（ダッシュ→アッパーの流れ保護）。
+  if (p.state === STATE.walk_fwd || p.state === STATE.walk_back || p.guarding) {
+    _resetFlameQueue(p, `move/guard:${p.state}${p.guarding?'+guard':''}`);
     return;
   }
-  // 攻撃中（mid 発動中）は何もしない → 完走後 wait01 で次段判定
   if (p.state === STATE.attacking || p.state === STATE.hit_confirm) return;
-  // windup タイマー減算（初回の wait01 中のみ）
+  // windup タイマー減算
   if (p._flameQWindup > 0) {
     p._flameQWindup--;
+    if (p._flameQWindup === 0) _flog('WINDUP done', p);
     return;
   }
-  // 発火フェーズ：mid > 0 なら mid、0 なら final 発射
+  // 発火フェーズ
   if ((p._flameQMids ?? 0) > 0) {
-    const ok = startSpecial(p, _flameMidId(p));
+    const midId = _flameMidId(p);
+    const ok = startSpecial(p, midId);
+    _flog(ok ? 'FIRE mid OK' : 'FIRE mid FAIL', p, { midId, midsBefore: p._flameQMids });
     if (ok) {
       p._flameQMids--;
       p._flameQStallFrames = 0;
     } else {
-      // mid 発火が連続失敗（airUsedSpecialIds / cooldown 等）するとキューが永遠に残る。
-      // 60F 経っても出ないなら諦めて全リセット → 次の単押しが新規扱いになる。
       p._flameQStallFrames = (p._flameQStallFrames ?? 0) + 1;
-      if (p._flameQStallFrames > 60) _resetFlameQueue(p);
+      if (p._flameQStallFrames > 60) _resetFlameQueue(p, 'stall-timeout');
     }
     return;
   }
-  // 最終段：出し切ったら全フィールド完全リセット（次の単押しが新規キュー扱いになるように）
-  startSpecial(p, _flameFinalId(p));
-  _resetFlameQueue(p);
+  // 最終段
+  const finalId = _flameFinalId(p);
+  const ok = startSpecial(p, finalId);
+  _flog(ok ? 'FIRE final OK' : 'FIRE final FAIL', p, { finalId });
+  _resetFlameQueue(p, 'final-done');
 }
 
 // FLAME UPPER 中はキャラを他技で割り込ませない（windup / mid 中・final は通常 SP2 同等で扱う）
