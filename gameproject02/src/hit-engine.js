@@ -954,6 +954,9 @@ export function tryHitEnemies(p, attack, ctx) {
     }
     e.hitFlashTimer = 7;
     e.frozenByUlt   = false;  // ULT 凍結解除（ヒットを受けた敵だけ時間が進み始める）
+    // RC 受付技を被弾で中断 → repulseWindow を消して RC UI 残留 / ダウン中誤 RC を防ぐ（2026-05-29）。
+    //   ここはボス連続技の 0 ダメ吸収（continue）より後＝実際にリアクションを起こす被弾でのみ発火。
+    e.repulseWindow = false;
     // 連続被弾累積（#14-B）：閾値超で次の小フリンチが enemy_stagger に降格（中ボス以降で主に発火）
     e.accumStagger = (e.accumStagger ?? 0) + 1;
     // 被弾時：倒れ方向を記録。IDLEのみ向きスナップ（FALL/DOWN/RISE中は回転競合のため不変）
@@ -1671,6 +1674,7 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     }
     e.hitFlashTimer = 7;
     e.frozenByUlt = false;
+    e.repulseWindow = false;   // RC 受付技を被弾で中断 → UI 残留 / ダウン中誤 RC 防止（2026-05-29・multiHit 経路）
     e.fallDir = (e.x !== p.x) ? Math.sign(e.x - p.x) : p.facing;
     if (e.state === STATE.wait01) {
       e.mesh.rotation.y = -e.fallDir * Math.PI / 2;

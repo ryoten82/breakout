@@ -170,6 +170,7 @@ const ACTION_TEST_AUTO_OC_FLAGS = [
   'chnLeapSp3',      // CHN-e01 飛び上がり SP3（2026-05-28 実装・SP3 完全置換 / leap up + 多段 + 最終 launcher）
   'sp4Stage2',       // BRN-l04 同梱：SP4 stage2 解放（チャージ MAX 解放）
   'solarFlare',      // BRN-l04 SOLAR FLARE（2026-05-29 実装・SP4 stage2 命中で持続炎フィールド 5 秒）
+  'chnSp1Chain',     // CHN-e02 SP1 連打多段（2026-05-29 実装・SP1 を再入力で伸びる 3 段チェーンに）
 ];
 
 function _applyTestRoomOCFlags() {

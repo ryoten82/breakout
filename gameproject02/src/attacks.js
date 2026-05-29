@@ -315,7 +315,8 @@ export const ATTACKS = {
     // 膝蹴り部分は frontal 軸（前方突き出し的なヒット形）
     repulseAxis:  'frontal',
     repulseFrameStart: 1, repulseFrameEnd: 14,
-    repulseBox:   { offsetX: 250, offsetY: 200, w: 500, h: 400, d: 180 },
+    // パリィ判定は入力直後に広く（飛び込みを跳躍 frame5 前に捉えてキャンセル＝技が出ちゃう見た目を防ぐ）。
+    repulseBox:   { offsetX: 120, offsetY: 250, w: 800, h: 800, d: 400 },
   },
   // c01_sp_03_leap_land: leap SP3 専用の着地衝撃波（c01_sp_03_land の派生・magmaVent 無し）
   //   ユーザー指定 atk_lv 5/5/7（叩きつけ + ダウン中拾い）
@@ -663,6 +664,134 @@ export const ATTACKS = {
     repulseAxis:  'frontal',
     repulseFrameStart: 1, repulseFrameEnd: 20,
     // RC 受付ボックス（frontal 軸：前方突き → 前方の敵を捉える・facing で反転）
+    repulseBox:   { offsetX: 300, offsetY: 150, w: 600, h: 400, d: 200 },
+  },
+  // ── OC CHN-e02「SP1 連打多段」（2026-05-29 新規）─────────────────────
+  //   SP1 を「再入力で伸びるチェーン」に置換。最大 3 段（chn1→chn2→chn3）。
+  //   1〜2 段目＝軽リアクション（atk_lv2 のけぞり）、3 段目＝重（atk_lv5・飛距離抑え→転がりダウン）。
+  //   地上/空中ともに同 def（air も 3 段）。再入力はヒット時のみ伸びる（canStartSpecial の hitDelivered）。
+  //   baseSpecialId: c01_sp_01 で出し切りを 1 SP1 として burst 括り。値は仮（playtest 調整前提）。
+  c01_sp_01_chn1: {
+    label:        'c01_sp_01_chn1 (METEO CHN-e02・連打 SP1・1段目 軽)',
+    baseSpecialId: 'c01_sp_01',
+    duration:     54, hitFrame: 24, hitDuration: 6, cancelWindow: 18,   // 1発目だけ発生 +17F（溜め感・段階追加）
+    cancelWindowStart: 28,   // 判定(24)後 4F でキャンセル窓
+    damage:       7,
+    rangeX:       230, rangeZ: 170, rangeY: 110,
+    knockback:    16, hitstop: 6, shake: 5,
+    atk_lv:       2, atk_lv_air: 2,   // 軽リアクション（のけぞり・その場保持で追撃可）
+    hitColor:     0x44ccff, hitCount: 16,
+    launcher:     false, aerialHop: false,
+    lungeVx:      18, lungeDecay: 0.85, lungeDelay: 9,
+    windupBackVx: 7,    // 発生前に少しだけ後ろへ引く → lungeDelay で前へ踏み込み判定を出す（1発目の予備動作）
+    targetOvershootGuard: true,
+    partsAnim:    'strong_punch_r',
+    isSpecial:    true, flashOnStart: true, showHitbox: true,
+    repulseAxis:  'frontal', repulseFrameStart: 1, repulseFrameEnd: 18,
+    repulseBox:   { offsetX: 280, offsetY: 150, w: 560, h: 380, d: 200 },
+  },
+  c01_sp_01_chn2: {
+    label:        'c01_sp_01_chn2 (METEO CHN-e02・連打 SP1・2段目 軽)',
+    baseSpecialId: 'c01_sp_01',
+    duration:     37, hitFrame: 7, hitDuration: 6, cancelWindow: 18,
+    cancelWindowStart: 17,   // 判定(7)後 10F でキャンセル窓
+    damage:       8,
+    rangeX:       230, rangeZ: 170, rangeY: 110,
+    knockback:    16, hitstop: 6, shake: 5,
+    atk_lv:       2, atk_lv_air: 2,
+    hitColor:     0x55ddff, hitCount: 16,
+    launcher:     false, aerialHop: false,
+    lungeVx:      18, lungeDecay: 0.85, lungeDelay: 8,
+    targetOvershootGuard: true,
+    partsAnim:    'strong_punch_r',
+    isSpecial:    true, flashOnStart: true, showHitbox: true,
+    repulseAxis:  'frontal', repulseFrameStart: 1, repulseFrameEnd: 18,
+    repulseBox:   { offsetX: 280, offsetY: 150, w: 560, h: 380, d: 200 },
+  },
+  c01_sp_01_chn3: {
+    label:        'c01_sp_01_chn3 (METEO CHN-e02・連打 SP1・最終 重・atk_lv6 超吹っ飛ばしだが真後ろに飛ばず早々に転がりダウン)',
+    baseSpecialId: 'c01_sp_01',
+    duration:     46, hitFrame: 13, hitDuration: 7, cancelWindow: 14,   // 3発目だけ発生 +4F
+    cancelWindowStart: 23,   // 判定(13)後 10F でキャンセル窓
+    damage:       16,
+    rangeX:       240, rangeZ: 170, rangeY: 120,
+    knockback:    40, hitstop: 17, shake: 14,   // 重め：hitstop 増し（atk_lv6 で敵キャラシェイクも自動付与）
+    atk_lv:       6, atk_lv_air: 6,   // 超吹っ飛ばし（down_super → 着地 down_roll）。atk_lv_down は無し（-）
+    // lv6 軌道上書き：真後ろに大きく飛ばさず、低く弾いて早々に着地→転がりダウン。
+    kb_vy_lv6:        5,      // 軽く浮く程度（高アーク禁止＝早く落ちて roll へ）
+    kb_vx_mult_lv6:   0.4,    // 水平を抑える＝飛距離を出さない
+    kb_vx_decay_lv6:  0.86,   // 早めに減速
+    hitColor:     0x66ddff, hitCount: 34,
+    launcher:     false, aerialHop: false,
+    lungeVx:      26, lungeDecay: 0.84, lungeDelay: 6,   // ぐいぐい前へ押し込み追尾（自機も移動距離・selfRecoil 無し）
+    partsAnim:    'strong_punch_r',
+    isSpecial:    true, flashOnStart: true, showHitbox: true,
+    repulseAxis:  'frontal', repulseFrameStart: 1, repulseFrameEnd: 20,
+    repulseBox:   { offsetX: 300, offsetY: 150, w: 600, h: 400, d: 200 },
+  },
+  // ── CHN-e02 空中版（2026-05-29）：テンポ/手触りは地上と同じ。発動の度お互い少し上にホップ（空中Jコンボ感）。
+  //   最終段だけ強め：敵=まっすぐ斜め下に超吹っ飛び（atk_lv6・下方向＋横）／自機=真上にふわっと浮上。
+  c01_sp_01_chn1_air: {
+    label:        'c01_sp_01_chn1_air (METEO CHN-e02 空中・1段目 軽・お互い小ホップ)',
+    baseSpecialId: 'c01_sp_01',
+    duration:     54, hitFrame: 24, hitDuration: 6, cancelWindow: 18,   // 地上版と同テンポ
+    cancelWindowStart: 28,
+    damage:       7,
+    rangeX:       230, rangeZ: 170, rangeY: 120, rangeYDown: 280,
+    knockback:    14, hitstop: 6, shake: 5,
+    atk_lv:       2, atk_lv_air: 2,
+    launchVy:     7, launchVyAirborne: 7, launcher: true,   // 敵を少し浮かす（空中 J コンボ感）
+    hitColor:     0x44ccff, hitCount: 16,
+    airGravFactor: 0.25,   // 空中チェーン中フワッと滞空（着地はしないが浮きすぎない）
+    aerialHop:    true, aerialHopFrame: 18, aerialHopVy: 7, aerialHopVx: 0,   // 敵の launchVy(7) と揃えて一緒に少し上へ
+    lungeVx:      18, lungeDecay: 0.85, lungeDelay: 9,
+    windupBackVx: 7,
+    targetOvershootGuard: true,
+    partsAnim:    'strong_punch_r',
+    isSpecial:    true, flashOnStart: true, showHitbox: true,
+    repulseAxis:  'frontal', repulseFrameStart: 1, repulseFrameEnd: 18,
+    repulseBox:   { offsetX: 280, offsetY: 150, w: 560, h: 380, d: 200 },
+  },
+  c01_sp_01_chn2_air: {
+    label:        'c01_sp_01_chn2_air (METEO CHN-e02 空中・2段目 軽・お互い小ホップ)',
+    baseSpecialId: 'c01_sp_01',
+    duration:     37, hitFrame: 7, hitDuration: 6, cancelWindow: 18,
+    cancelWindowStart: 17,
+    damage:       8,
+    rangeX:       230, rangeZ: 170, rangeY: 120, rangeYDown: 280,
+    knockback:    14, hitstop: 6, shake: 5,
+    atk_lv:       2, atk_lv_air: 2,
+    launchVy:     7, launchVyAirborne: 7, launcher: true,
+    hitColor:     0x55ddff, hitCount: 16,
+    airGravFactor: 0.25,   // 空中チェーン中フワッと滞空（浮きすぎない）
+    aerialHop:    true, aerialHopFrame: 7, aerialHopVy: 7, aerialHopVx: 0,   // 敵 launchVy と揃える
+    lungeVx:      18, lungeDecay: 0.85, lungeDelay: 6,
+    targetOvershootGuard: true,
+    partsAnim:    'strong_punch_r',
+    isSpecial:    true, flashOnStart: true, showHitbox: true,
+    repulseAxis:  'frontal', repulseFrameStart: 1, repulseFrameEnd: 18,
+    repulseBox:   { offsetX: 280, offsetY: 150, w: 560, h: 380, d: 200 },
+  },
+  c01_sp_01_chn3_air: {
+    label:        'c01_sp_01_chn3_air (METEO CHN-e02 空中・最終 強・敵=斜め下に超吹っ飛び/自機=真上ふわっと)',
+    baseSpecialId: 'c01_sp_01',
+    duration:     46, hitFrame: 13, hitDuration: 7, cancelWindow: 14,
+    cancelWindowStart: 23,
+    damage:       16,
+    rangeX:       240, rangeZ: 170, rangeY: 130, rangeYDown: 300,
+    knockback:    50, hitstop: 17, shake: 14,   // atk_lv6 で敵キャラシェイク自動
+    atk_lv:       6, atk_lv_air: 6,   // 超吹っ飛ばし。atk_lv_down 無し（-）
+    // lv6 軌道：まっすぐ斜め下へ叩き出す（スパイク）＝高アークにせず下方向＋横を強めに。
+    kb_vy_lv6:        -18,   // 下方向初速（斜め下スパイク）
+    kb_vx_mult_lv6:   1.2,   // 横も乗せて「斜め下に超吹っ飛び」
+    kb_vx_decay_lv6:  0.9,
+    hitColor:     0x66ddff, hitCount: 34,
+    launcher:     false,
+    airGravFactor: 0.25,   // 滞空（finisher の「ふわっと浮上」を持続・浮きすぎ抑え）
+    aerialHop:    true, aerialHopFrame: 13, aerialHopVy: 9, aerialHopVx: 0,   // 自機は真上にふわっと浮上（控えめ）
+    partsAnim:    'strong_punch_r',
+    isSpecial:    true, flashOnStart: true, showHitbox: true,
+    repulseAxis:  'frontal', repulseFrameStart: 1, repulseFrameEnd: 20,
     repulseBox:   { offsetX: 300, offsetY: 150, w: 600, h: 400, d: 200 },
   },
   c01_sp_02: {

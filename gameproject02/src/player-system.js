@@ -586,6 +586,14 @@ function canStartSpecial(p, opts) {
   // 連続用 RC スライド中も SP 開始可（次スロットの RC を即座に繰り出せるように）
   if (p.state === STATE.combo_rc_slide) return true;
   if (p.state === STATE.attacking) {
+    // CHN-e02 連打 SP1（c01_sp_01_chn*）：判定後 cancelWindowStart(=hitFrame+15)F 以降のみキャンセル可。
+    //   ヒット不問のタイミング式＝「判定が出て 15F 後にキャンセル」。早すぎキャンセルを抑えて
+    //   ポンポンと当てるテンポを作る。同技連発抑止（cooldown）は別途維持。
+    if (typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_01_chn')) {
+      const _atkChn = ATTACKS[p.attackId];
+      const _elapsedChn = (_atkChn?.duration ?? 0) - (p.stateTimer ?? 0);
+      return _elapsedChn >= (_atkChn?.cancelWindowStart ?? 0);
+    }
     // CHN-e01 c01_sp_03_leap 中：別 SP へのキャンセルは「飛び跳ねの頂上付近」以降のみ許可。
     //   cancelWindowStart 14 = diveStartFrame（leap 頂上）。それより前は SP キャンセル拒否。
     //   疑似空中ジャンプ用途として、跳ぶ前の前ジャンプ予備動作中の擦り上げ防止。
@@ -866,12 +874,40 @@ function _logSp2Snapshot(p, attackId) {
   );
 }
 
+// CHN-e02 連打 SP1 の先行入力消化（毎フレーム・justPressed 不問）。
+//   チェーン中の早押しを _chnSp1Buffered に積んでおき、cancel 窓が開いた瞬間に次段を自動発火。
+//   → 連打せず「少し早めに押す」でテンポ良く繋がる（シビアさ解消）。チェーン外に出たらバッファ破棄。
+// CHN-e02 チェーン段の判定/次段 ID 生成（地上/空中の _air 差を吸収）。
+function _chnSp1Stage(id) {
+  if (typeof id !== 'string') return 0;
+  if (id.startsWith('c01_sp_01_chn1')) return 1;
+  if (id.startsWith('c01_sp_01_chn2')) return 2;
+  if (id.startsWith('c01_sp_01_chn3')) return 3;
+  return 0;
+}
+function _chnSp1Id(stage, grounded) {
+  return `c01_sp_01_chn${stage}${grounded ? '' : '_air'}`;
+}
+
+function _consumeChnSp1Buffer(p) {
+  if (!p._chnSp1Buffered) return;
+  if (!window.SB?.OC_FLAGS?.chnSp1Chain) { p._chnSp1Buffered = false; return; }
+  const stg = (p.state === STATE.attacking) ? _chnSp1Stage(p.attackId) : 0;
+  if (stg !== 1 && stg !== 2) { p._chnSp1Buffered = false; return; }  // チェーン外 → 破棄
+  if (!canStartSpecial(p)) return;   // 窓まだ → バッファ保持
+  const nextId = _chnSp1Id(stg + 1, p.isGrounded);   // 接地状態で地上/空中版を選ぶ
+  p._chnSp1Buffered = false;
+  if (window.SB?.DEBUG_CHN_SP1) console.log(`[CHN-SP1 BUFFER→FIRE] stage${stg} → ${nextId}`);
+  startSpecial(p, nextId);
+}
+
 export function processStrongAttackInput(p) {
   const kPressed = _inp('KeyK');
   const justPressed = kPressed && !kKeyWasDown;
   kKeyWasDown = kPressed;
   if (p.guarding || p.ultActive) return;
   if (p.state === STATE.grabbing) return;
+  _consumeChnSp1Buffer(p);   // 先行入力の消化（窓開けで自動発火・justPressed 不問）
   if (!justPressed) return;
   if (window.SB?.DEBUG_SPECIAL) {
     const upH = _inp('ArrowUp') || _inp('KeyW');
@@ -922,6 +958,18 @@ export function processStrongAttackInput(p) {
     if (window.SB?.DEBUG_SPECIAL) console.log(`  [SP2 fallthrough → SP1]`);
   }
 
+  // CHN-e02 先行入力：チェーン中（chn1/chn2）の「窓前の早押し」はバッファに積む（連打不要・テンポ維持）。
+  //   _consumeChnSp1Buffer が cancel 窓開けで自動発火する。neutral K のみ（上下同時押しは除外）。
+  if (window.SB?.OC_FLAGS?.chnSp1Chain &&
+      (() => { const up = _inp('ArrowUp') || _inp('KeyW'); const dn = _inp('ArrowDown') || _inp('KeyS'); return !up && !dn; })() &&
+      p.state === STATE.attacking &&
+      (_chnSp1Stage(p.attackId) === 1 || _chnSp1Stage(p.attackId) === 2) &&
+      !canStartSpecial(p)) {
+    p._chnSp1Buffered = true;
+    if (window.SB?.DEBUG_CHN_SP1) console.log(`[CHN-SP1 BUFFER set] cur=${p.attackId}（窓前の早押しを保持）`);
+    return;
+  }
+
   // SP1/SP3 は従来通り canStartSpecial で受付（SP2 のみ強制キャンセル特権）
   if (!canStartSpecial(p)) return;
 
@@ -946,12 +994,27 @@ export function processStrongAttackInput(p) {
     } else {
       baseId = 'c01_sp_03';
     }
+  } else if (window.SB?.OC_FLAGS?.chnSp1Chain) {
+    // OC CHN-e02 連打多段 SP1：中立 K 連打で chn1→chn2→chn3 に伸びる（最大3段）。接地状態で地上/空中版を選ぶ。
+    //   次段への前進は canStartSpecial の chn ゲート（判定後 cancelWindowStart 以降・ヒット不問）でタイミング制御。
+    //   先行入力バッファ（_consumeChnSp1Buffer）で窓前の早押しも拾う。
+    //   チェーン段判定は「attacking 中」に限定 → chn3 完了後（attackId 残留）に新規 chn1 を始められる。
+    const _stg = (p.state === STATE.attacking) ? _chnSp1Stage(p.attackId) : 0;
+    if (_stg === 3) {
+      if (window.SB?.DEBUG_CHN_SP1) console.log('[CHN-SP1] chn3 中の再入力 → cap（出し切り）');
+      return;   // 3 段出し切り中の再入力は無視
+    }
+    baseId = _chnSp1Id(_stg + 1, p.isGrounded);   // stg 0→chn1 / 1→chn2 / 2→chn3（空中は _air）
+    if (window.SB?.DEBUG_CHN_SP1) {
+      console.log(`[CHN-SP1 DISPATCH] stage${_stg} → ${baseId} state=${p.state} grounded=${p.isGrounded}`);
+    }
   } else {
     baseId = window.SB?.OC_FLAGS?.ignite ? 'c01_sp_01_ignite' : 'c01_sp_01';
   }
 
-  // c01_sp_03_leap は地上単独定義（pickSpecialAttackId の _air サフィックス分岐対象外）
-  const targetId = (baseId === 'c01_sp_03_leap') ? baseId : pickSpecialAttackId(baseId, p.isGrounded);
+  // c01_sp_03_leap / CHN-e02 チェーン段は地上単独定義（_air 分岐対象外・def 自体が air 対応）
+  const targetId = (baseId === 'c01_sp_03_leap' || baseId.startsWith('c01_sp_01_chn'))
+    ? baseId : pickSpecialAttackId(baseId, p.isGrounded);
   const _firedBefore = p.attackId;
   const ok = startSpecial(p, targetId);
   if (baseId === 'c01_sp_03_leap' && window.SB?.DEBUG_CHN_LEAP_SP3) {
