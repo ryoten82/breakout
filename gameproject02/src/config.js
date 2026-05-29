@@ -789,7 +789,7 @@ export const ENEMY_ATTACKS = {
     dashMaxDist:     1800,         // 1パスの最大突進距離（フォールバック）
     hitboxRangeX:    120,          // 突進中の当たり判定（ボディ半幅程度）
     hitboxRangeY:    200,
-    hitboxRangeZ:    180,          // 140→180：Z 軸ズレ救済（precharge で Z は揃える想定だが余裕を持つ）
+    hitboxRangeZ:    140,          // 2026-05-29 180→140：precharge 開始時レーン確定（追従廃止）で Z 回避を成立させるため救済幅を戻す
     damage:         20,
     atk_lv:         5,
     knockback:      42,

@@ -3354,6 +3354,7 @@ function _beginEnemyAttack(e, atkId, ctx) {
   e._tackleHitDone  = false;   // 現パスでのヒット済みフラグ（boss_double_tackle）
   e._tackleState    = null;    // 'precharge1'|'rush1'|'precharge2'|'rush2'
   e._tacklePreTimer = 0;       // precharge 残フレーム
+  e._tackleTargetZ  = null;    // precharge 開始時に確定する突進レーン Z（追従せず固定＝Z 回避可）
   e._odInitDone    = false;   // boss_overdrive アクティブ初期化済みフラグ
   e._odSlotIdx     = 0;       // 現コンボスロットインデックス
   e._odSlotPhase   = null;    // 'wind' | 'active'
@@ -4435,9 +4436,15 @@ export function updateEnemies(ctx) {
               const p0pc = _players?.[0];
 
               if (e._tacklePreTimer === pf) {
+                // 2026-05-29: precharge 開始の瞬間にレーンを確定（コミット）。以後は追従しない。
+                //   旧：precharge 終盤までプレイヤー Z を毎フレーム追従→終了時スナップ＝直前まで
+                //       吸い付くため Z 回避不能（100% 命中）。
+                //   新：開始時の player Z にロック → 確定レーンを予兆表示。残り precharge + rush 接近の
+                //       間に Z 移動でレーンから外れれば回避できる（z軸読み合い）。
+                e._tackleTargetZ = p0pc?.z ?? e.z;
                 _aoeCleanAll(e);
                 e._bossAoeId = _addRectArea?.({
-                  x: (wallL + wallR) / 2, y: 1, z: p0pc?.z ?? e.z,
+                  x: (wallL + wallR) / 2, y: 1, z: e._tackleTargetZ,
                   width: arenaW2, height: ch2,
                   color: 0xff6600, opacity: 0.35,
                   blink: true, blinkPeriodFn: () => 6,
@@ -4445,17 +4452,13 @@ export function updateEnemies(ctx) {
                 // 床面に寝かせる（カメラ向き XY 平面を水平 XZ 平面へ）
                 _updateAreaRotation?.(e._bossAoeId, -Math.PI / 2, 0, 0);
               }
-              // 毎フレームプレイヤーZ を追従（どのレーンに突進するかをプレビュー）
-              if (p0pc && e._bossAoeId != null) {
-                _updateAreaPosition?.(e._bossAoeId, (wallL + wallR) / 2, 1, p0pc.z);
-              }
               // チャージ発光（橙）
               _setMeshChargeColor(e, (pf - e._tacklePreTimer) / pf, 0xff8833);
               e._tacklePreTimer--;
 
               if (e._tacklePreTimer <= 0) {
-                // 溜め完了：プレイヤー Z にスナップして突進開始
-                if (p0pc) e.z = p0pc.z;
+                // 溜め完了：確定レーン（_tackleTargetZ）へスナップして突進開始
+                e.z = e._tackleTargetZ ?? e.z;
                 _aoeCleanAll(e);
                 e._bossAoeId = _addRectArea?.({
                   x: (wallL + wallR) / 2, y: 1, z: e.z,

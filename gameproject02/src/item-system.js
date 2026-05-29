@@ -26,6 +26,7 @@ import {
 import { CR_CONFIG } from './cr-system.js';
 import { getActiveWallX } from './camera.js';
 import { recordChip } from './run-stats.js';
+import { nudgePointOutOfHole } from './hazards/floor-hole.js';
 
 let _THREE = null;
 let _scene = null;
@@ -82,6 +83,8 @@ export function dropItem(kind, x, z, spawnY = 80) {
   if (!_THREE || !_scene) return;
   const cfg = _configForKind(kind);
   if (!cfg) { console.warn('[item-system] unknown kind:', kind); return; }
+  // 穴の上に撒かれないよう spawn 位置を縁の外へ寄せる（2026-05-29・A2。穴未登録なら no-op）
+  ({ x, z } = nudgePointOutOfHole(x, z));
   const C = ITEM_CONFIG;
   const mesh = _createMeshForKind(kind, _THREE);
   if (!mesh) return;

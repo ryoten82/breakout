@@ -156,6 +156,20 @@ function _holeAt(x, z) {
   return null;
 }
 
+// (x, z) が穴の上なら最寄りの縁の外へ押し出した座標を返す（_enforceHoleWall と同方針）。
+//   穴上でなければそのまま。穴未登録ステージでは常にそのまま（no-op）。
+//   用途：アイテムドロップが穴グラフィックに乗らないようにする（2026-05-29・A2）。
+export function nudgePointOutOfHole(x, z, margin = 30) {
+  const r = _holeAt(x, z);
+  if (!r) return { x, z };
+  const dXLeft = x - r.xMin, dXRight = r.xMax - x;
+  const dZNear = z - r.zMin, dZFar = r.zMax - z;
+  if (Math.min(dXLeft, dXRight) <= Math.min(dZNear, dZFar)) {
+    return { x: (dXLeft <= dXRight ? r.xMin - margin : r.xMax + margin), z };
+  }
+  return { x, z: (dZNear <= dZFar ? r.zMin - margin : r.zMax + margin) };
+}
+
 // 死亡爆発バースト（hit-engine の spawnDeathExplosion を window.SB 経由で再現）
 function _spawnDeathBurst(x, y, z) {
   const SB = (typeof window !== 'undefined') ? window.SB : null;

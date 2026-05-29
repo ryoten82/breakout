@@ -111,6 +111,9 @@ function _isTargetable(e) {
 
 // === API：attack-engine の hit 時に呼ぶ。1.5 秒後に解決される予約。===
 export function schedulePendingFlare(target, x, z) {
+  // 重ね掛け：前の延焼フィールド + 未解決 pending を消して single 化（magma vent と同方針・2026-05-29）。
+  //   SP4 を撃ち直したら前のフィールドは消える（撒き散らかさない）。
+  clearAllSolarFlares();
   // FLARE_DELAY_FRAMES 後に解決：敵が生存していれば現在位置、死亡時は登録時座標で spawn。
   _pending.schedule(() => {
     let sx = x, sz = z;
