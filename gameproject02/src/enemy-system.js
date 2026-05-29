@@ -4110,6 +4110,8 @@ export function updateEnemies(ctx) {
             }
           }
         }
+        // 落とし穴の侵入ブロックは floor-hole.js（_blockFromHoleZone）に集約。
+        //   enemy-system 側は AI 回避処理を持たない（2026-05-29 ブロック矩形方式へ統一）。
       } else if (e.state === STATE.enemy_attacking) {
         e.aiPhase = 'attack';
         const atk = ENEMY_ATTACKS[e.curAtkId] ?? ENEMY_ATTACKS.e01_atk_01;

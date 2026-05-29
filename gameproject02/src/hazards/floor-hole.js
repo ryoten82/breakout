@@ -10,13 +10,18 @@
 //   }
 //   tickStage() { tickFloorHoleSystem(); }   // 毎フレーム
 //
-// 設計方針：
+// 設計方針（2026-05-29 ブロック矩形方式へ単純化）：
 //   - 攻撃ギミック寄り：穴は「敵を叩き込む武器」。プレイヤー落下は事故枠
-//   - 穴上空をジャンプで通過 → 着地で落下判定（_playerAirborneOverHole）
-//   - 接地歩行は見えない段差（_enforceHoleWall）でブロック
-//   - SAFE_FALL_STATES（平穏 state）の個体は落ちない。叩き込まれた個体のみ落ちる
-//   - 敵を落とすと「落ちた穴の手前」へ CR コインをドロップ
-//   - CR コインが穴グラフィックに乗らないようバリア登録（cr-system 経由）
+//   - 穴より一回り大きい「ブロック矩形」（穴 rect + blockMargin）を用意し、落下対象でない
+//     state（SAFE_FALL_STATES）の敵・プレイヤーは**接地中ブロック矩形に入れない**（縁手前で止まる）。
+//     これで「平時に穴の上を歩く / 乗って停滞」を一掃する。
+//   - 落下するのは「ダメージ判定が出る系」だけ：非平穏 state（攻撃/被弾/ダウン/よろけ等）で
+//     穴 rect に入る、または吹き飛び（FLY_THROUGH_HOLE_STATES）で穴上に来た個体のみ。
+//   - 穴上空をジャンプで飛び越えるのは自由（空中はブロックしない）。穴 rect 内に着地した時、
+//     非平穏なら落下／平穏（calm landing）なら押し出し救済。
+//   - 敵・プレイヤーで同一の _blockFromHoleZone を使う（enemy-system 側に AI 回避処理を持たない）。
+//   - 敵を落とすと「落ちた穴の手前」へ CR コインをドロップ。
+//   - CR コインが穴グラフィックに乗らないようバリア登録（cr-system 経由）。
 
 import { STATE } from '../states.js';
 import { registerCrBarrier } from '../cr-system.js';
@@ -46,6 +51,7 @@ export const FLOOR_HOLE_CONFIG = {
   enemyFallGrav: 0.55,
   enemyDespawnY: -700,
   crDropMargin: 140,        // CR ドロップ位置（穴 xMin より手前へのオフセット）
+  blockMargin: 50,          // ブロック矩形 = 穴 rect を全方向にこの分広げた範囲（落下対象外を阻止）
   playerFallDamage: 12,
   playerInvincibleF: 120,
   playerRespawnMargin: 160,
@@ -258,27 +264,30 @@ function _updateFallingEnemies() {
 //  プレイヤー
 // ============================================================
 
-// 見えない段差：接地中に穴ゾーンへ侵入したら入ってきた方向（X か Z）に押し返す。
-function _enforceHoleWall(p) {
-  if (!p) return;
-  const cfg = FLOOR_HOLE_CONFIG;
-  const grounded = p.isGrounded || (p.y <= cfg.playerGroundY);
-  if (!grounded) return;
-  const r = _holeAt(p.x, p.z);
-  if (!r) return;
-
-  const dXLeft  = p.x - r.xMin;
-  const dXRight = r.xMax - p.x;
-  const dZNear  = p.z - r.zMin;
-  const dZFar   = r.zMax - p.z;
-
-  if (Math.min(dXLeft, dXRight) <= Math.min(dZNear, dZFar)) {
-    p.x = dXLeft <= dXRight ? r.xMin : r.xMax;
-    if (p.mesh) p.mesh.position.x = p.x;
-  } else {
-    p.z = dZNear <= dZFar ? r.zMin : r.zMax;
-    if (p.mesh) p.mesh.position.z = p.z;
+// 見えない段差（汎用）：ent（敵 or プレイヤー）が「ブロック矩形」（穴 rect + margin）に
+// 入り込んだら、入ってきた方向（X か Z）の最寄り縁の外へ押し返す。敵・プレイヤー共通。
+//   - margin で穴より一回り外に止まる＝体が穴グラフィックに乗らない。
+//   - 穴未登録ステージや矩形外なら no-op（false）。
+//   - 接地判定は呼び出し側で済ませる前提（空中はブロックしない）。
+function _blockFromHoleZone(ent, margin) {
+  if (!ent) return false;
+  for (const h of _holes) {
+    const r = h.rect;
+    const xMin = r.xMin - margin, xMax = r.xMax + margin;
+    const zMin = r.zMin - margin, zMax = r.zMax + margin;
+    if (ent.x <= xMin || ent.x >= xMax || ent.z <= zMin || ent.z >= zMax) continue;
+    const dL = ent.x - xMin, dR = xMax - ent.x;
+    const dN = ent.z - zMin, dF = zMax - ent.z;
+    if (Math.min(dL, dR) <= Math.min(dN, dF)) {
+      ent.x = (dL <= dR) ? xMin : xMax;
+      if (ent.mesh) ent.mesh.position.x = ent.x;
+    } else {
+      ent.z = (dN <= dF) ? zMin : zMax;
+      if (ent.mesh) ent.mesh.position.z = ent.z;
+    }
+    return true;
   }
+  return false;
 }
 
 function _dropPlayer(p, holeRect) {
@@ -349,9 +358,19 @@ export function tickFloorHoleSystem() {
 
   // 敵
   if (_enemies) {
+    const cfgE = FLOOR_HOLE_CONFIG;
     for (const e of _enemies) {
+      if (!e || !e.isAlive || e.dying || e._inHole) continue;
       const r = _enemyHole(e);
-      if (r) _dropEnemy(e, r);
+      if (r) {
+        // 非平穏（被弾/攻撃/ダウン/吹き飛び）で穴 rect に入った → 落下＝叩き込み武器
+        _dropEnemy(e, r);
+        continue;
+      }
+      // 落下対象でない＝平穏 state or 穴外。平穏 state かつ接地なら穴ゾーンに入れない。
+      if (SAFE_FALL_STATES.has(e.state) && e.y <= cfgE.enemyGroundY) {
+        _blockFromHoleZone(e, cfgE.blockMargin);
+      }
     }
   }
   _updateFallingEnemies();
@@ -379,7 +398,10 @@ export function tickFloorHoleSystem() {
       if (!SAFE_FALL_STATES.has(p.state)) _dropPlayer(p, r);
       _playerAirborneOverHole = false;
     }
-    // 壁押し戻しは吹き飛び中でない通常接地時のみ
-    if (!_playerFallPending && !blownAway) _enforceHoleWall(p);
+    // 壁押し戻し（ブロック矩形）は吹き飛び中でない通常接地時のみ。空中はブロックしない
+    // （ジャンプで穴を飛び越える挙動を維持。穴 rect 内着地時の落下判定は上の分岐で処理済み）。
+    if (!_playerFallPending && !blownAway && grounded) {
+      _blockFromHoleZone(p, FLOOR_HOLE_CONFIG.blockMargin);
+    }
   }
 }
