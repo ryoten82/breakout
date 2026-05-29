@@ -12,6 +12,10 @@ import { createMine } from '../../props/factory/mine.js';
 import { createCrate } from '../../props/factory/crate.js';
 import { registerBreakable } from '../../breakables.js';
 import { levelWalls } from '../../camera.js';
+import { initFloorHoleSystem, addFloorHole, tickFloorHoleSystem } from '../../hazards/floor-hole.js';
+
+// 落とし穴（敵の回り込み回避 / 穴アイテム回避の検証用）。spawn 群と被らない右側に1個。
+const ACTION_TEST_HOLE = { xMin: 1100, xMax: 1450, zMin: -150, zMax: 250 };
 
 const ARENA_HALF_X   = 3000;  // 固定壁の半幅（カメラ追従壁を上書きして広く取る）
 const MINE_Z         = 700;   // 地雷の z（プレイ平面の奥端）
@@ -190,6 +194,9 @@ export function initActionTest(deps) {
   _hide(backWallPillars);
   _hide(bgElements);
   _buildRoom(scene, THREE);
+  // 落とし穴（汎用 floor-hole システム）：敵の回り込み回避 + アイテム穴回避の検証用に 1 個
+  initFloorHoleSystem(deps);
+  addFloorHole(ACTION_TEST_HOLE);
   // テスト投入対象 OC を最初から ON：取得しに行かずに挙動確認できる
   _applyTestRoomOCFlags();
   // ダミー敵 2 体：性格の挙動差（dodge/guard 頻度）を見比べる用に brave / cunning を 1 体ずつ。
@@ -204,6 +211,7 @@ export function initActionTest(deps) {
 
 let _chipDemoPlaced = false;
 export function tickActionTest() {
+  tickFloorHoleSystem();   // 落とし穴の落下/ブロック/プレイヤー落下処理
   // 自由移動テスト部屋：ウェーブ進行なし。地雷リスポーンは updateBreakables 側で進む。
   // 敵の即リスポーン：死亡フロー（dying）に入ったスロットを毎フレーム検出し、すぐ補充する。
   //   → 死亡演出（ゴア）は別個体として最後まで再生されつつ、戦う相手は途切れない。

@@ -101,6 +101,123 @@ export function initEnemySystem(deps) {
 }
 
 // ============================================================
+//  汎用障害物回避（案B・2026-05-29）：歩行 chase で PL へ直進すると mid-arena 障害物
+//  （落とし穴・将来の中央壁/柱 等）に阻まれてピン留めする問題への navigation-lite。
+//   - 障害物 = 敵が回り込むべきブロック矩形。Phase1 は window.SB.FLOOR_HOLES（穴）。
+//     将来の障害物源はここに足す（registerNavObstacle 的窓口へ拡張可）。
+//   - PL への X 接近を阻む障害物があれば、近い Z 縁の外へ回り込む。回り込み方向は
+//     X-span を抜けるまで保持（_navDetourObs / _navDetourZSign）＝ジッタ防止。
+//   - 戻り値 true: X/Z 移動を本関数が処理した（呼び元の通常接近をスキップ）。
+//   - 既知の Phase1 限界：PL が同 X で穴の Z 向こうに居る純 Z 経路は未対応（要なら拡張）。
+// ============================================================
+const NAV_AVOID_MARGIN = 80;   // 回り込み時に縁から離すクリアランス（block margin 50 の外を保つ）
+const NAV_PATH_MARGIN  = 10;   // 経路交差判定に使う「実穴」マージン（小さく＝PL が穴脇に立っても往復しない）
+
+// 線分 (x0,z0)-(x1,z1) が AABB[rxMin..rxMax, rzMin..rzMax] と交差するか（Liang-Barsky）。
+function _segIntersectsRect(x0, z0, x1, z1, rxMin, rzMin, rxMax, rzMax) {
+  if ((x0 >= rxMin && x0 <= rxMax && z0 >= rzMin && z0 <= rzMax) ||
+      (x1 >= rxMin && x1 <= rxMax && z1 >= rzMin && z1 <= rzMax)) return true;
+  let t0 = 0, t1 = 1;
+  const dX = x1 - x0, dZ = z1 - z0;
+  const p = [-dX, dX, -dZ, dZ];
+  const q = [x0 - rxMin, rxMax - x0, z0 - rzMin, rzMax - z0];
+  for (let i = 0; i < 4; i++) {
+    if (p[i] === 0) { if (q[i] < 0) return false; }
+    else {
+      const t = q[i] / p[i];
+      if (p[i] < 0) { if (t > t1) return false; if (t > t0) t0 = t; }
+      else          { if (t < t0) return false; if (t < t1) t1 = t; }
+    }
+  }
+  return t0 <= t1;
+}
+
+// 敵→PL の直線が「実穴（±NAV_PATH_MARGIN）」を横切るか。
+function _pathBlockedByHole(e, p0, r) {
+  const mb = NAV_PATH_MARGIN;
+  return _segIntersectsRect(e.x, e.z, p0.x, p0.z, r.xMin - mb, r.zMin - mb, r.xMax + mb, r.zMax + mb);
+}
+
+// 障害物回避デバッグログ（SB.DEBUG_NAV_AVOID = true で START/CLEAR/ACTIVE を出力）。
+//   暴走/往復/張り付きの再発を eval なしで追うため（finicky なので常設・安定後に削除可）。
+function _navLog(e, label, obj) {
+  if (typeof window !== 'undefined' && window.SB?.DEBUG_NAV_AVOID) {
+    console.log(`[NAV ${label}] ${e.enemyType ?? '?'}`, obj ?? '');
+  }
+}
+
+function _steerAroundNavObstacles(e, p0, dx, appSpd, zChaseFactor) {
+  const holes = (typeof window !== 'undefined' && window.SB?.FLOOR_HOLES) || null;
+  if (!holes || holes.length === 0) { e._navDetourObs = null; return false; }
+
+  // 経路を阻む障害物を選ぶ：継続中があり、まだ直線が横切るなら保持（sticky）。さもなくば新規探索。
+  const _wasDetouring = !!e._navDetourObs;
+  let r = null;
+  if (e._navDetourObs && _pathBlockedByHole(e, p0, e._navDetourObs)) {
+    r = e._navDetourObs;
+  } else {
+    e._navDetourObs = null;
+    for (const h of holes) {
+      if (h.rect && _pathBlockedByHole(e, p0, h.rect)) { r = h.rect; break; }
+    }
+  }
+  if (!r) {
+    if (_wasDetouring) _navLog(e, 'CLEAR', { x: Math.round(e.x), z: Math.round(e.z) });
+    return false;
+  }
+
+  // 回り込み側 Z をコミット（直線が抜けるまで保持）：PL が span 外ならその Z 側へ（最短）、
+  //   span 内なら自分の近い側へ。
+  if (e._navDetourObs !== r) {
+    e._navDetourObs = r;
+    const center = (r.zMin + r.zMax) / 2;
+    const ref = (p0.z < r.zMin || p0.z > r.zMax) ? p0.z : e.z;
+    e._navDetourZSign = (ref <= center) ? -1 : 1;
+    // 目標角の X 側も detour 開始時にコミット（PL が穴中心付近をうろつくと毎フレーム Tx が
+    //   左右フリップして角を往復するのを防ぐ＝抜けるまで固定）。
+    e._navDetourTxSide = (p0.x >= (r.xMin + r.xMax) / 2) ? 1 : -1;
+    e._navLogTick = 0;
+    _navLog(e, 'START', {
+      rect: `x${r.xMin}..${r.xMax} z${r.zMin}..${r.zMax}`, zSign: e._navDetourZSign, txSide: e._navDetourTxSide,
+      ex: Math.round(e.x), ez: Math.round(e.z), px: Math.round(p0.x), pz: Math.round(p0.z),
+    });
+  }
+  const zSign = e._navDetourZSign;
+  const c = NAV_AVOID_MARGIN;
+  const HxMin = r.xMin - c, HxMax = r.xMax + c;
+  const HzMin = r.zMin - c, HzMax = r.zMax + c;
+  // 目標コーナー：コミット済み X 側 × コミット Z 側の「穴の外角」（detour 中フリップしない）。
+  const Tx = (e._navDetourTxSide > 0) ? HxMax : HxMin;
+  // Tz は縁ちょうどでなく少し外側へ（z が縁で 1 足りず zCleared を満たさず X がロックする
+  //   off-by-one デッドロック防止）。
+  const Tz = (zSign < 0) ? HzMin - 6 : HzMax + 6;
+  const zSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * zChaseFactor;
+  // Z：コミット側の縁外へ寄せる
+  const dZ = Tz - e.z;
+  if (Math.abs(dZ) > 1) e.z += Math.sign(dZ) * Math.min(zSpd, Math.abs(dZ));
+  // X：z が span 外なら目標角 Tx へ（Math.min で角を越えない＝画面端への暴走防止）。
+  //    span 内はフリーズ/後退せず穴手前縁まで詰める。
+  if (e.z <= HzMin || e.z >= HzMax) {
+    const dX = Tx - e.x;
+    if (Math.abs(dX) > 1) e.x += Math.sign(dX) * Math.min(appSpd, Math.abs(dX));
+  } else {
+    const dirX = Math.sign(Tx - e.x) || 1;
+    const nearEdgeX = (dirX > 0) ? HxMin : HxMax;
+    if (dirX > 0 && e.x < nearEdgeX)      e.x = Math.min(e.x + appSpd, nearEdgeX);
+    else if (dirX < 0 && e.x > nearEdgeX) e.x = Math.max(e.x - appSpd, nearEdgeX);
+  }
+  // 継続中の throttled ログ（20F おき・かつ動いた時のみ＝停止中のスパム防止）：軌跡確認用
+  if ((((e._navLogTick = (e._navLogTick ?? 0) + 1)) % 20) === 0) {
+    const rx = Math.round(e.x), rz = Math.round(e.z);
+    if (e._navLastLogX !== rx || e._navLastLogZ !== rz) {
+      _navLog(e, 'ACTIVE', { x: rx, z: rz, Tx: Math.round(Tx), Tz: Math.round(Tz), zClr: (e.z <= HzMin || e.z >= HzMax) });
+      e._navLastLogX = rx; e._navLastLogZ = rz;
+    }
+  }
+  return true;
+}
+
+// ============================================================
 //  敵ジャンプ — プレイヤーの jump_* state を共用（被弾の空中同期に必要）
 // ============================================================
 //  自発的にジャンプする敵は少ない想定だが、攻撃や AI で空中へ移行する敵を
@@ -4014,10 +4131,13 @@ export function updateEnemies(ctx) {
             e.aiPhase = 'chase';
             _chaseDash = true;
             const _ds = _dashChaseSpd0 * (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
-            e.x += Math.sign(dx) * _ds;
-            if (adz > 80) {
-              const _zSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * _zChaseFactor;
-              e.z += Math.sign(dz) * Math.min(_zSpd, adz);
+            // 案B 障害物回避：ダッシュ追跡でも穴等を回り込む（遠間合いはこの経路を通る）
+            if (!_steerAroundNavObstacles(e, p0, dx, _ds, _zChaseFactor)) {
+              e.x += Math.sign(dx) * _ds;
+              if (adz > 80) {
+                const _zSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * _zChaseFactor;
+                e.z += Math.sign(dz) * Math.min(_zSpd, adz);
+              }
             }
           } else if (e.dashChaseBeat >= 0) {
             // ワンテンポ待機中：その場で「溜め」（移動せず・move-state 反映で wait01）
@@ -4066,28 +4186,32 @@ export function updateEnemies(ctx) {
               } else {
                 // 接近移動（歩き速度・X / Z 両軸）。興奮中は接近速度上昇（#14-C）
                 const _appSpd = _approachSpd0 * (e.enraged ? ENEMY_ENRAGE_CONFIG.APPROACH_MULT : 1);
-                if (e.enemyType === 'enem02') {
-                  // enem02 後方待機型：自分から前線に詰めない。
-                  //   極端に遠い場合（> approachRange × 1.5）のみゆっくり詰め（攻撃圏に入るため）。
-                  //   それ以下の距離では静止してジャンプダイブを狙う。
-                  //   プレイヤーが接近してきたら _selectEnemyAtk がダッシュで追い払う。
-                  const _e02FarLimit = C.approachRange * 1.5;  // 600wu
-                  if (adx > _e02FarLimit) {
-                    e.x += Math.sign(dx) * _appSpd * 0.4;
-                  }
+                // 案B 汎用障害物回避：PL へ直進が障害物（穴 等）に阻まれるなら縁を回り込む。
+                //   歩行 chase のみ。回避中は X/Z をステアリング側で処理 → 通常接近スキップ。
+                if (_steerAroundNavObstacles(e, p0, dx, _appSpd, _zChaseFactor)) {
+                  // 回避ステアリング処理済み
                 } else {
-                  if (adx > _attackRange) {
-                    e.x += Math.sign(dx) * _appSpd;
+                  if (e.enemyType === 'enem02') {
+                    // enem02 後方待機型：自分から前線に詰めない。
+                    //   極端に遠い場合（> approachRange × 1.5）のみゆっくり詰め（攻撃圏に入るため）。
+                    const _e02FarLimit = C.approachRange * 1.5;  // 600wu
+                    if (adx > _e02FarLimit) {
+                      e.x += Math.sign(dx) * _appSpd * 0.4;
+                    }
+                  } else {
+                    if (adx > _attackRange) {
+                      e.x += Math.sign(dx) * _appSpd;
+                    }
                   }
-                }
-                // Z 追従（enem02 含む全タイプ共通）
-                // cunning は laneZ ぶんずらした位置を狙って散開（14-D-3 密集回避）。
-                const _goalZ  = p0.z + e.laneZ;
-                const _laneDz = (e.personality === 'cunning') ? LANE_HOMING_DEADZONE : 80;
-                const _dzGoal = _goalZ - e.z;
-                if (Math.abs(_dzGoal) > _laneDz) {
-                  const _zSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * _zChaseFactor;
-                  e.z += Math.sign(_dzGoal) * Math.min(_zSpd, Math.abs(_dzGoal));
+                  // Z 追従（enem02 含む全タイプ共通）
+                  // cunning は laneZ ぶんずらした位置を狙って散開（14-D-3 密集回避）。
+                  const _goalZ  = p0.z + e.laneZ;
+                  const _laneDz = (e.personality === 'cunning') ? LANE_HOMING_DEADZONE : 80;
+                  const _dzGoal = _goalZ - e.z;
+                  if (Math.abs(_dzGoal) > _laneDz) {
+                    const _zSpd = PHYSICS.SPEED * PHYSICS.Z_SPEED_MULT * _zChaseFactor;
+                    e.z += Math.sign(_dzGoal) * Math.min(_zSpd, Math.abs(_dzGoal));
+                  }
                 }
                 // 攻撃圏内だが token 不可 / cooldown 中 → その場で待機（ジリジリ感）
               }
