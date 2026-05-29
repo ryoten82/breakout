@@ -36,6 +36,8 @@ const MINES = [
 // デバッグ用：スクラッパー（enem01）を HP 無限で配置。SP チェーン検証に使う（2026-05-26）。
 const ENEMY_SLOTS = [
   { personality: 'brave', enemyType: 'enem01', x: 0, z: 150 },
+  // 体力無限ジャンパー（enem02・jump_dive）：RC / 乱戦 RC（🟡#2）検証用。HP は _spawnSlot で 999999 固定。
+  { personality: 'brave', enemyType: 'enem02', x: 700, z: 200 },
 ];
 
 let _built = false;
@@ -159,7 +161,7 @@ function _hide(obj) {
 //   実装が完了する度にここに ID を追加していく（overclock_ideas.md §2-X と同期）。
 const ACTION_TEST_AUTO_OC_FLAGS = [
   'chnSp4Instant',   // CHN-e04 SP4 波動拳即発（2026-05-28 実装）
-  'brnFlameUpper',   // BRN-e11 FLAME UPPER（2026-05-28 v4 キュー実装・押し放置=最終段 / 連打=mid 挿入最大3）
+  // 'brnFlameUpper',   // BRN-e11 FLAME UPPER（2026-05-29 一旦 OFF：SP2 を通常版に戻して RC 検証。復帰はコメント解除）
   'magmaVent',       // BRN-e08 MAGMA VENT（2026-05-28 実装・SP3 命中地点に床マグマ）
   'chnLeapSp3',      // CHN-e01 飛び上がり SP3（2026-05-28 実装・SP3 完全置換 / leap up + 多段 + 最終 launcher）
   'sp4Stage2',       // BRN-l04 同梱：SP4 stage2 解放（チャージ MAX 解放）

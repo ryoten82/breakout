@@ -4960,9 +4960,9 @@
     updateHudScale();  // 初期化
     window.SB = {
       // ── デバッグフラグ（標準 ON 中：仕様確定後に false / 削除） ─────
-      DEBUG_BOSS_OD: true,  // boss_overdrive（連続技）の slot 遷移・RC マッチ・失敗理由をログ出力
-      DEBUG_FATAL:   true,  // SCRAP THEM!!! フェイタルのフェーズ遷移ログ（一時 ON）
-      DEBUG_CHN_SP4: true,  // CHN-e04 波動拳即発の入力検出ログ（一時 ON・デバッグ完了後 false に）
+      DEBUG_BOSS_OD: false, // boss_overdrive（連続技）の slot 遷移・RC マッチ・失敗理由をログ出力（2026-05-29 OFF：RC ENTRY 毎フレーム spam 解消・必要時 console で true）
+      DEBUG_FATAL:   false, // SCRAP THEM!!! フェイタルのフェーズ遷移ログ（2026-05-29 OFF・必要時 console で true）
+      DEBUG_CHN_SP4: false, // CHN-e04 波動拳即発の入力検出ログ（2026-05-28 完了済みのため OFF・必要時 console で true）
       DEBUG_FLAME_UPPER: false,  // BRN-e11 FLAME UPPER キューのライフサイクル全ログ（一旦凍結・残問題未解決）
       DEBUG_MAGMA_VENT: false,   // BRN-e08 MAGMA VENT 全ライフサイクルログ（実戦調整時に true）
       DEBUG_CHN_LEAP_SP3: false, // CHN-e01 飛び上がり SP3 ライフサイクルログ（実戦調整時に true）

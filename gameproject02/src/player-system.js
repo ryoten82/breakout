@@ -72,6 +72,10 @@ let _PART_REST = null;
 let _PART_ANIMS = null;
 
 // 内部 module state（旧 index.html の let を移管）
+// ⚠ gameFrameCounter は単調増加のまま維持し、ステージ遷移やリスポーンでリセットしないこと。
+//   タイムスタンプ方式の各種クールダウン / ロックがこの非リセットを前提にしている：
+//   _facingLockUntil / _leapLandedFrame / _specialFireFrames / _derivKCooldowns /
+//   _megaComboGraceUntil 等。リセットすると過去のロックが「未来」扱いになり残骸事故が起きる。
 let gameFrameCounter = 0;
 let kKeyWasDown = false;
 
@@ -716,7 +720,7 @@ function startSpecial(p, id) {
   if (_atkDef?.armor && _atkDef.armor > 0) {
     p.playerSAHp        = _atkDef.armor;
     p._saArmedAttackId  = id;
-    console.log(`[SA arm] id=${id} armor=${_atkDef.armor} hitFrame=${_atkDef.hitFrame}`);
+    if (window.SB?.DEBUG_SPECIAL) console.log(`[SA arm] id=${id} armor=${_atkDef.armor} hitFrame=${_atkDef.hitFrame}`);
   }
   // 使用済 ID は地上/空中で共有するため base ID で記録（重複時も add は冪等）
   p.specialUsedIds.add(baseId);
@@ -777,7 +781,7 @@ export function processSpecialInput(p) {
     }
     if (_hadou && _canSp) {
       const sp4Id = pickSpecialAttackId('c01_sp_04_01', p.isGrounded);
-      console.log(`[CHN-e04] hadouken matched (J) → ${sp4Id}`);
+      if (window.SB?.DEBUG_CHN_SP4) console.log(`[CHN-e04] hadouken matched (J) → ${sp4Id}`);
       // チャージ蓄積を破棄して即発射（連続入力で chargeReady が立つのを防ぐ）
       p.chargeJFrames = 0;
       p.chargeLevel   = 0;

@@ -10,6 +10,7 @@
 
 import { GORE_CONFIG } from './config.js';
 import { STATE, ENEMY_FALL_FRAMES, EXPLOSION_LAUNCH_VY } from './states.js';
+import { createDelayedQueue } from './delayed-queue.js';
 
 // 物理：壊れ物パーツは gs より「軽く・短く」収まる肌感
 const GRAVITY      = 0.5;                                        // gs の PART_GRAVITY=0.7 より弱く
@@ -43,8 +44,8 @@ const MULTIHIT_BOUNCE_VY    = 7;   // 非致命ヒット時の軽い跳ね初速
 
 const breakables = [];
 const flyingParts = [];
-// 爆発後リスポーン待ち（{ factory, timer }）。userData.respawn 指定の breakable 用。
-const _respawnQueue = [];
+// 爆発後リスポーン待ち。userData.respawn 指定の breakable 用（delayFrames 後に factory 実行）。
+const _respawnQueue = createDelayedQueue();
 
 let _scene = null;
 let _THREE = null;
@@ -453,7 +454,7 @@ function _detonate(mesh) {
   // リスポーン指定（デバッグ地雷）：一定F後に factory で再生成
   const rs = mesh.userData.respawn;
   if (rs && typeof rs.factory === 'function') {
-    _respawnQueue.push({ factory: rs.factory, timer: rs.delayFrames ?? 180 });
+    _respawnQueue.schedule(rs.factory, rs.delayFrames ?? 180);
   }
   // OC コンテナ：破壊位置に OC ジェムを出現させる
   if (mesh.userData.kind === 'breakable-oc-container' && _onOcContainerBreak) {
@@ -562,11 +563,5 @@ export function updateBreakables() {
     }
   }
   // リスポーン待ちの消化（タイマー満了で factory 実行 → 新しい breakable を生成）
-  for (let i = _respawnQueue.length - 1; i >= 0; i--) {
-    if (--_respawnQueue[i].timer <= 0) {
-      const fn = _respawnQueue[i].factory;
-      _respawnQueue.splice(i, 1);
-      fn();
-    }
-  }
+  _respawnQueue.update();
 }

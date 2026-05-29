@@ -660,7 +660,7 @@ export function tryHitEnemies(p, attack, ctx) {
     //   こうしないと通常ヒットが先に kill して _maybeArmGoreCritical が
     //   forceGc/airborneKill 無しの lastHitter で gc_04 を armed してしまい、
     //   後段の RC は body 取れ済みで airborne モードにできず通常 GC が出る。
-    if (attack.repulseBox && e.repulseWindow) continue;
+    if (attack.repulseBox && e.repulseWindow && _isRepulseEligible(p, attack, e)) continue;
     // Phase 3：dying final フェーズ中は完全無敵（後方吹き飛び中の爆発待ち）
     if (e.dyingInvincible) continue;
     // down_burst_* 中は完全無敵：判定もダメージも一切受けない
@@ -1566,16 +1566,15 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
         console.log(`[SP2 LAST] state=${e.state} dx=${dx.toFixed(0)} dz=${dz.toFixed(0)} dy=${dy.toFixed(0)} pY=${p.y.toFixed(0)} eY=${e.y.toFixed(0)} alreadyHit=${alreadyHit} spCount=${spCount} dyingInv=${e.dyingInvincible} dodgeInvuln=${e.dodgeInvuln}`);
       }
     }
-    const savedDamage = attack.damage;
-    const savedHitstop = attack.hitstop;
-    attack.damage = attack.damageLastHit ?? (attack.damagePerHit * 2);
-    if (attack.hitstopLastHit !== undefined) {
-      attack.hitstop = attack.hitstopLastHit;
-    }
-    const hit = tryHitEnemies(p, attack, ctx);
+    // 最終段は damage/hitstop を差し替えて tryHitEnemies に渡す。共有定義 ATTACKS[id] を
+    // 一時 mutate→復元する旧方式はやめ、ローカルコピーを渡す（2026-05-29・共有状態を触らない）。
+    const _lastHitAttack = {
+      ...attack,
+      damage: attack.damageLastHit ?? (attack.damagePerHit * 2),
+    };
+    if (attack.hitstopLastHit !== undefined) _lastHitAttack.hitstop = attack.hitstopLastHit;
+    const hit = tryHitEnemies(p, _lastHitAttack, ctx);
     if (_DBG_SP2) console.log(`[SP2 LAST] tryHitEnemies returned hit=${hit}`);
-    attack.damage = savedDamage;
-    attack.hitstop = savedHitstop;
     if (_DBG) {
       for (const e of enemies) if (e.isAlive) console.log(`[MH FINAL post] e.state=${e.state} hit=${hit} sfCount=${e.superFlightCount}`);
     }
@@ -1593,7 +1592,7 @@ export function tryHitEnemiesMultiHit(p, attack, isLastHit, ctx) {
     // RC 対象敵への通常ヒット抑止（2026-05-27）：tryHitEnemies と同条件で multi-hit にも適用。
     //   c01_sp_02（粉塵昇竜・多段）など repulseBox 持ち多段技で、ジャンパー aim 中の敵に
     //   中間ヒットが先行ダメージを入れて RC 経路の airborneKill GC を妨害するのを防ぐ。
-    if (attack.repulseBox && e.repulseWindow) continue;
+    if (attack.repulseBox && e.repulseWindow && _isRepulseEligible(p, attack, e)) continue;
     // 同一敵への hitInterval ガード
     const nextHitFrame = p.multiHitNextHit.get(e) ?? -Infinity;
     if (gameFrame < nextHitFrame) continue;
@@ -1908,6 +1907,33 @@ function _aabbOverlap(a, b) {
   return a.x1 < b.x2 && a.x2 > b.x1 &&
          a.y1 < b.y2 && a.y2 > b.y1 &&
          a.z1 < b.z2 && a.z2 > b.z1;
+}
+
+// RC 適格判定（2026-05-29）：この敵が「今この攻撃で RC/RP 対象になりうる」か。
+//   tryHitEnemies の通常ヒット抑止を「本当に RC 対象になる敵」だけに絞るために使う。
+//   updateRepulseDetection の成立条件（repulseWindow + repulseTargetBox + フレーム窓 +
+//   距離/Y ガード + AABB 重なり）と同じ基準。axis は RC/RP 分岐用なのでここでは見ない
+//   （軸不一致でも RP は成立＝抑止対象）。RC が成立する敵を必ず true にする＝保守側に倒し、
+//   RC を壊さない。乱戦で「窓は開いてるがボックスが重ならない敵」は false → 通常ヒットさせる。
+function _isRepulseEligible(p, atk, e) {
+  if (!atk || !atk.repulseBox || !e || !e.repulseWindow) return false;
+  // この攻撃インスタンスで既に RC 成立済み → 以降 RC は出ない（連発防止）。
+  //   よって残りの repulseWindow 敵を抑止する理由が無い → 通常ヒット解禁（乱戦素通り対策）。
+  if (p._repulseFiredForAttackId === p.attackId) return false;
+  const eAtk = ENEMY_ATTACKS[e.curAtkId];
+  if (!eAtk || !eAtk.repulseTargetBox) return false;
+  if (atk.repulseFrameStart != null && atk.repulseFrameEnd != null) {
+    const elapsed = (atk.duration ?? 0) - (p.stateTimer ?? 0);
+    if (elapsed < atk.repulseFrameStart || elapsed > atk.repulseFrameEnd) return false;
+  }
+  const _isOd = e.curAtkId && ENEMY_ATTACKS[e.curAtkId]?.kind === 'boss_overdrive';
+  const dx = e.x - p.x, dz = e.z - p.z;
+  const _distLimit = _isOd ? (REPULSE_CONFIG.MAX_WARP_DISTANCE * 2) : REPULSE_CONFIG.MAX_WARP_DISTANCE;
+  if (Math.hypot(dx, dz) > _distLimit) return false;
+  if (!_isOd && (e.y - p.y) > REPULSE_CONFIG.MAX_Y_GAP) return false;
+  const pBox = _resolveRepulseBoxToWorld(p.x, p.y, p.z, p.facing, atk.repulseBox);
+  const eBox = _resolveRepulseBoxToWorld(e.x, e.y, e.z, e.facing, eAtk.repulseTargetBox);
+  return _aabbOverlap(pBox, eBox);
 }
 
 // main loop から毎フレーム呼ぶ。enemies は updateEnemies の後の最新状態を渡す

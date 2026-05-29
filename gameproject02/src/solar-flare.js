@@ -20,6 +20,8 @@ import {
   ENEMY_FALL_FRAMES,
   KB_LV07_HOP_VY,
 } from './states.js';
+import { MIDBOSS_SHIELD_CONFIG } from './config.js';
+import { createDelayedQueue } from './delayed-queue.js';
 
 const FLARE_DELAY_FRAMES   = 90;    // 1.5 秒（60fps）
 const FLARE_RADIUS         = 350;   // 巨大ドーム
@@ -36,7 +38,7 @@ const FLARE_DOME_OPACITY   = 0.30;
 const FLARE_DOME_LIFE      = 60;    // ドーム視覚は 1 秒で消える（炎フィールドは別途残る）
 const FLARE_BLINK_PERIOD   = 18;
 
-const _pending = [];   // [{ target, x, z, triggerFrame }]
+const _pending = createDelayedQueue();   // 遅延ドーム発火（FLARE_DELAY_FRAMES 後に敵の現在位置で spawn）
 const _flares = [];
 
 let _enemies = null;
@@ -109,10 +111,14 @@ function _isTargetable(e) {
 
 // === API：attack-engine の hit 時に呼ぶ。1.5 秒後に解決される予約。===
 export function schedulePendingFlare(target, x, z) {
-  const f = _getGameFrame?.() ?? 0;
-  const entry = { target, x, z, triggerFrame: f + FLARE_DELAY_FRAMES };
-  _pending.push(entry);
-  _flog('SCHEDULE', { triggerIn: FLARE_DELAY_FRAMES, totalPending: _pending.length, targetAlive: !!(target && target.isAlive) });
+  // FLARE_DELAY_FRAMES 後に解決：敵が生存していれば現在位置、死亡時は登録時座標で spawn。
+  _pending.schedule(() => {
+    let sx = x, sz = z;
+    if (target && target.isAlive && !target.dying) { sx = target.x; sz = target.z; }
+    _spawnFlareAt(sx, sz);
+    _flog('RESOLVE', { sx: sx.toFixed(0), sz: sz.toFixed(0), targetAlive: !!(target && target.isAlive) });
+  }, FLARE_DELAY_FRAMES);
+  _flog('SCHEDULE', { triggerIn: FLARE_DELAY_FRAMES, totalPending: _pending.size, targetAlive: !!(target && target.isAlive) });
 }
 
 function _spawnFlareAt(x, z) {
@@ -178,11 +184,35 @@ function _applyTickToEnemy(v, e) {
 //   lv 4 = 打ち上げ（down_up_start）。launchVy で軽く浮かせて juggle 状態へ。
 //   ダウン中は lv 7 拾い（knockback03 + hop）で維持。
 const DOME_LAUNCH_VY = 20;
+
+// AoE 反応用 SA 吸収（2026-05-29・hit-engine の SA 吸収と同基準）：
+//   SA を 1 枚消費できたら true（打ち上げリアクションを抑止）。DoT 自体は別途適用済み。
+function _tryAbsorbSA(e) {
+  if ((e.passiveSaHp ?? 0) > 0) {                       // midboss berserker 恒常 SA
+    e.passiveSaHp = 0;
+    e.passiveSaRecharge = MIDBOSS_SHIELD_CONFIG.PASSIVE_SA_RECHARGE;
+    e.hitFlashTimer = Math.max(e.hitFlashTimer ?? 0, 6);
+    return true;
+  }
+  const inWin = e.atkPhase === 'active' || (e.atkPhase === 'recover' && (e.recoverSaTimer ?? 0) > 0);
+  if ((e.superArmor ?? 0) > 0 && inWin && (e.saHp ?? 0) > 0) {  // active フェーズ SA
+    e.saHp--;
+    e.hitFlashTimer = Math.max(e.hitFlashTimer ?? 0, 6);
+    return true;
+  }
+  return false;
+}
+
 function _applyDomeBlastReactionToEnemy(v, e) {
   if (!_STATE) return;
   if (!_isTargetable(e)) return;
   e.hp -= FLARE_DAMAGE_PER_TICK * 2;
   if (_igniteEnemy) _igniteEnemy(e, { duration: FLARE_BURN_DURATION, sourceId: 'solar_flare_blast' });
+  // 打ち上げリアクションの対象判定（2026-05-29・stun 方針に整合）：
+  //   大ボスは juggle 免疫（DoT は updateEnemies のゲート安全網で尊重）／
+  //   midboss は SA 有効なら 1 枚吸収して反応なし。DoT は上で適用済みなのでここで return しても削りは効く。
+  if (e.isBoss) return;
+  if (_tryAbsorbSA(e)) return;
   const dx = e.x - v.x, dz = e.z - v.z;
   const len = Math.max(1, Math.hypot(dx, dz));
   const kbDirX = dx / len;
@@ -210,20 +240,8 @@ function _applyDomeBlastReactionToEnemy(v, e) {
 }
 
 export function updateSolarFlares() {
-  const f = _getGameFrame?.() ?? 0;
-  // === Pending 解決：triggerFrame に到達したものを敵の現在位置で spawn ===
-  for (let i = _pending.length - 1; i >= 0; i--) {
-    const p = _pending[i];
-    if (f < p.triggerFrame) continue;
-    let sx = p.x, sz = p.z;
-    if (p.target && p.target.isAlive && !p.target.dying) {
-      sx = p.target.x;
-      sz = p.target.z;
-    }
-    _spawnFlareAt(sx, sz);
-    _flog('RESOLVE', { sx: sx.toFixed(0), sz: sz.toFixed(0), targetAlive: !!(p.target && p.target.isAlive) });
-    _pending.splice(i, 1);
-  }
+  // === Pending 解決：期限到来したものを敵の現在位置で spawn（schedulePendingFlare のクロージャ）===
+  _pending.update();
   // === Active flares 更新 ===
   if (!_flares.length) return;
   for (let i = _flares.length - 1; i >= 0; i--) {
@@ -269,7 +287,7 @@ export function updateSolarFlares() {
 }
 
 export function getActiveSolarFlareCount() { return _flares.length; }
-export function getPendingSolarFlareCount() { return _pending.length; }
+export function getPendingSolarFlareCount() { return _pending.size; }
 
 export function clearAllSolarFlares() {
   for (const v of _flares) {
@@ -279,5 +297,5 @@ export function clearAllSolarFlares() {
     _disposeMesh(v.dome);
   }
   _flares.length = 0;
-  _pending.length = 0;
+  _pending.clear();
 }

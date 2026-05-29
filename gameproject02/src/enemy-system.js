@@ -935,27 +935,15 @@ export function triggerShieldBreak(e, ctx) {
 //   - MVP：banner + flash + shake + 進行中攻撃中断のみ。メガクラ流用本格演出は別セッション
 //   - 戻り値：移行発火した true / 既に移行中・非ボスなら false
 // ============================================================
-export function triggerBossPhaseTransition(e, ctx) {
-  if (!e || !e.isBoss || e.bossPhaseTransitioning) return false;
-  if ((e.bossPhase ?? 1) >= 3) return false;  // Phase 3 が最終
-  e.bossPhase = Math.min(3, (e.bossPhase ?? 1) + 1);
-  e.bossPhaseTransitioning = true;
-  e.bossPhaseTransitionTimer = BOSS01_CONFIG.PHASE_TRANSITION_FRAMES;
-  // 進行中の攻撃を中断（仕切り直し）
-  if (e.state === STATE.enemy_attacking) {
-    e.atkPhase     = null;
-    e.atkTimer     = 0;
-    e.hitDelivered = false;
-    _clearAllTokens(ctx, e);
-    _cleanupMissiles(e);  // missile_barrage 中断時の AOE/メッシュ取り残し防止
-  }
-  e.state     = STATE.wait01;
-  e.aiPhase   = 'idle';
-  e.downTimer = 0;
-  // ── ボスメガクラ演出 ──────────────────────────────────────────────
-  // 視覚：赤球体拡大（fx-system）
+// フェーズ移行イントロのタイミング（2026-05-29・tunable）
+const PT_APPROACH_MAX   = 150;  // down/空中突入時：無敵のまま着地→起き上がりを待つ上限
+const PT_POSE_FRAMES    = 48;   // 暗転＋大きく構える＋発光ランプ
+const PT_ROAR_FRAMES    = 26;   // 咆哮（この頭でメガクラ発火）ホールド
+const PT_RECOVER_FRAMES = 18;   // 発光フェード＋復帰
+
+// ボス側メガクラ本体（咆哮の瞬間に発火）：AoE・FX・バナー
+function _fireBossPhaseMegaCrash(e) {
   _triggerBossMegaCrashFX?.(e.x, e.y, e.z);
-  // AoE ヒット判定：ボス中心から半径 BOSS_MEGA_CONFIG.RADIUS 内のプレイヤーにダメージ
   if (_players?.length) {
     const _bmAtk = {
       damage:       BOSS_MEGA_CONFIG.DAMAGE,
@@ -969,15 +957,117 @@ export function triggerBossPhaseTransition(e, ctx) {
       shake:        BOSS_MEGA_CONFIG.SHAKE,
     };
     if (tryHitPlayer(e, _bmAtk) && _players?.[0]) {
-      // ボス メガクラ命中：プレイヤーにキャラ単独シェイク（大型衝撃の被弾感）
-      triggerCharShake(_players[0], 14, 18);
+      triggerCharShake(_players[0], 14, 18);   // 大型衝撃の被弾感
     }
   }
   triggerHitstop(BOSS_MEGA_CONFIG.HITSTOP);
   triggerShake(BOSS_MEGA_CONFIG.SHAKE, 42);
   spawnHitParticles(e.x, e.y + 80, e.z, 0xff3300, 60, { type: 'omni' });
   spawnBanner(`PHASE ${e.bossPhase}!`, { frames: 70, color: '#ff5544', fontSize: 64 });
+}
+
+// pose 入り：暗転のみ（カメラ寄りは無し・amount 0。既存メガクラ暗転機構を流用）
+function _ptEnterPose(e) {
+  e._ptStage = 'pose';
+  e._ptTimer = PT_POSE_FRAMES;
+  window.SB?.applyCamZoomBoost?.(0, 14, PT_POSE_FRAMES + PT_ROAR_FRAMES, 0.5);
+}
+
+export function triggerBossPhaseTransition(e, ctx) {
+  if (!e || !e.isBoss || e.bossPhaseTransitioning) return false;
+  if ((e.bossPhase ?? 1) >= 3) return false;  // Phase 3 が最終
+  e.bossPhase = Math.min(3, (e.bossPhase ?? 1) + 1);
+  e.bossPhaseTransitioning = true;
+  e.aiEnabled = false;   // イントロ中は移動 AI も停止（構えを保持・recover 完了で復帰）
+  e.aiPhase   = 'idle';
+  // 進行中の攻撃を中断（仕切り直し）
+  if (e.state === STATE.enemy_attacking) {
+    e.atkPhase     = null;
+    e.atkTimer     = 0;
+    e.hitDelivered = false;
+    _clearAllTokens(ctx, e);
+    _cleanupMissiles(e);  // missile_barrage 中断時の AOE/メッシュ取り残し防止
+  }
+  // ── フェーズ移行＝リセット（2026-05-29）─────────────────────────────
+  //   状態異常・床設置系を一掃。火ドクトリン（時間で削る）はフェーズ内では効くが
+  //   移行を跨いで持ち越さない（DoT で gate/フェイタルを素通りしないよう updateEnemies
+  //   側にゲート安全網も併設）。一掃を移行開始時にやるのは、イントロ中も DoT が
+  //   走り続けて hp がさらに削れるのを防ぐため。
+  if (e.burnTimer > 0) {
+    e.burnTimer          = 0;
+    e.burnBlastReady     = false;
+    e.burnAutoBlastTimer = 0;
+    _detachBurnOutline(e);
+  }
+  window.SB?.clearAllSolarFlares?.();   // 床炎フィールド一掃
+  window.SB?.clearAllMagmaVents?.();    // 床マグマ一掃
+  // ── イントロ分岐（2026-05-29）：突入状態で「構え→咆哮」の入りを変える ──
+  //   立ち/のけぞり：即 構え。ダウン/吹き飛び/空中：無敵のまま着地→起き上がりを
+  //   待ってから構え（ワンクッション）。※移行中は hit-engine がダメージ 0 クランプ＝全期間無敵。
+  e._ptMegaFired = false;
+  const _down = (e.y > ENEMY_AIRBORNE_Y_THRESHOLD)
+             || /^(down_|knockback)/.test(String(e.state || ''));
+  if (_down) {
+    e._ptStage = 'approach';
+    e._ptTimer = PT_APPROACH_MAX;   // 着地待ち安全上限（超えたら強制 pose）
+  } else {
+    e.state     = STATE.wait01;
+    e.downTimer = 0;
+    _ptEnterPose(e);
+  }
   return true;
+}
+
+// フェーズ移行イントロのステージ駆動（updateEnemies から毎フレーム呼ぶ）
+function _stepBossPhaseTransition(e) {
+  const _grounded = e.y <= ENEMY_AIRBORNE_Y_THRESHOLD;
+  switch (e._ptStage) {
+    case 'approach': {
+      // 無敵のまま着地＋起き上がりを待つ（down/空中突入のワンクッション）
+      e._ptTimer = (e._ptTimer ?? 0) - 1;
+      const _settled = _grounded && (
+        e.state === STATE.wait01 ||
+        e.state === STATE.down_bas_end ||
+        e.state === STATE.down_bas_start
+      );
+      if (_settled || e._ptTimer <= 0) {
+        e.state = STATE.wait01; e.downTimer = 0; e.knockbackVx = 0;
+        _ptEnterPose(e);
+      }
+      break;
+    }
+    case 'pose': {
+      e._ptTimer = (e._ptTimer ?? 0) - 1;
+      const _f = 1 - Math.max(0, e._ptTimer) / PT_POSE_FRAMES;  // 0→1 発光ランプ
+      _setMeshChargeColor(e, _f, 0xff3300);
+      if (e._ptTimer === Math.floor(PT_POSE_FRAMES * 0.5)) triggerShake(6, 10);  // ビルドアップ
+      if (e._ptTimer <= 0) { e._ptStage = 'roar'; e._ptTimer = PT_ROAR_FRAMES; }
+      break;
+    }
+    case 'roar': {
+      if (!e._ptMegaFired) {
+        e._ptMegaFired = true;
+        _setMeshChargeColor(e, 1, 0xffaa33);   // 咆哮の瞬間：発光フラッシュ
+        _fireBossPhaseMegaCrash(e);            // メガクラ AoE＝一掃と同期
+      }
+      e._ptTimer = (e._ptTimer ?? 0) - 1;
+      if (e._ptTimer <= 0) { e._ptStage = 'recover'; e._ptTimer = PT_RECOVER_FRAMES; }
+      break;
+    }
+    case 'recover':
+    default: {
+      e._ptTimer = (e._ptTimer ?? 0) - 1;
+      const _f = Math.max(0, e._ptTimer) / PT_RECOVER_FRAMES;  // 1→0 発光フェード
+      _setMeshChargeColor(e, _f, 0xffaa33);
+      if (e._ptTimer <= 0) {
+        _setMeshChargeColor(e, 0);
+        e.bossPhaseTransitioning = false;
+        e.aiEnabled = true;   // AI 復帰
+        e._ptStage = null;
+      }
+      break;
+    }
+  }
 }
 
 // ============================================================
@@ -1004,7 +1094,7 @@ export function enterEnemyDying(e, ctx) {
   e.dying            = true;
   e.dyingPhase       = 'reacting';   // 通常被弾モーション再生中（hold タイマー並列消費・wait01 到達待ち）
   e.dyingFadeTimer   = GORE_CONFIG.FADE_DURATION;
-  e.dyingHoldTimer   = GORE_CONFIG.HOLD_DURATION;  // フォールバック：3.5s で強制 final
+  e.dyingHoldTimer   = GORE_CONFIG.HOLD_DURATION;  // フォールバック：HOLD_DURATION（150F=2.5s）で強制 final
   e.dyingStunnedTimer = 0;
   e.dyingFinalTimer  = 0;
   e.dyingInvincible  = false;
@@ -3349,14 +3439,11 @@ export function updateEnemies(ctx) {
         _setMeshChargeColor(e, _pFactor, 0x000000);
       }
     }
-    // boss01 フェーズ移行タイマー（triggerBossPhaseTransition で開始・カウントダウンで自動解除）
-    //   移行中は AI 攻撃停止（_selectEnemyAtk で null 返す）+ HP 削れない（hit-engine 側でクランプ）
+    // boss01 フェーズ移行イントロ（triggerBossPhaseTransition で開始・ステージ駆動で自動解除）
+    //   移行中は AI 攻撃停止（_selectEnemyAtk で null 返す）+ HP 削れない（hit-engine 側でクランプ＝無敵）
+    //   approach（着地待ち）→ pose（暗転＋構え＋発光）→ roar（咆哮＝メガクラ発火）→ recover
     if (e.bossPhaseTransitioning) {
-      e.bossPhaseTransitionTimer = (e.bossPhaseTransitionTimer ?? 0) - 1;
-      if (e.bossPhaseTransitionTimer <= 0) {
-        e.bossPhaseTransitioning = false;
-        e.bossPhaseTransitionTimer = 0;
-      }
+      _stepBossPhaseTransition(e);
     }
     // SCRAP THEM!!! フェイタルフェーズ（§10）— フェーズマシン
     if (e.bossFatal && !e.dying) {
@@ -3438,6 +3525,20 @@ export function updateEnemies(ctx) {
     if (e.passiveSaRecharge > 0) {
       if (--e.passiveSaRecharge === 0) {
         e.passiveSaHp = MIDBOSS_SHIELD_CONFIG.PASSIVE_SA_HP;
+      }
+    }
+    // ボスゲート安全網（2026-05-29）：DoT / 床炎 / 床マグマ など hit-engine を経由しない
+    //   全ダメージ源をここで受ける。通常ヒットは hit-engine 側でクランプ済み（移行中フラグで
+    //   ここは skip されるので二重発火しない）。enterBossFatal は hp を 1 に固定するため、
+    //   直後の汎用死亡判定（hp<=0）も発火しない。
+    if (e.isBoss && !e.bossPhaseTransitioning && !e.bossFatal && !e.dying) {
+      const _gates = e.bossPhaseGateHP;
+      const _nextGate = _gates ? (_gates[(e.bossPhase ?? 1) - 1] ?? 0) : 0;
+      if (_nextGate > 0 && e.hp <= _nextGate) {
+        e.hp = _nextGate + 1;                 // 境界 +1 で停止 → 移行発火
+        triggerBossPhaseTransition(e, ctx);
+      } else if (_nextGate <= 0 && e.hp <= 0) {
+        enterBossFatal(e, _players?.[0] ?? null);  // 最終フェーズ：フェイタル委譲（雑魚 death flow 回避）
       }
     }
     // 死亡判定（Phase 3-A/B：instantRespawn フラグで分岐 / 2026-05-20 e.dying へ）
