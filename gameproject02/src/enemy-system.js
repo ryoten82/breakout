@@ -5005,9 +5005,13 @@ export function updateEnemies(ctx) {
         e.dodgeInvuln = false;
         // cunning レイヤー3：punish-dodge は回避完了直後に突進タックルへ連携（隙突き）。
         //   突進タックルは melee カテゴリなので melee トークンが空いている時のみ発動。
+        //   !e.dying ガード必須：回避中に死亡すると enterEnemyDying がトークン解放するが
+        //   dodgePunish/state=enemy_dodge は残るため、ガード無しだとここで dying 死体が
+        //   トークンを再取得 → 他の生存敵が melee 枠を取れず爆散まで攻撃不能になる
+        //   （INV-T🟡 attackToken refers dying enemy・autopilot 検出 2026-05-30）。
         const _meleeTok2 = ctx.attackTokens && ctx.attackTokens.melee;
         const _tk = _meleeTok2 ? _meleeTok2.get() : null;
-        if (e.dodgePunish && (_tk === null || _tk === e)) {
+        if (e.dodgePunish && !e.dying && (_tk === null || _tk === e)) {
           const _p = _players[0];
           if (_p && _p.x !== e.x) {  // 突進前にプレイヤー方向へ向き直す
             e.facing = _p.x > e.x ? 1 : -1;

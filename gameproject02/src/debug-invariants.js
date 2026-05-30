@@ -245,7 +245,9 @@ export function checkEnemy(e, frame) {
   // 🟡 dyingPhase 単独セット
   if (!e.dying && e.dyingPhase) _warn('warn', `[INV-E🟡] e dyingPhase=${e.dyingPhase} but dying=false`, e);
   // 🟡 isAlive=false なのに hp > 0
-  if (e.isAlive === false && e.hp > 0) _warn('warn', `[INV-E🟡] e isAlive=false but hp=${e.hp} > 0`, e);
+  //   例外：穴落下中（_inHole）は意図的に isAlive=false（updateEnemies スキップで落下させる）＋
+  //   ダメージ死でないため hp が残る。落下→despawn まで毎 F 警告するノイズを抑止（floor-hole._dropEnemy）。
+  if (e.isAlive === false && e.hp > 0 && !e._inHole) _warn('warn', `[INV-E🟡] e isAlive=false but hp=${e.hp} > 0`, e);
   // 🟢 情報：world 範囲外（極端な値のみ）
   if (Math.abs(e.x) > 100000) _warn('info', `[INV-E🟢] e.x very large (${e.x})`, e);
   if (e.y > 10000)            _warn('info', `[INV-E🟢] e.y very high (${e.y})`, e);
