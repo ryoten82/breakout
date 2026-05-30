@@ -1532,6 +1532,11 @@ export function tryHitEnemies(p, attack, ctx) {
         igniteEnemy(e, { sourceId: p.attackId });
         e.burnBlastReady = true;
       }
+    } else if (attack.igniteAlways) {
+      // FLAME UPPER 等：IGNITE OC 非依存で必ず延焼を付与（火の技の本体）。起爆システムは絡めない。
+      spawnHitParticles(e.x, e.y + 60, e.z, 0xff2200, 22, { type: 'launch', speedMul: 1.1 });
+      spawnHitParticles(e.x, e.y + 40, e.z, 0xff6600, 12, { type: 'omni',   speedMul: 0.8, sizeScale: 1.2 });
+      igniteEnemy(e, { sourceId: p.attackId });
     }
     // 同技補正カウンタ：攻撃インスタンスにつき 1 回だけ +1（複数敵巻き込みでも 1 加算）
     if (!p._sameAtkCounted && _sameAtkBaseId) {

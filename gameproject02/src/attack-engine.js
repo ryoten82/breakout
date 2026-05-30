@@ -322,6 +322,12 @@ export function updateAttack(p) {
       color: 0xff3030, opacity: 0.65, life: 20 });
   }
 
+  // === 火花演出（fireSparks:true の技・hitFrame で赤い火花を舞わせる）===
+  //   FLAME UPPER 各段に付与：火属性を視覚的に明示する（命中可否に依らず攻撃の瞬間に出す）。
+  if (elapsed === atk.hitFrame && atk.fireSparks) {
+    spawnHitParticles(p.x, p.y + 60, p.z, 0xff3322, 16, { type: 'radial', speedMul: 1.5, sizeScale: 1.0 });
+    spawnHitParticles(p.x, p.y + 80, p.z, 0xff7700, 9,  { type: 'launch', speedMul: 1.9, sizeScale: 0.7 });
+  }
   // === 踏み込み遅延（lungeDelay）：攻撃発生付近で lungeMomentum を仕込む（金剛灼火イメージ）===
   if (atk.lungeDelay && elapsed === atk.lungeDelay && atk.lungeVx !== undefined) {
     p.lungeMomentum = atk.lungeVx;

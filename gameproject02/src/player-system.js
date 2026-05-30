@@ -397,12 +397,9 @@ export function updateChargeJ(p) {
 // === OC BRN-e11 FLAME UPPER キュー（2026-05-28 v4 思想再構築）===
 //   "押し放置 → 最終段 launcher が出し切りで出る / 連打 → 合間に short upper 混ぜ込む"
 //   初回 ↑K：windup タイマー（FLAME_QUEUE_WINDUP_FRAMES）を仕込む
-//   windup 中 / mid 中の追加 ↑K：mid キュー +1（最大 FLAME_QUEUE_MAX_MIDS）
-//   windup 終了 or mid 完走後：キュー残量 > 0 → mid 発火、0 → final launcher 発火
-const FLAME_QUEUE_WINDUP_FRAMES = 18;
-const FLAME_QUEUE_MAX_MIDS      = 3;
-// 最後の press からこの F 数を超えたら残 mid を捨てて final にスキップ（テール短縮）。
-const FLAME_QUEUE_TAIL_DROP_FRAMES = 18;
+//   一発出し切り（2026-05-30 再設計）：初回 ↑K で mid を MAX プリロード → mid → final を自動連結（2 ヒット）。
+const FLAME_QUEUE_WINDUP_FRAMES = 0;    // 出がかりを通常 SP2 と同じ感に（pre-windup を廃止・即 1 段目）
+const FLAME_QUEUE_MAX_MIDS      = 1;    // mid×1 + final = 計 2 ヒット（1段目=その場アッパー / 2段目=打ち上げ）
 
 // === OC CHN-e03 SP2 潜り込み連打アッパー キュー（2026-05-30・スウェー方式）===
 //   入りスウェー（c01_sp_02_dive_sway・判定なし溜め）中の ↑K 連打数で mid 段数をバッファ。
@@ -464,38 +461,29 @@ function _resetFlameQueue(p, reason) {
 export function handleFlameUpperPress(p) {
   if (!window.SB?.OC_FLAGS?.brnFlameUpper) return false;
   _flog('PRESS in', p);
+  // 一発出し切り（2026-05-30）：1 回の ↑K で mid×MAX → final まで自動再生。連打受付なし。
   // === 出し切り後の stale queue 回収 ===
   if (p._flameQActive && !_isInFlameAttack(p) &&
       (p._flameQWindup ?? 0) === 0 && (p._flameQMids ?? 0) === 0) {
     _resetFlameQueue(p, 'stale-on-press');
   }
-  if (!p._flameQActive) {
-    if (p.guarding || p.ultActive || isHitstunState(p)) {
-      _flog('PRESS REJECT (guarding/ult/hitstun)', p);
-      return false;
-    }
-    p._flameQActive  = true;
-    p._flameQWindup  = FLAME_QUEUE_WINDUP_FRAMES;
-    p._flameQMids    = 0;
-    p._flameQMidsIssued = 0;
-    p._flameQAir     = !p.isGrounded;
-    p._flameQStarted = true;
-    p._flameQLastPressFrame = getGameFrame?.() ?? 0;
-    _flog('PRESS → NEW queue', p);
+  // 既に発動中：追加入力は無視（他技へ流さないよう true を返すが mid 積み増しはしない）
+  if (p._flameQActive) {
+    _flog('PRESS ignored (already active / 一発出し切り)', p);
     return true;
   }
-  // 既存キューに mid 積み増し（累計 MAX_MIDS で打ち切り）
-  // 旧バグ：p._flameQMids が fire で減算 → 連打で refill 無限ループ。
-  // _flameQMidsIssued（累計発行数）で上限管理に切替（2026-05-28）。
-  p._flameQLastPressFrame = getGameFrame?.() ?? 0;
-  const issued = p._flameQMidsIssued ?? 0;
-  if (issued >= FLAME_QUEUE_MAX_MIDS) {
-    _flog('PRESS → ADD mid CAPPED', p, { issued, max: FLAME_QUEUE_MAX_MIDS });
-    return true;
+  if (p.guarding || p.ultActive || isHitstunState(p)) {
+    _flog('PRESS REJECT (guarding/ult/hitstun)', p);
+    return false;
   }
-  p._flameQMids = (p._flameQMids ?? 0) + 1;
-  p._flameQMidsIssued = issued + 1;
-  _flog('PRESS → ADD mid', p, { issued: p._flameQMidsIssued, midsInFlight: p._flameQMids });
+  // 新規発動：全 mid をプリロード（連打不要で mid×MAX → final が自動で出る）
+  p._flameQActive  = true;
+  p._flameQWindup  = FLAME_QUEUE_WINDUP_FRAMES;
+  p._flameQMids    = FLAME_QUEUE_MAX_MIDS;
+  p._flameQMidsIssued = FLAME_QUEUE_MAX_MIDS;
+  p._flameQAir     = !p.isGrounded;
+  p._flameQStarted = true;
+  _flog('PRESS → NEW queue (一発出し切り・mid プリロード)', p, { mids: p._flameQMids });
   return true;
 }
 
@@ -539,21 +527,12 @@ export function tickFlameUpperQueue(p) {
     if (p._flameQWindup === 0) _flog('WINDUP done', p);
     return;
   }
-  // 発火フェーズ：mid > 0 だが「直近 N F に追加 press 無し」なら残 mid を捨てて final へ飛ばす（テール短縮）。
-  //   "触ってなくても空振りが続く" 対策（2026-05-28）：
-  //   ユーザーが press をやめた時点で chain を畳む。閾値は windup と同じ 18F。
+  // 発火フェーズ：一発出し切りなので tail-drop（連打停止で畳む）は廃止。
+  //   プリロードされた mid を順に出し切り、残 0 で final へ。
   if ((p._flameQMids ?? 0) > 0) {
-    const lastPress = p._flameQLastPressFrame ?? 0;
-    const sinceLast = (getGameFrame?.() ?? 0) - lastPress;
-    if (sinceLast > FLAME_QUEUE_TAIL_DROP_FRAMES) {
-      _flog('TAIL DROP → skip to final', p, { sinceLast, threshold: FLAME_QUEUE_TAIL_DROP_FRAMES, droppedMids: p._flameQMids });
-      p._flameQMids = 0;
-      // 次のフレームで最終段が走る（fall through せずに return）
-      return;
-    }
     const midId = _flameMidId(p);
     const ok = startSpecial(p, midId);
-    _flog(ok ? 'FIRE mid OK' : 'FIRE mid FAIL', p, { midId, midsBefore: p._flameQMids, sinceLastPress: sinceLast });
+    _flog(ok ? 'FIRE mid OK' : 'FIRE mid FAIL', p, { midId, midsBefore: p._flameQMids });
     if (ok) {
       p._flameQMids--;
       p._flameQStallFrames = 0;

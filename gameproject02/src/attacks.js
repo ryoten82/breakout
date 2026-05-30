@@ -940,13 +940,12 @@ export const ATTACKS = {
     repulseFrameStart: 1,
     repulseFrameEnd:   20,
   },
-  // === OC BRN-e11 FLAME UPPER（2026-05-28 v4 思想再構築）===
-  //   "押し放置 → 最終段 launcher が出し切りで出る / 連打 → 合間に short upper を混ぜ込む"
-  //   player-system 側でキューを持ち、入力を蓄積：
-  //     - 初回 ↑K：windup タイマー（18F idle）を仕込む
-  //     - windup / mid 中の追加 ↑K：mid キューを +1（最大 3）
-  //     - windup 終了 or mid 終了：キュー残量 > 0 なら _flame_mid、0 なら _flame_final 発火
-  //   ここでは「mid 単発」と「final launcher」の 2 種（×地上/空中）だけ定義する。
+  // === OC BRN-e11 FLAME UPPER（2026-05-30 再設計：2 ヒット・出がかり=通常 SP2・自動連結）===
+  //   ↑K 一押しで 2 ヒット自動連結（連打/再入力なし・着地までに完結）。CHN-e03 DIVE と共存（↑K で FLAME 優先）。
+  //     - 1 段目（_flame_mid）：その場アッパー。打ち上げず軽く当てる（atk_lv3・点火）。出がかりは通常 SP2 と同じ感。
+  //     - 2 段目（_flame_final）：打ち上げアッパー。自分も敵も上昇（launcher・atk_lv4・点火）＝通常 SP2 相当。
+  //   個性＝「各ヒット点火 + 毎ヒット赤い火花（fireSparks）」で火属性を明示。火の追加ペイロードは持たせない。
+  //   キュー：初回 ↑K で mid を MAX(=1) プリロード → windup(0) 後 mid → final を自動再生。
   c01_sp_02_short_flame_mid: {
     label:        'c01_sp_02_short_flame_mid (METEO SP2・FLAME UPPER 中間 short upper)',
     duration:     26, hitFrame: 6, hitDuration: 5,
@@ -957,8 +956,10 @@ export const ATTACKS = {
     knockback:    14,
     knockbackY:   6,
     hitstop:      4, shake: 4,
-    atk_lv:       2,
-    atk_lv_air:   2,
+    atk_lv:       3,
+    atk_lv_air:   3,
+    plyrLiftVx:       8,    // 前進（facing 方向の airVx）— 昇竜烈破の出だし：自分だけ前へ
+    plyrLiftVy:       15,   // ちょっと飛び上がる（敵は打ち上げず自分だけ浮く）
     hitColor:     0xff7733,
     hitCount:     14,
     aerialHop:    false,
@@ -968,6 +969,8 @@ export const ATTACKS = {
     flashOnStart: false,
     showHitbox:   true,
     igniteTrigger: true,
+    igniteAlways: true,
+    fireSparks:   true,
     repulseAxis:  'aerial',
     repulseFrameStart: 1, repulseFrameEnd: 12,
     repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
@@ -983,8 +986,10 @@ export const ATTACKS = {
     knockback:    14,
     knockbackY:   6,
     hitstop:      4, shake: 4,
-    atk_lv:       2,
-    atk_lv_air:   2,
+    atk_lv:       3,
+    atk_lv_air:   3,
+    plyrLiftVx:       8,    // 前進（facing 方向の airVx）— 昇竜烈破の出だし：自分だけ前へ
+    plyrLiftVy:       15,   // ちょっと飛び上がる（敵は打ち上げず自分だけ浮く）
     hitColor:     0xff7733,
     hitCount:     14,
     aerialHop:    false,
@@ -994,14 +999,16 @@ export const ATTACKS = {
     flashOnStart: false,
     showHitbox:   true,
     igniteTrigger: true,
+    igniteAlways: true,
+    fireSparks:   true,
     repulseAxis:  'aerial',
     repulseFrameStart: 1, repulseFrameEnd: 12,
     repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
     singleTarget: true,
   },
-  // FLAME UPPER 最終段 = 通常 SP2 c01_sp_02_short 同等の launcher。自機も浮く。
+  // FLAME UPPER 2 段目（2026-05-30 再設計）：打ち上げアッパー。自分も敵も上昇（＝通常 SP2 相当の launcher）＋点火＋赤火花。
   c01_sp_02_short_flame_final: {
-    label:        'c01_sp_02_short_flame_final (METEO SP2・FLAME UPPER 最終段 launcher)',
+    label:        'c01_sp_02_short_flame_final (METEO SP2・FLAME UPPER 2段目・打ち上げ launcher)',
     duration:     50, hitFrame: 8, hitDuration: 6,
     cancelWindowStart: 30,
     cancelWindow: 45,
@@ -1014,11 +1021,11 @@ export const ATTACKS = {
     launchVyAirborne: 13,
     launcher:     true,
     attrGroup:    'LAUNCH_COMBO',
-    hitColor:     0xffcc44,
-    hitCount:     22,
     plyrLiftVx:       5,
     plyrLiftVy:       24,
     plyrLiftVyDelay:  10,
+    hitColor:     0xffcc44,
+    hitCount:     22,
     aerialHop:    false,
     cancelToAirJ: true,
     partsAnim:    'upper_cut',
@@ -1026,13 +1033,16 @@ export const ATTACKS = {
     flashOnStart: true,
     showHitbox:   true,
     igniteTrigger: true,
+    igniteAlways: true,
+    fireSparks:   true,
     repulseAxis:  'aerial',
     repulseFrameStart: 1, repulseFrameEnd: 16,
     repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
     singleTarget: true,
   },
+  // FLAME UPPER 2 段目（空中始動）：打ち上げ launcher（自分も敵も上昇）＋点火＋赤火花。
   c01_sp_02_air_flame_final: {
-    label:        'c01_sp_02_air_flame_final (METEO SP2・FLAME UPPER 空中最終段 launcher)',
+    label:        'c01_sp_02_air_flame_final (METEO SP2・FLAME UPPER 空中2段目・打ち上げ launcher)',
     duration:     50, hitFrame: 8, hitDuration: 6,
     cancelWindowStart: 20,
     cancelWindow: 45,
@@ -1045,11 +1055,11 @@ export const ATTACKS = {
     launchVyAirborne: 13,
     launcher:     true,
     attrGroup:    'LAUNCH_COMBO',
-    hitColor:     0xffcc44,
-    hitCount:     22,
     plyrLiftVx:       5,
     plyrLiftVy:       8,
     plyrLiftVyDelay:  12,
+    hitColor:     0xffcc44,
+    hitCount:     22,
     aerialHop:    true,
     aerialHopVy:  8,
     postAirLockout: 45,
@@ -1060,6 +1070,8 @@ export const ATTACKS = {
     flashOnStart: true,
     showHitbox:   true,
     igniteTrigger: true,
+    igniteAlways: true,
+    fireSparks:   true,
     repulseAxis:  'aerial',
     repulseFrameStart: 1, repulseFrameEnd: 16,
     repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
