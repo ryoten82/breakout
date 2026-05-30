@@ -1483,6 +1483,7 @@
     <div id="hk-ai-phase" class="small">8: 敵 aiPhase 表示 [OFF]</div>
     <div id="hk-mortal" class="small">9: 敵 mortal モード（HP 0 で死亡）[OFF]</div>
     <div id="hk-respawn" class="small">0: ダミー敵を再スポーン</div>
+    <div class="small">autopilot: start() / stop() / dumpLog() / report()</div>
   </div>
 
   <!-- 必殺技コマンド一覧（#hud の下に配置・SP 発動中は黄色ハイライト） -->
@@ -1751,6 +1752,7 @@
       setWatchPaused as _invSetPaused,
       shouldWatch as _invShouldWatch,
       dumpNewSinceLastCheck as _invDumpNew,
+      recordExternal as _invRecordExternal,
     } from './src/debug-invariants.js';
     // === damage-area（ダメージ範囲可視化：共通モジュール・AoE 攻撃や爆発範囲に転用可）===
     import {
@@ -1778,7 +1780,10 @@
     // === input-system（keys / padKeys / inp / action / pollGamepad）は src/input-system.js に分離（Step E-6）===
     import {
       initInputSystem, inp, action, pollGamepad,
+      setVirtualKey as _setVirtualKey, clearVirtualKeys as _clearVirtualKeys,
     } from './src/input-system.js';
+    // === オートパイロット bot（デバッグ部屋・自動ファズ基盤）===
+    import { autopilot as _autopilot } from './src/debug/autopilot.js';
     // === debug-overlay（updateDebug / updateHudHighlight）は src/debug-overlay.js に分離（Step E-7）===
     import {
       initDebugOverlay, updateDebug, updateHudHighlight,
@@ -3170,12 +3175,12 @@
     // デバッグ：最新コード更新日時を画面右上に表示（キャッシュ／配信ズレ確認用）
     // ※ Claude が編集する度に LAST_UPDATE 文字列を更新する運用
     // ※ document.title も LAST_UPDATE から自動同期される（タブ識別用・複数タブで古い更新が分かる）
-    const LAST_UPDATE = '2026-05-29 落とし穴をブロック矩形方式へ単純化（平時は穴+50に侵入不可・被弾/攻撃のみ落下）';
+    const LAST_UPDATE = '2026-05-30 autopilot：Z軸回避 + 延々ループ + 行動ログ + 自動解析バグ報告(SB.autopilot.report())';
     // 現在の開発フェーズ（build-info の PHASE 行に表示・フェーズ移行時に更新）
-    const CURRENT_PHASE = '3: 敵AI / 被弾state共用 / ゴア';
+    const CURRENT_PHASE = '3: 敵AI / デバッグ部屋（autopilot）';
     // タブ title：タブ幅で切れるので約 10 文字の超短縮ラベル（ゲーム名は省略）
     // LAST_UPDATE と同時に更新する運用（feedback_last_update_hud.md §1.5）
-    const TAB_LABEL = 'FU調整';
+    const TAB_LABEL = 'AutoPilot';
     document.title = TAB_LABEL;
     {
       const _buildInfoEl = document.getElementById('build-info');
@@ -4424,6 +4429,9 @@
     //  update() がプレイヤー・敵・パーティクル・カメラ・HUD を順に呼ぶ
     // ============================================================
     function update() {
+      // オートパイロット bot：updatePlayer より前に入力を確定（1F ラグ消し）。
+      // hitstop/pause/slow 中は update 自体が呼ばれないので bot も自然に同期停止。
+      if (_autopilot.enabled) _autopilot.tick();
       players.forEach(updatePlayer);
       // 敵必殺技中の画面薄暗転：isUltimate フラグの攻撃を実行中の敵を 1 体でも検出したらフェードイン
       if (enemyUltDarkenEl) {
@@ -5099,6 +5107,16 @@
       invariantShouldWatch:  _invShouldWatch,
       invariantDumpNew:      _invDumpNew,
       markPlayStart:         _invMarkPlayStart,
+      // 外部投入口：JS 例外 / bot スタック検知を invariant history に流す（summarize/dumpNew で回収）
+      recordInvariant:       _invRecordExternal,
+      // オートパイロット bot（デバッグ部屋・自動ファズ基盤）
+      //   SB.autopilot.start()   自動プレイ開始（DEBUG_INVARIANTS=true / markPlayStart / sessionStorage 継続）
+      //   SB.autopilot.stop()    停止（仮想入力一括解除）
+      //   SB.autopilot.stats     ライブ実績（framesRun/kills/attacksThrown/curState/jsErrors…）
+      //   SB.autopilot.config    閾値（コンソールから即調整可）
+      autopilot:             _autopilot,
+      setVirtualKey:         _setVirtualKey,
+      clearVirtualKeys:      _clearVirtualKeys,
       // Phase 3-B：mortal モード（数字キー 9）。ON で HP 0 が即復活 → 死亡フローへ
       MORTAL_MODE: false,
       // Phase 3：ステータス系（status_stun）。コンソールから付与テスト：
@@ -5152,7 +5170,21 @@
       onMissionTimeUp: () => {
         for (const p of players) forceKillPlayer(p);
       },
-      oc: { show: showOCSelection, apply: _applyOCEffect, gem: (x, z) => spawnOcGem(x ?? 0, z ?? 0) },
+      oc: {
+        show: showOCSelection, apply: _applyOCEffect, gem: (x, z) => spawnOcGem(x ?? 0, z ?? 0),
+        // プログラム選択口（オートパイロット bot のメニュー処理用）。
+        //   i 省略で現フォーカス、指定で該当カードを確定。選択中/未表示なら false。
+        pick: (i) => {
+          if (!_ocPending || _ocSelecting) return false;
+          const idx = (i == null) ? _ocFocusIdx : i;
+          const card = _ocCards[idx];
+          if (!card) return false;
+          _selectOC(card.id);
+          return card.id;
+        },
+        isPending: () => _ocPending && !_ocSelecting,
+        cards: () => _ocCards.map(c => c.id),
+      },
       // ステージクリア演出が OC 完了を待つために使う
       isOcActive: () => isOcGemActive() || _ocPending || _ocOpenTimer > 0,
       // GAME CLEAR でフィールド上の全コインを強制マグネット吸引
@@ -5185,6 +5217,20 @@
     console.log('[SCRAP BLITZ] Phase 2.2 (SP / strong attack / pad / mega crash / ult) loaded.');
     console.log('[SCRAP BLITZ] Tunable: SB.PHYSICS / SB.ATTACKS / SB.SP_CONFIG / SB.KEY_CONFIG');
     console.log('[SCRAP BLITZ] Try: SB.SP_CONFIG.MEGA_CRASH_COST = 10');
+
+    // === オートパイロット bot：JS 例外を invariant history に流す（autopilot 不問で常時）===
+    window.addEventListener('error', (e) => {
+      _autopilot._bumpJsError();
+      _invRecordExternal('fatal', `[INV-JS🔴] ${e.message} @${e.filename}:${e.lineno}:${e.colno}`, null);
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      _autopilot._bumpJsError();
+      _invRecordExternal('fatal', `[INV-JS🔴] unhandled rejection: ${e.reason}`, null);
+    });
+    // stage 遷移（reload）をまたいだ自動継続：sessionStorage に ON が残っていれば再開
+    if (_autopilot.shouldAutoStart()) {
+      try { _autopilot.start({ resumed: true }); } catch (err) { console.warn('[AUTOPILOT] resume failed', err); }
+    }
   </script>
 </body>
 </html>
