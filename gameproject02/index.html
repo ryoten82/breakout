@@ -3366,6 +3366,11 @@
         // 一度きりのフラグ系 OC は取得済みなら再抽選しない（重ね掛け取得防止・2026-05-30）
         if (c.id === 'CHN_SP4_INSTANT' && window.SB?.OC_FLAGS?.chnSp4Instant) return false;
         if (c.id === 'BRN_FLAME_UPPER' && window.SB?.OC_FLAGS?.brnFlameUpper) return false;
+        if (c.id === 'MAGMA_VENT'    && window.SB?.OC_FLAGS?.magmaVent)    return false;
+        if (c.id === 'CHN_LEAP_SP3'  && window.SB?.OC_FLAGS?.chnLeapSp3)   return false;
+        if (c.id === 'SOLAR_FLARE'   && window.SB?.OC_FLAGS?.solarFlare)   return false;
+        if (c.id === 'CHN_SP1_CHAIN' && window.SB?.OC_FLAGS?.chnSp1Chain)  return false;
+        if (c.id === 'CHN_SP2_DIVE'  && window.SB?.OC_FLAGS?.chnSp2Dive)   return false;
         return true;
       });
     }
@@ -3680,6 +3685,27 @@
             _ocMods.brnFlameUpper = true;
             window.SB.OC_FLAGS.brnFlameUpper = true;
           }
+          break;
+        // テスト OC 第2弾（効果は各 OC_FLAG で既存実装をゲート）
+        case 'MAGMA_VENT':
+          if (!_ocMods.magmaVent) { _ocMods.magmaVent = true; window.SB.OC_FLAGS.magmaVent = true; }
+          break;
+        case 'CHN_LEAP_SP3':
+          if (!_ocMods.chnLeapSp3) { _ocMods.chnLeapSp3 = true; window.SB.OC_FLAGS.chnLeapSp3 = true; }
+          break;
+        case 'SOLAR_FLARE':
+          // BRN-l04：SP4 stage2 解放 + stage2 命中で炎フィールド（2 フラグ同時）
+          if (!_ocMods.solarFlare) {
+            _ocMods.solarFlare = true;
+            window.SB.OC_FLAGS.sp4Stage2 = true;
+            window.SB.OC_FLAGS.solarFlare = true;
+          }
+          break;
+        case 'CHN_SP1_CHAIN':
+          if (!_ocMods.chnSp1Chain) { _ocMods.chnSp1Chain = true; window.SB.OC_FLAGS.chnSp1Chain = true; }
+          break;
+        case 'CHN_SP2_DIVE':
+          if (!_ocMods.chnSp2Dive) { _ocMods.chnSp2Dive = true; window.SB.OC_FLAGS.chnSp2Dive = true; }
           break;
       }
       // SKIP 以外は履歴に記録（ステージ引継ぎ用）
@@ -5372,7 +5398,7 @@
       BURN_CONFIG,
       OC_FLAGS: { ignite: false, spread: false, chainBlast: false, berserk: false,
                   chnSp4Instant: false, sp4Stage2: false, brnFlameUpper: false, magmaVent: false,
-                  chnLeapSp3: false, solarFlare: false },
+                  chnLeapSp3: false, solarFlare: false, chnSp1Chain: false, chnSp2Dive: false },
       igniteEnemy,
       // 外部モジュール（hazards 等）からトークン解放したい場合：SB.releaseEnemyTokens(e)
       //   floor-hole が敵を removed 扱いにする前に呼ぶ。呼ばないと
@@ -5396,6 +5422,14 @@
         },
         isPending: () => _ocPending && !_ocSelecting,
         cards: () => _ocCards.map(c => c.id),
+        // プログラムからのリロール（autopilot 用・残回数を消費）。成功=true。
+        reroll: () => {
+          if (!_ocPending || _ocSelecting) return false;
+          if (!_canUseOcAction('reroll')) return false;
+          _consumeOcAction('reroll');
+          _rerollOC();
+          return true;
+        },
       },
       // ステージクリア演出が OC 完了を待つために使う
       isOcActive: () => isOcGemActive() || _ocPending || _ocOpenTimer > 0,

@@ -1644,4 +1644,11 @@ export const OVERCLOCK_CARDS = [
   { id: 'CHN_SP4_INSTANT', label: '波動拳即発', desc: '↓→J で SP4 stage1 を即発動（チャージ不要）', color: '#aa66ff', rarity: 'rare', weight: 8 },
   //   BRN-e11 FLAME UPPER：SP2 短押しを 3 ヒット化 + 各ヒット点火（地上 / 空中 両対応）
   { id: 'BRN_FLAME_UPPER', label: 'FLAME UPPER', desc: 'SP2 が 3 ヒット化＋各ヒットで点火', color: '#ff7733', rarity: 'rare', weight: 8 },
+  // ===== テスト OC 第2弾：実装済みだが選考枠未投入だった分を本番プールへ（2026-05-30・レアリティ一定）=====
+  //   効果は各 OC_FLAG で既にゲート済み。SOLAR FLARE のみ sp4Stage2+solarFlare の 2 フラグを立てる（BRN-l04 同梱）。
+  { id: 'MAGMA_VENT',    label: 'MAGMA VENT',   desc: 'SP3 命中地点に床マグマを設置',                       color: '#ff5522', rarity: 'rare', weight: 8 },
+  { id: 'CHN_LEAP_SP3',  label: '飛び上がりSP3', desc: 'SP3 が飛び上がり多段ヒット→最終打ち上げに変化',      color: '#aa66ff', rarity: 'rare', weight: 8 },
+  { id: 'SOLAR_FLARE',   label: 'SOLAR FLARE',  desc: 'SP4 フルチャージ解放＋stage2 命中地点に炎フィールド(5秒)', color: '#ffaa33', rarity: 'rare', weight: 8 },
+  { id: 'CHN_SP1_CHAIN', label: 'SP1 連打',     desc: 'SP1 が再入力で伸びる 3 段チェーンに',                color: '#aa66ff', rarity: 'rare', weight: 8 },
+  { id: 'CHN_SP2_DIVE',  label: 'SP2 潜り込み',  desc: 'SP2 が潜り込み連打→最終打ち上げに変化',              color: '#aa66ff', rarity: 'rare', weight: 8 },
 ];
