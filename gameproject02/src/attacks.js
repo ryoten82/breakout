@@ -740,10 +740,14 @@ export const ATTACKS = {
     rangeX:       230, rangeZ: 170, rangeY: 120, rangeYDown: 280,
     knockback:    14, hitstop: 6, shake: 5,
     atk_lv:       2, atk_lv_air: 2,
-    launchVy:     7, launchVyAirborne: 7, launcher: true,   // 敵を少し浮かす（空中 J コンボ感）
+    // ↑J（c01_add_02）方式：launchVy/launcher を使わず knockbackY で軽く浮かせる。
+    //   launchVy 経路は spawnLaunchSmoke + 'launch' パーティクルを撒いてエフェクト過剰になるため不採用（2026-05-30）。
+    //   knockbackY 経路なら敵は knockback02（軽フリンチ）のまま小ホップ。さらに launchVy 不在で
+    //   AERIAL_Y_PULL（敵をプレイヤー Y へ引き寄せ）が有効化され、地上敵でも 2 段目以降が高度同期して繋がる。
+    launcher:     false, knockbackY: 9,   // AERIAL_HOP_V(9) と同値＝お互い小ホップ
     hitColor:     0x44ccff, hitCount: 16,
     airGravFactor: 0.25,   // 空中チェーン中フワッと滞空（着地はしないが浮きすぎない）
-    aerialHop:    true, aerialHopFrame: 18, aerialHopVy: 7, aerialHopVx: 0,   // 敵の launchVy(7) と揃えて一緒に少し上へ
+    aerialHop:    true, aerialHopFrame: 18, aerialHopVy: 7, aerialHopVx: 0,   // プレイヤーも一緒に少し上へ
     lungeVx:      18, lungeDecay: 0.85, lungeDelay: 9,
     windupBackVx: 7,
     targetOvershootGuard: true,
@@ -761,10 +765,11 @@ export const ATTACKS = {
     rangeX:       230, rangeZ: 170, rangeY: 120, rangeYDown: 280,
     knockback:    14, hitstop: 6, shake: 5,
     atk_lv:       2, atk_lv_air: 2,
-    launchVy:     7, launchVyAirborne: 7, launcher: true,
+    // ↑J 方式（chn1_air と同じ）：launchVy/launcher を外し knockbackY 軽浮かせ＋AERIAL_Y_PULL 同期（2026-05-30）。
+    launcher:     false, knockbackY: 9,
     hitColor:     0x55ddff, hitCount: 16,
     airGravFactor: 0.25,   // 空中チェーン中フワッと滞空（浮きすぎない）
-    aerialHop:    true, aerialHopFrame: 7, aerialHopVy: 7, aerialHopVx: 0,   // 敵 launchVy と揃える
+    aerialHop:    true, aerialHopFrame: 7, aerialHopVy: 7, aerialHopVx: 0,   // プレイヤーも一緒に小ホップ
     lungeVx:      18, lungeDecay: 0.85, lungeDelay: 6,
     targetOvershootGuard: true,
     partsAnim:    'strong_punch_r',
@@ -1058,6 +1063,112 @@ export const ATTACKS = {
     repulseAxis:  'aerial',
     repulseFrameStart: 1, repulseFrameEnd: 16,
     repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
+    singleTarget: true,
+  },
+  // === CHN-e03 SP2 潜り込み連打アッパー（2026-05-30・スウェー方式に再設計）===
+  //   入りスウェー（溜め・判定なし）→ スウェー中の ↑K 連打数で mid 段数が決まる → mid×N → final launcher。
+  //   mid = 潜り込み（lungeVx 前進）+ 軽アッパー（atk_lv2・knockbackY で小浮かせ・launcher 無し・延焼無し）。
+  //   final = 通常 SP2（c01_sp_02_short / _air）流用 → 連打なし＝溜め→launcher のみ＝下位互換。
+  //   mid 間は hit-gated（空振りで打ち切り final へ）。baseSpecialId 共有でコンボ集約。
+  // 入りスウェー：attacking 状態で歩行を止め、連打受付窓（cancelWindowStart まで）を作る。判定なし。
+  c01_sp_02_dive_sway: {
+    label:        'c01_sp_02_dive_sway (METEO CHN-e03 入りスウェー・溜め/連打受付)',
+    baseSpecialId: 'c01_sp_02',
+    duration:     20, hitFrame: 21, hitDuration: 1,   // hitFrame>duration＝判定が出ない（溜め専用）
+    cancelWindowStart: 16, cancelWindow: 20,            // 16F の連打猶予 → 以降 mid/final へ
+    damage:       0,
+    rangeX:       0, rangeZ: 0, rangeY: 0,
+    knockback:    0, hitstop: 0, shake: 0,
+    atk_lv:       1,
+    windupBackVx: 6,                  // わずかに後ろへ引く（スウェー感）
+    airGravFactor: 0.25,              // 空中始動時はフワッと滞空
+    partsAnim:    'sp2_dive_sway',    // 屈む溜めポーズ（仮）
+    isSpecial:    true, flashOnStart: false, showHitbox: false,
+    // RC は溜め中から受付（溜めで RC が遅れないよう repulseBox を active に）
+    repulseAxis:  'aerial', repulseFrameStart: 1, repulseFrameEnd: 18,
+    repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
+    singleTarget: true,
+  },
+  c01_sp_02_short_dive_mid: {
+    label:        'c01_sp_02_short_dive_mid (METEO CHN-e03 潜り込みアッパー・地上 中間段)',
+    baseSpecialId: 'c01_sp_02',
+    duration:     24, hitFrame: 6, hitDuration: 5,
+    cancelWindowStart: 14, cancelWindow: 20,
+    damage:       6,
+    rangeX:       180, rangeZ: 110, rangeY: 200,
+    knockback:    12, knockbackY: 9,   // 軽フリンチ + 小浮かせ（前進と同調して敵を引き連れる）
+    lungeVx:      22, lungeDecay: 0.85,   // 潜り込み（前進）
+    hitstop:      4, shake: 4,
+    atk_lv:       2, atk_lv_air: 2,
+    hitColor:     0xffcc44, hitCount: 14,
+    aerialHop:    false, cancelToAirJ: false,
+    partsAnim:    'upper_cut',
+    isSpecial:    true, flashOnStart: false, showHitbox: true,
+    // RC は入りスウェーのみに集約（2026-05-30）：mid は RC 受付なし（dive 連打で常時パリィになるのを防ぐ）。
+    singleTarget: true,
+  },
+  // dive 最終段（通常 SP2 のクローン）。dive 専用に調整：
+  //   - cancelWindowStart を遅らせる（上昇終了→落下開始あたりでキャンセル可・要望3）
+  //   - hitstop / shake を強化（締めの一撃の手応え・要望4）
+  c01_sp_02_short_dive_final: {
+    label:        'c01_sp_02_short_dive_final (METEO CHN-e03 最終段 launcher・地上)',
+    baseSpecialId: 'c01_sp_02',
+    duration:     50, hitFrame: 8, hitDuration: 6,
+    cancelWindowStart: 40,   // 30→40：上昇が終わって落下し始める頃まで遅らせる
+    cancelWindow: 45,
+    damage:       25,
+    rangeX:       200, rangeZ: 100, rangeY: 200,
+    knockback:    45, hitstop: 14, shake: 12,   // 8→14 / 7→12：締めを重く
+    atk_lv:       4, atk_lv_air: 4,
+    launchVy:     22, launchVyAirborne: 13, launcher: true,
+    attrGroup:    'LAUNCH_COMBO',
+    hitColor:     0xffcc44, hitCount: 26,
+    plyrLiftVx:   5, plyrLiftVy: 24, plyrLiftVyDelay: 10,
+    aerialHop:    false, cancelToAirJ: true,
+    partsAnim:    'upper_cut',
+    isSpecial:    true, flashOnStart: true, showHitbox: true,
+    // RC は入りスウェーのみに集約（2026-05-30）：final も RC 受付なし。
+    singleTarget: true,
+  },
+  c01_sp_02_air_dive_final: {
+    label:        'c01_sp_02_air_dive_final (METEO CHN-e03 最終段 launcher・空中)',
+    baseSpecialId: 'c01_sp_02',
+    duration:     50, hitFrame: 8, hitDuration: 6,
+    cancelWindowStart: 32,   // 20→32：上昇終了→落下開始あたりまで遅らせる
+    cancelWindow: 45,
+    damage:       25,
+    rangeX:       200, rangeZ: 100, rangeY: 200,
+    knockback:    45, hitstop: 14, shake: 12,
+    atk_lv:       4, atk_lv_air: 4,
+    launchVy:     22, launchVyAirborne: 13, launcher: true,
+    attrGroup:    'LAUNCH_COMBO',
+    hitColor:     0xffcc44, hitCount: 26,
+    plyrLiftVx:   5, plyrLiftVy: 8, plyrLiftVyDelay: 12,
+    aerialHop:    true, aerialHopVy: 8,
+    postAirLockout: 45, landingLag: 30, cancelToAirJ: true,
+    partsAnim:    'upper_cut',
+    isSpecial:    true, flashOnStart: true, showHitbox: true,
+    // RC は入りスウェーのみに集約（2026-05-30）：final も RC 受付なし。
+    singleTarget: true,
+  },
+  c01_sp_02_air_dive_mid: {
+    label:        'c01_sp_02_air_dive_mid (METEO CHN-e03 潜り込みアッパー・空中 中間段)',
+    baseSpecialId: 'c01_sp_02',
+    duration:     24, hitFrame: 6, hitDuration: 5,
+    cancelWindowStart: 14, cancelWindow: 20,
+    damage:       6,
+    rangeX:       180, rangeZ: 110, rangeY: 200,
+    knockback:    12, knockbackY: 9,
+    lungeVx:      14, lungeDecay: 0.85,   // 空中は前進控えめ
+    hitstop:      4, shake: 4,
+    atk_lv:       2, atk_lv_air: 2,
+    hitColor:     0xffcc44, hitCount: 14,
+    airGravFactor: 0.25,   // 空中チェーン中フワッと滞空（空中 SP1 と同思想）
+    aerialHop:    true, aerialHopVy: 7, aerialHopVx: 0,   // プレイヤーも小ホップ
+    cancelToAirJ: false,
+    partsAnim:    'upper_cut',
+    isSpecial:    true, flashOnStart: false, showHitbox: true,
+    // RC は入りスウェーのみに集約（2026-05-30）：mid は RC 受付なし。
     singleTarget: true,
   },
   // === sp_04 系：N 段階チャージ（stage1=50F / stage2=120F MAX / 将来 stage3+ は _03, _04...）===

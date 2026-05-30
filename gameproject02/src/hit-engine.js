@@ -1038,9 +1038,17 @@ export function tryHitEnemies(p, attack, ctx) {
       p.attackId === 'c01_sp_03_leap_land'
     );
     const _leapAlreadyCountedThisSeq = _isLeapChainAtk && p._leapBurstCountedFor && p._leapBurstCountedFor.has(e);
+    // CHN-e03 dive チェーンも一連のコンボ扱い・burst 対象外（mid が同 id 連続ヒットで specialHitBy LIMIT に達し
+    //   バーストダウンへ化けるのを防ぐ・2026-05-30）。
+    const _isDiveChainAtk = (
+      p.attackId === 'c01_sp_02_short_dive_mid'   ||
+      p.attackId === 'c01_sp_02_air_dive_mid'     ||
+      p.attackId === 'c01_sp_02_short_dive_final' ||
+      p.attackId === 'c01_sp_02_air_dive_final'
+    );
     let _spDuplicateOnThisEnemy = false;
     let _spBaseIdForMark = null;
-    if (attack.isSpecial && p.attackId && !_isFlameChainAtk && !_leapAlreadyCountedThisSeq) {
+    if (attack.isSpecial && p.attackId && !_isFlameChainAtk && !_isDiveChainAtk && !_leapAlreadyCountedThisSeq) {
       const _aid = p.attackId;
       _spBaseIdForMark = _aid.endsWith('_air') ? _aid.slice(0, -4) : _aid;
       // 敵単位カウント：specialHitBy Map<baseId, count>。LIMIT 回目のヒットで burst（2026-05-20）。
@@ -1058,7 +1066,7 @@ export function tryHitEnemies(p, attack, ctx) {
     let _loopDetectedLen = 0;
     // FLAME UPPER / CHN-e01 leap チェーンは comboRoute / aggregateRoute 対象外（一連のコンボ扱い・loop 検出対象外）
     // ※leap は per-sequence で 1 回はカウントしたいので「既カウント以外の最初の 1 ヒット」のみ通す。
-    if (p.attackId && !_bossInSA && !_isFlameChainAtk &&
+    if (p.attackId && !_bossInSA && !_isFlameChainAtk && !_isDiveChainAtk &&
         !(_isLeapChainAtk && _leapAlreadyCountedThisSeq)) {
       if (!p._routeAppendedFor) p._routeAppendedFor = new Set();
       if (!p._routeAppendedFor.has(e)) {
@@ -1127,6 +1135,10 @@ export function tryHitEnemies(p, attack, ctx) {
       }
       triggerHitstop(attack.hitstop);
       triggerShake(attack.shake, attack.shake * 2 + 4);
+      // [DIAG] CHN-e02 が burst に化けた場合の理由（安定後に削除）
+      if (window.SB?.DEBUG_CHN_HIT && typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_01_chn')) {
+        console.log(`[CHN-HIT BURST!] ${p.attackId} reason=${_spDuplicateOnThisEnemy ? 'sp_dup' : (_loopDetected ? 'loop' : 'force')} spHitBy=${e.specialHitBy?.get?.(_spBaseIdForMark) ?? 0} loopLen=${_loopDetectedLen}`);
+      }
       anyHit = true;
       continue;  // 通常 dispatch ツリーをスキップ
     }
@@ -1231,6 +1243,10 @@ export function tryHitEnemies(p, attack, ctx) {
       // rotation.yは維持（左右向きを保ったまま倒れる）
       spawnLaunchSmoke(e.x, e.y, e.z);
       p.homingTarget = e;  // キャンセルジャンプ時のホーミング対象として記録
+      // [DIAG] CHN-e02 空中段が launch 分岐を通った（地上敵を打ち上げ・安定後に削除）
+      if (window.SB?.DEBUG_CHN_HIT && typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_01_chn')) {
+        console.log(`[CHN-HIT launch] ${p.attackId} → down_up_start vy=${e.vy.toFixed(1)} eY=${e.y.toFixed(0)} pY=${p.y.toFixed(0)} dy=${(e.y-p.y).toFixed(0)} dx=${dx.toFixed(0)} pGround=${p.isGrounded}`);
+      }
     } else if (
       e.state === STATE.wait01 ||
       e.state === STATE.knockback01 ||
@@ -1390,6 +1406,10 @@ export function tryHitEnemies(p, attack, ctx) {
         }
       }
       applyHitInitialPitch(e);
+      // [DIAG] CHN-e02 ヒット時の敵リアクション確定値（地上3段の途中ダウン/打ち上げ調査・安定後に削除）
+      if (window.SB?.DEBUG_CHN_HIT && typeof p.attackId === 'string' && p.attackId.startsWith('c01_sp_01_chn')) {
+        console.log(`[CHN-HIT] ${p.attackId} → state=${e.state} lv=${lv} eY=${e.y.toFixed(0)} vy=${e.vy.toFixed(1)} kbVx=${(e.knockbackVx ?? 0).toFixed(1)} accumStg=${e.accumStagger}/${e.staggerThreshold} spHitBy=${e.specialHitBy?.get?.(_spBaseIdForMark) ?? 0} dx=${dx.toFixed(0)}`);
+      }
       }  // end else (通常 atk_lv ディスパッチ)
     }
     // === forceBoundDown：attack.forceBoundDown:true なら敵 state を強制的に down_bound_start へ ===

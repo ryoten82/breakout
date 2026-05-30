@@ -703,7 +703,7 @@ OC 選択画面に SKIP カードあり。プレイヤーが「2 枚どっちも
 | SP | カード | 効果概要 | 実装状況 |
 |----|--------|---------|---------|
 | SP1 | **CHN-e02 SP1 連打多段** | 【SP1 性能変化】3回追加入力・最後重リアクション・出し切りで SP1 括り | 🟡 実装済（2026-05-29・中立 K 連打で c01_sp_01_chn1→2→3 / 1-2段軽 atk_lv2・3段重 atk_lv5 飛距離抑え / 地上空中同 def / baseSpecialId c01_sp_01 / ヒット時のみ伸びる / DEBUG_CHN_SP1。値は仮・playtest 調整 + char01.md 同期待ち） |
-| SP2 | **CHN-e03 SP2 潜り込み連打** | 【SP2 性能変化】潜り込みアッパー・連打で最大4ヒット | 未実装 |
+| SP2 | **CHN-e03 SP2 潜り込み連打** | 【SP2 性能変化】潜り込みアッパー・連打で最大4ヒット | 🟡 実装済（2026-05-30・FLAME UPPER キュー流用 windup→mid×N→final launcher / mid=lungeVx潜り込み+atk_lv2軽浮かせ / mid挿入 hit-gated（空振りで final へ）/ 単押し=通常SP2=下位互換 / 地上mid3+final=4ヒット・空中mid2+final=3ヒット / chnSp2Dive・DEBUG_CHN_SP2。値仮・playtest 調整待ち。🟡 windup 12F が RC 受付を遅らせる懸念） |
 | SP3 | **CHN-e01 飛び上がり SP3** | 【SP3 完全置換】前ジャンプ膝 → 急降下身体ヒット → 着地衝撃波 forceBoundDown | ✅ 実装済（2026-05-29・地上/空中統一・3 段 1 技扱い burst カウント・facingLockFrames 30F・疑似空中ジャンプ運用） |
 | SP4 | **CHN-e04 SP4 波動拳即発** | 【SP4 性能変化】波動拳コマンドで stage1 即発動 | **✅ 実装済み（2026-05-28）** |
 

@@ -400,6 +400,20 @@ const FLAME_QUEUE_MAX_MIDS      = 3;
 // 最後の press からこの F 数を超えたら残 mid を捨てて final にスキップ（テール短縮）。
 const FLAME_QUEUE_TAIL_DROP_FRAMES = 18;
 
+// === OC CHN-e03 SP2 潜り込み連打アッパー キュー（2026-05-30・スウェー方式）===
+//   入りスウェー（c01_sp_02_dive_sway・判定なし溜め）中の ↑K 連打数で mid 段数をバッファ。
+//   スウェーの cancelWindowStart 以降に mid×N → final launcher を自動再生（連打を前倒し）。
+//   mid 間は hit-gated（空振りで打ち切り final へ）/ キャップは地上 3・空中 2。
+//   final は通常 SP2（c01_sp_02_short / _air）流用 → 連打なし＝溜め→launcher のみ＝下位互換。
+const DIVE_QUEUE_MAX_MIDS_GROUND  = 3;    // mid3 + final1 = 地上 最大 4 ヒット
+const DIVE_QUEUE_MAX_MIDS_AIR     = 2;    // mid2 + final1 = 空中 最大 3 ヒット
+// dive 完了（final 発火）後、この F 数は新規 dive を始動させない（技硬直ぶんの再始動ロック）。
+//   final 直後に ↑K を押し続けている/連打していると即 re-sway してループ（二度スウェー/最終段が飲まれる/着地後暴発）する問題への対処。
+const DIVE_RELOCK_FRAMES          = 34;
+// dive final（通常 SP2 流用・duration 50）は既定 facing ロックが +90F と長く、着地後すぐ振り返れない。
+//   leap（facingLockFrames:30）と同様に短く上書きして「着地後すぐ反対向きに撃てる」を確保（問題4）。
+const DIVE_FINAL_FACING_LOCK      = 24;
+
 // === FLAME UPPER デバッグログ ===
 // window.SB.DEBUG_FLAME_UPPER で ON/OFF。デフォルト ON（残問題の検証中・2026-05-28）。
 // 切る時はコンソールで `window.SB.DEBUG_FLAME_UPPER = false`
@@ -558,12 +572,148 @@ export function isFlameChainLocked(p) {
   return false;
 }
 
+// === OC CHN-e03 SP2 潜り込み連打アッパー キュー（2026-05-30・スウェー方式 + hit-gated）===
+function _dlogOn() {
+  return typeof window !== 'undefined' && window.SB?.DEBUG_CHN_SP2 === true;
+}
+function _dlog(label, p, extra) {
+  if (!_dlogOn()) return;
+  console.log(`[DIVE ${label}]`, {
+    f: getGameFrame?.() ?? '-', state: p.state, atk: p.attackId,
+    active: p._diveQActive, mids: p._diveQMids, issued: p._diveQMidsIssued,
+    air: p._diveQAir, grounded: p.isGrounded, hitDel: p.hitDelivered,
+  }, extra ?? '');
+}
+function _isDiveSway(p)    { return p.attackId === 'c01_sp_02_dive_sway'; }
+function _isInDiveAttack(p) {
+  return p.attackId === 'c01_sp_02_short_dive_mid' || p.attackId === 'c01_sp_02_air_dive_mid';
+}
+function _diveMidId(p)   { return p._diveQAir ? 'c01_sp_02_air_dive_mid' : 'c01_sp_02_short_dive_mid'; }
+function _diveFinalId(p) { return p._diveQAir ? 'c01_sp_02_air_dive_final' : 'c01_sp_02_short_dive_final'; }   // dive 専用 final（cancel 遅延 + 締め強化）
+function _diveMaxMids(p) { return p._diveQAir ? DIVE_QUEUE_MAX_MIDS_AIR : DIVE_QUEUE_MAX_MIDS_GROUND; }
+
+function _resetDiveQueue(p, reason) {
+  if (_dlogOn() && p._diveQActive) _dlog(`RESET (${reason ?? '?'})`, p);
+  p._diveQActive   = false;
+  p._diveQMids     = 0;
+  p._diveQMidsIssued = 0;
+  p._diveQStarted  = false;
+  p._diveQStallFrames = 0;
+}
+
+// ↑K 押下時：初回は入りスウェー発動、以降（スウェー/mid 中）は mid 段数を積み増し（キャップ）。
+export function handleDiveUpperPress(p) {
+  if (!window.SB?.OC_FLAGS?.chnSp2Dive) return false;
+  _dlog('PRESS in', p);
+  // 出し切り後の stale queue 回収（スウェー/mid 以外の attacking でキュー残骸があれば破棄）
+  if (p._diveQActive && !_isInDiveAttack(p) && !_isDiveSway(p) && (p._diveQMids ?? 0) === 0) {
+    _resetDiveQueue(p, 'stale-on-press');
+  }
+  if (!p._diveQActive) {
+    if (p.guarding || p.ultActive) { _dlog('PRESS REJECT (guarding/ult)', p); return false; }
+    // 技硬直ぶんの再始動ロック：final 直後の連打/押しっぱなしで即 re-sway しないよう、relock 中は入力を消費して no-op。
+    //   return true で消費（false にすると通常 SP2 へフォールスルーして暴発するため）。
+    if ((getGameFrame?.() ?? 0) < (p._diveRelockUntil ?? 0)) {
+      _dlog('PRESS RELOCK (consume no-op)', p, { until: p._diveRelockUntil });
+      return true;
+    }
+    // 空ぶかし防止：この滞空中に既に dive を出し切っていて、空中ヒットも無いなら着地まで再 dive 禁止。
+    //   旧版は airUsedSpecialIds 依存で空中連発が素通りしていた（信頼できず）。自前フラグ _diveAirWhiffLock で堅牢化。
+    //   _diveAirWhiffLock は final が空中で発火した時に立て、着地でクリア。airHitOccurred があれば（ヒット継続）解除。
+    if (!p.isGrounded && p._diveAirWhiffLock && !p.airHitOccurred) {
+      _dlog('PRESS AIR-WHIFF LOCK (consume no-op)', p);
+      return true;
+    }
+    // フラグを先に立ててから sway 発動（startSpecial 内の air 出戻り判定を _diveQActive で除外させるため）
+    p._diveQActive   = true;
+    p._diveQMids     = 0;
+    p._diveQMidsIssued = 0;
+    p._diveQAir      = !p.isGrounded;
+    p._diveQStarted  = true;
+    p._diveQStallFrames = 0;
+    const ok = startSpecial(p, 'c01_sp_02_dive_sway');
+    if (!ok) { _resetDiveQueue(p, 'sway-fail'); return false; }
+    _dlog('PRESS → NEW sway', p);
+    return true;
+  }
+  // 既存キュー：mid 段数を積み増し（累計 max で打ち切り・地上3/空中2）。
+  const issued = p._diveQMidsIssued ?? 0;
+  if (issued >= _diveMaxMids(p)) {
+    _dlog('PRESS → ADD mid CAPPED', p, { issued, max: _diveMaxMids(p) });
+    return true;
+  }
+  p._diveQMids = (p._diveQMids ?? 0) + 1;
+  p._diveQMidsIssued = issued + 1;
+  _dlog('PRESS → ADD mid', p, { issued: p._diveQMidsIssued, midsInFlight: p._diveQMids });
+  return true;
+}
+
+// updatePlayer から毎フレーム：スウェー/mid の cancel 窓で次段（mid×N → final）を再生。
+export function tickDiveUpperQueue(p) {
+  if (!p._diveQActive) return;
+  if (isHitstunState(p)) { _resetDiveQueue(p, 'hitstun'); return; }
+  // 空中始動が着地したら queue を畳む（着地後の暴発 SP2 を防ぐ・問題3）。
+  if (p._diveQAir && p.isGrounded) { _resetDiveQueue(p, 'landed'); return; }
+  if (p.guarding) { _resetDiveQueue(p, 'guard'); return; }
+  // スウェー / mid 実行中：cancelWindowStart 以降で次段判断。
+  if (p.state === STATE.attacking || p.state === STATE.hit_confirm) {
+    const inSway = _isDiveSway(p);
+    const inMid  = _isInDiveAttack(p);
+    if (!inSway && !inMid) return;   // final SP2 等、管理外の attacking には触らない
+    const atk = ATTACKS[p.attackId];
+    const elapsed = (atk?.duration ?? 0) - (p.stateTimer ?? 0);
+    if (elapsed < (atk?.cancelWindowStart ?? Infinity)) return;
+    // === hit-gate（mid 間のみ）===：直前 mid が空振りなら残 mid を捨てて final へ。
+    //   スウェーは判定なしなので hit-gate 対象外（バッファした段数をそのまま再生）。
+    if (inMid) {
+      const hitOk = p.hitDelivered || (!p.isGrounded && p.airHitOccurred);
+      if (!hitOk && (p._diveQMids ?? 0) > 0) {
+        _dlog('HIT-GATE whiff → drop to final', p, { droppedMids: p._diveQMids });
+        p._diveQMids = 0;
+      }
+    }
+    // cancel window 内：fall through して発火ロジックへ
+  } else {
+    return;   // attacking/hit_confirm 以外（wait01 等）では発火しない（暴発防止）
+  }
+  // mid 発火
+  if ((p._diveQMids ?? 0) > 0) {
+    const midId = _diveMidId(p);
+    const ok = startSpecial(p, midId);
+    _dlog(ok ? 'FIRE mid OK' : 'FIRE mid FAIL', p, { midId, midsBefore: p._diveQMids });
+    if (ok) { p._diveQMids--; p._diveQStallFrames = 0; }
+    else {
+      p._diveQStallFrames = (p._diveQStallFrames ?? 0) + 1;
+      if (p._diveQStallFrames > 60) _resetDiveQueue(p, 'stall-timeout');
+    }
+    return;
+  }
+  // 最終段（通常 SP2 launcher = 下位互換）
+  const finalId = _diveFinalId(p);
+  const ok = startSpecial(p, finalId);
+  _dlog(ok ? 'FIRE final OK' : 'FIRE final FAIL', p, { finalId });
+  // 技硬直ぶんの再始動ロックを張る（final 直後の即 re-sway を防止・問題1/2/3）。
+  p._diveRelockUntil = (getGameFrame?.() ?? 0) + DIVE_RELOCK_FRAMES;
+  // facing ロックを短縮（着地後すぐ振り返れるように・問題4）。startSpecial が +90F に張った値を上書き。
+  if (ok) p._facingLockUntil = (getGameFrame?.() ?? 0) + DIVE_FINAL_FACING_LOCK;
+  // 空中で出し切ったら air-whiff ロックを立てる（着地まで再 dive 禁止・空ぶかし連発防止）。
+  //   airHitOccurred があれば handleDiveUpperPress 側でバイパスされる（ヒット継続は許可）。着地でクリア。
+  if (!p.isGrounded) p._diveAirWhiffLock = true;
+  _resetDiveQueue(p, 'final-done');
+}
+
+export function isDiveChainLocked(p) {
+  return !!p._diveQActive;
+}
+
 function canStartSpecial(p, opts) {
   if (p.guarding) return false;
   if (p.ultActive) return false;
   if (anyPlayerUlting()) return false;
   // FLAME UPPER チェーン中：SP1/SP3 は遮断（SP2 のみ別経路で許可）
   if (isFlameChainLocked(p)) return false;
+  // CHN-e03 DIVE チェーン中も同様にロック（mid/final は tick 側の startSpecial で発火）
+  if (isDiveChainLocked(p)) return false;
   // 連続用 RC フィニッシュ中の SP は出し切り強制（キャンセル不可）。
   //   `_triggerComboRcFinish` がフラグを立て、SP 完走（state が attacking から抜ける）で自動解除。
   //   トドメの一撃を別 SP で塗り潰さず、演出的決着を保証する。
@@ -690,12 +840,16 @@ function startSpecial(p, id) {
   // === 短期連発抑止 ===
   // 「同じ id」を _SPECIAL_COOLDOWN_FRAMES 以内に再発動するなら拒否（地上ループ防止）。
   // 「地上 SP2 → 空中 SP2」のような地上⇄空中の派生切替は別 id なので cooldown 無視 → 繋がる
-  // FLAME UPPER チェーン変種は chain カウンタ側で連打を管理しているので cooldown 不要（2026-05-28）
-  const _isFlameVariant = (
+  // FLAME UPPER / CHN-e03 DIVE チェーン変種は chain/キュー側で連打を管理しているので cooldown 不要
+  //   （同 mid id を連続発火するため、cooldown を掛けると 2 発目以降が拒否される）
+  const _isQueueVariant = (
     id === 'c01_sp_02_short_flame_mid' || id === 'c01_sp_02_air_flame_mid' ||
-    id === 'c01_sp_02_short_flame_final' || id === 'c01_sp_02_air_flame_final'
+    id === 'c01_sp_02_short_flame_final' || id === 'c01_sp_02_air_flame_final' ||
+    id === 'c01_sp_02_short_dive_mid' || id === 'c01_sp_02_air_dive_mid' ||
+    id === 'c01_sp_02_dive_sway' ||
+    id === 'c01_sp_02_short_dive_final' || id === 'c01_sp_02_air_dive_final'
   );
-  if (!_isFlameVariant) {
+  if (!_isQueueVariant) {
     const _lastFire = p._specialFireFrames?.[baseId] ?? -Infinity;
     const _lastFireId = p._specialFireIds?.[baseId];
     if (_lastFireId === id && getGameFrame() - _lastFire < _SPECIAL_COOLDOWN_FRAMES) {
@@ -705,7 +859,12 @@ function startSpecial(p, id) {
   }
   // === 空中 SP 出戻り禁止 ===
   // 同ジャンプ中に一度使った base ID は着地まで再使用不可（SP2→SP1→SP2 の無限チェーン防止）
-  if (!p.isGrounded) {
+  //   ★CHN-e02 連打 SP1 は除外：chn1/2/3 が baseSpecialId='c01_sp_01' を共有するため、
+  //     この規則だと chn1 発火で base が使用済みになり chn2 以降が空中で全部弾かれる（地上は !isGrounded で素通り）。
+  //     チェーンは自前ゲート（cancelWindowStart 連結 + chn3 cap）で 3 段に制限済みなので出戻りループにはならない。
+  //   CHN-e03 DIVE キュー中（mid→final が baseId 'c01_sp_02' 共有）も同様に除外。
+  const _isChnSp1 = typeof id === 'string' && id.startsWith('c01_sp_01_chn');
+  if (!p.isGrounded && !_isChnSp1 && !p._diveQActive) {
     if (p.airUsedSpecialIds?.has(baseId)) {
       if (_dbg) console.log(`  [SP REJECT] airUsedSpecialIds has ${baseId}`);
       return false;
@@ -916,6 +1075,15 @@ export function processStrongAttackInput(p) {
   }
   // SP2（RC）は canStartSP2ForRC で後処理。SP1/SP3 は後述の canStartSpecial チェックで制限。
 
+  // CHN-e03 dive チェーン中（+ final 直後の relock 中）は K 入力をすべて dive へ吸収する。
+  //   方向キー無しの連打が neutral K=SP1（波動）を誤発火し dive を中断する問題への対処（2026-05-30）。
+  //   active 中 → mid 積み増し（最終段へ）/ relock 中 → no-op で消費。他 SP（SP1/SP3）へは漏らさない。
+  if (window.SB?.OC_FLAGS?.chnSp2Dive &&
+      (isDiveChainLocked(p) || (getGameFrame() < (p._diveRelockUntil ?? 0)))) {
+    handleDiveUpperPress(p);
+    return;
+  }
+
   // CHN-e04 波動拳即発は K → J へ移管（2026-05-28）→ processSpecialInput 側で処理
 
   const upHeld  = _inp('ArrowUp')    || _inp('KeyW');
@@ -937,6 +1105,11 @@ export function processStrongAttackInput(p) {
     //   ↑K 押下 → handleFlameUpperPress でキュー操作。実発火は updatePlayer の tickFlameUpperQueue が担当。
     if (window.SB?.OC_FLAGS?.brnFlameUpper) {
       if (handleFlameUpperPress(p)) return;
+    }
+    // OC CHN-e03 SP2 潜り込み連打：↑K 押下 → handleDiveUpperPress でキュー操作。
+    //   実発火は updatePlayer の tickDiveUpperQueue。単押し=windup→final launcher（通常 SP2）。
+    if (window.SB?.OC_FLAGS?.chnSp2Dive) {
+      if (handleDiveUpperPress(p)) return;
     }
     const id = p.isGrounded ? 'c01_sp_02_short' : 'c01_sp_02_air';
     _logSp2Snapshot(p, id);  // タイミング検証ログ（window.SB.DEBUG_SP2_LOG で ON/OFF）
@@ -1260,6 +1433,8 @@ export function updatePlayer(p) {
 
   // OC BRN-e11 FLAME UPPER キュー（windup / mid 発火 / 最終 launcher）
   tickFlameUpperQueue(p);
+  // OC CHN-e03 SP2 潜り込み連打キュー（windup / mid hit-gated / 最終 launcher）
+  tickDiveUpperQueue(p);
 
   // === 掴み発動 readiness フラグ ===
   // 仕様：「wait01 中に自分の意思で移動した」状態でのみ tryGrabActivate を許可。
@@ -1861,6 +2036,7 @@ export function updatePlayer(p) {
       p.aerialHopCount = 0;      // 着地で連続ホップ減衰カウンタもリセット
       p.airUsedSpecialIds = null; // 着地で空中 SP 使用履歴をリセット（出戻り禁止フラグのクリア）
       p.airHitOccurred = false;   // 着地で空中ヒット履歴をリセット（SP→SP whiff チェーン許可フラグ）
+      p._diveAirWhiffLock = false; // 着地で CHN-e03 air-whiff ロックをクリア（再ジャンプで dive 再開可）
       // 同 ID 30F cooldown をクリア：着地後の次ジャンプで同じ空中 SP を再使用可能にする（2026-05-26）。
       //   元々「地上ループ防止」目的で導入されたが、空中は airUsedSpecialIds が 1 回制限を担うため重複。
       //   着地のたびにリセットして「再ジャンプ→同 SP」を阻害しない。地上連打は次の同 ID 発動で再度 set される。

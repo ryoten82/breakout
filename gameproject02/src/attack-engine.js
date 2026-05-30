@@ -863,6 +863,17 @@ export function triggerMegaCrash(p) {
     p._flameQStarted = false;
     p._flameQStallFrames = 0;
   }
+  // CHN-e03 DIVE キューも同様にメガクラで破棄（残骸で tickDiveUpperQueue 誤動作を防ぐ）
+  if (p._diveQActive) {
+    if (window.SB?.DEBUG_CHN_SP2 === true) {
+      console.log('[DIVE RESET (megacrash)]', { active: p._diveQActive, windup: p._diveQWindup, mids: p._diveQMids });
+    }
+    p._diveQActive  = false;
+    p._diveQWindup  = 0;
+    p._diveQMids    = 0;
+    p._diveQStarted = false;
+    p._diveQStallFrames = 0;
+  }
   // 通常攻撃・ステップ攻撃・必殺技進行中なら強制キャンセルして wait01 へ戻す
   //   （ダッシュ中メガクラでスライディング姿勢のまま発動する事故を防ぐ）
   if (p.state === STATE.attacking || p.state === STATE.hit_confirm) {
@@ -1167,6 +1178,7 @@ export function tryGrabActivate(p) {
   if (p.guarding || p.ultActive) return;
   if (p.dashActive)              return; // ダッシュ中は発動させない（密着判定が暴発するため）
   if (p._flameQActive)           return; // FLAME UPPER キュー中（windup / mid 間）は掴み発動不可
+  if (p._diveQActive)            return; // CHN-e03 DIVE キュー中も掴み発動不可
   // 掴み発動 readiness：wait01 中に自分の意思で移動したフレーム以降のみ true。
   // hitstun / attacking / grabbing 等を経由すると updatePlayer の冒頭で false にリセットされる。
   // → ノックバックからの復帰直後・攻撃終了直後に「キーが押しっぱなし」「速度残留」等で

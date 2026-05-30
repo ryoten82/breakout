@@ -171,6 +171,7 @@ const ACTION_TEST_AUTO_OC_FLAGS = [
   'sp4Stage2',       // BRN-l04 同梱：SP4 stage2 解放（チャージ MAX 解放）
   'solarFlare',      // BRN-l04 SOLAR FLARE（2026-05-29 実装・SP4 stage2 命中で持続炎フィールド 5 秒）
   'chnSp1Chain',     // CHN-e02 SP1 連打多段（2026-05-29 実装・SP1 を再入力で伸びる 3 段チェーンに）
+  'chnSp2Dive',      // CHN-e03 SP2 潜り込み連打（2026-05-30 実装・SP2 を windup→mid×N→final launcher のキューに）
 ];
 
 function _applyTestRoomOCFlags() {
