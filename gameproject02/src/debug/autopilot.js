@@ -43,6 +43,18 @@ const config = {
   RESULT_DWELL_TICKS: 4,   // result 画面を何 tick(×400ms) 表示してから新ランへ（UI コード走行＝カバレッジ）
 };
 
+// リスタート時に巡回する combat ステージ（actionTest=空部屋 / uiResult=結果モックは除外）。
+const STAGE_ROTATION = ['stage01', 'stage02', 'stage03', 'bossTest'];
+
+// 次ステージを決めてローテーション index を sessionStorage に進める（reload またぎで継続）。
+function _advanceStageRotation() {
+  let idx = 0;
+  try { idx = parseInt(sessionStorage.getItem('_sbBotStageIdx') || '0', 10) || 0; } catch (_) {}
+  idx = (idx + 1) % STAGE_ROTATION.length;
+  try { sessionStorage.setItem('_sbBotStageIdx', String(idx)); } catch (_) {}
+  return STAGE_ROTATION[idx];
+}
+
 const stats = {
   framesRun:      0,
   attacksThrown:  0,
@@ -161,7 +173,11 @@ function _menuTick() {
       if (++_resultDwell >= config.RESULT_DWELL_TICKS) {
         _resultDwell = 0;
         stats.runs++;
-        _logEvent('RESTART', `run ${stats.runs} → stage01`);
+        // 死亡/クリアごとにステージをローテーション（stage01→02→03→bossTest→…）。
+        //   bot は通常 stage02 終盤で力尽き stage03/ボスに到達しないため、リスタート先を
+        //   巡回させて全ステージ（複雑なボスコード含む）を時間とともにファズする。
+        const _nextStage = _advanceStageRotation();
+        _logEvent('RESTART', `run ${stats.runs} → ${_nextStage}`);
         _foldFindings();   // 直前ランの invariant を永続台帳へ
         _stashLog();
         try { sessionStorage.setItem('_sbAutopilot', '1'); } catch (_) {}
@@ -170,7 +186,7 @@ function _menuTick() {
           ['_sbAutoTransition','_sbCarryHp','_sbCarryMaxHp','_sbCarrySp','_sbCarryCr','_sbCarryOC']
             .forEach(k => sessionStorage.removeItem(k));
         } catch (_) {}
-        window.location.href = 'index.html?stage=stage01';
+        window.location.href = `index.html?stage=${_nextStage}`;
       }
       return;
     }
@@ -428,6 +444,7 @@ export const autopilot = {
         sessionStorage.removeItem('_sbBotLog');
         sessionStorage.removeItem('_sbBotRuns');
         sessionStorage.removeItem('_sbBotFindings');   // バグ台帳も新規セッションでリセット
+        sessionStorage.removeItem('_sbBotStageIdx');   // ステージ巡回を stage01 から
       } catch (_) {}
     }
     _prevLoggedState = '';
