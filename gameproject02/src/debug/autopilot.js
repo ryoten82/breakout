@@ -41,7 +41,22 @@ const config = {
   OBS_Z_TRY_FRAMES:  90,   // Z 片側を何 F 試してダメなら反対側へ
   logActions:       true,  // 各行動を console.log + リングバッファに残す（SP テスト DEBUG ログ相当）
   RESULT_DWELL_TICKS: 4,   // result 画面を何 tick(×400ms) 表示してから新ランへ（UI コード走行＝カバレッジ）
+  // === SP 酷使モード（2026-05-30：SP 技ストレステスト用）===
+  SP_PRIORITY_OC:   true,  // OC は SP 強化系を優先（無ければ OC_MAX_REROLL 回までリロール）
+  OC_MAX_REROLL:    3,     // SP 系が出るまでリロールを試す上限
+  SP_ON_ENEMY_ATK:  true,  // 敵の attacking（windup）中は SP を重ねる（パリィ/リパルス検証）
+  SP_FREE_EVERY:    72,    // 平時に SP を撒く間隔（F）
+  SP_COOLDOWN_F:    40,    // SP 発動の最低間隔（F）
+  MAX_RUNS:         0,     // この回数の通しプレイで自動停止（0=無限）。runEndless 解除用
 };
+
+// SP 強化系 OC（OC bot が優先的に選ぶ・SP 技を改変/強化するもの）
+const SP_OC_IDS = new Set([
+  'CHN_SP4_INSTANT', 'BRN_FLAME_UPPER', 'CHN_LEAP_SP3',
+  'CHN_SP1_CHAIN', 'CHN_SP2_DIVE', 'SOLAR_FLARE', 'MAGMA_VENT',
+]);
+// SP 技ローテ（方向 + K）。SP1=前方K / SP2=↑K / SP3=↓K / SP4=中立K(波動)。多様化のため順に撒く。
+const SP_ROTATION = ['SP3', 'SP2', 'SP1', 'SP4'];
 
 // リスタート時に巡回する combat ステージ（actionTest=空部屋 / uiResult=結果モックは除外）。
 const STAGE_ROTATION = ['stage01', 'stage02', 'stage03', 'bossTest'];
@@ -63,6 +78,9 @@ const stats = {
   fatalInvariants:0,        // 監視用ライブ値（summarize から反映）
   jsErrors:       0,        // window.onerror フックから加算
   ocPicks:        0,        // OC カード自動選択回数
+  ocRerolls:      0,        // SP 系を狙ったリロール回数
+  spThrown:       0,        // SP 技発動回数（多様化モード）
+  spOnAtk:        0,        // 敵 attacking 中に重ねた SP 回数
   runs:           0,        // 通算ラン数（death/clear で +1・延々ループ用）
   curState:       'IDLE',
   playerX:        0,
@@ -88,6 +106,14 @@ let _obsZDir = 0;             // 現在の Z 回避方向（0=なし / +1=+Z(Dow
 let _obsZElapsed = 0;         // 現 Z 方向での経過フレーム
 let _menuTimer = null;        // メニュー監視（実時間 setInterval・pause/rAF停止に依存しない）
 let _resultDwell = 0;         // result 画面の表示滞在 tick カウント
+// SP 酷使（多様化 + 敵攻撃への重ね）
+let _spActive = 0;            // SP 実行中の残 F（>0 の間は SP 入力を保持）
+let _spDir = null;            // 現 SP の方向キー（null=中立）
+let _spKey = null;            // 現 SP の発動キー（K or J）
+let _spIdx = 0;              // SP_ROTATION 巡回 index
+let _spCd = 0;               // SP 連発の最低間隔カウンタ
+let _spFree = 0;             // 平時 SP 撒きインターバルカウンタ
+let _spKeyHoldAll = false;    // 発動キーを全期間保持するか（SP4=J長押しチャージ用）
 
 // 行動ログ（リングバッファ・reload またぎは sessionStorage で継続）
 const LOG_MAX = 800;
@@ -173,13 +199,27 @@ function _menuTick() {
       if (++_resultDwell >= config.RESULT_DWELL_TICKS) {
         _resultDwell = 0;
         stats.runs++;
+        _foldFindings();   // 直前ランの invariant を永続台帳へ
+        _stashLog();
+        // MAX_RUNS 到達で自動停止（例：10 回通しプレイ）。リロードで config がリセットされるため
+        //   上限は sessionStorage(_sbBotMaxRuns) で持続させる（config.MAX_RUNS はフォールバック）。
+        let _maxRuns = config.MAX_RUNS;
+        try { const m = parseInt(sessionStorage.getItem('_sbBotMaxRuns') || '0', 10); if (m > 0) _maxRuns = m; } catch (_) {}
+        if (_maxRuns > 0 && stats.runs >= _maxRuns) {
+          _logEvent('DONE', `reached MAX_RUNS=${_maxRuns}`);
+          if (typeof console !== 'undefined') {
+            console.log(`%c[AUTOPILOT] ${_maxRuns} 回通しプレイ完了 → 停止（report() で結果確認）`,
+              'background:#262;color:#9f9;padding:3px 8px;font-weight:bold;');
+          }
+          try { sessionStorage.removeItem('_sbBotMaxRuns'); } catch (_) {}
+          autopilot.stop();
+          return;
+        }
         // 死亡/クリアごとにステージをローテーション（stage01→02→03→bossTest→…）。
         //   bot は通常 stage02 終盤で力尽き stage03/ボスに到達しないため、リスタート先を
         //   巡回させて全ステージ（複雑なボスコード含む）を時間とともにファズする。
         const _nextStage = _advanceStageRotation();
         _logEvent('RESTART', `run ${stats.runs} → ${_nextStage}`);
-        _foldFindings();   // 直前ランの invariant を永続台帳へ
-        _stashLog();
         try { sessionStorage.setItem('_sbAutopilot', '1'); } catch (_) {}
         // carry 系は持ち越さない（クリーンな新ラン）
         try {
@@ -191,10 +231,27 @@ function _menuTick() {
       return;
     }
     _resultDwell = 0;
-    // OC カード選択：先頭カードを自動確定
+    // OC カード選択：SP 強化系を優先（無ければ OC_MAX_REROLL 回までリロール）→ 確定。
     if (SB.oc && SB.oc.isPending && SB.oc.isPending()) {
-      const picked = SB.oc.pick(0);
-      if (picked) { stats.ocPicks++; _logEvent('OC_PICK', String(picked)); }
+      const _spIdxInPool = () => {
+        const ids = (SB.oc.cards && SB.oc.cards()) || [];
+        return ids.findIndex(id => SP_OC_IDS.has(id));
+      };
+      let idx = -1;
+      if (config.SP_PRIORITY_OC) {
+        idx = _spIdxInPool();
+        let tries = 0;
+        while (idx < 0 && tries < config.OC_MAX_REROLL && SB.oc.reroll) {
+          if (!SB.oc.reroll()) break;   // リロール不可（残0）なら諦め
+          stats.ocRerolls++; tries++;
+          idx = _spIdxInPool();
+        }
+      }
+      const picked = SB.oc.pick(idx >= 0 ? idx : 0);
+      if (picked) {
+        stats.ocPicks++;
+        _logEvent('OC_PICK', `${picked}${SP_OC_IDS.has(picked) ? ' (SP系)' : ''}`);
+      }
     }
   } catch (_) { /* メニュー未露出環境は無視 */ }
 }
@@ -209,8 +266,24 @@ function _resetState() {
   _stuckFrames = 0;
   _prevAliveCount = 0;
   _obsLastX = null;
+  _spActive = 0; _spDir = null; _spKey = null; _spCd = 0; _spFree = 0; _spKeyHoldAll = false;
   _obsReset();
   _applyHeld(new Set());
+}
+
+// 次の SP 技を開始（方向先行 → K/J 重ね）。SP1=前方K / SP2=↑K / SP3=↓K / SP4=中立K（波動）。
+//   faceRight で SP1 の前方を決める。dir 先行 4F → 残りで発動キーを重ねる（edge 検出を踏ませる）。
+function _startSp(faceRight) {
+  const kind = SP_ROTATION[_spIdx % SP_ROTATION.length];
+  _spIdx++;
+  if (kind === 'SP2')      { _spDir = CODE.UP;   _spKey = CODE.K; _spKeyHoldAll = false; _spActive = 12; }
+  else if (kind === 'SP3') { _spDir = CODE.DOWN; _spKey = CODE.K; _spKeyHoldAll = false; _spActive = 12; }
+  else if (kind === 'SP1') { _spDir = faceRight ? CODE.RIGHT : CODE.LEFT; _spKey = CODE.K; _spKeyHoldAll = false; _spActive = 12; }
+  else                     { _spDir = null;      _spKey = CODE.J; _spKeyHoldAll = true;  _spActive = 58; }  // SP4: J 長押しチャージ
+  _spCd = config.SP_COOLDOWN_F;
+  _spFree = config.SP_FREE_EVERY;
+  stats.spThrown++;
+  _logEvent('SP', `${kind} dir=${_spDir || 'neutral'}`);
 }
 
 // 宣言的入力反映：今フレーム押すべき code 集合を前フレーム差分で setVirtualKey
@@ -362,19 +435,41 @@ function tick() {
       _tickAttackCounters();
     } else {
       stats.curState = 'ATTACK';
-      // 攻撃リズム：押す → 離す（edge 検出を踏ませる）
-      if (_attackHoldRemaining > 0) {
-        held.add(_lastAtkKey);
-        _attackHoldRemaining--;
-      } else if (_attackCooldown <= 0) {
-        _attackCount++;
-        _lastAtkKey = (_attackCount % config.STRONG_EVERY === 0) ? CODE.K : CODE.J;
-        held.add(_lastAtkKey);
-        _attackHoldRemaining = config.ATTACK_HOLD_F - 1;
-        _attackCooldown = config.ATTACK_HOLD_F + config.ATTACK_GAP_F;
-        stats.attacksThrown++;
+      // === SP 酷使（実行中の SP 入力を保持）===
+      if (_spActive > 0) {
+        if (_spDir) held.add(_spDir);
+        // dir 先行 → 発動キー重ね。SP4(J長押し)は全期間保持。
+        if (_spKey && (_spKeyHoldAll || _spActive <= 8)) held.add(_spKey);
+        _spActive--;
       } else {
-        _attackCooldown--;
+        if (_spCd > 0) _spCd--;
+        if (_spFree > 0) _spFree--;
+        // 敵が attacking（windup/active）中なら SP を重ねる（パリィ/リパルス検証）
+        const ST = SB.STATE || {};
+        const enemyAttacking = target && (target.state === ST.enemy_attacking ||
+          target.atkPhase === 'wind' || target.atkPhase === 'active');
+        const wantOnAtk = config.SP_ON_ENEMY_ATK && enemyAttacking && _spCd <= 0;
+        const wantFree  = _spFree <= 0 && _spCd <= 0;
+        if (wantOnAtk || wantFree) {
+          if (wantOnAtk) stats.spOnAtk++;
+          _startSp(faceRight);
+          if (_spDir) held.add(_spDir);
+        } else {
+          // 通常 J/K リズム（押す → 離す・edge 検出を踏ませる）
+          if (_attackHoldRemaining > 0) {
+            held.add(_lastAtkKey);
+            _attackHoldRemaining--;
+          } else if (_attackCooldown <= 0) {
+            _attackCount++;
+            _lastAtkKey = (_attackCount % config.STRONG_EVERY === 0) ? CODE.K : CODE.J;
+            held.add(_lastAtkKey);
+            _attackHoldRemaining = config.ATTACK_HOLD_F - 1;
+            _attackCooldown = config.ATTACK_HOLD_F + config.ATTACK_GAP_F;
+            stats.attacksThrown++;
+          } else {
+            _attackCooldown--;
+          }
+        }
       }
     }
   }
