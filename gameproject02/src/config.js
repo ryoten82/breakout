@@ -209,6 +209,9 @@ export const BOSS_MEGA_CONFIG = {
 // ============================================================
 export const SPECIAL_CONFIG = {
   DIR_BUFFER_FRAMES: 30,    // 方向入力履歴の保持長（広め・dirMatch 全般で使用）
+  // CHN-e04 波動拳即発（↓→J）の「→」recency 窓。DIR_BUFFER(30F) のまま使うと
+  //   移動後の古い → が残って J 通常攻撃で暴発するため、波動拳判定だけ最後の → を直近 N F に限定。
+  HADOUKEN_FORWARD_GRACE_FRAMES: 12,  // 2026-05-30 playtest: 暴発防止（→ がこのF以内に入っていないと不成立）
   // 旧 CMD_TAP_TO_BUTTON_FRAMES / CMD_TAP_CANCEL_MULT は廃止（2026-05-20）。
   //   タップコマンド廃止 + K=SP ボタン化に伴い未参照となった。必殺技は方向 + ボタン直接 dispatch。
   CHARGE_FRAMES_STAGE1: 50,  // sp_04 第1段階成立（≈0.83秒）→ c01_sp_04_01 発動（旧 c01_sp_04 / 2026-05-20 _NN 連番化）
@@ -600,7 +603,7 @@ export const ENEMY_ATTACKS = {
     name:           'クラッシャー振り下ろし（両拳叩きつけ）',
     kind:           'swing',
     attackCategory: 'melee',
-    windFrames:     85,     // 70→85：+15F（2026-05-27 ユーザー指示・読み合い猶予追加）
+    windFrames:     111,    // 2026-05-30 playtest: 85→111（非連続技の溜め時間 +30%・回避猶予拡大）
     activeFrames:   12,
     recoverFrames:  30,
     cooldownFrames: 90,
@@ -629,7 +632,7 @@ export const ENEMY_ATTACKS = {
     name:           '横薙ぎフック',
     kind:           'swing',
     attackCategory: 'melee',
-    windFrames:     77,     // 62→77：+15F（2026-05-27 ユーザー指示・読み合い猶予追加）
+    windFrames:     100,    // 2026-05-30 playtest: 77→100（非連続技の溜め時間 +30%・回避猶予拡大）
     activeFrames:   18,
     recoverFrames:  35,
     cooldownFrames: 100,
@@ -658,7 +661,7 @@ export const ENEMY_ATTACKS = {
     name:           '地響きスマッシュ',
     kind:           'swing',  // TODO: 専用 kind='shockwave_aoe' を別セッションで設計
     attackCategory: 'melee',
-    windFrames:     90,     // 75→90：+15F（2026-05-27 ユーザー指示・読み合い猶予追加）
+    windFrames:     117,    // 2026-05-30 playtest: 90→117（非連続技の溜め時間 +30%・回避猶予拡大）
     activeFrames:   20,
     recoverFrames:  40,
     cooldownFrames: 110,
@@ -736,7 +739,7 @@ export const ENEMY_ATTACKS = {
     windFrames:     60,            // 75→60：背中ポッド展開（隙削減）
     activeFrames:   210,           // 270→210：30(pre-warn) + 150(着弾窓2.5秒) + 30(後余裕)
     recoverFrames:  35,            // 60→35：後隙削減
-    cooldownFrames: 280,           // 420→280：約 4.7 秒（連射感アップ）
+    cooldownFrames: 400,           // 2026-05-30 playtest: 280→400（約 6.7 秒・ミサイル頻度が高すぎたため低減）
     // 本攻撃は個別ミサイル radial 判定で行う → 共通 hitbox は 0
     hitboxRangeX:   0,
     hitboxRangeY:   0,
@@ -881,7 +884,7 @@ export const ENEMY_ATTACKS = {
 //    例）Easy: 1.5 / Normal: 1.0 / Hard: 0.65
 // ============================================================
 export const ENEMY_ATTACK_RELAY = {
-  BASE:         90,   // 攻撃終了 → 次の攻撃可能までの基準F（1.5秒平均）
+  BASE:         120,  // 攻撃終了 → 次の攻撃可能までの基準F（2026-05-30 playtest: 90→120・包囲時の連続殴り頻度を低減）
   VARIANCE:     0.5,  // 振れ幅（±50%）。実待ち ＝ BASE × DIFF_MULT × [0.5, 1.5]
   DIFF_MULT:    1.0,  // 難易度倍率。大きいほど間が長い（=易しい）
   TACKLE_RELAY: 240,  // タックル専用グローバルCD（F）。誰かがタックルを開始したら全員N F禁止
@@ -1624,8 +1627,10 @@ export const KEY_CONFIG = {
 // weight: 出現重み（デフォルト 10）。小さいほど出づらい。現テストでは weight のみ機能する。
 export const OVERCLOCK_CARDS = [
   { id: 'POWER_UP',  label: 'POWER UP',  desc: '攻撃力 ×1.3',                           color: '#ff5533', rarity: 'common',    weight: 10 },
-  { id: 'SP_RUSH',   label: 'SP RUSH',   desc: 'SP 獲得 ×2',                             color: '#22aaff', rarity: 'rare',      weight:  5 },
-  { id: 'SP_FULL',   label: 'SP FULL',   desc: 'SP 即時満タン / 上限 +2 本（継続）',     color: '#ffcc22', rarity: 'uncommon',  weight: 10 },
+  // 2026-05-30 SP 経済への傾倒リスクが高いためテストプールから一時除外（_applyOCEffect の分岐は残置）。
+  //   SP 獲得倍化・SP 上限拡張は経済バランスが固まってから慎重に再投入する。
+  // { id: 'SP_RUSH',   label: 'SP RUSH',   desc: 'SP 獲得 ×2',                             color: '#22aaff', rarity: 'rare',      weight:  5 },
+  // { id: 'SP_FULL',   label: 'SP FULL',   desc: 'SP 即時満タン / 上限 +2 本（継続）',     color: '#ffcc22', rarity: 'uncommon',  weight: 10 },
   { id: 'BERSERK',   label: 'BERSERK',   desc: 'HP50%↓ →×1.2 / HP25%↓ →×1.4',         color: '#ff2244', rarity: 'rare',      weight:  7 },
   // ===== 延焼ビルド（積層型・取得順を強制：点火 → 延焼 → 連鎖爆発）=====
   //  - 点火を取らないと「延焼」「連鎖爆発」はプールに出ない

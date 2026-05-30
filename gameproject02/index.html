@@ -627,6 +627,13 @@
       opacity: 0.12;
       transition: opacity 0.18s ease-out;
     }
+    /* リロール直後の差し替えポップ（押した瞬間に変わったと分かる即時フィードバック） */
+    @keyframes oc-card-reroll-pop {
+      0%   { transform: scale(0.86); opacity: 0.2; }
+      60%  { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(1);    opacity: 1; }
+    }
+    .oc-card--rerolled { animation: oc-card-reroll-pop 0.18s ease-out; }
     .oc-card-label {
       font-family: var(--font-pixel);
       font-size: 22px;
@@ -640,6 +647,58 @@
       color: #bbb;
       letter-spacing: 1px;
     }
+    /* OC 下部アクション行：リロール（左）/ スキップ（右） */
+    #oc-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 664px;          /* カード 3 枚（200×3 + gap32×2 = 664）に揃える */
+      margin-top: 40px;
+    }
+    .oc-action {
+      font-family: var(--font-pixel);
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 3px;
+      padding: 12px 26px;
+      border-radius: 6px;
+      border: 2px solid #555;
+      background: rgba(16, 20, 28, 0.97);
+      color: #cfd6e0;
+      cursor: pointer;
+      transition: border-color 0.12s, transform 0.1s, box-shadow 0.12s, color 0.12s;
+    }
+    .oc-action--reroll { color: #66ccff; }
+    .oc-action--skip   { color: #ff7766; }
+    /* ボタン + 残回数バッジのまとまり */
+    .oc-action-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    /* 残り使用回数バッジ（ボタンの右隣）。∞=無制限 / 将来は残数を数値表示 */
+    .oc-action-count {
+      font-family: var(--font-pixel);
+      font-size: 22px;
+      font-weight: bold;
+      color: #ffcc44;
+      min-width: 22px;
+      text-align: center;
+      letter-spacing: 1px;
+    }
+    /* 残 0（将来の上限制用）：ボタンを無効表示 */
+    .oc-action--depleted {
+      opacity: 0.35;
+      filter: grayscale(0.6);
+      cursor: default;
+    }
+    .oc-action--focused {
+      transform: translateY(-3px) scale(1.06);
+      outline: 2px solid #ffaa44;
+      border-color: #ff8800;
+      box-shadow: 0 6px 20px rgba(255,136,0,0.4);
+    }
+    .oc-action--dimmed { opacity: 0.12; transition: opacity 0.18s ease-out; }
 
     /* リザルト画面（Act 通しクリア / ゲームオーバー 共通） */
     #result-overlay {
@@ -1400,6 +1459,16 @@
     <div class="oc-header">OVERCLOCK</div>
     <div class="oc-subtitle">技術を解放せよ</div>
     <div id="oc-cards"></div>
+    <div id="oc-actions">
+      <div class="oc-action-group">
+        <button id="oc-reroll" class="oc-action oc-action--reroll" type="button">リロール</button>
+        <span id="oc-reroll-count" class="oc-action-count">∞</span>
+      </div>
+      <div class="oc-action-group">
+        <button id="oc-skip" class="oc-action oc-action--skip" type="button">スキップ</button>
+        <span id="oc-skip-count" class="oc-action-count">∞</span>
+      </div>
+    </div>
   </div>
   <!-- OC ジェム取得の画面フラッシュ -->
   <div id="oc-flash"></div>
@@ -3248,9 +3317,15 @@
     let _ocOpenTimer      = 0;     // ジェム取得フラッシュ後、OC 選択画面を開くまでの残 F
     const _ocMods         = {};    // 適用済み変更の undo 用ベース値保存
     let   _ocAppliedCards = [];   // 適用済みカード ID 履歴（ステージ遷移時の引継ぎ用）
-    let   _ocCards        = [];   // 現在表示中の OC カード配列（キー入力選択用）
-    let   _ocFocusIdx     = 0;    // フォーカス中カードの index（0 or 1）
-    const _ocPadPrev      = { left: false, right: false, select: false };  // rising-edge
+    let   _ocCards        = [];   // 現在表示中の OC カード配列（実カードのみ・最大 2）
+    let   _ocFocusEls     = [];   // フォーカス対象（カード群 + リロール + スキップ）を順序付きで保持
+    let   _ocFocusIdx     = 0;    // _ocFocusEls 内のフォーカス位置
+    // リロール / スキップの残り使用回数（将来の上限制への置き換えポイント）。
+    //   Infinity = 無制限（∞ 表示）。有限数にすると残数表示＋0 で発火抑止・ボタン無効化が自動で効く。
+    const _ocActionUses   = { reroll: Infinity, skip: Infinity };
+    // OC 選択の提示枚数（短ラン Blitz は 3 択基礎。2/3 をここ 1 箇所で切替）。
+    const OC_CHOICE_COUNT = 3;
+    const _ocPadPrev      = { left: false, right: false, up: false, down: false, select: false };  // rising-edge
     let   _ocInputDelay   = 0;    // 開いた直後の誤入力防止タイマー（60F = 1 秒）
     let   _ocSelecting    = false; // 選択フラッシュ演出中（再入力ロック）
     let   _ocFlashTimer   = null;  // _selectOC の確定フラッシュ setTimeout ID（クリーンアップ用）
@@ -3275,7 +3350,7 @@
 
     // SKIP カード（OVERCLOCK_CARDS には入れず UI 時点で末尾に常設）。
     // 選択時は _applyOCEffect で何もしないルートに分岐する。
-    const _OC_SKIP_CARD = { id: 'SKIP', label: 'SKIP', desc: '今回の OC をスルー', color: '#888888' };
+    // SKIP は専用ボタン（#oc-skip）化したため card 配列には載せない（id 'SKIP' で _applyOCEffect が no-op）。
 
     // OC カードプールから「前提未充足」のものを除外する積層フィルタ。
     // 延焼ビルドの取得順を「点火 → 延焼 → 連鎖爆発」に強制してビルド感を出す。
@@ -3288,6 +3363,9 @@
         if (c.id === 'SPREAD'      &&  window.SB?.OC_FLAGS?.spread)     return false;
         if (c.id === 'CHAIN_BLAST' &&  window.SB?.OC_FLAGS?.chainBlast) return false;
         if (c.id === 'BERSERK'     &&  window.SB?.OC_FLAGS?.berserk)    return false;
+        // 一度きりのフラグ系 OC は取得済みなら再抽選しない（重ね掛け取得防止・2026-05-30）
+        if (c.id === 'CHN_SP4_INSTANT' && window.SB?.OC_FLAGS?.chnSp4Instant) return false;
+        if (c.id === 'BRN_FLAME_UPPER' && window.SB?.OC_FLAGS?.brnFlameUpper) return false;
         return true;
       });
     }
@@ -3307,14 +3385,10 @@
       return result;
     }
 
-    function showOCSelection() {
-      // フィルタ済みプールから weight に従い 2 枚を非復元抽選 + SKIP を末尾に固定
-      _ocCards = [..._weightedSample(_filterOcPool(), 2), _OC_SKIP_CARD];
-
-      const overlay  = document.getElementById('oc-overlay');
-      const cardsEl  = document.getElementById('oc-cards');
-      if (!overlay || !cardsEl) return;
-
+    // カード DOM を #oc-cards に描画（リロールでも再利用）。
+    function _renderOcCards() {
+      const cardsEl = document.getElementById('oc-cards');
+      if (!cardsEl) return;
       cardsEl.innerHTML = '';
       _ocCards.forEach((card, i) => {
         const div = document.createElement('div');
@@ -3322,16 +3396,138 @@
         div.innerHTML =
           `<div class="oc-card-label" style="color:${card.color}">${card.label}</div>` +
           `<div class="oc-card-desc">${card.desc}</div>`;
-        div.addEventListener('click', () => _selectOC(card.id));
-        // マウスホバー時にキー focusIdx を同期 → ホバー先と --focused が常に一致し
-        // 「2 つアクティブに見える」表示バグを解消（D-2）
+        div.addEventListener('click', () => _activateOcFocus(i));
+        // ホバーでキー focusIdx を同期（--focused が常に 1 つだけになるように）
         div.addEventListener('mouseenter', () => {
           if (!_ocPending || _ocSelecting) return;
-          _ocFocusIdx = i;
-          _updateOcFocus();
+          _ocFocusIdx = i; _updateOcFocus();
         });
         cardsEl.appendChild(div);
       });
+    }
+
+    // フォーカス対象を順序付きで組む：[カード0, カード1, リロール, スキップ]。
+    //   row/col で 2 段グリッド（上段=カード / 下段=リロール・スキップ）の上下移動に使う。
+    function _buildOcFocus() {
+      const cardEls  = [...document.querySelectorAll('#oc-cards .oc-card')];
+      const rerollEl = document.getElementById('oc-reroll');
+      const skipEl   = document.getElementById('oc-skip');
+      _ocFocusEls = [];
+      cardEls.forEach((el, i) => _ocFocusEls.push({ el, action: 'card', idx: i, row: 0, col: i }));
+      if (rerollEl) _ocFocusEls.push({ el: rerollEl, action: 'reroll', row: 1, col: 0 });
+      if (skipEl)   _ocFocusEls.push({ el: skipEl,   action: 'skip',   row: 1, col: 1 });
+    }
+
+    // 残回数バッジを更新（∞ or 数値）＋ 残 0 ならボタンを無効表示。
+    function _renderOcActionCounts() {
+      [['reroll', 'oc-reroll', 'oc-reroll-count'], ['skip', 'oc-skip', 'oc-skip-count']].forEach(([key, btnId, badgeId]) => {
+        const n = _ocActionUses[key];
+        const badge = document.getElementById(badgeId);
+        if (badge) badge.textContent = Number.isFinite(n) ? String(n) : '∞';
+        const btn = document.getElementById(btnId);
+        if (btn) btn.classList.toggle('oc-action--depleted', Number.isFinite(n) && n <= 0);
+      });
+    }
+
+    // 当該アクションが使用可能か（Infinity は常に可・有限は残 >0 のみ）。
+    function _canUseOcAction(key) {
+      const n = _ocActionUses[key];
+      return !Number.isFinite(n) || n > 0;
+    }
+
+    // アクション消費（有限のときだけ減算 → バッジ再描画）。Infinity は減らない。
+    function _consumeOcAction(key) {
+      if (Number.isFinite(_ocActionUses[key])) {
+        _ocActionUses[key] = Math.max(0, _ocActionUses[key] - 1);
+        _renderOcActionCounts();
+      }
+    }
+
+    // ↑/↓：上段⇄下段を移動（同じ列を優先・無ければその行の最も近い列）。
+    function _ocMoveVertical() {
+      const cur = _ocFocusEls[_ocFocusIdx];
+      if (!cur) return;
+      const targetRow = cur.row === 0 ? 1 : 0;
+      const inRow = _ocFocusEls.filter(f => f.row === targetRow);
+      if (!inRow.length) return;
+      let best = inRow.find(f => f.col === cur.col)
+              || inRow.reduce((a, b) => Math.abs(b.col - cur.col) < Math.abs(a.col - cur.col) ? b : a);
+      _ocFocusIdx = _ocFocusEls.indexOf(best);
+      _updateOcFocus();
+    }
+
+    // フォーカス位置（_ocFocusEls の index）を発火：カード=適用 / リロール=引き直し / スキップ=スルー。
+    function _activateOcFocus(idx) {
+      if (_ocSelecting) return;
+      const item = _ocFocusEls[idx];
+      if (!item) return;
+      _ocFocusIdx = idx;
+      if (item.action === 'reroll') {
+        if (!_canUseOcAction('reroll')) return;   // 残 0 は不発
+        _consumeOcAction('reroll');
+        _rerollOC();
+        return;
+      }
+      if (item.action === 'skip') {
+        if (!_canUseOcAction('skip')) return;
+        _consumeOcAction('skip');
+        _selectOC('SKIP');
+        return;
+      }
+      const card = _ocCards[item.idx];
+      if (card) _selectOC(card.id);
+    }
+
+    // リロール：2 枚を引き直して再描画（今はテストにつき無制限・コストなし）。
+    //   フォーカスはリロールに保持（連続リロールしやすく・フォーカス飛びの「一拍」感を解消）。
+    //   新カードに一瞬のポップ演出を付与し「押した瞬間に変わった」と分かるようにする。
+    function _rerollOC() {
+      if (_ocSelecting) return;
+      _ocCards = _weightedSample(_filterOcPool(), OC_CHOICE_COUNT);
+      _renderOcCards();
+      // 引き直し直後のポップ演出（次フレームで付与して確実に再生）
+      requestAnimationFrame(() => {
+        document.querySelectorAll('#oc-cards .oc-card').forEach(el => {
+          el.classList.remove('oc-card--rerolled');
+          void el.offsetWidth;  // reflow でアニメをリスタート
+          el.classList.add('oc-card--rerolled');
+        });
+      });
+      _buildOcFocus();
+      // フォーカスをリロールに維持（無ければ先頭）
+      const rr = _ocFocusEls.findIndex(f => f.action === 'reroll');
+      _ocFocusIdx = rr >= 0 ? rr : 0;
+      _updateOcFocus();
+    }
+
+    function showOCSelection() {
+      // フィルタ済みプールから weight に従い 2 枚を非復元抽選（SKIP/リロールは専用ボタン）
+      _ocCards = _weightedSample(_filterOcPool(), OC_CHOICE_COUNT);
+
+      const overlay  = document.getElementById('oc-overlay');
+      const cardsEl  = document.getElementById('oc-cards');
+      if (!overlay || !cardsEl) return;
+
+      _renderOcCards();
+      _buildOcFocus();
+      // アクションボタン（リロール / スキップ）のハンドラを張る
+      const _wireAction = (id, action) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.remove('oc-action--dimmed', 'oc-action--focused');
+        el.onclick = () => {
+          const i = _ocFocusEls.findIndex(f => f.action === action);
+          if (i >= 0) _activateOcFocus(i);
+        };
+        el.onmouseenter = () => {
+          if (!_ocPending || _ocSelecting) return;
+          const i = _ocFocusEls.findIndex(f => f.action === action);
+          if (i >= 0) { _ocFocusIdx = i; _updateOcFocus(); }
+        };
+      };
+      _wireAction('oc-reroll', 'reroll');
+      _wireAction('oc-skip',   'skip');
+      _renderOcActionCounts();
 
       _ocFocusIdx = 0;
       _updateOcFocus();
@@ -3339,15 +3535,18 @@
       PAUSE_CONFIG.paused = true;
       _invSetPaused(true);
       _ocInputDelay = 60;  // 開いた直後 1 秒間は決定・方向入力を無効（直前の連打誤爆防止）
-      _ocPadPrev.left = false; _ocPadPrev.right = false; _ocPadPrev.select = false;
+      _ocPadPrev.left = false; _ocPadPrev.right = false; _ocPadPrev.up = false; _ocPadPrev.down = false; _ocPadPrev.select = false;
       _ocSelecting = false;
       _ocPending = true;
       // 入力はメインループの inp() rising-edge に一本化（旧 keydown ハンドラは廃止）
     }
 
     function _updateOcFocus() {
-      const cards = document.querySelectorAll('.oc-card');
-      cards.forEach((el, i) => el.classList.toggle('oc-card--focused', i === _ocFocusIdx));
+      _ocFocusEls.forEach((f, i) => {
+        const on  = (i === _ocFocusIdx);
+        const cls = f.el.classList.contains('oc-card') ? 'oc-card--focused' : 'oc-action--focused';
+        f.el.classList.toggle(cls, on);
+      });
     }
 
     // モード選択メニュー：キー/パッド操作中のフォーカスをボタン要素に反映（OC と同パターン）
@@ -3373,6 +3572,11 @@
         el.classList.remove('oc-card--focused');
         if (i === idx) el.classList.add('oc-card--selected');
         else           el.classList.add('oc-card--dimmed');
+      });
+      // アクションボタン（リロール / スキップ）も一律ディム（確定演出中の誤操作防止）
+      document.querySelectorAll('.oc-action').forEach(el => {
+        el.classList.remove('oc-action--focused');
+        el.classList.add('oc-action--dimmed');
       });
       // フラッシュを見せてから効果適用 → オーバーレイを閉じて実機へ復帰
       // タイマー ID を保持し、二重起動・ステージ遷移時に clearTimeout で取り消せるようにする
@@ -4826,19 +5030,27 @@
       // OC 選択中のゲームパッド入力（ポーズ中でも走らせる）
       if (_ocPending && !_ocSelecting) {
         if (_ocInputDelay > 0) _ocInputDelay--;
-        // 左右移動キー（A/D・矢印）とゲームパッド D-pad を統合判定
+        // 左右/上下移動キー（A/D/W/S・矢印）とゲームパッド D-pad を統合判定
         const _left   = inp('ArrowLeft')  || inp('KeyA');
         const _right  = inp('ArrowRight') || inp('KeyD');
+        const _up     = inp('ArrowUp')    || inp('KeyW');
+        const _down   = inp('ArrowDown')  || inp('KeyS');
         const _sel    = inp('Space') || inp('KeyJ') || inp('KeyK');
         if (_ocInputDelay <= 0) {
-          const _n = _ocCards.length;   // 通常 3（OC 2 + SKIP）。将来 4 枚化等にも追従
-          if (_left  && !_ocPadPrev.left)   { _ocFocusIdx = (_ocFocusIdx - 1 + _n) % _n; _updateOcFocus(); }
-          if (_right && !_ocPadPrev.right)  { _ocFocusIdx = (_ocFocusIdx + 1) % _n;       _updateOcFocus(); }
-          if (_sel   && !_ocPadPrev.select) { _selectOC(_ocCards[_ocFocusIdx].id); }
+          const _n = _ocFocusEls.length;   // カード(最大2) + リロール + スキップ の循環
+          if (_n > 0) {
+            if (_left  && !_ocPadPrev.left)   { _ocFocusIdx = (_ocFocusIdx - 1 + _n) % _n; _updateOcFocus(); }
+            if (_right && !_ocPadPrev.right)  { _ocFocusIdx = (_ocFocusIdx + 1) % _n;       _updateOcFocus(); }
+            // 上下：上段カード ⇄ 下段（リロール/スキップ）を行移動
+            if ((_up && !_ocPadPrev.up) || (_down && !_ocPadPrev.down)) { _ocMoveVertical(); }
+            if (_sel   && !_ocPadPrev.select) { _activateOcFocus(_ocFocusIdx); }
+          }
         }
         // delay 中も prev を更新しておく（delay 終了直後に押しっぱなしで即発火しないよう）
         _ocPadPrev.left   = _left;
         _ocPadPrev.right  = _right;
+        _ocPadPrev.up     = _up;
+        _ocPadPrev.down   = _down;
         _ocPadPrev.select = _sel;
       }
       updateHudHighlight();
@@ -5176,7 +5388,7 @@
         //   i 省略で現フォーカス、指定で該当カードを確定。選択中/未表示なら false。
         pick: (i) => {
           if (!_ocPending || _ocSelecting) return false;
-          const idx = (i == null) ? _ocFocusIdx : i;
+          const idx = (i == null) ? 0 : i;   // 省略時は先頭カード（_ocFocusEls 化に伴い focusIdx 直参照は不可）
           const card = _ocCards[idx];
           if (!card) return false;
           _selectOC(card.id);

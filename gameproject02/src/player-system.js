@@ -297,15 +297,19 @@ export function dirMatchesForFacing(actual, expected, facing) {
 function _matchesHadoukenCmd(p) {
   const h = p.dirHistory;
   if (!h || h.length < 2) return false;
+  // 「→」の recency 窓：最後の前方入力がこのF以内でなければ不成立（移動後の古い → による暴発防止）。
+  const fwdCutoff = gameFrameCounter - SPECIAL_CONFIG.HADOUKEN_FORWARD_GRACE_FRAMES;
   let sawDown = false;
   for (const entry of h) {
     if (!sawDown) {
       // D / DR / DL のいずれかを「↓押下」とみなす
       if (entry.dir === 'D' || entry.dir === 'DR' || entry.dir === 'DL') sawDown = true;
     } else {
-      // ↓ を踏んだ後で前方（R）または前下（DR）を検出すれば成立
-      if (dirMatchesForFacing(entry.dir, 'R', p.facing) ||
-          dirMatchesForFacing(entry.dir, 'DR', p.facing)) {
+      // ↓ を踏んだ後で前方（R）または前下（DR）を検出すれば成立。
+      //   ただし「→」が直近 HADOUKEN_FORWARD_GRACE_FRAMES 以内に入っていること（暴発防止）。
+      if ((dirMatchesForFacing(entry.dir, 'R', p.facing) ||
+           dirMatchesForFacing(entry.dir, 'DR', p.facing)) &&
+          entry.frame >= fwdCutoff) {
         return true;
       }
     }
