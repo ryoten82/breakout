@@ -398,8 +398,11 @@ export function updateChargeJ(p) {
 //   "押し放置 → 最終段 launcher が出し切りで出る / 連打 → 合間に short upper 混ぜ込む"
 //   初回 ↑K：windup タイマー（FLAME_QUEUE_WINDUP_FRAMES）を仕込む
 //   一発出し切り（2026-05-30 再設計）：初回 ↑K で mid を MAX プリロード → mid → final を自動連結（2 ヒット）。
+//   2 発目（打ち上げ）は 1 段目の小ジャンプが着地してから出す（自身の着地待ち）。
 const FLAME_QUEUE_WINDUP_FRAMES = 0;    // 出がかりを通常 SP2 と同じ感に（pre-windup を廃止・即 1 段目）
-const FLAME_QUEUE_MAX_MIDS      = 1;    // mid×1 + final = 計 2 ヒット（1段目=その場アッパー / 2段目=打ち上げ）
+const FLAME_QUEUE_MAX_MIDS      = 1;    // mid×1 + final(2hit) = 計 3 ヒット（初段アッパー → トドメ飛び上がりアッパー×2）
+const FLAME_FINAL_LAND_TIMEOUT  = 60;   // 地上始動：着地できない時（穴上等）の保険：このF後は空中でも強制発火
+const FLAME_AIR_FINAL_DELAY     = 20;   // 空中始動：着地を待たず 1 段目から このF後に 2 段目を発動（14→20 に戻し・2 発目テンポ調整）
 
 // === OC CHN-e03 SP2 潜り込み連打アッパー キュー（2026-05-30・スウェー方式）===
 //   入りスウェー（c01_sp_02_dive_sway・判定なし溜め）中の ↑K 連打数で mid 段数をバッファ。
@@ -454,6 +457,7 @@ function _resetFlameQueue(p, reason) {
   p._flameQMidsIssued = 0;
   p._flameQStarted = false;
   p._flameQStallFrames = 0;
+  p._flameQLandWait = 0;
 }
 
 // SP2 ↑K プレス時に呼ばれる：キュー新規作成 or 既存キューへ mid 追加
@@ -461,13 +465,11 @@ function _resetFlameQueue(p, reason) {
 export function handleFlameUpperPress(p) {
   if (!window.SB?.OC_FLAGS?.brnFlameUpper) return false;
   _flog('PRESS in', p);
-  // 一発出し切り（2026-05-30）：1 回の ↑K で mid×MAX → final まで自動再生。連打受付なし。
-  // === 出し切り後の stale queue 回収 ===
-  if (p._flameQActive && !_isInFlameAttack(p) &&
-      (p._flameQWindup ?? 0) === 0 && (p._flameQMids ?? 0) === 0) {
-    _resetFlameQueue(p, 'stale-on-press');
-  }
-  // 既に発動中：追加入力は無視（他技へ流さないよう true を返すが mid 積み増しはしない）
+  // 一発出し切り（2026-05-30）：1 回の ↑K で mid → final まで自動再生。連打受付なし。
+  //   stale-on-press（出し切り後の幽霊キュー回収）は廃止：
+  //   facingLockFrames=25 で連打が早く通るようになり、最終段の着地待ち中の press が
+  //   「mid/windup=0」だけで stale 誤判定 → リセット → 新規 mid だけ繰り返すループになっていた。
+  //   _resetFlameQueue は final-done / hitstun / move/guard 経路で十分クリーンアップされる。
   if (p._flameQActive) {
     _flog('PRESS ignored (already active / 一発出し切り)', p);
     return true;
@@ -484,6 +486,19 @@ export function handleFlameUpperPress(p) {
   p._flameQAir     = !p.isGrounded;
   p._flameQStarted = true;
   _flog('PRESS → NEW queue (一発出し切り・mid プリロード)', p, { mids: p._flameQMids });
+  // windup=0 なら同フレームで即 mid を発火（tick 待ち 1F を消費しない・2026-05-30）。
+  //   J 攻撃キャンセル → ↑K 押下と同フレームに mid を出すことで「隙間」を最小化。
+  if (FLAME_QUEUE_WINDUP_FRAMES === 0 && (p._flameQMids ?? 0) > 0) {
+    const midId = _flameMidId(p);
+    const ok = startSpecial(p, midId);
+    _flog(ok ? 'IMMEDIATE FIRE mid OK' : 'IMMEDIATE FIRE mid FAIL', p, { midId, midsBefore: p._flameQMids });
+    if (ok) {
+      p._flameQMids--;
+      p._flameQMidFrame = getGameFrame?.() ?? 0;
+      p._flameQStallFrames = 0;
+    }
+    // 失敗した場合は tick 側のリトライに任せる（cancel window 外などで一時的に拒否されたケース）。
+  }
   return true;
 }
 
@@ -491,7 +506,8 @@ function _flameMidId(p) {
   return p._flameQAir ? 'c01_sp_02_air_flame_mid' : 'c01_sp_02_short_flame_mid';
 }
 function _flameFinalId(p) {
-  return p._flameQAir ? 'c01_sp_02_air_flame_final' : 'c01_sp_02_short_flame_final';
+  // 着地待ち後に出すので、発火時点の接地状態で地上/空中版を選ぶ（通常は着地済み＝地上版）。
+  return p.isGrounded ? 'c01_sp_02_short_flame_final' : 'c01_sp_02_air_flame_final';
 }
 
 // updatePlayer から毎フレーム呼ばれる：windup / 次段発火 / キャンセル判定
@@ -507,20 +523,18 @@ export function tickFlameUpperQueue(p) {
     _resetFlameQueue(p, `move/guard:${p.state}${p.guarding?'+guard':''}`);
     return;
   }
-  // 攻撃中ブロックの例外：flame mid 中で cancel window 内なら次段発火を許可（chain 高速化）。
-  //   旧挙動：mid を全 duration 再生（26F）してから次 → chain 緩慢。
-  //   新挙動：cancelWindowStart（=14F）以降は即次段発火可 → mid 間 14F に短縮。
-  if (p.state === STATE.attacking || p.state === STATE.hit_confirm) {
-    const inFlameMid = (
-      p.attackId === 'c01_sp_02_short_flame_mid' ||
-      p.attackId === 'c01_sp_02_air_flame_mid'
-    );
-    if (!inFlameMid) return;
+  // 攻撃中ブロックの例外：cancel 受付中なら即次段発火を許可（chain 高速化）。
+  //   - hit_confirm 中：ヒット成立後の cancel 受付状態 → 常に fall through。
+  //   - attacking 中：cancelWindowStart 以降のみ fall through（flame mid 中は cancelWindowStart=14F）。
+  //   2026-05-30: 旧挙動で flame mid 限定 fall through だったため、J 攻撃のヒットキャンセルで
+  //     wait01 戻りを待たされて「何も出ない時間」が発生していたのを修正。
+  if (p.state === STATE.attacking) {
     const atk = ATTACKS[p.attackId];
     const elapsed = (atk?.duration ?? 0) - (p.stateTimer ?? 0);
     if (elapsed < (atk?.cancelWindowStart ?? Infinity)) return;
     // cancel window 内：fall through して fire ロジックへ
   }
+  // hit_confirm は無条件に fall through（cancelTimer が動いていればキャンセル受付中）。
   // windup タイマー減算
   if (p._flameQWindup > 0) {
     p._flameQWindup--;
@@ -535,6 +549,7 @@ export function tickFlameUpperQueue(p) {
     _flog(ok ? 'FIRE mid OK' : 'FIRE mid FAIL', p, { midId, midsBefore: p._flameQMids });
     if (ok) {
       p._flameQMids--;
+      p._flameQMidFrame = getGameFrame?.() ?? 0;   // 最後の mid 発火フレーム（空中版の 2 発目ディレイ起点）
       p._flameQStallFrames = 0;
     } else {
       p._flameQStallFrames = (p._flameQStallFrames ?? 0) + 1;
@@ -542,10 +557,19 @@ export function tickFlameUpperQueue(p) {
     }
     return;
   }
-  // 最終段
+  // 最終段の発火タイミング：
+  //   - 空中始動（_flameQAir）：着地を待たず 1 段目から FLAME_AIR_FINAL_DELAY 後に発動。
+  //   - 地上始動：1 段目の小ジャンプが「自身着地」するまで待つ（保険で FLAME_FINAL_LAND_TIMEOUT 後強制）。
+  if (p._flameQAir) {
+    const since = (getGameFrame?.() ?? 0) - (p._flameQMidFrame ?? 0);
+    if (since < FLAME_AIR_FINAL_DELAY) return;
+  } else if (!p.isGrounded) {
+    p._flameQLandWait = (p._flameQLandWait ?? 0) + 1;
+    if (p._flameQLandWait < FLAME_FINAL_LAND_TIMEOUT) return;   // 着地待ち
+  }
   const finalId = _flameFinalId(p);
   const ok = startSpecial(p, finalId);
-  _flog(ok ? 'FIRE final OK' : 'FIRE final FAIL', p, { finalId });
+  _flog(ok ? 'FIRE final OK' : 'FIRE final FAIL', p, { finalId, landWait: p._flameQLandWait ?? 0 });
   _resetFlameQueue(p, 'final-done');
 }
 
@@ -956,6 +980,29 @@ export function processSpecialInput(p) {
       startSpecial(p, pickSpecialAttackId(baseId, p.isGrounded));
     }
     return;
+  }
+
+  // === FLAME UPPER 早期キュー作成（J 攻撃キャンセル空白防止・2026-05-30）===
+  //   canStartSpecial gate（attacking 中で hitDelivered 必須）の前に、↑K + brnFlameUpper を
+  //   検知してキューを積む。実発火は tick 側で行うため、既存ガード機構（lockout 等）は壊さない。
+  //   - hit_confirm 中：ヒット成立後の cancel 受付中 → 無条件に許可（J ヒット → FLAME UPPER 即発）。
+  //   - attacking 中：cancelWindowStart 指定があり、それ以降のみ許可（空振り cancel を限定的に通す）。
+  if (window.SB?.OC_FLAGS?.brnFlameUpper && !p._flameQActive) {
+    const _upHeld = _inp('ArrowUp') || _inp('KeyW');
+    if (_upHeld && kJust && typeof p.attackId === 'string' && p.attackId.startsWith('c01_atk_')) {
+      let _allow = false;
+      if (p.state === STATE.hit_confirm) {
+        _allow = true;  // ヒット成立後は無条件で cancel 受付中
+      } else if (p.state === STATE.attacking) {
+        const _atk = ATTACKS[p.attackId];
+        const _elapsed = (_atk?.duration ?? 0) - (p.stateTimer ?? 0);
+        if (_elapsed >= (_atk?.cancelWindowStart ?? Infinity)) _allow = true;
+      }
+      if (_allow) {
+        handleFlameUpperPress(p);
+        return;
+      }
+    }
   }
 
   // === gate ===

@@ -861,12 +861,13 @@ export const ATTACKS = {
     duration:     50, hitFrame: 8, hitDuration: 6,
     cancelWindowStart: 20,  // キャンセル受付開始（attacking 中のバッファ消化タイミング）
     cancelWindow: 45,       // hit_confirm 中の cancelTimer 初期値（終了タイミング）
+    facingLockFrames: 25,   // 着地後すぐ振り返れるよう短縮（地上版と統一・既定 90 → 25）
     damage:       25,
     // X 軸前方判定を広げる（200）：plyrLiftVx を 0 にした分、当たり判定で前方の敵を拾う設計（2026-05-19）
     rangeX:       200, rangeZ: 100, rangeY: 200,
     knockback:    45, hitstop: 8, shake: 7,     // 2026-05-27 SP hitstop -30%（12→8）
-    atk_lv:       4,
-    atk_lv_air:   4,
+    atk_lv:       2,
+    atk_lv_air:   2,
     launchVy:     22,
     launchVyAirborne: 13,           // 空中の敵に当たった時の浮かせ：10だと降下/16だと上昇したので中間値（2026-05-20）
     launcher:     true,
@@ -908,11 +909,12 @@ export const ATTACKS = {
     duration:     50, hitFrame: 8, hitDuration: 6,
     cancelWindowStart: 30,
     cancelWindow: 45,
+    facingLockFrames: 25,   // 着地後すぐ振り返れるよう短縮（既定 duration+40=90 → 25）
     damage:       25,
     rangeX:       200, rangeZ: 100, rangeY: 200,
     knockback:    45, hitstop: 8, shake: 7,     // 2026-05-27 SP hitstop -30%（12→8）
-    atk_lv:       4,
-    atk_lv_air:   4,
+    atk_lv:       2,
+    atk_lv_air:   2,
     launchVy:     22,
     launchVyAirborne: 13,
     launcher:     true,
@@ -940,12 +942,17 @@ export const ATTACKS = {
     repulseFrameStart: 1,
     repulseFrameEnd:   20,
   },
-  // === OC BRN-e11 FLAME UPPER（2026-05-30 再設計：2 ヒット・出がかり=通常 SP2・自動連結）===
-  //   ↑K 一押しで 2 ヒット自動連結（連打/再入力なし・着地までに完結）。CHN-e03 DIVE と共存（↑K で FLAME 優先）。
-  //     - 1 段目（_flame_mid）：その場アッパー。打ち上げず軽く当てる（atk_lv3・点火）。出がかりは通常 SP2 と同じ感。
-  //     - 2 段目（_flame_final）：打ち上げアッパー。自分も敵も上昇（launcher・atk_lv4・点火）＝通常 SP2 相当。
-  //   個性＝「各ヒット点火 + 毎ヒット赤い火花（fireSparks）」で火属性を明示。火の追加ペイロードは持たせない。
-  //   キュー：初回 ↑K で mid を MAX(=1) プリロード → windup(0) 後 mid → final を自動再生。
+  // === OC BRN-e11 FLAME UPPER（2026-05-30 再設計：2 段構成・最終段 2 ヒット・出がかり=通常 SP2・自動連結）===
+  //   ↑K 一押しで「初段アッパー → トドメ飛び上がりアッパー(2 ヒット)」を自動連結。
+  //   CHN-e03 DIVE と共存（↑K で FLAME 優先）。
+  //     - 初段（_flame_mid）：自分だけ前進＋小ジャンプの軽アッパー。
+  //       敵 knockback32 / knockbackY12（派生↑J 相当の軽浮かせ＋明確な後退）・atk_lv2・点火。
+  //     - 最終段（_flame_final）：トドメ飛び上がりアッパー・isMultiHit×2。
+  //       1 ヒット目=軽い当て(damagePerHit 10) → 6F 後 2 ヒット目=launcher(damageLastHit 20・atk_lv2 dispatch)。
+  //       自分も敵も上昇（launchVy22 / plyrLiftVy24）。点火 + 赤火花。
+  //   個性＝「各ヒット点火 + 毎ヒット赤い火花（fireSparks）」で火属性を明示。
+  //   キュー：初回 ↑K で mid を MAX(=1) プリロード → mid → final を自動再生。
+  //   final の発火タイミング：地上始動=自身着地まで待つ / 空中始動=1 段目から 20F 後に発動（着地待たず）。
   c01_sp_02_short_flame_mid: {
     label:        'c01_sp_02_short_flame_mid (METEO SP2・FLAME UPPER 中間 short upper)',
     duration:     26, hitFrame: 6, hitDuration: 5,
@@ -953,13 +960,13 @@ export const ATTACKS = {
     cancelWindow: 22,
     damage:       6,
     rangeX:       200, rangeZ: 100, rangeY: 200,
-    knockback:    14,
-    knockbackY:   6,
+    knockback:    32,            // 初段で敵を明確に後退させる（コンボ始動として手応えを出す）
+    knockbackY:   12,            // 派生↑J(c01_add_02) と同等の上方向 KB（軽浮かせコンボ始動）
     hitstop:      4, shake: 4,
-    atk_lv:       3,
-    atk_lv_air:   3,
+    atk_lv:       2,
+    atk_lv_air:   2,
     plyrLiftVx:       8,    // 前進（facing 方向の airVx）— 昇竜烈破の出だし：自分だけ前へ
-    plyrLiftVy:       15,   // ちょっと飛び上がる（敵は打ち上げず自分だけ浮く）
+    plyrLiftVy:       8,    // 小ジャンプ（半分に：旧 15→8）。敵は打ち上げず自分だけ少し浮く
     hitColor:     0xff7733,
     hitCount:     14,
     aerialHop:    false,
@@ -983,13 +990,13 @@ export const ATTACKS = {
     cancelWindow: 22,
     damage:       6,
     rangeX:       200, rangeZ: 100, rangeY: 200,
-    knockback:    14,
-    knockbackY:   6,
+    knockback:    32,            // 初段で敵を明確に後退させる（コンボ始動として手応えを出す）
+    knockbackY:   12,            // 派生↑J(c01_add_02) と同等の上方向 KB（軽浮かせコンボ始動）
     hitstop:      4, shake: 4,
-    atk_lv:       3,
-    atk_lv_air:   3,
+    atk_lv:       2,
+    atk_lv_air:   2,
     plyrLiftVx:       8,    // 前進（facing 方向の airVx）— 昇竜烈破の出だし：自分だけ前へ
-    plyrLiftVy:       15,   // ちょっと飛び上がる（敵は打ち上げず自分だけ浮く）
+    plyrLiftVy:       8,    // 小ジャンプ（半分に：旧 15→8）。敵は打ち上げず自分だけ少し浮く
     hitColor:     0xff7733,
     hitCount:     14,
     aerialHop:    false,
@@ -1006,17 +1013,25 @@ export const ATTACKS = {
     repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
     singleTarget: true,
   },
-  // FLAME UPPER 2 段目（2026-05-30 再設計）：打ち上げアッパー。自分も敵も上昇（＝通常 SP2 相当の launcher）＋点火＋赤火花。
+  // FLAME UPPER 最終段（2026-05-30 再設計）：トドメ飛び上がりアッパー・2 ヒット。
+  //   1 ヒット目=軽い当て（中間扱い・atk_lv2 のフリンチ）→ hitInterval(6F)後 2 ヒット目=launcher で打ち上げ。
+  //   c01_sp_01 と同じ isMultiHit パターン（damagePerHit→damageLastHit／atk_lv は最終ヒットで適用）。
   c01_sp_02_short_flame_final: {
-    label:        'c01_sp_02_short_flame_final (METEO SP2・FLAME UPPER 2段目・打ち上げ launcher)',
-    duration:     50, hitFrame: 8, hitDuration: 6,
+    label:        'c01_sp_02_short_flame_final (METEO SP2・FLAME UPPER 最終段・打ち上げ launcher 2hit)',
+    duration:     50, hitFrame: 8, hitDuration: 14,   // hitInterval 6×2 をカバー
     cancelWindowStart: 30,
     cancelWindow: 45,
-    damage:       25,
+    facingLockFrames: 25,   // 着地後すぐ振り返れるよう短縮（既定 duration+40=90 → 25・leap SP3 と同方針）
+    isMultiHit:     true,
+    multiHitCount:  2,
+    hitInterval:    6,
+    damagePerHit:   10,    // 1 ヒット目：軽い当て
+    damageLastHit:  20,    // 2 ヒット目：launcher（既存 damage 25 を 10+20=30 に再配分）
+    damage:         30,    // 互換用（合計）
     rangeX:       200, rangeZ: 100, rangeY: 200,
     knockback:    45, hitstop: 8, shake: 7,
-    atk_lv:       4,
-    atk_lv_air:   4,
+    atk_lv:       2,
+    atk_lv_air:   2,
     launchVy:     22,
     launchVyAirborne: 13,
     launcher:     true,
@@ -1040,17 +1055,23 @@ export const ATTACKS = {
     repulseBox:   { offsetX: 0, offsetY: 800, w: 600, h: 1600, d: 160 },
     singleTarget: true,
   },
-  // FLAME UPPER 2 段目（空中始動）：打ち上げ launcher（自分も敵も上昇）＋点火＋赤火花。
+  // FLAME UPPER 最終段（空中始動）：トドメ飛び上がりアッパー・2 ヒット（地上版と同パターン）。
   c01_sp_02_air_flame_final: {
-    label:        'c01_sp_02_air_flame_final (METEO SP2・FLAME UPPER 空中2段目・打ち上げ launcher)',
-    duration:     50, hitFrame: 8, hitDuration: 6,
+    label:        'c01_sp_02_air_flame_final (METEO SP2・FLAME UPPER 空中最終段・打ち上げ launcher 2hit)',
+    duration:     50, hitFrame: 8, hitDuration: 14,
     cancelWindowStart: 20,
     cancelWindow: 45,
-    damage:       25,
+    facingLockFrames: 25,   // 着地後すぐ振り返れるよう短縮（空中始動も同値）
+    isMultiHit:     true,
+    multiHitCount:  2,
+    hitInterval:    6,
+    damagePerHit:   10,
+    damageLastHit:  20,
+    damage:         30,
     rangeX:       200, rangeZ: 100, rangeY: 200,
     knockback:    45, hitstop: 8, shake: 7,
-    atk_lv:       4,
-    atk_lv_air:   4,
+    atk_lv:       2,
+    atk_lv_air:   2,
     launchVy:     22,
     launchVyAirborne: 13,
     launcher:     true,
@@ -1063,7 +1084,7 @@ export const ATTACKS = {
     aerialHop:    true,
     aerialHopVy:  8,
     postAirLockout: 45,
-    landingLag:   30,
+    landingLag:   0,        // 2026-05-30: 低空発動時の着地硬直撤廃（着地後すぐ動けるように・ユーザー指示）
     cancelToAirJ: true,
     partsAnim:    'upper_cut',
     isSpecial:    true,
