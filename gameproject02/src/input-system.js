@@ -24,6 +24,9 @@ import { KEY_CONFIG } from './config.js';
 
 const keys = {};
 const padKeys = {};
+// オートパイロット bot 専用の仮想入力レイヤ。
+// 人間の keys / pad とは分離し、stop 時に一括解除できるようにする。
+const virtualKeys = {};
 
 let _onPadStartPressed = null;
 
@@ -43,7 +46,22 @@ export function initInputSystem(deps) {
 //  キーボード OR ゲームパッドの統合参照
 // ============================================================
 export function inp(code) {
-  return !!(keys[code] || padKeys[code]);
+  return !!(keys[code] || padKeys[code] || virtualKeys[code]);
+}
+
+// ============================================================
+//  仮想入力（オートパイロット bot 用）
+//  bot は毎フレーム「押すべき code 集合」を宣言的に反映する。
+//  keys と分離しているため clearVirtualKeys() で一括解除でき、
+//  人間のキーボード入力と混ざらない。
+// ============================================================
+export function setVirtualKey(code, down) {
+  if (down) virtualKeys[code] = true;
+  else delete virtualKeys[code];
+}
+
+export function clearVirtualKeys() {
+  for (const k in virtualKeys) delete virtualKeys[k];
 }
 
 // アクション判定（KEY_CONFIG 参照・将来リバインド対応の統合口）

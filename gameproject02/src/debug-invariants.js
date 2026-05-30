@@ -87,6 +87,22 @@ export function dumpInvariants(n = 50) {
   return history.slice(-n);
 }
 
+// === 外部投入口（オートパイロット bot / window.onerror 等）===
+// フレーム毎検査の外で起きた異常（JS 例外・スタック検知）を同じ history に乗せる。
+// summarizeInvariants / invariantDumpNew でまとめて回収できる。
+// 例外ループで history が溢れないよう、直近同一 msg を ~1 秒抑制する。
+const _extLastSeen = new Map();  // msg -> time
+const EXT_DEDUP_MS = 1000;
+export function recordExternal(level, msg, snapshot) {
+  const now = Date.now();
+  const last = _extLastSeen.get(msg);
+  if (last != null && now - last < EXT_DEDUP_MS) return;
+  _extLastSeen.set(msg, now);
+  history.push({ level, msg, frame: _frameCounter, time: now, snapshot: snapshot ?? null });
+  if (history.length > HISTORY_MAX) history.shift();
+  console.warn(msg);
+}
+
 // === 監視セッション管理（/loop 自動取得用）===
 // コンテキスト消費を抑えるため、「監視すべき状態」を厳密に判定する。
 // active=true の条件：markPlayStart 後 / pause 中でない / 10 分以内に入力あり
