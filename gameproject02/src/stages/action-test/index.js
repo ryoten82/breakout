@@ -163,15 +163,18 @@ function _hide(obj) {
 
 // テスト投入対象 OC：アクション部屋では「実装済み」のテスト OC を最初から全部 ON にする。
 //   実装が完了する度にここに ID を追加していく（overclock_ideas.md §2-X と同期）。
+// 2026-06-04: UE 側 SP1 浮き問題の proto 比較検証のため、全 OC を一旦 OFF にして
+//   標準 SP の挙動を確認可能な状態にする。検証完了後に必要な OC を戻すこと。
 const ACTION_TEST_AUTO_OC_FLAGS = [
-  'chnSp4Instant',   // CHN-e04 SP4 波動拳即発（2026-05-28 実装）
-  // 'brnFlameUpper',   // BRN-e11 FLAME UPPER（2026-05-29 一旦 OFF：SP2 を通常版に戻して RC 検証。復帰はコメント解除）
-  'magmaVent',       // BRN-e08 MAGMA VENT（2026-05-28 実装・SP3 命中地点に床マグマ）
-  'chnLeapSp3',      // CHN-e01 飛び上がり SP3（2026-05-28 実装・SP3 完全置換 / leap up + 多段 + 最終 launcher）
-  'sp4Stage2',       // BRN-l04 同梱：SP4 stage2 解放（チャージ MAX 解放）
-  'solarFlare',      // BRN-l04 SOLAR FLARE（2026-05-29 実装・SP4 stage2 命中で持続炎フィールド 5 秒）
-  'chnSp1Chain',     // CHN-e02 SP1 連打多段（2026-05-29 実装・SP1 を再入力で伸びる 3 段チェーンに）
-  'chnSp2Dive',      // CHN-e03 SP2 潜り込み連打（2026-05-30 実装・SP2 を windup→mid×N→final launcher のキューに）
+  // 全 OC 一時 OFF（標準 SP 比較検証用）
+  // 'chnSp4Instant',   // CHN-e04 SP4 波動拳即発（2026-05-28 実装）
+  // 'brnFlameUpper',   // BRN-e11 FLAME UPPER（2026-05-29 OFF：SP2 を通常版に戻して RC 検証）
+  // 'magmaVent',       // BRN-e08 MAGMA VENT（2026-05-28 実装・SP3 命中地点に床マグマ）
+  // 'chnLeapSp3',      // CHN-e01 飛び上がり SP3（2026-05-28 実装・SP3 完全置換）
+  // 'sp4Stage2',       // BRN-l04 同梱：SP4 stage2 解放
+  // 'solarFlare',      // BRN-l04 SOLAR FLARE（2026-05-29 実装）
+  // 'chnSp1Chain',     // CHN-e02 SP1 連打多段（2026-05-29 実装）
+  // 'chnSp2Dive',      // CHN-e03 SP2 潜り込み連打（2026-05-30 実装）
 ];
 
 function _applyTestRoomOCFlags() {

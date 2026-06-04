@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "scrapblitz-preview",
+      "runtimeExecutable": "C:\\Users\\90g-r\\AppData\\Local\\Python\\bin\\python.exe",
+      "runtimeArgs": ["C:/Users/90g-r/.claude/scripts/nocache-server.py", "8765", "G:/claude_code_local/gameproject01/.claude/worktrees/vigilant-curran-21f6eb/gameproject02"],
+      "port": 8765,
+      "url": "http://127.0.0.1:8765/index.html"
+    }
+  ]
+}
