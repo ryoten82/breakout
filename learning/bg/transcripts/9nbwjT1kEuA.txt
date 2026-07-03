@@ -1,0 +1,325 @@
+[00:00] hi everyone today we creating a
+[00:02] beautiful Lake environment in Unreal
+[00:03] Engine watch till the end to see how
+[00:05] it's done let's get started so first we
+[00:08] are going to create a new project I'm
+[00:10] going to go with blank template without
+[00:13] any starter
+[00:15] content and I'm going to name it
+[00:20] tutorial and create a new project after
+[00:23] creating the project go to file new
+[00:26] level and create a basic level
+[00:30] now I'm going to delete this default
+[00:33] ground now we need to create a new
+[00:35] landscape before creating landscape I'm
+[00:38] going to download the height map for the
+[00:40] landscape as you can see you can
+[00:42] download high quality height map from
+[00:43] this website for free for this tutorial
+[00:46] I'm going to use this great legs height
+[00:48] map just click on download
+[00:54] here and download it
+[00:57] anyway after downloading the height map
+[01:00] extract
+[01:01] here as you can see that the height map
+[01:04] that we have is an exr file format first
+[01:06] we need to convert it to PNG file format
+[01:09] you can easily convert it in Photoshop
+[01:11] but if you don't have Photoshop simply
+[01:14] open your browser and search exr to PNG
+[01:16] converter for example I'm using this
+[01:18] convert iio just select exr to PNG and
+[01:22] choose the file that we want to convert
+[01:25] I'm going to select this height
+[01:28] map and click on
+[01:31] convert once it completed just click on
+[01:36] download now as you can see we have this
+[01:38] height map in the PNG file format now in
+[01:41] Unreal Engine we just need to go to
+[01:42] landscape from here
+[01:46] landscape and here we just need to click
+[01:48] on this import from file now in the
+[01:51] height map file we are going to select
+[01:52] our height map like
+[01:56] that and click on open
+[02:00] now you can see that over hype map if
+[02:02] you want to adjust something you can
+[02:03] also adjust it like I'm going to adjust
+[02:05] the scale like that something like
+[02:08] 128 we don't need to change anything
+[02:11] here just make sure to enable edit
+[02:14] layers and click on
+[02:19] import here you can see that our
+[02:21] landscape is completely disappeared
+[02:23] that's because of this exponential
+[02:25] height F just select the exponential
+[02:27] height fog and drag it up like that
+[02:31] now we are going to apply a material to
+[02:33] our
+[02:34] landscape so I have already downloaded
+[02:36] my landscape material which is wild
+[02:38] grass so I'm just going to click on
+[02:40] export
+[02:42] here just select the landscape and
+[02:44] navigate to the
+[02:48] material here just select the material
+[02:50] instance like that and by selecting the
+[02:53] landscape go to landscape
+[02:57] material right here just click on this
+[03:02] Arrow now to fix the tiling of this
+[03:05] material just double click on material
+[03:08] instance now here you can see that the
+[03:10] tiling and offset just enable it and
+[03:13] expand this tab like that and just
+[03:16] decrease the tiling like
+[03:18] 01 now it looks better than
+[03:22] before now we can add water to our
+[03:24] landscape so first we need to enable our
+[03:26] water plug-in just go to edit plugin
+[03:30] and here you can search
+[03:32] water just enable the first plug-in like
+[03:37] that and restart your engine also make
+[03:40] sure to save
+[03:42] everything after restarting here in the
+[03:45] plus icon you can search
+[03:47] water now you can see all the water
+[03:50] classes right here we just need to drag
+[03:52] and drop this water body leg like
+[03:57] that now before expanding the water we
+[04:00] just need to untick this effect
+[04:03] landscape now we can expand our water by
+[04:06] dragging those
+[04:10] points you can also add a spline Point
+[04:12] by right clicking here and add spline
+[04:15] Point here
+[04:31] now we going to add trees to our
+[04:33] landscape now for the trees I'm using
+[04:35] this landscape asset from epic game it's
+[04:38] completely free you can also download
+[04:40] that and add it to your project I'm just
+[04:42] going to go to add to project and select
+[04:45] our project and add it like that now as
+[04:48] you can see we have this stdf
+[04:50] folder if you don't see these filters
+[04:52] here you can also enable it from here
+[04:56] I'm just going to select the static mesh
+[04:58] filter and and here you can see we have
+[05:01] all the static Mees right here I'm just
+[05:03] going to use these pine trees so first
+[05:05] I'm going to go in foliage
+[05:10] mode here we just need to drag and drop
+[05:13] these trees like
+[05:17] that so first select all of these
+[05:20] trees so first select all of these trees
+[05:23] like that and decrease the density to 01
+[05:26] like
+[05:27] that and in the scale increase a scale
+[05:30] like 4 to
+[05:33] 5 now we don't need to change anything
+[05:35] here I'm just going to increase the
+[05:37] brush size from here like that and start
+[05:41] painting those trees to our
+[05:55] landscape now to avoid this pay we just
+[05:57] need to sculpt our landscape first go to
+[06:00] landscape mode and select the sculpt
+[06:02] tool and just sculpt right
+[06:10] here I'm just going to increase the
+[06:13] density a little bit
+[06:27] like1 now after painting the I'm going
+[06:30] to add this Rocky
+[06:31] ground and also some other Rock assets
+[06:34] to my project you can download all of
+[06:36] these assets from quickel bridge for
+[06:40] free after importing those to our
+[06:42] project just go to content browser click
+[06:45] on Mega
+[06:47] skin and click on this static mesh
+[06:49] filter like that and here you can see
+[06:52] all the
+[06:54] assets just drag and drop this rock
+[06:56] asset right here
+[07:35] I have customized the color of the water
+[07:37] little bit you can also do that let s
+[07:39] the water and navigate to the water
+[07:46] material right here you can see
+[07:49] that double click to open
+[07:51] it after opening it scroll down a little
+[07:56] bit now here you can see that the color
+[07:59] of the water is almost as same as
+[08:01] default I'm just adding the scattering
+[08:03] color like dark blue you can also add
+[08:05] dark blue like that just enable the
+[08:08] scattering you can see the difference
+[08:13] here after changing it just close the
+[08:16] tap like
+[08:17] that after that I'm going to add the
+[08:20] Foliage for the foliage I'm just using
+[08:22] this rone grass right here you can see
+[08:23] that you can also download the same if
+[08:25] you want after importing it go to folage
+[08:28] mode from here
+[08:31] now you can see that the folage has
+[08:33] automatically detected these grass
+[08:34] assets here if you don't see those grass
+[08:37] assets here then you just need to select
+[08:40] all of these assets and drag and drop in
+[08:42] folage mode like that after that I'm
+[08:45] going to deselect all of these trees
+[08:47] like that and enable those Gass
+[08:50] assets I'm just going to increase a
+[08:52] scale a little bit now for me three is
+[08:55] the perfect one you can also change it
+[08:58] if you want now I'm just going to paint
+[09:00] the Fage according to my camera
+[09:08] angle now after painting the folage
+[09:11] let's just change the lightning little
+[09:12] bit now in the selection mode hold contr
+[09:15] L and drag the mouse like
+[09:18] that now you can see that the exposure
+[09:21] is too much so we need to change it for
+[09:24] that go to plus icon and add postprocess
+[09:27] volume just drag and drop the post
+[09:29] process volume
+[09:33] here and by selecting it in the details
+[09:36] panel of this postal volume search
+[09:41] Infinite and enable this infinite extend
+[09:45] Unbound after that here in the exposure
+[09:47] section enable this metering mode and
+[09:50] exposure
+[09:52] composition and change the auto exposure
+[09:55] to manual like
+[09:57] that and change the intensity to
+[09:59] something like
+[10:01] it now select the directional light and
+[10:04] increase the intensity like that to
+[10:06] something like 60 or
+[10:08] 58 and in the image effects enable the
+[10:11] vgate and sharpen increase the intensity
+[10:14] little bit like
+[10:17] that and also increase the vigard
+[10:19] intensity after that in the color ging
+[10:22] section in global enable the saturation
+[10:24] box like that and change the saturation
+[10:26] to something like 1.5
+[10:35] and also change the midtone saturation
+[10:37] to
+[10:41] 1.2 now we are done with this post
+[10:43] process now we're going to add some
+[10:45] background mountains to add extra depth
+[10:47] now for the background Mountain I'm
+[10:48] using this background asset from epic
+[10:50] game it's completely free while adding
+[10:53] this asset to your project you might
+[10:54] encounter this problem it says that this
+[10:57] asset is not compatible with the 5.
+[10:59] three version we just need to change the
+[11:01] 5.3 to 5.0 early acces now in the
+[11:04] content browser you can see that the
+[11:06] photo real backgrounds right here just
+[11:08] click on static mesh filter like that
+[11:10] and if you want to increase the
+[11:11] thumbnail size you can also increase it
+[11:14] just click on the
+[11:15] settings and here in thumbnail
+[11:18] size change it from medium to large now
+[11:22] I'm using these Green Mountains as you
+[11:23] can see just drag and drop them into
+[11:25] your scene
+[11:42] now we also going to paint the trees to
+[11:43] our background mountains now for the
+[11:45] trees in the photo background you can
+[11:47] see that 2D billboard right here I'm
+[11:50] going to use this 2D billboard just go
+[11:52] to folage
+[11:54] mode and drag and drop this 2D tree
+[11:57] billboard like that the the density is
+[11:59] too much so I'm going to decrease
+[12:10] it now we're going to add some fog for
+[12:14] that just click on exponential height
+[12:15] fog and bring it right
+[12:19] here now by selecting the exponential
+[12:22] height fog you can also change the color
+[12:24] of it if you want I'm going to change it
+[12:26] to like something blue you can also
+[12:28] increase to decrease the fog density if
+[12:31] you want to animate the grass you can
+[12:33] animate it just navigate to the grass
+[12:35] folder and open the grass material
+[12:39] instance and here such grass
+[12:45] wind just enable the grass wind like
+[12:47] that and also take this
+[12:50] box and hit
+[12:55] save as you can see the grass is
+[12:57] animated
+[12:59] now we're going to add level sequencer
+[13:01] to our scene to add level sequencer
+[13:04] click right here and add level sequencer
+[13:06] and also save the level sequencer like
+[13:11] that and we are also going to add camera
+[13:13] to our scene so just click on this plus
+[13:16] icon right here and search
+[13:21] camera and drag and drop this C camera
+[13:23] actor like
+[13:25] that in the outliner right click on
+[13:27] camera and snap object to
+[13:30] view just switch to the camera mode from
+[13:33] here and in the details panel of the
+[13:35] camera we need to change some
+[13:39] settings change the film back from
+[13:42] digital film to DSLR and also we need to
+[13:44] decrease the focal length to something
+[13:48] like 15 and also increase the current
+[13:51] aperture to something like
+[13:53] 4 you can also change the light
+[13:55] direction if you
+[13:56] want after that just drag and drop the
+[13:59] cine camera actor to our sequencer like
+[14:04] that and you can also change the frame
+[14:06] rate if you
+[14:09] want I'm also going to increase the
+[14:12] timer length like
+[14:14] that and also increase the camera
+[14:17] Cuts now we are going to animate the
+[14:19] camera just add the transform key frame
+[14:21] at the starting of the
+[14:25] timeline and now we get to the end of
+[14:28] the timeline right right
+[14:32] here and just change the location of the
+[14:34] camera something like
+[14:41] that and add a transform key frame right
+[14:44] here now select both of these key
+[14:47] frame and right click change the
+[14:50] interpolation mode to
+[14:52] linear as you can see the camera is
+[14:55] animated now we are going to render this
+[14:57] short through movie render Cube first we
+[14:59] need to enable the movie render queue
+[15:00] plug-in for that go to
+[15:03] edit plugins search movie render
+[15:08] queue and enable the movie render CU
+[15:11] plugin like that and restart your engine
+[15:14] make sure to save everything after
+[15:16] restarting the engine just click on this
+[15:18] render icon right here and click on
+[15:21] unsaved config settings right here now
+[15:23] for the rendering I'm using some basic
+[15:25] settings which works really well first
+[15:28] I'm going to delete this jpeg sequence
+[15:30] and I'm going to add the PNG sequence if
+[15:32] you want to use the exr you can also use
+[15:34] it but I'm going to go with PNG
+[15:37] sequence and also add
+[15:40] ining and change the Templar sample
+[15:43] count to something like
+[15:45] 32 and make sure to enable this override
+[15:49] analizing and in advanced change the
+[15:52] warm-up counts to
+[15:55] 120 now in the output tab you can change
+[15:58] the output Direct like
+[16:01] that and you can also change the
+[16:03] resolution and frame it if you want
+[16:06] after that just click on accept and
+[16:08] render local if you found this tutorial
+[16:10] helpful please subscribe to my channel
+[16:12] it motivates me to keep creating awesome
+[16:14] tutorials for you thanks for watching

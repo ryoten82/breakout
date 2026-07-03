@@ -1,0 +1,491 @@
+[00:00] hi everyone today we're going to make a
+[00:01] stunning stylized environment in unal
+[00:03] engine I'll walk you through each setup
+[00:05] to bring this environment to life so
+[00:07] please watch till the end it really
+[00:09] helps me reach my YouTube watch time
+[00:11] goal without any delay let's Dive In
+[00:17] [Music]
+[00:32] first we can have to create new blank
+[00:33] project so for that I have selected the
+[00:35] blank template and you can change the
+[00:37] project location from here and you can
+[00:39] name your project in this tab and then
+[00:42] hit create after creating a project as
+[00:44] you can see we have this default level
+[00:46] but we're not going to use this one so
+[00:48] we're going to have to create new level
+[00:50] so for that we're going to go to file
+[00:52] and new level and I'm going to select
+[00:54] the empty level and then hit create as
+[00:57] you can see we have complete empty level
+[00:59] so first we're going to have to create
+[01:01] our lightning setup so for that we're
+[01:02] going to go to window and as you can see
+[01:04] we have this environment line mixer just
+[01:06] click on it and then we just going to
+[01:09] create Skylight atmosphere light and Sky
+[01:12] atmosphere poetri cloud and height fog
+[01:16] then we're going to close this tab and
+[01:17] then make sure to save everything we're
+[01:19] going to save our new map with the name
+[01:21] of underscore main then hit save okay so
+[01:24] first we're going to create landscape so
+[01:26] for that we're going to go to selection
+[01:27] mode and we're going to click on this
+[01:29] land skape Tab and then over here we're
+[01:32] going to change our section size so
+[01:33] we're going to change the landscape
+[01:35] section size from 63 multi 63 CS to
+[01:39] let's say 15 that looks great just hit
+[01:43] create as you can see we have this
+[01:46] sculpt brush so I'm going to decrease
+[01:47] the size a little bit you can increase
+[01:50] or decrease the tool strength and I'm
+[01:52] going to sculpt my landcape little bit
+[01:54] over here
+[02:00] okay so after sculpting the landscape
+[02:02] then we going to select our smooth tool
+[02:04] just select the smooth tool and we going
+[02:06] to smooth our landscape just like
+[02:10] that it looks great for now now we're
+[02:12] going to select our sculpt tool again
+[02:14] and then I'm going to increase a
+[02:16] strength little bit and then we're going
+[02:17] to hold shift and sculpt in this area
+[02:20] just to create our
+[02:24] River now we going to select the smooth
+[02:27] tool and I'm going to decrease the tool
+[02:29] strength and then we're going to smooth
+[02:31] this River little bit now we're going to
+[02:33] go to selection mode and make sure to
+[02:36] save everything now I want you to open
+[02:38] the AME Marketplace for the assets
+[02:40] there's a shortcut to open the iic games
+[02:42] Marketplace so for that we're going to
+[02:43] click on this place actress panel and
+[02:46] here you can see the unreal Marketplace
+[02:48] just click on it now in the marketplace
+[02:50] we're going to search stylized and then
+[02:52] make sure to select the free filter and
+[02:55] as you can see we have this stylized
+[02:56] nature pack for free you just need to
+[02:58] download this pack and and add it to
+[03:00] your project just like that select the
+[03:02] project and add to project and also
+[03:04] you're going to have to download this
+[03:05] one stylized fantasy both of these packs
+[03:08] are around 600 MB it's so easy to
+[03:10] download them then we have just one
+[03:12] asset pack that we're going to add so
+[03:14] for that you're going to have to search
+[03:16] mountains as you can see that we have
+[03:18] these landscape backgrounds just click
+[03:20] on it make sure to download them and add
+[03:22] to your project I'm going to add them to
+[03:24] my project just like that okay so after
+[03:27] importing all the assets then we going
+[03:29] to open up our content browser for that
+[03:31] we're going to hold control and press
+[03:32] space as you can see I have this photoal
+[03:35] backgrounds stylized PPR nature now
+[03:38] we're going to apply material to the
+[03:39] landscape so for that we going to open
+[03:41] our styliz PBR nature just double CLI to
+[03:43] open it then we're going to open Terin
+[03:46] folder and as you can see that we have
+[03:48] this landscape material just click on it
+[03:52] and then select the landscape and in the
+[03:54] details spr of the landscape scroll down
+[03:56] little bit and over here you can see the
+[03:59] landscape material we just going to
+[04:01] click on this Arrow now you can see that
+[04:03] the material is completely pitch black
+[04:05] that's because this material is in
+[04:06] multiple layers so we going to have to
+[04:08] apply a manually layer whichever we like
+[04:10] so for that we're going to go to
+[04:12] landscape mode just click on selection
+[04:14] mode then we're going to go to landscape
+[04:16] and then in the paint section here you
+[04:17] can see that we have layers so as you
+[04:20] can see that the first one is grassor 01
+[04:23] gascore 02 DT and rock so this is our
+[04:27] main material so we're going to apply
+[04:29] this GR grass _ 01 to the landscape so
+[04:32] for that just we going to click on this
+[04:34] none and then select This Grass uncore
+[04:37] 01 layer
+[04:39] info and as you can see that the
+[04:41] material has been applied now you might
+[04:43] notice this repetitive tiling so we
+[04:45] going to fix that while there just open
+[04:47] the content browser and double click to
+[04:49] open the landscape material and over
+[04:52] here hold M and press left Mouse button
+[04:56] for the multiply node and then we going
+[04:58] to hold U and press left Mouse button
+[05:01] for the texture coordinate and then hold
+[05:04] s and press left Mouse button for the
+[05:06] parameter I'm going to name this
+[05:08] parameter tiling and the default value
+[05:10] will be .1 plug this in B and this one
+[05:14] into text coordinate and then plug the
+[05:17] multiply into UVS of these
+[05:21] textures then we're going to hit apply
+[05:24] and close this tab as you can see
+[05:25] there's a huge different now now we're
+[05:27] going to save everything now we we going
+[05:29] to go to landscape mode again and we're
+[05:33] going to go to manage Tab and we're
+[05:36] going to click on this add
+[05:38] button and over here I'm going to add
+[05:40] some more components to the landscape
+[05:42] just like that that looks great then we
+[05:45] going to go to selection mode then I'm
+[05:47] going to open content browser and now
+[05:49] I'm going to open this folder and then
+[05:52] meses and over here you can see that
+[05:54] there's a lot of assets so I'm going to
+[05:57] use this one as M house _
+[06:01] 01 just place it over here I'm going to
+[06:05] rotate it like
+[06:08] that that looks great then I'm going to
+[06:11] add this
+[06:12] one over here that looks great now we're
+[06:16] going to scroll down a little bit and
+[06:19] over here we have this SM housecore main
+[06:23] I'm going to place it over here and then
+[06:26] again we're going to scroll down little
+[06:27] bit and we have this
+[06:30] smore water whe just drag and drop this
+[06:33] then we going to add windmill so for
+[06:35] that I'm going to select this one and
+[06:38] also this one just drag and drop this
+[06:41] over here and I'm going to select this
+[06:43] fan just grab it up here just grab this
+[06:47] fan in y AIS over here that looks great
+[06:52] select both of these and put them over
+[06:55] here looks great now we going add River
+[06:57] so for the river first we going to have
+[06:59] to add plane I'm just going to go to
+[07:01] place access panel and then
+[07:04] shapes
+[07:05] plane scale it up place it over here and
+[07:10] then place it
+[07:12] down as you can see this is our River
+[07:15] let's apply material to the river so for
+[07:17] that I'm going to open content browser
+[07:19] then we're going to go to materials and
+[07:22] scroll down little bit and then over
+[07:23] here you can see we have this water
+[07:25] Master material just select the material
+[07:28] then select the plane and in the details
+[07:31] panel of the plane as you can see we
+[07:33] have this materials tab we just going to
+[07:35] click on this Arrow as you can see that
+[07:38] the material looks great now we going to
+[07:40] place background mountains to add extra
+[07:42] depth to our environment so for that we
+[07:44] going to open this photoal backgrounds
+[07:46] folder just open it and then in the
+[07:49] meshes we're going to select this static
+[07:52] mesh filter you can enable this filter
+[07:54] from here as you can see we have the
+[07:57] static mesh filter I'm just going to
+[07:59] enable it and then over here we have all
+[08:03] the static matches and over here you can
+[08:05] see that we have background mountains
+[08:08] dor4 so I'm just going to use this one
+[08:11] just drag and drop and scale it down a
+[08:14] little
+[08:15] bit rotate it then we going to scale it
+[08:19] on Z axis like
+[08:21] that looks great now we now change the
+[08:24] material of this mountain so for that we
+[08:26] going to open our content browser then
+[08:28] we going to open this for folder and
+[08:30] then materials I'm going to scroll down
+[08:32] a little bit and here you can see we
+[08:34] have this top underscore planner just
+[08:36] select the material then select the
+[08:38] mountain and in materials stab I'm going
+[08:41] to click on this Arrow looks great make
+[08:43] sure to save everything now let's just
+[08:45] duplicate this mountain and place it
+[08:48] over
+[08:50] here now let's start placing them all
+[08:52] over the
+[08:56] background as you can see I have placed
+[08:58] all the back background mountains and
+[09:00] that looks great now we going to make
+[09:02] path over here so for that we're going
+[09:04] to go to landscape mode and then in the
+[09:06] paint section I'm going to select This
+[09:08] Grass 02 material and then click on this
+[09:11] none option and then we going to select
+[09:13] our grass 02 layer info now I'm going to
+[09:15] decrease my brush size now let's start
+[09:18] painting this material over
+[09:22] here as you can see it looks great now
+[09:25] we're going to go to selection mode I
+[09:26] think it's time to paint the folage so
+[09:28] for that we going to go to folage mode
+[09:31] as you can see we have folage mode over
+[09:33] here just click on it we can drop our
+[09:35] folage over here then we can paint the
+[09:37] folage so for the folage just open the
+[09:39] content browser and we're going to go to
+[09:41] nature pack and folage folage types as
+[09:45] you can see we have this grass Bush and
+[09:48] also this F so first we're going to use
+[09:51] our grass just drag and drop this I'm
+[09:54] going to close the content browser then
+[09:57] enable the grass just click on this
+[10:00] check mark then we're going to select
+[10:02] the grass and we going to change some
+[10:05] settings I'm going to increase the
+[10:07] density little bit like that you can
+[10:09] also increase or decrease the size if
+[10:11] you want I'm going to change the scale
+[10:13] to something
+[10:14] like7 you can also change the brush size
+[10:17] density if you want to erase it just
+[10:19] hold shift and erase everything just
+[10:21] like that now let's start painting the
+[10:24] folage I'm also going to make a path
+[10:27] over here I'm going to go to landscape
+[10:29] mode paint and I'm going to select the
+[10:33] grass 02 and I'm going to paint over
+[10:38] here and make sure to turn off this
+[10:40] static mesh
+[10:45] filter as you can see the grass looks
+[10:48] great now we're going to change our
+[10:49] folage type so I'm going to select this
+[10:53] uh Fern for H typ let me just deselect
+[10:56] the grass and drag and drop this Fern
+[10:59] over here just enable the Fage type this
+[11:01] one and everything looks great now we're
+[11:04] going to paint it I'm going to paint it
+[11:06] over here yeah that looks
+[11:12] great okay so after painting this Fage
+[11:15] now I'm going to deselect this one and
+[11:18] then I'm going to open the content
+[11:19] browser then I'm going to go to nature
+[11:22] pack and here you can see the Rocks
+[11:23] folder just double click to open it and
+[11:26] then we're going to go to assets and I'm
+[11:29] going to select some of these rocks just
+[11:31] like that maybe this one also this
+[11:36] one just drag and drop them over here
+[11:40] then we're going to select all of them
+[11:42] and I'm going to decrease the density a
+[11:44] little bit to something like two and
+[11:46] also I'm going to decrease the paint
+[11:48] density now I'm going to paint these
+[11:50] rocks all over the landscape
+[12:01] okay so after painting these rocks as
+[12:03] you can see the environment looks
+[12:04] beautiful now we're going to paint trees
+[12:07] so for the trees I'm going to just
+[12:09] deselect all of these rocks just open
+[12:12] the content browser then we now go to
+[12:14] folage folder then assets or maybe
+[12:17] folage types and over here we have bunch
+[12:20] of these trees first we're going to
+[12:21] paint these trees so just select all of
+[12:23] them and drag and drop them over here
+[12:26] select all of these trees and enable it
+[12:28] and then we going to start painting them
+[12:30] just make sure to increase the density a
+[12:32] little bit and also make sure to disable
+[12:34] this align to normal just like
+[12:40] that make sure to enable the static mesh
+[12:43] filter then paint all over the
+[12:56] mountains now we going to change our
+[12:58] trees so just deselect all of these
+[13:00] trees and I'm going to open the content
+[13:02] browser and let's select this one and
+[13:06] this one and just drag and drop them
+[13:08] over here just enable
+[13:13] it okay so after painting these trees
+[13:16] now I'm going to go to assets and as you
+[13:20] can see over here we have some of these
+[13:22] extra trees I'm just going to drag and
+[13:24] drop them over here
+[13:30] now we're going to save everything from
+[13:32] here just click on this unsaved button
+[13:34] and save selected okay so it's time to
+[13:37] do the post process work now for the
+[13:39] Post process work first we're going to
+[13:40] have to add post process volume we're
+[13:43] going to go to place actress panel and
+[13:45] then visual effects and post process
+[13:48] volume by selecting the postprocess
+[13:50] volume in the details panel we going to
+[13:51] search Infinite and we going to enable
+[13:54] this infinite extend unmount just enable
+[13:56] it then we're going to close the search
+[13:58] in the exposure section we going to
+[14:00] enable the metering mode and exposure
+[14:02] compensation and we going to change the
+[14:04] auto to manual then we going to change
+[14:07] the compensation value to something like
+[14:09] 10 okay so 10 looks great as you can see
+[14:12] in the color grading section we can also
+[14:14] change the saturation if you want I'm
+[14:16] going to change little bit something
+[14:18] like
+[14:19] 1.1 you can also add motion bra if you
+[14:22] want but I'm not going to do that okay
+[14:24] so for now we're going to leave the post
+[14:25] process volume then we going to scroll
+[14:27] down little bit and over here here we
+[14:29] have this volumeter Cloud just select
+[14:32] the volumeter cloud in the layer section
+[14:33] we're going to increase the layer bottom
+[14:36] altitude I'm just going to Max it
+[14:38] something like 20 now we going to change
+[14:40] the position of the sun so for that hold
+[14:42] crl L and rotate the mouse like that to
+[14:46] control the sun I'm going to place it
+[14:49] right about here as you can see the
+[14:51] environment looks really beautiful now
+[14:53] we're going to open our content browser
+[14:55] and then we're going to go to stylized
+[14:58] fantasy folder
+[14:59] then in particles here we have this wind
+[15:02] Trail particle system just drag and drop
+[15:05] this over here I'm going to change the
+[15:07] position of this right about here now
+[15:10] let's add camera to render our short so
+[15:13] before adding camera first we going to
+[15:14] have to add level sequencer so for the
+[15:16] level sequencer we're going to click on
+[15:18] this icon over here just click on it and
+[15:20] add level sequencer and then we're going
+[15:22] to save here now we're going to add
+[15:25] camera so for the camera go to place
+[15:26] access panel and over here we're going
+[15:28] to search camera and here you can see
+[15:30] the C camera actor just tag and drop
+[15:32] this over here I'm going to set the
+[15:35] angle for the camera so right about here
+[15:39] then just right click on the camera and
+[15:41] then snap object to view then just drag
+[15:44] and drop the camera into the sequencer
+[15:46] like that now we're going to do camera
+[15:47] settings so for that make sure to select
+[15:49] the snake camera actor and then in the
+[15:52] details panel we going to change the
+[15:54] film back from digital film to DSLR and
+[15:58] then also we going to change the focal
+[16:00] length to something like 20 and also
+[16:03] we're going to increase the current
+[16:04] aperture to something like
+[16:06] 3.5 as you can see it looks great now
+[16:08] we're going to change the frame rate to
+[16:11] 24 okay so first we're going to animate
+[16:13] our camera so for that I'm going to
+[16:15] place my camera right about here and
+[16:18] then we're going to add a transform key
+[16:20] frame as you can see that we have this
+[16:22] transform then we just going to click on
+[16:24] this add key frame Button as you can see
+[16:26] we have this key frame at zero frame put
+[16:29] the timeliner over here then I'm going
+[16:32] to move my camera a little bit forward
+[16:34] over here we're going to add another
+[16:35] transform key frame now if you play the
+[16:37] animation as you can see that the
+[16:39] animation is not linear so we going to
+[16:42] have to make the animation linear so for
+[16:44] that we going to select both of these
+[16:46] key frame and then right click and we're
+[16:49] going to change the cubic Auto to linear
+[16:52] now you can see that camera looks great
+[16:54] also we're going to increase the timer
+[16:55] length so I'm going to zoom out a little
+[16:57] bit by the way you can hold control and
+[16:59] with the help of scroll wheel you can
+[17:01] zoom in and zoom out so I'm going to
+[17:03] increase my timeline length to something
+[17:05] like 192 and also increase the camera
+[17:09] cuts and also place the keep frame right
+[17:12] about at 92 as you can see the animation
+[17:14] looks great now also we're going to
+[17:16] animate our windmill so for that we
+[17:18] going to select the windmill fan just
+[17:20] like that and drag and drop this over
+[17:23] here and also we're going to have to
+[17:24] make sure that the Gizmo of this
+[17:26] windmill is in local as you can see that
+[17:29] right now it is in world so we going to
+[17:32] change it to local just like that then
+[17:34] in the sequencer we going to expand the
+[17:36] transform Tab and then rotation tab so
+[17:39] first I'm going to move my timeliner at
+[17:41] zero frame rate at zero pit I'm going to
+[17:44] add a transform key frame and then at
+[17:46] the end of the timeliner I'm going to
+[17:47] change the pit to something like
+[17:50] 360 and then again we going to add the
+[17:53] transform key frame then make sure to
+[17:55] change the interpolation of these to
+[17:57] linear
+[17:59] just like that now if you play the
+[18:02] animation as you can see it looks so
+[18:03] beautiful okay so the environment is
+[18:05] ready now we going to render over short
+[18:07] through movie render CU so for that
+[18:09] first we going to have to enable movie
+[18:10] render queue plugin for that we just
+[18:12] going to go to edit plugins and then
+[18:15] over here in the search bar we're going
+[18:16] to search movie render Cube and we going
+[18:18] to have to enable both of this plugin
+[18:20] just like that and then make sure to
+[18:23] restart your engine then also make sure
+[18:25] to save everything okay so after
+[18:28] restarting I'm going to open my main
+[18:29] level and then over here I'm going to
+[18:32] open level
+[18:34] sequencer then also make sure to go to
+[18:37] camera mode okay everything is great now
+[18:40] we're going to click on this render icon
+[18:42] over here just click on it as you can
+[18:44] see now we have this movie render Q tab
+[18:47] so we're going to click on this unsaved
+[18:49] config now we're going to do some basic
+[18:51] settings for the rendering because this
+[18:53] is a stylized environment so we don't
+[18:55] need any photo or really high quality
+[18:57] rending setting first we're going to
+[18:59] delete this uh jpex sequence and we're
+[19:01] going to click on this plus setting icon
+[19:04] then we going to add aning and then
+[19:06] again click on this setting icon and
+[19:08] then we're going to add PNG sequence now
+[19:11] we're going to select the anazing and
+[19:13] then we're going to change the temple
+[19:14] sample count to 32 and make sure to
+[19:17] enable override antialiasing and then
+[19:20] we're going to expand this Advanced Tab
+[19:21] and we're going to change the render
+[19:23] warmup count to 120 and also engine
+[19:26] warm-up count to 120 then in the output
+[19:28] tab you you can change the output
+[19:29] directory if you want and also output
+[19:32] resolution and also you can custom your
+[19:34] frame rate to something like 24 or maybe
+[19:36] whatever you like you can also change
+[19:37] the resolution if you want for example
+[19:39] you can change it to 4K just like
+[19:43] that and then after changing these
+[19:46] settings then you can hit accept and
+[19:48] render local thank you so much for
+[19:50] watching till the end if you enjoyed
+[19:51] this don't forget to like And subscribe
+[19:53] and if you are looking for more
+[19:54] tutorials be sure to check out my
+[19:56] YouTube playlist see you in the next one

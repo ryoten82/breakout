@@ -1,0 +1,156 @@
+[00:00] hey everyone today we are going to
+[00:01] create some awesome mist and fog in
+[00:03] Unreal Engine stick around until the end
+[00:06] so you don't miss this cool technique
+[00:08] let's get started so before starting the
+[00:10] tutorial I have learned this technique
+[00:12] from Mr 3D Dev so thanks to him to
+[00:15] sharing us this cool technique now to
+[00:17] start off in Unreal Engine I have
+[00:19] created this simple environment to show
+[00:21] you how the fog wheel going to look like
+[00:23] so first open the content browser by
+[00:25] holding control and press space like
+[00:28] that now here I'm going to create a new
+[00:31] folder like fog
+[00:35] material and in the folder I'm going to
+[00:37] create a new material right click and in
+[00:40] material click on this material right
+[00:43] here I'm going to name it mcore
+[00:47] fog put this material editor tab right
+[00:51] here and zoom in by holding the right
+[00:54] Mouse button you can navigate in the
+[00:56] material editor now here in material
+[00:58] editor just select this node and change
+[01:01] the blend mode from OPAC to translucent
+[01:04] like that after that we're going to add
+[01:06] some nodes now to add nodes in material
+[01:08] editor just right click and search
+[01:12] gradient exponential like that we're
+[01:16] going to add this radial gradient
+[01:20] exponential after that hold M and press
+[01:23] left Mouse button like that to add
+[01:26] multiplyer node you can also add it from
+[01:29] here if you type multiply right here
+[01:33] after adding the multiply let's just
+[01:35] plug the exponential gradient in base
+[01:37] color and also in a section of multiply
+[01:41] and plug the multiply in opacity like
+[01:44] that now right here we're going to add
+[01:47] depth
+[01:49] fed right
+[01:51] here now plug the depth fed in B section
+[01:54] of
+[01:56] multiply Now to control the opacity and
+[01:58] fade distance of this depth fed we're
+[02:00] going to add some parameters now to add
+[02:02] parameters hold s and press left Mouse
+[02:05] button like that I'm going to name it
+[02:11] opacity and again hold as and press left
+[02:15] Mouse button and I'm going to name it
+[02:17] fit
+[02:19] distance like that and put the default
+[02:23] value something like one and plug them
+[02:28] like that
+[02:34] now you can see we have this simple fog
+[02:36] right here if you want to see in the
+[02:38] real world just add a plane right here
+[02:42] in the shapes add
+[02:45] plane I'm going to scale it to like
+[02:47] something
+[02:55] 300 rotate it like that now before
+[02:59] applying the material to the plane we
+[03:01] need to create a first material instance
+[03:03] just right click on this material and
+[03:05] create material instance the reason we
+[03:08] have created this material instance is
+[03:09] that we can control the opacity and fade
+[03:12] distance from here without going into
+[03:14] material
+[03:16] editor now to apply the material just
+[03:18] select the material instance like that
+[03:21] and also select the plane now in the
+[03:23] details panels of this plane you can see
+[03:26] the material right here just click on
+[03:29] this right
+[03:30] here now as you can see we have this
+[03:33] cool looking fog sheet right here now
+[03:35] you might notice these hard edges on the
+[03:37] surface we can easily fix that just
+[03:40] double click on material instance
+[03:42] increase the F distance like
+[03:46] that as you can
+[03:52] see you can also increase or decrease
+[03:55] the opacity like that
+[04:03] and hit
+[04:06] save now as you can see that it looks
+[04:08] great now we're going to create some
+[04:10] more variants of this fog sheet so I'm
+[04:13] going to open the content browser again
+[04:15] and I'm going to duplicate this fog
+[04:17] material like
+[04:18] that and double click to open this right
+[04:22] here dog this layout right here now
+[04:25] again in the fog material editor we're
+[04:27] going to add some noise textures to add
+[04:29] noise textures just open the content
+[04:31] browser and here you can see the engine
+[04:34] folder right here if you don't see the
+[04:36] engine folder right here just go to
+[04:39] settings and click on this show engine
+[04:42] content it should be unselected so you
+[04:45] can uh enable this right here from show
+[04:47] engine content like that after that open
+[04:51] the engine right here and search
+[04:56] noise now scroll down little bit now at
+[04:59] the end you can see this diing noise 05
+[05:02] I'm going to use this one you can also
+[05:04] use other if you want to create more
+[05:06] variants like this one tiling noise 01
+[05:10] and also this one so I'm going to go
+[05:12] with the tiling noise 05 just drag and
+[05:16] drop this right
+[05:18] here now let's just add multiply node
+[05:22] and plug this right here and this one
+[05:24] right here and output in the
+[05:28] opacity now as you can see that we have
+[05:30] some variants just apply
+[05:33] it in the fog
+[05:37] material we can see that we have this
+[05:40] fog one just right click and create
+[05:42] material instance like that by selecting
+[05:46] the material instance change the fog
+[05:48] from
+[05:50] here as you can see that we have now the
+[05:54] noise pattern
+[05:56] here if you see those hard edges you can
+[06:00] fix them just double click to open
+[06:03] it like
+[06:06] that and increase the F distance like
+[06:10] that you can also increase or decrease
+[06:13] opacity if you
+[06:16] want as you can see it looks
+[06:21] great now we can also animate the fog
+[06:24] for that just go to the material editor
+[06:26] again and here we going to adjust any
+[06:29] made the UVS of this texture sample now
+[06:32] it is really easy to do just right click
+[06:35] and search
+[06:37] Panner right
+[06:39] here plug the Panner in the UVS and here
+[06:44] we just need to animate the speed of
+[06:46] this Panner node Now to control or
+[06:48] animate the speed just add parameter
+[06:51] hold as left Mouse click and name it
+[06:57] speed and plug it right here
+[07:00] now for the default value I'm going to
+[07:02] give it something like one as you can
+[07:04] see the speed looks really fast just
+[07:07] apply it and see it in the real world as
+[07:10] you can see that it looks so fast so
+[07:12] we're going to slow it something
+[07:18] like1 as you can see it looks great so
+[07:22] you can create multiple variants if you
+[07:24] want that's it for today's tutorial make
+[07:26] sure to share this technique and
+[07:28] subscribe to my channel

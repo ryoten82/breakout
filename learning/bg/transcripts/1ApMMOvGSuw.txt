@@ -1,0 +1,564 @@
+[00:00] Hi everyone. Today we are going to
+[00:01] create a beautiful environment in Unreal
+[00:03] Engine. I'll walk you through the
+[00:05] process setup by setup. So be sure to
+[00:07] stick around till the end. Let's get
+[00:09] started.
+[00:17] [Music]
+[00:34] So we are going to start off by creating
+[00:35] a new blank project without any starter
+[00:38] content. I'm going to name it tutorial
+[00:43] and you can change the location from
+[00:45] here. Click on create. After creating a
+[00:48] project, go to file new level and create
+[00:52] an basic level.
+[00:55] Now hold Ctrl S to save the map and I'm
+[01:00] going to name it main
+[01:03] and click on save.
+[01:06] Now after saving it go to edit project
+[01:10] settings
+[01:12] and map and modes and change the open
+[01:16] world to main
+[01:21] and close the tape.
+[01:24] So we are going to start off by creating
+[01:26] a landscape. So go to landscape from
+[01:28] here click on landscape and change the
+[01:32] size from 63 to 31. and also enable the
+[01:36] edit layers
+[01:38] and click on create.
+[01:41] Now after creating the landscape, now we
+[01:43] need to sculpt the landscape. Just go to
+[01:46] landscape and select the sculpt brush
+[01:50] and you can increase or decrease the
+[01:52] strength from here and also brush size
+[01:55] and brush falloff.
+[01:58] I'm going to increase the size and also
+[02:02] decrease the falloff and increase the
+[02:05] strength little bit.
+[02:11] If you need to sculpt down, you can hold
+[02:14] shift and sculpt it.
+[02:17] I'm going to undo this.
+[02:20] [Music]
+[02:28] Just sculpt like that. And also make a
+[02:30] path from here by holding the shift and
+[02:35] something like that.
+[02:38] Don't sculpt too much.
+[02:41] [Music]
+[02:42] Just a little bit.
+[02:47] I'm going to decrease the strength.
+[02:51] Now I can scrub.
+[02:55] [Music]
+[03:03] Now select the smooth tool from here
+[03:07] and also smooth this area.
+[03:11] You can smooth this area like this. Now
+[03:14] I'm going to select the sculpt tool
+[03:16] also.
+[03:23] Now after the sculpt is done, now we
+[03:25] need to import the 3D models. You can
+[03:27] download the 3D models from the link in
+[03:29] the description. Now you need to
+[03:31] download both of these 3D models.
+[03:33] Extract the wooden cabin model like
+[03:36] that.
+[03:37] Open the Unreal Engine
+[03:40] and the content browser
+[03:43] and open the content browser by
+[03:44] pressingt control + space.
+[03:47] Create a new folder right here.
+[03:51] The models
+[03:54] and also drag and drop this windmill.
+[04:00] and click on import animations also and
+[04:04] create new materials.
+[04:07] And also we have to import this skeleton
+[04:10] mesh.
+[04:12] Click on import all.
+[04:16] [Music]
+[04:19] Close this tab. Open the content browser
+[04:22] again. Now we can see the windmill 3D
+[04:25] model here. Let's just select this one
+[04:28] and also this one and drag and drop this
+[04:31] into our scene.
+[04:33] [Music]
+[04:36] Place this model right here and scale it
+[04:40] something like that.
+[04:44] [Music]
+[04:51] That looks good enough. Now let's just
+[04:53] import the second model.
+[04:55] [Music]
+[04:56] this one wooden cabin.
+[04:58] Go to source and open the content
+[05:01] browser. Create a new folder.
+[05:05] Name this uh cabin
+[05:07] [Music]
+[05:10] and drag and drop this model right here.
+[05:16] Everything is looking good. Just click
+[05:18] on import all.
+[05:22] Control space. Now you can see the cabin
+[05:24] model right here. Now when you import
+[05:26] this model, you're going to see that all
+[05:28] the parts are separated. We don't need
+[05:31] to combine those. Just select all the
+[05:33] parts and drag and drop right here.
+[05:40] Now what I'm going to do, I'm going to
+[05:41] select all of the separated part of this
+[05:44] cabin from here. Just select the first
+[05:46] one and go to the last one. And by
+[05:50] holding shift click on this one. And by
+[05:54] pressing CtrlG you can create a group.
+[05:58] And also you can create a group from
+[06:00] here.
+[06:03] Now let's just scale it.
+[06:08] Something like that.
+[06:10] [Music]
+[06:19] Now for the textures, go to content
+[06:21] browser. And here is the generic map
+[06:24] texture. Double click to open it.
+[06:28] Just drag and drop this tape right here
+[06:31] and delete this parameter.
+[06:34] Go to the source file. Now we can import
+[06:37] the texture from here. Let's just select
+[06:40] all of these textures and also open the
+[06:42] content browser right here. I'm going to
+[06:45] create a new folder.
+[06:47] [Music]
+[06:48] name it textures
+[06:51] and drag and drop all of these textures
+[06:54] right here.
+[06:58] Now let's just select all of these
+[07:00] textures and drag and drop here.
+[07:04] [Music]
+[07:07] You can see this one is the amina
+[07:08] collusion. This one is metallic and
+[07:11] normal and albido. Let's just
+[07:15] plug those textures like that. This one
+[07:18] is ambient occlusion.
+[07:21] After that, click on apply. Now you can
+[07:24] see the texture has been applied to our
+[07:25] cabin. Now I'm going to import the
+[07:27] assets and the material for our
+[07:29] landscape. I'm going to use the quickel
+[07:31] bridge. I have already downloaded the
+[07:33] assets. You can also download those from
+[07:35] here. I'm just going to import them into
+[07:39] Unreal Engine.
+[07:42] You can also download and import the
+[07:44] assets of your choice.
+[07:47] [Music]
+[08:01] Now for the landscape material, I'm
+[08:03] using this grassy soil. You can also
+[08:05] download this from Quiser Bridge. I'm
+[08:07] just going to import this one too. You
+[08:10] can navigate to the 3D assets from here.
+[08:13] Go to mega scan
+[08:16] like that. Now I'm going to select this
+[08:18] filter static mesh here. If you don't
+[08:21] see those filters from here, you can
+[08:23] also enable those by from here by
+[08:26] clicking on those three lines.
+[08:31] Now before placing the assets in the
+[08:33] random places, we need to apply a
+[08:34] material to our landscape. For that,
+[08:37] select the landscape
+[08:39] and navigate to the landscape material
+[08:41] right here. And also open the content
+[08:44] browser and in the surfaces, select this
+[08:48] material instance
+[08:51] and click on this arrow right here.
+[08:54] Now you can see the tiling of this
+[08:56] material is really bad. To fix that,
+[08:59] double click on this landscape material
+[09:00] right here. And in the tiling offset,
+[09:04] click on this, expand this tab right
+[09:07] here and decrease the tiling value.
+[09:12] Something like that and copy and paste
+[09:15] right here. Just save it. Now you can
+[09:18] see that it looks better than before.
+[09:20] I'm just going to sculpt it little bit
+[09:23] right here.
+[09:25] Now what I'm going to do is I'm going to
+[09:27] place all the assets in the random
+[09:29] places. You don't need to follow each
+[09:31] setup. This is completely artistic
+[09:33] choice. You can place any assets where
+[09:36] you want.
+[09:39] [Music]
+[11:10] After placing the assets, let's just
+[11:12] decrease the brightness of the
+[11:14] landscape.
+[11:15] To do that, go to the material
+[11:18] [Music]
+[11:19] and click on this albido map. And right
+[11:23] here, you can decrease and increase the
+[11:24] brightness.
+[11:26] I'm going to make it like something 7.
+[11:30] [Music]
+[11:32] And also
+[11:35] increase the vibrance.
+[11:37] And also saturation
+[11:40] something like that.
+[11:43] [Music]
+[11:46] Decrease a little bit more.
+[11:52] Yeah, that looks great, I think. Let's
+[11:55] click on save
+[11:57] and close this.
+[12:00] Now, let's just import some more assets
+[12:02] from Quixel Bridge.
+[12:06] Here, you need to download this one,
+[12:08] modular wooden fence. I'm going to
+[12:10] import this one from here.
+[12:13] And also this one, Japanese shrine
+[12:16] stairs.
+[12:19] Add this to our project.
+[12:22] Now, let's just
+[12:24] start placing those assets into our
+[12:26] scene.
+[12:33] Heat.
+[12:57] [Music]
+[13:17] Now let's add foliage to our scene. Now
+[13:20] for the foliage I'm using this uh ribbon
+[13:23] grass. Let's just import those
+[13:27] also this one right here. And I'm also
+[13:29] using those flowers.
+[13:32] Now what we can do is go to foliage
+[13:34] mode.
+[13:36] And first let's just activate the grass
+[13:39] by clicking here
+[13:42] and click on activate right here.
+[13:46] Let's just check this.
+[13:50] Now to increase the scale release from
+[13:53] here something like that decrease the
+[13:56] intensity little bit something like
+[13:59] that. Yeah. And start painting the grass
+[14:03] like that.
+[14:13] Now after that deselect the cross
+[14:18] and select those
+[14:21] [Music]
+[14:22] and activate it.
+[14:25] [Music]
+[14:29] Put the sub scale like 20
+[14:33] to 25.
+[14:35] [Music]
+[14:37] Yep.
+[14:38] [Music]
+[14:39] and decrease the density like five.
+[14:45] And let's just start painting.
+[14:49] [Music]
+[15:12] Now deactivate these plants and enable
+[15:14] the flowers right here like this.
+[15:18] You can select the first one and by
+[15:20] holding shift select the last one. And
+[15:24] by holding shift press right here and
+[15:27] tick all the check boxes. Something like
+[15:30] that. Now, let's just start painting
+[15:33] those
+[15:35] [Music]
+[16:01] Now we are going to import these stones
+[16:03] pack right here. A mossy stone packs.
+[16:08] Download it and import this into our
+[16:10] Unreal Engine. Now instead of these
+[16:13] plants, we are going to select those
+[16:15] rocks. If you don't see the rocks and
+[16:17] some plants right here, you just need to
+[16:19] drag and drop those into our foliage.
+[16:23] First, let's just select those rocks
+[16:26] right here
+[16:28] and drag and drop right here like this.
+[16:33] Select those rock.
+[16:38] [Music]
+[16:40] Increase the scale little bit. Something
+[16:42] like that.
+[16:47] Yeah, that looks great.
+[16:52] Let's just increase the size and
+[16:56] decrease the pen density.
+[16:58] [Music]
+[17:20] Select these and increase the scale
+[17:23] something like 7 to 9.
+[17:46] Now we are going to final our lightning
+[17:48] setup.
+[17:49] Let's just hold Ctrl L and drag the
+[17:54] mouse like that.
+[17:57] [Music]
+[17:59] Something like that.
+[18:04] I think that looks great.
+[18:08] Now let's add postprocess volume.
+[18:10] Go to plus icon right here and type
+[18:13] postprocess
+[18:16] like that. Add this to our scene.
+[18:21] Now by selecting this
+[18:24] search right here infinite
+[18:28] and tick this box right here.
+[18:31] Now adjust some settings right here. If
+[18:34] you want to add bloom, you can also add
+[18:37] bloom right here.
+[18:40] And also
+[18:43] now we also going to change this
+[18:45] exposure right here. Enable this box and
+[18:48] click on manual. And also enable this
+[18:51] box and increase the intensity from
+[18:55] here. Something like nine.
+[18:59] Yeah, that looks great.
+[19:03] Now what we can do is select the
+[19:04] directional light and increase the
+[19:08] intensity of this 60. Yeah, that looks
+[19:12] great.
+[19:14] Now let's just select the post-process
+[19:16] volume again
+[19:18] [Music]
+[19:21] and scroll down.
+[19:25] Let's add beginning
+[19:28] something like that.
+[19:31] and also sharpen.
+[19:33] [Music]
+[19:40] Now we going to do some color grading
+[19:42] here.
+[19:44] Check this saturation box and change
+[19:47] this to 1.4
+[19:50] [Music]
+[19:54] or maybe 1.3.
+[19:58] Yeah, that looks good.
+[20:01] Also change the shadow saturation
+[20:04] 1.2 maybe
+[20:10] and also mid tones
+[20:13] 1.1.
+[20:15] We can also add motion blur like 2 and
+[20:20] target FPS would be 24. Now we are going
+[20:24] to add some background mountains and
+[20:26] also the water to our scene. Now to add
+[20:28] water in Unreal Engine, you need to
+[20:30] enable the water plug-in first. Now go
+[20:33] to edit plugins,
+[20:36] type water
+[20:38] and enable both of these plug-in
+[20:43] and restart the engine like that
+[20:46] and also save everything. Now we can add
+[20:49] water from here. Just go right here and
+[20:53] type water. Now you can see all the
+[20:55] water classes right here. Now we are
+[20:57] going to add this water body ocean. Just
+[20:59] type water and drag and drop this water
+[21:02] body ocean like that. Now after adding
+[21:05] the ocean,
+[21:07] let's just
+[21:09] put it right here. Now after adding the
+[21:12] ocean, you can see this ocean affecting
+[21:15] the landscape. So we need to disable it.
+[21:19] Now by selecting the ocean body right
+[21:21] here we can go into detail panels and
+[21:26] disable this landscape effect by
+[21:30] clicking on this. Now you can see our
+[21:34] landscape is looking good.
+[21:37] Now the ocean is done. Now we need to
+[21:39] add background mountains. For that you
+[21:41] need to download the mountains from Epic
+[21:44] game. Those are completely free. You can
+[21:46] also download those. Now in the Epic
+[21:48] Game Marketplace, search background
+[21:51] mountains
+[21:53] and click on this free filter right
+[21:55] here. Now here you can see free
+[21:58] landscape background mountains and
+[22:00] download those and import to our
+[22:02] project. I have already downloaded it.
+[22:04] So I'm just going to add them to our
+[22:06] project like that.
+[22:10] Select any version you want. Just click
+[22:13] on add to project.
+[22:15] Now after importing the background
+[22:17] mountains, let's just go to content
+[22:19] browser
+[22:21] photoreal backgrounds right here and
+[22:23] click on static mesh like that.
+[22:26] Now here you can see all of these
+[22:28] background mountains. Now you can add
+[22:30] whatever you like. If you want to
+[22:32] increase the thumbnail size, you can
+[22:34] also increase from here by clicking on
+[22:36] settings thumbnail size and from here
+[22:41] I'm going to select the large one. And
+[22:44] now
+[22:45] I'm just going to drag and drop those to
+[22:49] scene. Something like that.
+[22:52] [Music]
+[23:09] Now one thing that you can see is that
+[23:11] our foliage is completely static. Now to
+[23:14] animate it go to content browser
+[23:17] and remove this filter like that. Go to
+[23:19] mega skin.
+[23:22] Open this one.
+[23:24] Now open the material instance of these
+[23:26] flowers by double clicking on it. Now
+[23:30] here in the search bar, search wind
+[23:34] and enable the grass wind.
+[23:37] And also check this box right here.
+[23:43] And now you can also increase or
+[23:45] decrease the wind intensity from here.
+[23:48] Yeah, that looks great, I think.
+[23:51] Click on save. Close this tab. We can
+[23:54] also do the same for the grass. Now
+[23:56] after animating the foliage, what we
+[23:58] going to do is go to foliage mode
+[24:02] and deselect everything and open the
+[24:05] content browser
+[24:08] in the tutorial background. Select the
+[24:11] static mesh
+[24:13] and you can see this billboard. We're
+[24:15] going to select this tree billboard and
+[24:17] drag and drop right here.
+[24:20] And select this.
+[24:23] Decrease the intensity something like
+[24:25] five.
+[24:27] And also
+[24:31] yeah, that looks great.
+[24:35] Increase the intensity something like
+[24:37] 20.
+[24:40] Now what we going to do? We're going to
+[24:42] paint this tree to our mountains.
+[24:46] Something like that.
+[24:48] [Music]
+[25:12] Now after painting those trees we're
+[25:14] going to create a level sequencer.
+[25:17] You can create a level sequencer from
+[25:19] here.
+[25:20] Add level sequencer. Click on save.
+[25:26] [Music]
+[25:28] Now we can add a camera to our scene.
+[25:31] We're going to add this scene a camera
+[25:33] actor right here.
+[25:35] [Music]
+[25:36] After adding the camera to our scene,
+[25:38] right click and snap object to view.
+[25:42] Something like that.
+[25:45] Now let's just go to camera view. From
+[25:48] here change the perspective to cine
+[25:50] camera actor.
+[25:52] Now by selecting the camera change this
+[25:55] film back to DSLR. Now also change the
+[26:00] focal length if you want
+[26:04] something like 17 maybe
+[26:08] or maybe 19.
+[26:11] Yeah, that looks great. I think you can
+[26:14] also change the position. Something like
+[26:17] that.
+[26:18] You can also increase or decrease the
+[26:20] aperture.
+[26:22] I'm going to make it like four or maybe
+[26:25] 3.5.
+[26:28] That looks great. Now, these are the
+[26:30] same settings that we change in the
+[26:32] post-process volume. So, we don't need
+[26:34] to change anything right here. Now let's
+[26:37] just add the cine camera actor into our
+[26:40] sequencer by dragging and dropping like
+[26:42] that. And also add this skeleton mesh
+[26:45] into our sequencer like that. Now we're
+[26:48] going to animate this fan right here.
+[26:50] Now you just need to click on animations
+[26:53] plus icon right here and select this one
+[26:57] right here. After adding the first
+[26:59] animation, you can see it looks like
+[27:02] this. Let's just add the second
+[27:04] animation. this one right here. Last
+[27:07] one.
+[27:08] Drag and drop like that. Now, after
+[27:11] animating this windmill, we can also
+[27:13] change the frame rate from here 30 to
+[27:16] 24. Now, in the Epic Game Marketplace,
+[27:19] you can search animal pack and click on
+[27:23] free filter right here. Now, you can see
+[27:25] this animal variety pack right here.
+[27:28] This is completely free. You can
+[27:30] download and add this to your project.
+[27:33] Just click on add to project. Select the
+[27:35] project and add to project. Now we're
+[27:38] going to import the fox to our scene.
+[27:41] Something like that. Go to animal
+[27:44] variety pack. Just navigate to the fox
+[27:48] folder and click on skeleton mesh.
+[27:52] [Music]
+[27:54] Drag and drop like that.
+[28:00] [Music]
+[28:04] Now to add animations to our fox is
+[28:07] really easy.
+[28:09] Just drag and drop this fox skeleton
+[28:12] mesh into sequencer.
+[28:15] Something like that.
+[28:18] And now if you don't see the animation
+[28:20] tab right here, you can also add the
+[28:22] animation track from here. Go to plus
+[28:25] icon and animation and I'm going to
+[28:29] select the go to rest animation right
+[28:32] there. Also delete this key frame like
+[28:36] that. Now first we need to add two
+[28:39] animations. So first one is go to rest
+[28:41] and the second one is idle look around.
+[28:58] Now you can see the animations are
+[29:00] working perfectly.
+[29:05] Now let's just animate the camera.
+[29:08] Add the transform key frame right here.
+[29:10] And go to the last frame.
+[29:16] Right here.
+[29:20] Right here. Add the second key frame.
+[29:26] And change the interpolation mode to
+[29:28] linear.
+[29:32] Something like that.
+[29:35] [Music]
+[29:37] Now the animation is finally done. If
+[29:40] you want to add birds, you can also add
+[29:42] the birds into your scene.
+[29:45] Now the birds in the marketplace aren't
+[29:47] that great. If you want the better
+[29:49] quality birds, you can also pay bucks
+[29:50] and buy the birds back. Now to add birds
+[29:53] to our scene, go to animal variety pack
+[29:56] in the crow. Select the skeleton mesh
+[30:00] and drag and drop this right here.
+[30:05] and also drag and drop this crow into
+[30:07] our sequencer.
+[30:10] In the sequencer, click on animation.
+[30:13] And here we can see the fly animation
+[30:16] right here. Add this to our sequencer
+[30:20] and increase the animation like that.
+[30:23] Now also animate the transform of this
+[30:26] bird like that.
+[30:29] [Music]
+[30:33] and change the interpolation mode to
+[30:35] linear.
+[30:38] Finally, you can see the cinematic is
+[30:39] ready. Now, we need to render it. So,
+[30:42] first we need to enable the plug-in of
+[30:44] movie render Q. Now to enable the
+[30:46] plug-in go to edit plugins and type
+[30:50] movie render cube
+[30:55] and enable the movie render cube
+[30:58] and also restart the engine. Make sure
+[31:01] you save everything. Now let's just open
+[31:04] the level sequencer by double clicking
+[31:06] it like that and go to camera mode like
+[31:10] this. Now here we can click on this
+[31:12] render icon like that. Now right here
+[31:17] you can see the movie render queue.
+[31:18] First we need to adjust some settings
+[31:20] before rendering it. Click on unsaved
+[31:23] config right here
+[31:25] and delete the JPEG sequence.
+[31:29] I'm going to add the PNG. You can also
+[31:32] add EXR sequence if you want. And I'm
+[31:35] going to also add the ent. And change
+[31:38] the temporal sample count to 64. And
+[31:41] also tick this box right here. Override
+[31:44] ent.
+[31:46] And in advance,
+[31:48] change the warmer frames to 120.
+[31:51] Something like that. Now in the output,
+[31:54] we just need to change the output
+[31:56] directory right here. Now everything
+[31:58] looks great. We just need to render it.
+[32:00] So these are the basic settings that you
+[32:02] need to do before rendering. Just click
+[32:04] on accept and click on render local.
+[32:08] Thanks for watching. If you found this
+[32:09] tutorial even 1% helpful, please
+[32:12] subscribe and share my channel. Your
+[32:13] support helps me keep creating these
+[32:15] great tutorials. See you next time. Take
+[32:17] care.

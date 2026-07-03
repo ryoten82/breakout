@@ -1,0 +1,739 @@
+[00:00] hey guys welcome to my Channel today we
+[00:03] are diving into Andre Eng to create a
+[00:05] beautiful environment I'll walk you
+[00:07] through it setup by setup so stick
+[00:10] around till the end let's get started
+[00:14] [Music]
+[00:49] so first we going to create a new
+[00:51] project now in the game section select
+[00:54] the third person template without any
+[00:56] starter
+[00:57] content and give the
+[01:01] location whatever you like and give the
+[01:05] projector name like I'm going to name it
+[01:08] tutorial and click on
+[01:11] create now it will take some time so
+[01:14] finally our project has been open now
+[01:17] first what we going to do click on file
+[01:22] create a new level now we're going to
+[01:24] create a new level now I'm going to go
+[01:27] with the basic one click on create
+[01:31] here's the basic level so first what
+[01:34] we're going to do is delete this uh plan
+[01:38] and also save the map obviously like
+[01:42] underscore I'm going to name this
+[01:44] underscore
+[01:45] men and click on save so now we're going
+[01:49] to create a landscape click on here we
+[01:53] click on
+[01:55] landcape and we don't need to change
+[01:57] anything here just click on create
+[02:02] now our landscape has been created so
+[02:05] now what I'm going to do is called
+[02:07] selection mode and I'm going to import
+[02:11] the asset for the reference from quiel
+[02:15] bridge now the asset will
+[02:18] be this one huge Nordic castal
+[02:22] Cliff now you have to download this and
+[02:25] click on
+[02:27] import for the reference I'm going to
+[02:29] use this
+[02:31] assist now let's take this Cliff like
+[02:34] click on Mega skin and click on static
+[02:37] mesh here is our CLI
+[02:42] now drag and drop and rotate it
+[02:46] something like
+[02:50] 90 and click on the C and hold all for
+[02:54] duplicate
+[02:55] objects now rotate it uh 180°
+[03:02] something like
+[03:05] that okay for now that looks good enough
+[03:08] so now let's start sculpting according
+[03:11] to the reference now what I'm going to
+[03:14] do go to NC mode and decrease the brush
+[03:23] size something like that and Tool
+[03:27] strength obviously decrease it
+[03:31] and also increase uh
+[03:34] follow
+[03:38] now let's just sculpt it you need to
+[03:42] hold the shift to sculpt it down
+[03:48] [Music]
+[04:11] now we going to add the water now for
+[04:14] the water go to
+[04:17] adding
+[04:18] plugins and typ your button enable both
+[04:22] of
+[04:23] those and restart the
+[04:27] engine and also save
+[04:31] everything so now know
+[04:36] everything let's open the map that we
+[04:40] created here is our M main
+[04:44] level if you go here on plus icon and
+[04:48] type here
+[04:50] water now you're going to see all the
+[04:52] water
+[04:54] bodies now we going to choose the lake
+[04:57] water body L okay so just drag and draw
+[05:05] here all it can not compile and
+[05:08] commute now here is our L now what I'm
+[05:12] going to do is go into details
+[05:16] and untake this effect
+[05:19] landscape okay now this is not going to
+[05:22] affect uh the landscape anymore let's
+[05:26] just now
+[05:28] scale those
+[05:30] like
+[05:31] this uh let's add now let's add a spline
+[05:36] point right here and extended little bit
+[05:40] and also right
+[05:41] here extend
+[05:45] it
+[05:47] and there to look perfect but also add
+[05:54] here uh like
+[05:56] this H right and that that that looks
+[06:02] perfect
+[06:04] now then let them compile
+[06:09] those now if you want to change the
+[06:12] color of the water you can change by
+[06:13] clicking on water body link and navigate
+[06:16] to the rendering TR
+[06:21] rendering right here now you can see
+[06:24] water material here I double click on it
+[06:26] to open it now here
+[06:30] here if you want to like uh navigate to
+[06:35] the end
+[06:37] and now you can see the absorption now
+[06:41] if you change this you can change the
+[06:43] more color of the water like this I'm
+[06:46] going to undo this
+[06:51] Okay click okay and yes that's
+[06:57] working now if you want to create a
+[07:00] water like this so just enable the
+[07:04] scattering now if you want to change the
+[07:07] depth of the Waves you can also change
+[07:10] that by clicking on
+[07:12] water and and navigate to The Wave right
+[07:16] here and increase the depth obviously
+[07:20] and that looks
+[07:22] perfect now let's just uh hit save
+[07:29] have to save save on you can save by
+[07:33] clicking on air and also contrl s so now
+[07:38] what we're going to do is going to
+[07:40] import all the assets that I used in
+[07:43] this
+[07:45] environment those are the basic assets
+[07:47] that I'm using like this one let's
+[07:52] imported Rize this and also this
+[07:57] one also the basers like this
+[08:02] one and also the ground we can uh read
+[08:07] the name here and click one here now
+[08:11] let's
+[08:13] just and also those out of G part like
+[08:17] this I'm going to import all of
+[08:24] them like
+[08:26] this also this one
+[08:30] this
+[08:34] one okay this
+[08:37] one also this one
+[08:40] and this one now those are the important
+[08:44] you can download by reading the name
+[08:46] here like this all the co Cliff
+[08:51] obviously and huge not
+[08:54] not you can download all of the s for
+[08:57] Fore obviously let's import those
+[09:01] so right now what I'm going to do is
+[09:05] take all the like K Mega skin and click
+[09:07] or static mesh and you can see all the
+[09:10] asserts here now what I'm going to do
+[09:14] place all the asserts in the random
+[09:16] places obviously now you don't need to
+[09:19] copy everything from me like that's a
+[09:22] completely artistic choice you can do
+[09:25] whatever you like you can place any
+[09:27] asserts anywhere wherever you like
+[09:30] obviously so now let's just um click on
+[09:33] Mega skin and click on static mesh here
+[09:37] are the some methods that I'm using so
+[09:40] let's just drag and drop and obviously
+[09:45] this process will be the most boring
+[09:47] process obviously for you guys so I'm
+[09:50] going to just fast forward this take
+[09:52] care
+[09:54] [Music]
+[11:44] now before adding Fage to our scene
+[11:46] we're going to apply our landscape
+[11:48] material so first import the landscape
+[11:51] material from quel bridge let's just go
+[11:54] to quel bridge go to local I have
+[11:57] already downloaded the material
+[12:00] so if you don't have the material you
+[12:01] need to download it first I'm using this
+[12:04] material right here Rocky ground this
+[12:08] one you can download also this material
+[12:11] from
+[12:12] quick I'm going to add this from right
+[12:16] here and go to
+[12:19] main open the asset
+[12:22] browser go to Mega
+[12:25] skin click on Surface Rocky ground this
+[12:29] one right here material
+[12:31] instance click on
+[12:33] it click on
+[12:36] landscape and we
+[12:38] go right here in the landscape landscape
+[12:43] material click on it and click on
+[12:48] here now as you can see the tiling is
+[12:51] really
+[12:52] repeating so we have to change this so
+[12:55] double click on
+[12:57] it open the
+[13:00] properties and here you can see tiling
+[13:03] offset let's just
+[13:09] click
+[13:12] sorry expand it and now we can change
+[13:16] that tiing thing from here
+[13:21] five5 let's see how it
+[13:27] looks TI
+[13:30] all
+[13:33] can yeah that that looks good I think a
+[13:37] little
+[13:39] bit we don't need to see that area okay
+[13:43] we could just see those areas like in
+[13:45] the water and right here so don't worry
+[13:49] about the rest of the area we just need
+[13:51] to see that so just change the tiing
+[13:54] like uh part two is I think great let's
+[13:58] just type
+[14:00] point2 and
+[14:03] same yeah that looks cool it it is
+[14:07] blending very good with those vs so now
+[14:10] what we're going to
+[14:12] do now we're going to add folas to our
+[14:15] scene let close this now open the gzel
+[14:19] bridge you you can open the gzel bridge
+[14:21] from here okay
+[14:24] so just open the quiel bridge I have
+[14:28] already downloaded the
+[14:29] Fage now this is the Folia that I have
+[14:33] downloaded you can see you can also
+[14:35] download those you can read the names
+[14:37] from
+[14:40] here this is the important one for that
+[14:43] we going to use so let's just import
+[14:46] those and to engine click on first
+[14:51] import this I'm going to import this one
+[14:54] and
+[14:56] uh let's just import all of those
+[15:01] I'll show this
+[15:03] so
+[15:04] okay now what we going to
+[15:09] do here 3D plants now weig get to the 3D
+[15:13] PLS and click on static M now this is
+[15:16] our Folia now what we going to do first
+[15:20] we yes this one
+[15:25] here we going to pain this uh fol to all
+[15:29] of this rocks over here in so let's just
+[15:33] go into folage
+[15:36] mode now in
+[15:38] here select those yellow these are so in
+[15:45] here you're going to
+[15:47] select these ones if you don't see those
+[15:52] here you just need to select all of
+[15:54] these and drag and
+[15:57] drop right here if you don't see the
+[16:01] folage
+[16:03] here now just I'm going to select all of
+[16:06] these from right here to here C
+[16:10] on
+[16:14] now that we can
+[16:21] do check the
+[16:24] dity you can see the size is really
+[16:27] small let's just increase a size scale
+[16:30] from like let's say 6 to
+[16:34] 7 now that's really important for your
+[16:37] performance if your Folia size is small
+[16:39] and you are pending on it on the so the
+[16:42] Folia number will going to be so high so
+[16:46] that's really going to decrease your
+[16:48] performance so make sure F size is
+[16:53] good I think
+[16:55] uh that is good just
+[16:59] 7 it let's just now decrease the
+[17:06] bity okay and also from
+[17:12] here just decrease the pend let's just
+[17:18] start adding the folas to our
+[17:23] rocks just start painting it like this
+[17:27] if you think the
+[17:30] Fage is I think I'm going to what I'm
+[17:34] going to just pain on top of this
+[17:39] bocks like
+[17:42] that you can also decrease the density
+[17:45] if you
+[17:54] want I think that looks perfect
+[18:02] now this uh you can
+[18:05] see uh just copy this
+[18:09] one this space looks empty
+[18:13] sh just fill that up like
+[18:20] that yeah now it look to explo the fol
+[18:27] again start p one
+[18:43] goes right let's decree the size of the
+[18:49] brush
+[18:51] Al and right here
+[18:54] here and also here
+[19:15] arm is this
+[19:26] one I think that looks
+[19:29] awesome now I'm going to what I'm going
+[19:32] to do is uh decrease I'm going to
+[19:35] decrease the density let's say
+[19:40] 50 uh Che
+[19:42] it no
+[19:49] 30 still is too much 20 is great I think
+[19:54] yeah there perfect now we can paint
+[19:58] right
+[20:12] here now some of the PLS you need to can
+[20:17] just decrease the pen density you can
+[20:20] pin some of these right here
+[20:24] also just increase a pendy then
+[20:32] then I'll them
+[20:38] decrease I think that looks
+[20:44] CLE just what I'm going to do
+[20:48] is raise those because size is I think
+[20:53] the size of the Folia is too big now
+[20:56] let's just change the size like four to
+[21:02] five now start
+[21:05] pending the number is too much let's
+[21:08] just decrease it at
+[21:12] 15 that's
+[21:17] perfect you can also Undo It underwater
+[21:20] it doesn't matter or make any logic
+[21:24] whatever you like you can do that
+[21:38] now now we need to animate this folage
+[21:41] because right now you can see this is
+[21:43] this looks static completely
+[21:46] static no window anything the far now to
+[21:50] animate the scol what we're going to do
+[21:53] let's go in selection
+[21:55] mode and open this material the first
+[21:58] one material
+[22:02] stairs and tight the V right
+[22:06] here what you want to do is enable grass
+[22:09] wind right here and click on this
+[22:12] also now you can change the intensity of
+[22:16] the
+[22:17] wind
+[22:20] one that's too much I
+[22:25] think five I think we're going to be no
+[22:29] there's still too much point
+[22:40] two1 I think
+[22:44] .1 I think
+[22:46] Point yeah 0.1 is
+[22:52] great you can do whatever you like I'm
+[22:55] going to go with
+[22:57] Point Buton
+[23:00] now let's say other folos
+[23:03] like go to
+[23:06] fos now I'm going to
+[23:09] deselect those and select
+[23:11] this
+[23:17] see increase the
+[23:20] size like uh five or
+[23:26] six there's I think that's too much size
+[23:31] let's just uh three to four or let's
+[23:36] just decrease
+[23:38] uh
+[23:40] also yeah that Loops
+[23:48] screen just make sure you need to pin
+[23:52] those and like
+[23:55] C then re a precise
+[24:01] I care
+[24:41] now what we going to do is going to add
+[24:44] the
+[24:45] grass so let's
+[24:48] just first deselect
+[24:52] this now let's just select all the
+[24:57] grass here
+[25:05] okay just increase the size little
+[25:08] bit like uh
+[25:11] 1.5
+[25:12] to let's say
+[25:17] 2.5 I think there's too
+[25:20] much one is great
+[25:24] 1.5 yeah that's good now let's just uh
+[25:29] the intensity I think is good just
+[25:31] increase the intensity pain intensity
+[25:34] little
+[25:37] bit that's we great I think let's
+[25:42] stting right
+[25:49] here now we can also animate the grass
+[26:00] okay now let's just deselect the Gass
+[26:03] right
+[26:04] now and select those
+[26:09] plants
+[26:11] turn Okay the size is p w let just go
+[26:16] and for
+[26:20] I yeah that looks perfect let's just uh
+[26:25] intensity I think just increase
+[26:28] little bit pain
+[26:31] intensity yeah that that looks
+[26:35] good again recheck the size I think the
+[26:39] size is little too much let's just raise
+[26:44] you can raise those by holding shift
+[26:47] just change the
+[26:50] scale three to four
+[27:07] and also I think the intensity P
+[27:10] intensity is too much let's just I'm
+[27:13] going to raas this
+[27:15] again and I'm going to what I'm going to
+[27:18] do is decrease the
+[27:21] intensity then I'm going to get this
+[27:31] spam it
+[27:35] randomly yeah keep now it looks I think
+[27:38] good yeah that
+[27:41] looks
+[27:44] now the folage I think has been now
+[27:48] underwater you can also do that in
+[27:51] underwater and uh let's just
+[27:55] choose deselect those one and and
+[27:58] select
+[28:01] these and paint it right here like
+[28:08] that and you can also do that by
+[28:15] here
+[28:16] now now we not we're not going to see
+[28:19] that like from up here if you want to
+[28:23] make a sh like this then you can add
+[28:25] also add the folage and rocks and and
+[28:28] everything underwater if you don't want
+[28:31] to like uh make a short drop underwater
+[28:34] or something like from Top then you
+[28:36] don't need to paint a folage and put
+[28:38] Rocks Under the Water because because it
+[28:42] is just going to decrease your
+[28:44] performance so let's just now
+[28:49] see for now that looks perfect let's
+[28:51] just now change the lightning and add
+[28:55] some atmosphere and everything
+[28:58] so first what what I'm going to
+[29:00] do is
+[29:03] add go to visual effects and postprocess
+[29:09] volume now in the detail panel of the
+[29:12] post process volume type
+[29:16] infinite just take this for infinite
+[29:20] extend
+[29:23] unbug now I'm going to increase a
+[29:26] saturation little bit first let's just
+[29:29] final the light name of our
+[29:35] s right here now if you want to change
+[29:38] the exposure you can also change the
+[29:40] exposure of the scene let's say I I'm
+[29:43] going to change the exposure let's go to
+[29:46] let's just search
+[29:54] exposure and click on here go to manual
+[29:59] also click on here let's type
+[30:02] seven
+[30:05] hit
+[30:06] thing line I think looks great according
+[30:10] to me let's just select the directional
+[30:14] light and increase the intensity of
+[30:16] it uh this
+[30:19] one let's just type
+[30:22] 15 there
+[30:24] be 20
+[30:32] 3
+[30:38] size and also 30 maybe let's just
+[30:43] experiment with it yeah 30 30 I think
+[30:46] looks great according to me 30 looks
+[30:48] good now let's go to exposure again
+[30:51] sorry post process volume again post
+[30:56] process now now what we going to do
+[31:00] is also we're going to add
+[31:02] blue here is our
+[31:05] sun we're going to change this to
+[31:08] convolution yeah that looks great you
+[31:11] can also change the intensity from
+[31:14] here
+[31:15] now we have to add a saturation little
+[31:19] bit let's just go
+[31:24] to we can also add we you
+[31:30] want
+[31:33] it also
+[31:40] sharpen and that now next go to color gr
+[31:46] Global click on saturation let just
+[31:48] increase the saturation 1.2 now that
+[31:52] looks perfect you can also increase it
+[31:55] like 1.4
+[31:57] or 1.6 to make it really
+[32:02] saturated but I'm going to go with like
+[32:05] 1 three I think is perfect
+[32:10] yes that looks R now let's
+[32:15] just give it right here you don't need
+[32:18] to change anything
+[32:22] no so and also you can experiment with
+[32:26] it also with the reflection but I'm
+[32:29] going to go with the
+[32:35] D now what we going to do you can also
+[32:39] add motion GL if you want let's just
+[32:43] add and the frame will be
+[32:46] 24
+[32:50] also okay for now there
+[32:52] SC later we going to change some
+[32:55] settings from there now let's just go to
+[32:57] exponation
+[33:00] for
+[33:10] T change the
+[33:13] color will
+[33:25] greenish you can also change from sing
+[33:27] here but for now let's just leave it
+[33:30] right there now what I'm going to do is
+[33:32] going to add the distant mountains like
+[33:36] background okay one thing that I forgot
+[33:38] to mention you have to animate this
+[33:41] folage right here the grass the lectus
+[33:44] and also the seed so let's just animate
+[33:47] it first go to
+[33:50] Planet here and also
+[33:55] will neor grass
+[33:58] that's over here and type one wind
+[34:02] intensity sorry
+[34:06] 41 and see the intensity of the
+[34:10] wind
+[34:12] yeah that
+[34:14] loose now change let's add the wind to
+[34:18] our
+[34:19] grass where is Grass this
+[34:30] enable also add
+[34:38] theity now car let's just add the
+[34:41] background Mon and everything so for
+[34:44] that just save the scene and open the
+[34:47] epic game launcher now in the epic game
+[34:49] Library go to the market pleas and
+[34:52] search
+[34:54] background like sorry background
+[34:58] and press
+[35:00] enter and click on the free filter right
+[35:04] here now you can see those landscape
+[35:07] backgrounds this is for free obviously
+[35:10] you can download those and add to your
+[35:13] project now I'm going to add those
+[35:16] project like this tutorial one and
+[35:19] select the
+[35:21] version now after adding those to our
+[35:25] project now let's just close close the I
+[35:28] game open our Unreal
+[35:30] Engine open our scene
+[35:35] now now what we can do is here is our
+[35:39] photo rear backgrounds click all static
+[35:43] mesh and choose the mesh whatever you
+[35:45] like I'm going to go with those in green
+[35:49] if you want to increase the thumbnail
+[35:51] size you can do that from here I'm going
+[35:54] to go with
+[35:55] large now it depends on you what kind of
+[35:59] background Mage you
+[36:03] need and this one m b yeah they
+[36:08] [Music]
+[36:19] Sten now
+[36:21] again find the mountains like
+[36:24] that and add those in the background
+[36:29] [Music]
+[36:38] now what we're going to do is if you
+[36:41] come here in the photo background and
+[36:44] select on static MH you can see the card
+[36:47] of the Dre MH if you double click to
+[36:50] open it you can see that this is the Tre
+[36:54] mesh card now what we can do with that
+[36:58] is just go to
+[37:01] folage if there is selected fol then Des
+[37:04] select those like
+[37:07] that you select those now add this
+[37:12] one now it depends on your scenar I'm
+[37:15] going to add this one green if you want
+[37:18] to add the r one you can add also this
+[37:21] Dragon drop and select this
+[37:24] one let's check the size
+[37:28] and just change the
+[37:31] scale like 4
+[37:38] to7 yeah that looks great also change
+[37:41] that density to like
+[37:43] 20 yeah that's
+[37:46] perfect now I add the
+[37:49] trees right here like this
+[38:08] now let's just uh now go to selection
+[38:10] mode click on exponential height for and
+[38:14] if you want to change the fog you can
+[38:16] also change it like
+[38:22] that like
+[38:24] this that looks perfect to me
+[38:27] so now I'm going to add some fish and
+[38:30] birds to our scene for that you need to
+[38:32] download two packs from the marketplace
+[38:35] which are completely free obviously now
+[38:38] let's just go to epic game
+[38:40] launcher now in the Marketplace
+[38:44] search vsx
+[38:48] pack and now click on free and you can
+[38:51] see that the VFX starter pag right here
+[38:53] volume two click on here and also add
+[38:57] the this to our project so after adding
+[39:00] that to our project now what we can do
+[39:04] now just click called here is our
+[39:07] realistic starter VFX pack click on here
+[39:10] go to
+[39:12] particles we going to go in the
+[39:15] environments this one is butterfly you
+[39:17] can also add butterflies if you want I
+[39:20] mean here just type that you can see
+[39:30] that looks perfect I think now I want to
+[39:35] add the
+[39:37] fish like in the water like
+[39:42] this you can see those
+[39:44] fish that look so
+[39:49] good now what we going to do you can
+[39:52] also add another fish pack like this VFX
+[39:57] part
+[39:59] I that looks great look at
+[40:04] that now what we going
+[40:07] do go to epic game launcher and type
+[40:10] animal now the birds in the marketplace
+[40:15] are not that great I think according to
+[40:19] me just Ty
+[40:24] three and this one animal variety pack
+[40:28] this one you can see there is some birds
+[40:31] like
+[40:33] crows like
+[40:38] those now before adding birs to our
+[40:41] scene what we are going to do is just
+[40:43] going to add level sequence to our C
+[40:46] just go right here click on ADD level
+[40:51] sequencer and just save this like uh in
+[40:54] the new folder maybe you
+[40:59] lcore
+[41:01] q
+[41:03] s open it save this level SP now also
+[41:08] add the cam actor like
+[41:13] C sorry C
+[41:16] camera like this one this is our camera
+[41:23] then I'm going to go right here
+[41:27] and this snap the camera to snap object
+[41:31] to you okay this is going to snap the
+[41:35] camera to let's just change the frame
+[41:39] rate from 30 to
+[41:41] 24 and also do some settings right here
+[41:44] change this digital film
+[41:46] to 169
+[41:50] DSLR now let's just animate the
+[41:54] camera by clicking here here and just
+[41:58] drag and drop the camera in the
+[42:01] scene and add
+[42:04] the
+[42:06] transform key stream and go to the end
+[42:10] of
+[42:11] the timer and
+[42:17] also add the key frame
+[42:21] here now just select both of these key
+[42:24] frame and right click and make it linear
+[42:28] right here now you can see that that
+[42:31] looks
+[42:33] perfect you can also buy the birds packs
+[42:36] from Marketplace for the better results
+[42:39] for now we just going to use this
+[42:42] one now let's just open our
+[42:46] sequencer should come here open our
+[42:50] level
+[42:54] sequencer let press
+[42:58] this one let's just add the
+[43:02] gr and
+[43:04] animation like flag
+[43:07] obviously gr
+[43:14] fly and
+[43:16] make just increase the length of the
+[43:20] animation like that
+[43:27] now let's just animate the crow right
+[43:30] this just click on transform add the key
+[43:34] frame right here go right here
+[43:37] and this here and add key frame change
+[43:42] the interpolation mode to
+[43:46] linear now you can see that how B is if
+[43:50] you want to add more you can also do
+[43:52] that duplicate by duplicating
+[43:54] it now we just going to start did this
+[43:57] now if you want to change the lightning
+[44:00] you can also change the Lightning
+[44:02] by holding control L and also change the
+[44:06] direction like you can
+[44:15] also that looks perfect for me I think
+[44:18] if you want to change in you can also
+[44:19] change in an experiment with it
+[44:21] lightning and also the environment and
+[44:23] anything you want to change you can do
+[44:25] then it's completely itic Choice
+[44:27] obviously now it's time to render the
+[44:29] scene for the rendering we're going to
+[44:32] use the movie render queue so before
+[44:34] rending it what we going to do we need
+[44:36] to enable the plugin sorry enable the
+[44:40] plugin uh from
+[44:42] here close
+[44:44] this type mov runer
+[44:49] Cube mov rer king that's
+[44:53] one enable it and restart the engine
+[44:57] save
+[44:59] everything also close the IP game
+[45:01] launcher now after enabling the
+[45:05] plug-in the movie render queue go to our
+[45:08] main
+[45:10] map this
+[45:13] one right here let's just open the
+[45:20] sequencer and go to
+[45:23] camera
+[45:25] now now click on this icon here render
+[45:29] icon
+[45:31] here for the rendering so first of all
+[45:34] click on here unsaved
+[45:38] config now here is everything for the
+[45:40] movie RoR CU that we need to change
+[45:43] first select the output directory I'm
+[45:45] going to choose the desktop now what I'm
+[45:48] going to do is I'm going to delete this
+[45:50] jpack now I'm going to choose this P
+[45:52] sequence if you want to choose the exr
+[45:55] sequence you can also
+[45:57] but I'm going to go with PNG sequence
+[45:59] and click on PNG and also what I'm going
+[46:02] to do I'm going to add this
+[46:05] emptying and let's just change the
+[46:08] temporal sample call tool something like
+[46:11] 64 or maybe you can also choose
+[46:14] 32 I'm going to go with 64 and click on
+[46:18] override interor resing right here now
+[46:22] also choose this
+[46:24] uh super res high resolution
+[46:28] also I'm going to add some console
+[46:30] variables like that like some
+[46:37] areion
+[46:40] blood as
+[46:42] quality something like two
+[46:46] also r dot something like
+[46:50] that depth of field quality right here
+[46:56] we can ask change that now there are
+[46:58] some more variables you can also add I'm
+[47:00] going to provide you in the description
+[47:01] so you can copy and paste this from here
+[47:04] so those are the settings that we need
+[47:06] to do you can also select
+[47:10] those frame right here 24 frames and
+[47:14] everything is perfect just one more
+[47:16] thing we need to do go to ning and in
+[47:22] advance put 120 warm up and inine up
+[47:27] frame right
+[47:29] here now you are ready to go you can
+[47:32] just hit accept and render local so
+[47:35] that's it for today's video if you found
+[47:38] it helpful consider eating subscribe and
+[47:40] sharing my Channel right now your
+[47:42] support means the world to me especially
+[47:44] as I'm currently working hard to get
+[47:46] monetized on YouTube Every subscription
+[47:48] and share counts thank you for being a
+[47:51] part of this journey until the next time
+[47:53] happy creative
+[47:56] [Music]

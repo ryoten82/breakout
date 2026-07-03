@@ -1,0 +1,488 @@
+[00:04] &gt;&gt; Hi, my name is Matt Oztalay.
+[00:05] And I'm a developer relations
+[00:05] technical artist at Epic Games.
+[00:08] I helped out the Quixel team
+[00:08] with materials and performance
+[00:11] on their Medieval Game Environment.
+[00:13] In the last series
+[00:13] of videos, we talked
+[00:14] about how we improved the
+[00:14] performance of the project
+[00:16] without dramatically
+[00:16] changing the visuals.
+[00:19] And in the next couple
+[00:19] of videos, I want
+[00:21] to talk about the material
+[00:21] we used for the landscape.
+[00:23] When we use a material
+[00:23] on the landscape,
+[00:25] we have a few extra
+[00:25] features that make
+[00:26] them really useful for
+[00:26] creating beautiful landscapes
+[00:29] and terrain in no time at all.
+[00:32] Our material features a
+[00:32] reusable Material Function
+[00:35] for all the landscape layers, wetness
+[00:35] and puddles, glancing angle specular
+[00:39] correction-- which
+[00:39] I'll explain when we
+[00:41] get to it-- landscape
+[00:41] grass and foliage masking,
+[00:44] and runtime virtual
+[00:44] texture output and usage.
+[00:47] I've broken the series of
+[00:47] videos up into two parts.
+[00:49] The first, we'll focus on the
+[00:49] Landscape Material itself.
+[00:52] And in the second part, I'll show
+[00:52] you how we utilized Runtime Virtual
+[00:55] Textures with our landscapes.
+[00:57] Be sure to watch both videos.
+[00:59] Since I won't be going into
+[00:59] great detail for this video,
+[01:02] please download the project from
+[01:02] the Unreal Engine Marketplace
+[01:05] so you can follow along.
+[01:07] It's important to note that when
+[01:07] you're painting on a landscape,
+[01:10] you're painting arbitrary values into
+[01:10] what are called Landscape Layers.
+[01:14] These come in two types--
+[01:16] weight-blended and
+[01:16] non-weight-blended layers.
+[01:18] You can then sample these
+[01:18] values in your material
+[01:21] to drive all sorts
+[01:21] of effects, including
+[01:23] blending between different materials
+[01:23] like rock, grass, and dirt.
+[01:27] Weight-blended layers
+[01:27] will take the contribution
+[01:29] of all weight-blended layers
+[01:29] and normalize them down
+[01:32] to come up with an aggregate value.
+[01:34] So if I paint rock then grass
+[01:34] then dirt, I'll get dirt on top.
+[01:38] But if I use
+[01:38] non-weight-blended layers
+[01:41] and paint grass then
+[01:41] dirt then rock, I'll
+[01:43] end up with this kind of weird
+[01:43] even mix between the three
+[01:46] that isn't totally desirable.
+[01:48] For most applications, we'll want
+[01:48] to use weight-blended layers.
+[01:51] And I'll show you
+[01:51] some tricks that use
+[01:53] non-weight-blended layers to
+[01:53] help accentuate and add control
+[01:56] to our landscape.
+[01:57] The benefit of using
+[01:57] weight-blended layers
+[01:59] is that we can blend together
+[01:59] a much greater number of layers
+[02:02] than is possible with
+[02:02] color-masking techniques or vertex
+[02:05] colors, which are limited to
+[02:05] just four channels in most cases.
+[02:09] They also have the benefit
+[02:09] of being order-independent,
+[02:11] meaning you don't have to explicitly
+[02:11] determine how to blend between
+[02:15] layers--
+[02:16] which comes first, which
+[02:16] comes last, and so on.
+[02:18] All right, with that
+[02:18] out of the way, let's
+[02:20] take a bird's eye view
+[02:20] of the Landscape Material
+[02:22] we used in the project.
+[02:24] If you're following
+[02:24] along in the project,
+[02:25] the material is in the
+[02:25] Materials, Landscape folder.
+[02:29] Starting from left to right, I
+[02:29] define each of the Landscape Layers
+[02:33] in these functions here.
+[02:34] Then they're blended together
+[02:34] before we apply wetness and puddles.
+[02:37] Then we output that information
+[02:37] to the Runtime Virtual Texture
+[02:41] along with some World Height Offsets.
+[02:43] Finally, we sample the Runtime
+[02:43] Virtual Texture for a final output
+[02:47] and perform some correction
+[02:47] to our Specular values
+[02:50] to ensure we don't have any
+[02:50] shiny landscapes at a distance.
+[02:53] Each landscape layer is loosely based
+[02:53] on the M_StandardMaster material
+[02:57] that ships with the
+[02:57] Quixel Megascans plugin.
+[03:00] However, since material parameters
+[03:00] in Unreal must have unique names,
+[03:04] I had to find a way to make
+[03:04] controls for each layer
+[03:06] without duplicating the
+[03:06] logic of the material itself.
+[03:10] So what I did was copy the Quixel
+[03:10] master material functionality
+[03:14] into a material function,
+[03:14] which you can read more
+[03:17] about in the links provided below.
+[03:19] In this Material Function, I
+[03:19] routed the relevant outputs
+[03:22] to a SetMaterialAttributes node.
+[03:25] Then in place of the Vector,
+[03:25] Texture, and Scalar parameter inputs,
+[03:29] I replaced those with function
+[03:29] inputs and used default values
+[03:33] to make sure everything
+[03:33] was working correctly.
+[03:35] In order to reduce the perceptible
+[03:35] tiling of the landscape texture,
+[03:39] I use the Texture
+[03:39] Bombing technique, which
+[03:41] randomly samples different
+[03:41] areas of a texture
+[03:43] and blends them together with
+[03:43] an optional random rotation.
+[03:47] There's a few versions of this
+[03:47] that ship with the engine,
+[03:50] but I modified one of
+[03:50] those for our project.
+[03:53] And you can find that in
+[03:53] the Materials, Functions,
+[03:55] Texture Bombing folder.
+[03:57] And use it in your own materials.
+[03:59] This does increase the texture
+[03:59] sampling cost of the material
+[04:02] since we need to sample
+[04:02] each texture twice
+[04:04] in order to blend them together.
+[04:06] But we can get around the hard limit
+[04:06] on texture samples per material
+[04:09] by changing the Sampler
+[04:09] Source to Shared Wrap, which
+[04:13] you can read more about in the
+[04:13] links we've provided below.
+[04:16] The second thing we did to improve
+[04:16] the performance of the material
+[04:18] is to output most of
+[04:18] the landscape material
+[04:20] to a Runtime Virtual Texture
+[04:20] so that when we're actually
+[04:23] rendering the material
+[04:23] on the landscape,
+[04:25] it ends up being less expensive
+[04:25] to calculate because we're really
+[04:28] just reading four textures.
+[04:30] We'll talk more about
+[04:30] this in the next video.
+[04:32] For this video, all
+[04:32] you need to know is
+[04:33] that when a material is drawn
+[04:33] to a Runtime Virtual Texture,
+[04:36] it doesn't know about dynamic
+[04:36] elements like time or camera
+[04:39] or vectors.
+[04:40] And this is important later.
+[04:42] Another modification
+[04:42] I made to the material
+[04:44] was to co-opt the Opacity input pin
+[04:44] in the MaterialAttributes struct
+[04:48] to carry our displacement values.
+[04:50] Opacity won't be used
+[04:50] in the final material,
+[04:52] but that data gets carried along with
+[04:52] the SetMaterialAttributes struct.
+[04:56] So we figured it was a safe
+[04:56] place to store this information.
+[05:00] The displacement maps
+[05:00] provided with these textures
+[05:02] carry really useful
+[05:02] information about the height
+[05:05] of the material which we'll use later
+[05:05] even though this material doesn't
+[05:08] use tessellation or displacement.
+[05:10] And that's our base Landscape
+[05:10] Material function in a nutshell.
+[05:14] Zooming out one level, we
+[05:14] get to the Material Functions
+[05:17] for each landscape layer, where I've
+[05:17] uniquely named each input parameter
+[05:21] to match the layer and set the
+[05:21] parameter group so that everything
+[05:24] is neatly organized in the Material
+[05:24] Instance window for our artists.
+[05:29] Zooming out once more, we're
+[05:29] back in the Landscape Material.
+[05:31] And we've covered
+[05:31] everything happening
+[05:33] in these material functions here.
+[05:35] Next, we'll need to
+[05:35] blend them all together.
+[05:36] And the great news is that Unreal
+[05:36] handles all of that blending for us,
+[05:41] because this material is
+[05:41] applied to a landscape.
+[05:44] We've got a few options for
+[05:44] blending layers together.
+[05:47] The default weight
+[05:47] blending will smoothly
+[05:49] blend weight values for all of
+[05:49] the layers in a painted area.
+[05:52] This can be useful blending
+[05:52] certain layers together,
+[05:55] but it can be somewhat
+[05:55] lacking when we're
+[05:57] blending, say, sand into brick.
+[05:59] Sand will first fill
+[05:59] the grout around bricks
+[06:02] before covering the brick
+[06:02] entirely since the grout is
+[06:05] lower than the brick surface.
+[06:07] Since we already had the
+[06:07] displacement or height
+[06:10] information in the Material
+[06:10] Functions for each layer,
+[06:13] I can change the blend
+[06:13] mode for each of these
+[06:15] to Layer Blend Height, which
+[06:15] adds an additional height
+[06:18] input for each layer.
+[06:19] And we connected the height outputs
+[06:19] of our Material Functions to that.
+[06:22] Now, you can see over in
+[06:22] our brick and sand example
+[06:25] that the sand is blending
+[06:25] nicely into the brick as opposed
+[06:27] to getting lerped over it.
+[06:29] And that's all it takes to set
+[06:29] up a basic landscape material.
+[06:32] I can drag the output
+[06:32] of this Layer Blend node
+[06:34] over to the MaterialAttributes input
+[06:34] for the material and call it a day.
+[06:39] But my colleagues over at
+[06:39] Quixel had a few more features
+[06:41] they wanted to support.
+[06:42] First up was wetness and puddles.
+[06:45] Since this was meant to be a dirty,
+[06:45] grungy, grimy, muddy village,
+[06:49] the artists wanted to be
+[06:49] able to optionally make
+[06:51] the landscape more wet
+[06:51] and at a certain point,
+[06:54] create areas of puddles.
+[06:55] I employed two techniques from
+[06:55] Ben Cloward's Rain Material.
+[06:59] The whole playlist is linked
+[06:59] below, and it's a great watch
+[07:02] if you're interested
+[07:02] in Materials at all.
+[07:04] The first technique to
+[07:04] make the material more wet
+[07:07] is set up in this
+[07:07] MF_Wetness material.
+[07:10] It simply de-saturates the
+[07:10] incoming base color a bit,
+[07:12] pushes it around to make it darker,
+[07:12] and reduces the roughness value.
+[07:16] You'll notice that the other input
+[07:16] to this material function is a node
+[07:20] called layer Sample 'Wetness'.
+[07:22] This is one of those
+[07:22] non-weight-blended layers
+[07:24] we talked about earlier.
+[07:25] We wanted to be able to make any
+[07:25] part of the landscape material wet.
+[07:28] So this layer can
+[07:28] exist all by itself,
+[07:30] and we can sample the absolute value
+[07:30] of it anywhere on the landscape.
+[07:34] The next step to this effect was
+[07:34] to add a certain wetness value,
+[07:37] start turning it into puddles.
+[07:39] Once again, I adapted a
+[07:39] technique from Ben Cloward.
+[07:42] Using the height information
+[07:42] provided by the blended material,
+[07:46] I can start raising the water level
+[07:46] up based on the wetness value.
+[07:50] The water here is really just a mask.
+[07:53] Lets me reduce roughness, increase
+[07:53] specular, and make the base color
+[07:57] cloudier as the water
+[07:57] gets deeper, which,
+[07:59] of course, has its own controls.
+[08:01] As a sort of future proof for myself.
+[08:04] I also output the puddle mask.
+[08:06] You'll notice that I didn't include
+[08:06] any ripples or waves or anything
+[08:09] like that for the puddles.
+[08:10] And that's because, as
+[08:10] I mentioned earlier,
+[08:12] materials drawn into Runtime Virtual
+[08:12] Textures don't know about time.
+[08:16] If I tried to put a panning normal
+[08:16] map here, it would just stay still.
+[08:20] At this point in the material
+[08:20] we've completed all the work
+[08:23] that's camera and time independent.
+[08:25] So we'll output the appropriate
+[08:25] values to this Runtime Virtual
+[08:28] Texture output node.
+[08:30] This means that any time a
+[08:30] surface with this material
+[08:33] is drawn into a Runtime Virtual
+[08:33] Texture, we'll output these values.
+[08:36] You'll also see that I derive the
+[08:36] Specular values from the base color
+[08:40] with a few extra controls.
+[08:41] This is a simple trick
+[08:41] that folks at Quixel
+[08:43] taught me to give a little
+[08:43] bit of extra or direction
+[08:46] to the specular response
+[08:46] of our landscape
+[08:48] since the artists
+[08:48] wanted the landscape
+[08:50] to shift a bit based on
+[08:50] its displacement values,
+[08:52] I calculate that offset here
+[08:52] and add the Height Offset
+[08:56] to the World Position
+[08:56] Height and output
+[08:59] that to the World Height input pin
+[08:59] in the Runtime Virtual Texture output
+[09:03] node.
+[09:03] I'll show you how we
+[09:03] use World Height values
+[09:05] to blend stuff into the
+[09:05] landscape in the next video.
+[09:08] Now that I've output most
+[09:08] of the material calculations
+[09:11] to the Runtime Virtual Texture, I
+[09:11] then sample that in the material
+[09:15] itself.
+[09:16] In the first half of the material,
+[09:16] I've baked the entire landscape
+[09:19] to a texture.
+[09:20] And now I'm reading
+[09:20] that texture back.
+[09:23] There's a number of features that
+[09:23] you could add to this portion
+[09:25] after sampling the
+[09:25] Runtime Virtual Texture.
+[09:27] You could add ripples
+[09:27] to your puddles.
+[09:29] You could flow lava.
+[09:32] You could blend textures
+[09:32] based on distance.
+[09:34] And you could even play around
+[09:34] with interesting reflection effects
+[09:37] now that you have access to
+[09:37] information about the camera.
+[09:40] For us, though, the
+[09:40] artist's biggest request
+[09:42] was this glancing angle
+[09:42] specular correction.
+[09:45] One of the issues they've had with
+[09:45] landscape materials in the past
+[09:48] is that at a certain distance
+[09:48] at an angle to the camera,
+[09:51] the specular response seems to
+[09:51] flatten out of the landscape.
+[09:54] So I did a bit of depth fading
+[09:54] and final math with a few controls
+[09:57] so the artists could tune the
+[09:57] specular response at a distance.
+[10:01] To make populating the landscape
+[10:01] with foliage a little easier
+[10:04] for the artists, I
+[10:04] also set up each layer
+[10:06] to have its own
+[10:06] landscaped grass type.
+[10:09] This is a special kind
+[10:09] of foliage that you
+[10:11] can specify the
+[10:11] location of right here
+[10:13] in the material you could simply
+[10:13] pipe a landscape layer sample
+[10:16] into the landscape grass output.
+[10:18] But I added another
+[10:18] non-weight-blended layer
+[10:20] called Foliage Mask.
+[10:22] So the artists could cut the
+[10:22] foliage out if they wanted to.
+[10:25] These landscape grass type assets
+[10:25] are easy to create and allow you
+[10:28] a lot of control over how
+[10:28] very static meshes are
+[10:30] scattered throughout the landscape.
+[10:32] You can add multiple
+[10:32] varieties of grass,
+[10:35] specify your density, random
+[10:35] rotation, and scaling.
+[10:37] And importantly,
+[10:37] they're Cull Distances
+[10:40] let me show you how all
+[10:40] that works together.
+[10:43] In this sample scene, I've done all
+[10:43] the Runtime Virtual Texture setup
+[10:46] that we'll talk about
+[10:46] in the next video.
+[10:48] Here, I've applied an instance
+[10:48] of my landscape material
+[10:50] to this landscape.
+[10:52] It starts off black because
+[10:52] we don't have any layer info.
+[10:55] Unreal scans the material
+[10:55] you've applied to the landscape
+[10:58] and looks for all the different named
+[10:58] layers you have in your material.
+[11:02] We need an asset called
+[11:02] a Landscape Layer
+[11:04] Info to paint these values into.
+[11:06] Luckily, you can quickly create
+[11:06] these from the Landscape Mode panel.
+[11:10] I like to keep these close to
+[11:10] the map that they're used in.
+[11:12] As I'm creating these assets,
+[11:12] I'll be sure to create the wetness
+[11:16] and foliage mask layers as
+[11:16] non-weight-blended layers.
+[11:19] Now that's set up, you'll see that
+[11:19] my landscape is flooded with dirt.
+[11:23] You can see the little rocks
+[11:23] pop up in the landscape.
+[11:25] And that's because of
+[11:25] the landscape grass type
+[11:27] I set up for the dirt layer.
+[11:28] I can paint some grass which brings
+[11:28] with it its own grass foliage.
+[11:33] And I'll paint a puddle in
+[11:33] the middle of the grass.
+[11:36] As you can see, there's
+[11:36] grass in my pond,
+[11:38] because we're sampling the grass
+[11:38] layer to place grass foliage.
+[11:41] That's no good, though, so I'll use
+[11:41] my foliage mask to paint that out.
+[11:46] And there you have it--
+[11:46] the landscape material
+[11:48] I created for the Quixel
+[11:48] Medieval Game Environment.
+[11:50] I hope this video has
+[11:50] given you some ideas
+[11:52] for how to set up
+[11:52] and create landscape
+[11:54] materials for your project.
+[11:56] In the next video, I'll
+[11:56] show you how we set up
+[11:58] and leverage the Runtime Virtual
+[11:58] Texturing to really bring everything
+[12:01] together.
+[12:03] Thanks for watching.

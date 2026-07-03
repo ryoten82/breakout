@@ -1,0 +1,393 @@
+[00:00] [Music]
+[00:04] Hello everyone. My name is Jack McKelie.
+[00:07] In this tutorial, I'm going to cover how
+[00:09] I went about creating this construction
+[00:11] site over the course of an afternoon.
+[00:14] It's made up of entirely Mega Scans
+[00:16] assets with the assistance of a handful
+[00:18] of custommade meshes utilizing Unreal
+[00:21] Engine's suite of modeling tools.
+[00:24] The first thing I did was set aside an
+[00:26] area in the map for a zoo containing all
+[00:29] of the assets I wanted to use. With a
+[00:32] zoo, it was very easy to follow my gut,
+[00:34] grabbing assets that I was inspired to
+[00:37] do something with. You'll see me jumping
+[00:40] between the environment and this zoo
+[00:42] frequently throughout the video. I
+[00:44] imported these assets using the Fab
+[00:46] plugin inside Unreal Engine. It's quick
+[00:48] and easy. You just click the FAB button
+[00:50] in the content browser and find the
+[00:52] asset you want.
+[00:55] [Music]
+[01:01] You can also use Fab and Launcher for
+[01:03] any other dcc or engine if you want to
+[01:06] quickly import assets from Fab. This can
+[01:09] be especially helpful for custom
+[01:10] workflows outside of UE5.
+[01:16] [Music]
+[01:20] In this case, I want to select Unreal
+[01:22] Engine 5.6. And clicking export will
+[01:25] bring it into my open project.
+[01:37] I've set up this basic scene with my
+[01:39] directional light set to 100,000 lux for
+[01:42] a bright, sunny day. added a
+[01:44] post-process volume with infinite extent
+[01:47] enabled and I have done nothing custom
+[01:50] with the exposure settings. I've added a
+[01:53] cube and a plane to the scene with the
+[01:55] approximate sizes I'm looking for in my
+[01:57] blockout. I've also added a sign camera
+[02:00] dialed in the focus settings and set up
+[02:02] my focus length to be 16 mm for a wider
+[02:06] shot.
+[02:10] I'd like to briefly go over the hotkeys
+[02:12] I'll be utilizing throughout the video.
+[02:14] The transform hotkeys will be used
+[02:16] regularly, and I've also rebinded
+[02:19] cycling transforms from world to local
+[02:21] and back to world for added transform
+[02:24] control. Mirroring assets is useful for
+[02:27] disguising repeating assets. Lastly,
+[02:30] paste here is useful for copy and then
+[02:33] pasting an asset wherever I last left
+[02:36] mouse button clicked.
+[02:40] Before we get into set dressing, I'd
+[02:42] like to convert this box and plane,
+[02:43] which are currently engine assets, to
+[02:45] their own unique static meshes. We can
+[02:48] do this by navigating to the modeling
+[02:50] tools, X form, and then duplicate.
+[02:57] Before I teslate this mesh, I need to
+[02:59] bake the transforms. without baking the
+[03:02] transforms. Any remeshing will stretch
+[03:04] triangles reflecting the scaling changes
+[03:07] I made to the original assets.
+[03:10] Now it's time to tessillate these
+[03:12] assets. While these numbers may be too
+[03:14] high for a realtime project, I'm
+[03:16] primarily looking to ensure that Lumen
+[03:18] has enough geometry to light these
+[03:20] larger surfaces in a strictly cinematic
+[03:23] capacity.
+[03:25] Now that I've tessillated these assets,
+[03:28] I need to UV them. Given that they're
+[03:30] very basic, I can select auto UV, leave
+[03:33] the settings default, and it'll work for
+[03:35] this environment.
+[03:37] The last thing that needs to be done
+[03:39] before we jump into set dressing is to
+[03:41] ensure that these assets have Nanite
+[03:44] enabled.
+[03:49] To start set dressing, I'd like to build
+[03:51] on the larger and structural elements of
+[03:54] the frame first, and so I have a strong
+[03:56] foundation to work from. Shipping
+[03:59] containers will act as a barrier to keep
+[04:01] viewers eyes inside the frame while at
+[04:04] the same time the leading lines help to
+[04:06] pull the viewers's attention towards the
+[04:08] building. Next, I want to add some
+[04:10] pillars to hold up a second floor. This
+[04:13] will create an interesting lighting
+[04:15] scenario and will provide more surface
+[04:17] area for interesting details and set
+[04:19] dressing.
+[04:24] Now I just want to block off the sides
+[04:26] and rear of the building to keep the
+[04:28] scene simple and focused on the
+[04:30] construction area.
+[04:34] I'm heading over to the zoo to see what
+[04:36] I want to add next. I decided on adding
+[04:39] some piles of rock and sand to help
+[04:41] shape the composition further and
+[04:43] experiment with how they add to the
+[04:45] scene.
+[04:49] I want to add some blocks to the
+[04:50] composition. They add a lot of
+[04:52] interesting detail, cat shadow as well,
+[04:55] and can be set dressed to add some story
+[04:58] and some more organic breakup to the
+[05:00] scene. I like to make small rotations to
+[05:03] assets to prevent them from being
+[05:05] perfectly aligned with any other leading
+[05:07] lines in the scene. Breaking up those
+[05:10] perfect lines really help to sell the
+[05:12] realism of an environment.
+[05:16] A hotkey I forgot to mention is holding
+[05:18] control and left right mouse button
+[05:20] clicking and dragging. This is a little
+[05:23] known hotkey that can help you transform
+[05:25] and rotate assets without needing to use
+[05:27] the widgets.
+[05:32] Organic assets like these bags of
+[05:34] concrete present opportunities to set
+[05:37] dress them against one another. Leaning
+[05:39] an asset against another, like how they
+[05:41] might be set down by workers, adds a
+[05:44] nice touch of realism and makes the
+[05:46] space feel more alive.
+[05:50] Wherever I start adding assets, I like
+[05:52] to build out the story from those anchor
+[05:55] points. Since I added bags of cement to
+[05:57] the middle right of the scene, I wanted
+[05:59] to add a cement mixer to complement
+[06:01] those assets.
+[06:04] Similar to how I use shipping containers
+[06:06] on the left side of the scene, I also
+[06:08] want to break up the leading lines of
+[06:09] the building to the right.
+[06:14] Just like with the cement section, I
+[06:16] want to start building out the story for
+[06:18] this area, adding waste materials to the
+[06:20] surrounding area.
+[06:23] [Music]
+[06:31] The building is starting to look a bit
+[06:33] basic, so I want to start building out
+[06:34] the story for this area further. Adding
+[06:37] partially constructed areas is a great
+[06:40] way to suggest that the building is a
+[06:42] work in progress.
+[06:44] [Music]
+[06:49] Here
+[06:51] [Music]
+[07:02] I want to play around with making some
+[07:03] sort of scaffolding. It'll add some
+[07:05] verticality to the scene, a little bit
+[07:08] more visual interest just in terms of
+[07:10] how detailed it is, and it'll allow me
+[07:14] to break up some of the scene's
+[07:16] composition.
+[07:20] [Music]
+[07:28] Packed level actors are useful to create
+[07:31] reusable prefabs to assist with set
+[07:33] dressing. This is especially useful
+[07:36] since they can be updated later and
+[07:37] those updates will propagate to all
+[07:40] other instances.
+[07:41] [Music]
+[07:48] A fast and effective way at reducing
+[07:50] repetition is to break apart existing
+[07:53] packed level instances, make some
+[07:55] changes, and repackage as another
+[07:58] variation of the same asset. It's
+[08:00] efficient and it's a lot easier than
+[08:02] making another version from scratch.
+[08:06] Now, I'm just going to copy these
+[08:07] scaffolds over to the main scene and I'm
+[08:10] just going to play around with them. I
+[08:12] want to dock my camera and pay attention
+[08:15] to how the scaffolds are affecting the
+[08:18] scene in different positions. A lot of
+[08:21] times I'll just copy over existing
+[08:23] assets just to play with the idea that
+[08:25] maybe I want to change something
+[08:27] entirely.
+[08:29] I'm really liking how the scaffolds are
+[08:31] looking on the second floor. They're
+[08:33] blocking a lot of the background sky,
+[08:35] which I'm not really doing anything
+[08:37] fancy with. So, I want to make sure to
+[08:39] keep the focus on the assets themselves.
+[08:44] Now, once again, I'm just playing with
+[08:45] the idea of having this scaffolding be
+[08:48] more of a focal point. It's not the
+[08:50] focal point for the scene, but I
+[08:53] definitely want something a little bit
+[08:54] taller to contribute to blocking out the
+[08:58] main part of the building.
+[09:01] And now I'm just going to go ahead and
+[09:04] duplicate the assembly again. And I want
+[09:07] to get rid of those bottom posts. And so
+[09:10] this can uh be double stacked.
+[09:13] [Music]
+[09:34] Now's a good time to start playing with
+[09:36] the lighting. I have an idea of what I
+[09:38] want, but now that I have some assets
+[09:40] placed, I'd like to see how the lighting
+[09:42] and shadows are working from different
+[09:44] angles and so I can find a light
+[09:46] direction I'm happy with.
+[09:49] Next, I'd like to take a look at some of
+[09:50] the different default lighting settings
+[09:52] to see where I can improve the look of
+[09:55] the scene. The skylight is too intense.
+[09:57] The fog is too visible inside the
+[09:59] building. And I want to push the
+[10:01] directional lights ambient contribution
+[10:03] just a touch.
+[10:07] [Music]
+[10:12] These settings can also be accessed via
+[10:15] the environment light mixer tab. This
+[10:18] can be very useful when refining a
+[10:19] lighting setup. And now that I have my
+[10:22] lighting a bit more finalized, I want to
+[10:25] play around with the light direction
+[10:26] again to further refine how I want my
+[10:29] lighting to look.
+[10:34] [Music]
+[10:36] Now that the lighting and set dressing
+[10:38] in the midground is coming along, I want
+[10:40] to start filling out the foreground with
+[10:42] some assets.
+[10:46] [Music]
+[11:04] Whenever I start feeling like I'm losing
+[11:06] traction on an area, I like to shift
+[11:09] gears and reapproach some other areas,
+[11:11] adding details and history.
+[11:14] [Music]
+[11:28] I'm going back to the foreground to work
+[11:30] with fresh eyes. And there's a great
+[11:32] opportunity to stack up some metal
+[11:34] equipment that I haven't used yet. These
+[11:37] metal pieces add some great material
+[11:40] variation to the scene. And I want to
+[11:42] pile it up in a way that will add some
+[11:44] more leading lines to my focal point.
+[11:48] [Music]
+[12:24] As I've mentioned, bricks cast very nice
+[12:27] shadows. So, I want to use some for the
+[12:29] bottom of my frame to add some nice up
+[12:32] close foreground detail.
+[12:36] [Music]
+[12:59] Advancing the story for the cement
+[13:01] mixing area. I want to add a ramp,
+[13:04] wheelbarrow, and some other props to the
+[13:06] area.
+[13:12] [Music]
+[13:15] I'm shifting gears again because I'm not
+[13:17] totally sure where I want to take the
+[13:19] cement mixing area. I do need some brick
+[13:22] chunks to complement the foreground and
+[13:25] suggest that a brick or two were
+[13:27] accidentally broken.
+[13:29] So, I'm set dressing some of those
+[13:31] chunks of brick and I'm going to make it
+[13:33] a level instance that I can hand place
+[13:36] and quickly update.
+[13:38] [Music]
+[14:04] Currently, the building roof and floor
+[14:06] have perfect straight edges and really
+[14:08] need a pass to break up those edges to
+[14:10] look more realistic. There's a lot of
+[14:12] ways to do this, but for a quick
+[14:14] cinematic environment, it's enough to
+[14:17] take these concrete slabs, resize them,
+[14:20] and match them up to the existing
+[14:22] geometry as closely as I can.
+[14:29] [Music]
+[14:36] Getting
+[14:40] [Music]
+[14:49] to the finer details, I'd like to grab
+[14:51] some hand tools to place around the
+[14:53] environment where it makes sense.
+[14:56] [Music]
+[15:36] Now that the environment is coming
+[15:37] together, I want to add some natural
+[15:39] height variation in the ground. The
+[15:42] approach I'm taking is by using the
+[15:44] displace tool found in the modeling mode
+[15:47] under the deform tab.
+[15:49] [Music]
+[15:58] At this point, I'm really trying to
+[15:59] refine different areas. I'm playing
+[16:01] around with ideas where I can reinforce
+[16:03] the notion that people work here and
+[16:06] that I'm capturing a specific point in
+[16:08] time during this construction effort.
+[16:12] [Music]
+[16:53] I want to take some time to go over the
+[16:54] blend material I'm using for the ground.
+[16:57] I have a section for tiling per layer
+[17:00] tiling controls, texture parameters that
+[17:02] loop into adjustments for each texture,
+[17:06] make material attributes for each
+[17:07] respective layer, and then I blend the
+[17:10] layers using material layer blends. If
+[17:13] we take a closer look at the paintn
+[17:15] named reroute node, we'll find what's
+[17:17] driving the layer blending. Instead of
+[17:20] vertex painting, we're going to utilize
+[17:22] a mesh paint texture to paint these
+[17:25] layers to our mesh. I need to select my
+[17:27] ground mesh, navigate to the mesh
+[17:30] painting section in the details panel,
+[17:32] and override the advanced settings. Now,
+[17:34] I can go to the mesh paint mode, select
+[17:36] the texture color tab, and then click
+[17:39] the add button to add a virtual texture
+[17:41] to my mesh. From there, I can paint
+[17:43] layers to my heart's desire.
+[17:48] Now, I'll simply repeat the process and
+[17:50] start experimenting with painting my
+[17:52] layers to complement the existing set
+[17:54] dressing.
+[17:58] [Music]
+[18:47] With the lighting I've set up, the
+[18:48] material layers seem a little extreme in
+[18:50] their brightness changes. So, I'm going
+[18:53] to go through the layers to try and
+[18:54] better match the look of the layer I
+[18:57] like the most.
+[19:04] [Music]
+[19:23] I also want one layer to match the piles
+[19:25] as closely as I can to help hide the
+[19:28] seams made by intersecting these meshes.
+[19:31] [Music]
+[19:39] I've downloaded three decals that are
+[19:42] not included in this collection to add
+[19:44] some weathering and cover up some seams.
+[19:47] This is a very powerful technique to add
+[19:49] a level of polish to the seam. You'll
+[19:52] also notice that I frequently use
+[19:53] surface snapping when working with
+[19:55] decals, which helps to reduce the time
+[19:57] needed to get the correct orientation of
+[20:00] decal when placing it.
+[20:04] [Music]
+[20:06] After adding some leakage stains to the
+[20:08] exposed concrete, I want to add some
+[20:10] basic dust accumulation on some of these
+[20:13] foreground assets.
+[20:15] [Music]
+[20:22] While looking for decals, I also grabbed
+[20:25] a few rocks that were not included in
+[20:27] this collection. I feel like it rounds
+[20:30] out the blend material quite nicely and
+[20:33] gives a little bit more depth.
+[20:35] [Music]
+[21:02] Now I want to add some dynamism to the
+[21:04] lighting. One of my favorite ways to do
+[21:07] this is by adding cloud shadows to my
+[21:09] directional light using a light
+[21:10] function. The light function material
+[21:13] has controls for tiling, starting
+[21:15] placement, cloud intensity, and
+[21:17] contrast.
+[21:19] All I need to do now is assign this
+[21:21] material to the light function material
+[21:23] slot in my directional light source.
+[21:27] [Music]
+[21:33] There's several other things I'd like to
+[21:34] do now. First, I want to angle my main
+[21:37] shot to be lower since there's so much
+[21:38] sky in the frame with nothing really in
+[21:41] it.
+[21:43] I moved some stuff around in the
+[21:44] foreground to add some natural shadows
+[21:46] that act like a vignette. And now I want
+[21:49] to use the scaffolding to add some long
+[21:51] shadows to help break up the even
+[21:53] lighting.
+[21:56] [Music]
+[22:11] Currently, I'm seeing two bold focal
+[22:13] points that are heavily weighted to the
+[22:15] right side of my frame. I want to add
+[22:17] some set dressing for another focal
+[22:19] point in the center left of the frame.
+[22:21] And so, my eyline can bounce between
+[22:23] these focal points.
+[22:28] I hope you enjoyed this tutorial
+[22:30] walkthrough. And until next time,
+[22:36] [Music]

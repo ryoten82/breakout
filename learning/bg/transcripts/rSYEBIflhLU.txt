@@ -1,0 +1,277 @@
+[00:04] &gt;&gt; Hi, my name
+[00:04] is Matt Oztalay,
+[00:06] and I'm a Developer Relations
+[00:06] Technical Artist at Epic Games.
+[00:09] I helped out the Quixel team
+[00:09] with materials and performance
+[00:12] on their medieval game environment.
+[00:13] And today I want to
+[00:13] show you how we leverage
+[00:15] runtime virtual texturing
+[00:15] for our landscape material
+[00:18] and some really cool ways
+[00:18] you can use it yourself.
+[00:21] In the last video, I showed you
+[00:21] how I set up the landscape material
+[00:24] for the medieval game environment.
+[00:26] So if you haven't watched
+[00:26] that, be sure to check it out.
+[00:28] And don't forget to download the
+[00:28] project from the Unreal Engine
+[00:31] Marketplace So you can follow along.
+[00:33] We'll include some more
+[00:33] links in the description
+[00:35] where you can learn about runtime
+[00:35] virtual textures and their benefits,
+[00:39] including some blog posts
+[00:39] from my colleagues at Quixel.
+[00:42] To summarize, runtime
+[00:42] virtual textures
+[00:44] let you draw a bunch
+[00:44] of stuff, top down,
+[00:46] into a single really large texture
+[00:46] set without the huge memory
+[00:50] overhead that would normally incur.
+[00:52] For example, you can project your
+[00:52] road material onto your landscape
+[00:55] without any additional instructions
+[00:55] to draw the landscape itself.
+[00:58] For this project, we use two
+[00:58] runtime virtual texture assets--
+[01:02] RVT Landscape 01, which, if we open
+[01:02] up, can see it set to Base Color,
+[01:06] Specular Roughness, Normal,
+[01:06] and RVT Landscape Height 01,
+[01:10] which is set to World Height.
+[01:11] You can find these assets in the
+[01:11] Materials, Landscape, RVT folder.
+[01:16] In the world we have two
+[01:16] runtime virtual texture volumes,
+[01:19] one for each, and we made sure
+[01:19] to set the bounds to the size
+[01:23] of the landscape in the level.
+[01:24] The landscape actor itself is also
+[01:24] set to draw in both RVTs and Draw
+[01:30] in Main Pass is set to Always.
+[01:32] This means that the part
+[01:32] of the material that
+[01:34] outputs to virtual texture will
+[01:34] render into the virtual texture
+[01:37] associated with its volumes.
+[01:39] Then it will separately draw
+[01:39] itself into the main pass,
+[01:41] or what you can see on screen.
+[01:44] Let's take a look back at
+[01:44] the material, shall we?
+[01:46] To reiterate from
+[01:46] the last video, when
+[01:48] you're drawing to a
+[01:48] runtime virtual texture,
+[01:50] you don't have access
+[01:50] to anything dynamic--
+[01:53] no camera, no time, no
+[01:53] vectors, nothing like that.
+[01:56] So in our landscape material we split
+[01:56] up calculations into two parts--
+[02:01] the stuff we could do without
+[02:01] dynamic information and the stuff we
+[02:04] couldn't.
+[02:06] Firstly we output our
+[02:06] base landscape material
+[02:08] to the runtime virtual texture output
+[02:08] node for all the relevant data.
+[02:13] All of these are
+[02:13] calculations that we can
+[02:14] do without any information about the
+[02:14] player, camera, time, vectors, et
+[02:18] cetera, since all that information
+[02:18] isn't available when we're
+[02:21] drawing runtime virtual textures.
+[02:23] This includes the slight offsets
+[02:23] we do to the landscape height,
+[02:26] since the world position
+[02:26] of the landscape
+[02:28] pixel we'd output to
+[02:28] the virtual texture
+[02:30] doesn't account for
+[02:30] World Position Offset.
+[02:33] Next we added a switch here to ensure
+[02:33] that if the hardware were running on
+[02:37] Doesn't Support Virtual Texturing,
+[02:37] we can still draw our material.
+[02:41] In this case, we just pipe
+[02:41] our earlier calculations out
+[02:44] to the rest of the material.
+[02:46] The other input to this is the
+[02:46] runtime virtual texture sample
+[02:49] parameter.
+[02:50] For this we just need to sample
+[02:50] the stuff we already drew
+[02:53] into the runtime virtual texture.
+[02:55] By default, I set this
+[02:55] to the RVT landscape,
+[02:57] as we mentioned earlier, since
+[02:57] we don't need any world height
+[03:00] information in this material.
+[03:02] That's really all there is to it.
+[03:04] Do the heavy, nondynamic
+[03:04] calculations for your material,
+[03:07] and output them to a
+[03:07] runtime virtual texture.
+[03:09] Then read those values back
+[03:09] from the runtime virtual texture
+[03:12] to create your final material.
+[03:14] That's not all we used
+[03:14] runtime virtual texturing
+[03:16] for in this project, though.
+[03:18] The great thing about
+[03:18] them is that we now
+[03:20] have color information for any
+[03:20] xy coordinate within the volume
+[03:24] that we can access
+[03:24] as a texture lookup
+[03:26] instead of trying to calculate it.
+[03:28] We also know the z position of the
+[03:28] landscape from our world height RVT.
+[03:33] Armed with that
+[03:33] information, we can set up
+[03:35] materials that will
+[03:35] blend into the landscape
+[03:37] without any additional
+[03:37] decals or draw calls,
+[03:40] or manually setting up anything.
+[03:42] You can see how we did
+[03:42] that in M blend master.
+[03:45] Let's take a look at how you
+[03:45] can add this functionality
+[03:47] to your own materials, though.
+[03:49] I'll start with the M standard
+[03:49] master material and make a copy of it
+[03:53] called M My Bendable Master Material.
+[03:56] I'll open that up, and in
+[03:56] the Materials Details panel
+[03:59] I'll check the Use Material
+[03:59] Attributes checkbox.
+[04:04] To get started, I'll direct the
+[04:04] albedo, specular, roughness,
+[04:07] and normal calculations to
+[04:07] their corresponding inputs
+[04:10] on a set material attributes node.
+[04:17] Then I'll set up a runtime virtual
+[04:17] texture parameter and target RVT
+[04:21] landscape as the default value.
+[04:22] Since the runtime virtual texture
+[04:22] parameter node uses world position
+[04:26] as an input, there's
+[04:26] nothing else we need
+[04:28] to do to sample the corresponding
+[04:28] position in the landscape RVT.
+[04:32] I'll drag off the base
+[04:32] color, specular roughness,
+[04:34] and normal outputs, and pipe those
+[04:34] into a set material attributes
+[04:38] node as well.
+[04:39] Next, I'll input both the base
+[04:39] material and the landscape
+[04:42] information into a blend
+[04:42] material attributes node.
+[04:45] Lastly, we'll figure out when and how
+[04:45] we want to blend with the terrain.
+[04:50] My goal here is to smoothly
+[04:50] blend between our base
+[04:53] material and the landscape
+[04:53] material within a certain range
+[04:56] of the landscape.
+[04:57] As we get closer to the
+[04:57] landscape, we should
+[04:59] be seeing more of the landscape
+[04:59] and less of the base material.
+[05:03] We can do that really easily
+[05:03] since we know the world height
+[05:06] position of the landscape from
+[05:06] the other runtime virtual texture.
+[05:10] I'll make another runtime
+[05:10] virtual texture sample parameter
+[05:13] and target the RVT height by default.
+[05:13] I don't want to use an if node here
+[05:17] since that'll create
+[05:17] a really harsh cutoff.
+[05:20] Instead, I want to create a smooth
+[05:20] gradient between the landscape's
+[05:24] height and a certain
+[05:24] distance away from that.
+[05:27] I'll make a scalar parameter
+[05:27] and call it blend distance.
+[05:30] We'll do a fairly simple
+[05:30] normalized range function here.
+[05:33] We already know the
+[05:33] range, blend distance.
+[05:35] I just need to bring the world
+[05:35] position z into that range.
+[05:39] And I can do that by subtracting
+[05:39] world height from world position z.
+[05:43] Next, I divide that by
+[05:43] blend distance, 1 minus it,
+[05:47] and finally saturate the value
+[05:47] so it stays between 0 and 1.
+[05:51] If I preview this on a
+[05:51] material in the world,
+[05:54] you can see that the value is 1 at
+[05:54] the intersection of the landscape,
+[05:57] and 0 about 64 units away
+[05:57] from the landscape's surface.
+[06:01] But wait.
+[06:02] Since the runtime virtual
+[06:02] texture is a top down projection,
+[06:05] this effect won't work
+[06:05] great on vertical surfaces.
+[06:08] It'll look like a UV error, or
+[06:08] something undesirable like that.
+[06:13] We can also use the vertex
+[06:13] normal world space.b value here,
+[06:17] since this value is telling us how
+[06:17] up the current pixel is pointing.
+[06:21] When it's pointing all
+[06:21] the way up, it'll be 1.
+[06:23] When it's pointing all the
+[06:23] way down, it'll be negative 1.
+[06:26] I want to make sure
+[06:26] that as the surface goes
+[06:28] to horizontal we don't blend at all.
+[06:30] There's a million different
+[06:30] ways you can solve this blend.
+[06:33] For now, it's easy enough for us to
+[06:33] saturate the value, since we're not
+[06:36] worried about blending any
+[06:36] surfaces that are pointing down,
+[06:39] and multiply that by the
+[06:39] height blend from earlier.
+[06:42] Finally, we can plug this value
+[06:42] into the blend material attribute's
+[06:45] alpha input.
+[06:47] Now, as I move this rock
+[06:47] around the landscape
+[06:49] it blends in near the edges.
+[06:51] But if I drop in this box, we don't
+[06:51] get any unwanted texture smearing.
+[06:56] I hope this video has
+[06:56] inspired you to start
+[06:58] using runtime virtual
+[06:58] texturing in your project.
+[07:00] And I can't wait to see
+[07:00] what you make with it.
+[07:02] If you want to learn more about
+[07:02] landscape materials in UE4,
+[07:05] I highly recommend you check
+[07:05] out Ben Cloward's video series
+[07:08] on the subject where he goes into
+[07:08] much greater detail about all
+[07:11] these concepts and more.
+[07:14] Be sure to check out the
+[07:14] Medieval Game Environment
+[07:16] project on the Unreal
+[07:16] Engine Marketplace
+[07:17] and see all the cool things you
+[07:17] can do with the landscape material
+[07:20] and runtime virtual textures.
+[07:22] Thanks for watching.

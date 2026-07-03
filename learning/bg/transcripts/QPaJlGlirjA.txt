@@ -1,0 +1,753 @@
+[00:00] hi everyone today we are going to create
+[00:02] a Fantasy Castle environment in a real
+[00:04] engine I'll be showing you some cool
+[00:06] techniques such as creating fog and
+[00:07] clouds and much more everything we using
+[00:10] in this environment tutorial is
+[00:11] completely free so without further Ado
+[00:14] let's get
+[00:15] [Music]
+[00:24] started as always we're going to create
+[00:26] a new project in the game section select
+[00:28] the blank template without any starter
+[00:31] content and give a project location I'm
+[00:34] going to give it desktop and also I'm
+[00:37] going to give a name something like
+[00:40] tutorial and hit create after creating a
+[00:44] new project this is how it's going to
+[00:46] look like so we are not going to use
+[00:48] this level so we have to create a new
+[00:50] level so to create a new level go to
+[00:53] file new level and I'm going to go with
+[00:56] the empty level and hit create
+[01:00] now as you can see we have this complete
+[01:02] empty level so first we're going to set
+[01:05] up our lightning to do that click on
+[01:07] this plus icon right here and here you
+[01:09] can see this place actors panel click on
+[01:13] this now as you can see we have this
+[01:14] place actors panel right here now click
+[01:17] on this lights icon and drag and drop
+[01:20] this directional light right here and
+[01:23] make sure to make it movable and also
+[01:25] drag and drop this Skylight right here
+[01:28] and also make it removable after that
+[01:31] here you can see this visual effects
+[01:33] icon click on this and drag and drop
+[01:36] this Sky atmosphere and also volumetric
+[01:40] cloud and exponential height fall after
+[01:43] that just close the place actors tab
+[01:46] like that so for now this is our basic
+[01:48] lightning setup so what I'm going to do
+[01:50] now I'm going to create a new folder
+[01:52] right here with the name of
+[01:57] lightning and I'm going to select all
+[01:59] all of these and drag and drop them into
+[02:02] our folder like that to keep everything
+[02:06] organized now we're going to save our
+[02:08] level to do that just hit crl s or you
+[02:11] can save that from here save all so I'm
+[02:13] going to hit just crl s and I'm going to
+[02:16] name it
+[02:18] main this is going to be our main level
+[02:22] and the content
+[02:24] save after that I'm going to do some
+[02:27] basic project settings to do that go to
+[02:29] edit
+[02:30] project
+[02:31] settings and in the map and modes I'm
+[02:34] going to change this uh editor startup
+[02:37] map from open world to main like that
+[02:40] and also make sure to change this game
+[02:42] default map to
+[02:45] main now hit contrl s so now we have our
+[02:49] basic level with some basic lightning
+[02:51] setle now we're going to create lscape
+[02:54] Now to create landscape right here you
+[02:56] can see this selection mode click on it
+[02:59] and here here you can see this landscape
+[03:01] just click on
+[03:03] it right here we just going to change
+[03:05] this section size from 63 to 127 like
+[03:09] that after that just hit
+[03:13] create as you can see we have this
+[03:15] landscape right here before sculpting
+[03:17] the landscape just go to selection mode
+[03:20] and in the plus icon just add basic
+[03:22] shape like
+[03:24] cylinder
+[03:25] and I'm going to scale it up like that
+[03:31] and this is going to represent our
+[03:33] character size now again in the
+[03:34] landscape mode right here you can see
+[03:36] all of the sculpting tool so I'm going
+[03:38] to use this one sculp tool right here
+[03:41] just select the tool and you can also
+[03:44] increase or decrease the strength ver
+[03:47] size and also fall
+[03:50] off like
+[03:51] that now to use cod tool is really easy
+[03:55] just hold the left Mouse button drag the
+[03:58] mouse like that if if you hold shift
+[04:00] then you can sculpt down like that so
+[04:04] right
+[04:05] now I'm going to raise this
+[04:09] all you can select the raise tool from
+[04:11] here
+[04:47] now you can also smooth this sculpt by
+[04:50] using this smooth tool right here as you
+[04:53] can see like that
+[05:40] for now this is our basic sculpt right
+[05:42] here later we're going to do some
+[05:43] modifications to that so first let's
+[05:46] just apply material to the landscape for
+[05:49] that I'm going to use the quisel bridge
+[05:51] for
+[05:53] material as you can see right here I'm
+[05:55] using this rock cliff material for the
+[05:58] landscape
+[05:59] if you want to use the same one you can
+[06:01] also download and use that I'm just
+[06:03] going to click on this add button right
+[06:05] here now in Unreal Engine just select
+[06:08] the landscape like that and press
+[06:10] control space in the mega
+[06:13] scan surfaces rock cliff you can see
+[06:17] this material right here just select the
+[06:20] material like that and in the properties
+[06:23] of this
+[06:25] landscape you can see this landscape
+[06:27] material right here just click on this
+[06:29] Arrow right
+[06:31] here now the tiling of this material as
+[06:34] you can see is too repetitive so we're
+[06:36] going to fix that just double click on
+[06:39] material instance like
+[06:42] that and uh right here you can see this
+[06:45] styling offset just click on it to
+[06:47] enable it and expand the tab like that
+[06:51] and just decrease the tiling of this
+[06:54] like
+[06:56] 01 and hit save
+[06:59] now as you can see it looks better than
+[07:01] before
+[07:40] now as you can see I modified my
+[07:42] landscape little bit now we're going to
+[07:44] import a castle to our project to do
+[07:46] that just open the EP game launcher now
+[07:49] in the EP game launcher here in
+[07:50] Marketplace search castle and select the
+[07:54] free filter right here now here you can
+[07:57] see this we have infinite play castle
+[08:00] right here just click on
+[08:02] it and add this to our project like that
+[08:07] I'm going to select my tutorial project
+[08:09] right here and click on add to project
+[08:13] before placing the castle I'm just going
+[08:15] to flatten this area select the flatten
+[08:20] tool and decrease intensity little bit
+[08:30] now let's just go to selection
+[08:34] mode control space and right here you
+[08:38] can see this environment pack and in the
+[08:41] blueprint you can see that we have this
+[08:44] uh EXT CLE right here and also we have
+[08:48] this main BP CLE right
+[08:50] here so first what I'm going to do I'm
+[08:53] going to just drag and drop this BP C
+[08:55] right
+[08:57] here as you can see we have this This
+[08:59] Small Castle right
+[09:01] here so the castle looks so small
+[09:05] compared to the landscape just scale the
+[09:07] castle up like
+[09:13] that just place the castle like that now
+[09:17] right here we're going to add this one
+[09:20] ppor exit Castle right
+[09:25] here now if we go back in the
+[09:28] environment pack right here and if you
+[09:30] select this static mesh filter here if
+[09:33] you don't see the static mesh filter you
+[09:35] can just enable them from here as you
+[09:38] can see this static mesh filter right
+[09:41] here now I'm going to enable the static
+[09:44] mesh filter like that and here we can
+[09:46] see some Cliff assets right
+[09:56] here now here we have this SM Bridge
+[09:58] right here just drag and drop this like
+[10:02] that and also scale it
+[10:27] up after that we're going to add
+[10:29] mountains to our project for the
+[10:31] mountains go to epic game
+[10:35] launcher in the Marketplace search
+[10:38] background
+[10:40] mountains and select the free filter
+[10:43] right here as you can see we have this
+[10:45] landscape backgrounds right here click
+[10:48] on it add to project show all project
+[10:53] and I'm going to select the tutorial one
+[10:55] as you can see we have this error called
+[10:58] asset not compatible with the 5.3
+[11:00] version so we just need to select from
+[11:03] 5.3 to 5.0 Early Access like that and
+[11:07] then add to project right there after
+[11:09] adding the mountage to our project just
+[11:12] open the content browser here you can
+[11:14] see we have this photo background folder
+[11:16] right
+[11:17] here and select the static mesh filter
+[11:20] like that now here you can see that we
+[11:23] have this background mountains right
+[11:25] here I'm going to increase the size of
+[11:27] the thumbnail from here
+[11:30] large now let's just place the mountains
+[11:33] in the scene
+[12:37] so after placing the Assets in the
+[12:38] random areas now we're going to add
+[12:41] water to our screen now to add water
+[12:43] first we need to enable the water plugin
+[12:45] so go to edit plugins and search water
+[12:50] and here just enable the water plug-in
+[12:52] like that and restart the engine like
+[12:55] that after restarting the engine just
+[12:58] click on this Plus icon right here and
+[13:00] search water here you can see the water
+[13:02] classes so we're going to use this water
+[13:05] body L just drag and drop this right
+[13:09] here now before expanding the water body
+[13:12] leg we have to make sure we disable this
+[13:15] effects landscape right here like
+[13:19] that now let's just expand the
+[13:23] water just grab this Pline point right
+[13:27] here and you can also add add the spline
+[13:30] Point by right clicking and add spline
+[13:33] point right
+[13:55] here now to fix the but right here just
+[13:59] select this water zone right here as you
+[14:02] can see this we have water zone right
+[14:04] here just select this and here in the
+[14:08] zone extent increase the size of the
+[14:11] Zone from here just like
+[14:19] that as you can see now it looks great
+[14:24] now if you want to change the color of
+[14:25] the water you can also do that just
+[14:27] select the water body leg like
+[14:30] that and in the details panel scroll
+[14:33] down a little
+[14:35] bit
+[14:37] and right here you can see that water
+[14:40] material just double click to open
+[14:43] it and also scroll down a little bit
+[14:48] like now right here you can see that
+[14:50] absorption and
+[14:52] scattering if you change the absorption
+[14:55] like that you can see that the water
+[14:58] color is
+[15:01] changing so I'm going to select the
+[15:05] blue and also I'm going to change this
+[15:08] one into blue like
+[15:16] that and hit
+[15:20] save and close this tab like
+[15:23] that now we're going to paint trees to
+[15:26] our landscape to do that go to epic game
+[15:30] launcher and right here search
+[15:34] landscape make sure to select the free
+[15:37] filter right
+[15:38] here and as you can see we have this
+[15:41] landscape Pro
+[15:43] 2.0 just click on it and add it to your
+[15:47] project it's completely free I'm going
+[15:50] to add this to my tutorial project now
+[15:53] after adding it to our project let's
+[15:55] just open the content browser like that
+[15:59] I'm going to deselect the static mesh
+[16:00] filter and I'm also going to decrease
+[16:04] the thumbnail size to medium and here
+[16:07] you can see this stdf folder right here
+[16:10] just double click to open it here just
+[16:13] select the static mesh
+[16:16] filter and right here I'm going to use
+[16:20] these SM pine trees as you can see we
+[16:22] have this five of
+[16:24] those so to paint the trees to our
+[16:27] landscape we have to go in folage mode
+[16:31] for that just click on the selection
+[16:33] mode right here and here you can see
+[16:35] this folage mode right here just click
+[16:38] on
+[16:39] it control
+[16:41] space and drag and drop these trees
+[16:44] right
+[16:47] here as you can see the density is too
+[16:50] much so I'm going to decrease the
+[16:52] density to something like uh
+[16:55] .1 and I'm also going to increase the
+[16:59] scale to something like two and three
+[17:03] yeah it looks great now let's just start
+[17:06] painting the trees all over the
+[17:24] landscape now after painting the trees
+[17:26] let's just change the lighting over it
+[17:28] to do that go to selection mode now in
+[17:31] the selection mode hold contrl L and
+[17:34] drag the mouse like that now you can
+[17:37] control the directional light now I'm
+[17:40] going to block the light from these
+[17:42] mountains to do that what I'm going to
+[17:44] do is I'm going to add the some shape
+[17:48] like Cube scale it up
+[17:56] like now if you face this sh Shadows
+[17:59] issue right here as you can see that at
+[18:01] a certain distance the Shadows
+[18:03] completely disappeared like that so to
+[18:07] fix that just in the console command
+[18:10] search r dot
+[18:15] Shadow
+[18:20] distance sorry Shadow dot
+[18:25] distance and scale and hit space and
+[18:30] type zero now if you go right here and
+[18:35] then we press enter as you can see it
+[18:37] looks completely fine right
+[18:39] [Music]
+[18:40] now now I'm going to block the
+[18:51] light I'm also going to block the light
+[18:54] right here
+[19:05] now let's just start working on
+[19:06] foreground before that let's just import
+[19:09] our character open the epic game
+[19:12] launcher and here search
+[19:16] Paragon now here you can see all of
+[19:19] these free Paragon characters right here
+[19:22] so I'm going to use this gry Stone so
+[19:25] just I'm going to click on it
+[19:28] and add to project
+[19:31] tutorial and add to project like that
+[19:34] okay so after importing the character
+[19:37] let's just open the content
+[19:40] browser and disable the static mesh
+[19:42] filter
+[19:44] and here you can see this Paragon gra
+[19:47] Stone right here just select the
+[19:49] skeleton mesh filter like that and I'm
+[19:53] going to use this one gone NOAB Bor you
+[19:56] can use whichever you like
+[19:59] I'm just going to drag and drop this
+[20:01] character right
+[20:03] here just scale the character like
+[20:07] little bit now let's just import the
+[20:09] assets to build our foreground now for
+[20:12] the assets I'm going to use the quickel
+[20:13] bridge as you can see I have already
+[20:15] downloaded the assets like this one also
+[20:19] this one rocking
+[20:27] ground now in the mega skins folder in
+[20:30] 3D assets select the static mesh filter
+[20:34] now right here you can see all of these
+[20:36] Mega skin assets let's just drag and
+[20:38] drop them and make our forr
+[21:29] okay so after placing the Assets Now I'm
+[21:31] going to paint a little bit folage now
+[21:33] for the folage I'm using this plant
+[21:35] right here as you can see I'm going to
+[21:38] import
+[21:42] it in the folage mode here you can see
+[21:46] I'm going to deselect all of these trees
+[21:48] like that and I'm going to select these
+[21:51] plants like
+[21:54] that increase the scale little bit
+[22:19] after that let's just save everything
+[22:21] control space save all and save
+[22:25] everything like that now let's just do
+[22:27] some post process work for that let's
+[22:30] just add postprocess volume click on
+[22:33] right here and in the visual effects add
+[22:37] postp process volume like that now while
+[22:40] selecting the postp process
+[22:42] volume right here in the details panel
+[22:45] of the post process volume search
+[22:50] Infinite here you can see this infinite
+[22:52] extent Unbound just enable this like
+[22:55] that now here search exposure now let's
+[22:58] just enable the metering mode like that
+[23:01] and change the auto exposure to manual
+[23:04] something like that and also enable the
+[23:06] exposure
+[23:08] compensation like that and give it a
+[23:10] value something like it after that
+[23:12] select the directional
+[23:14] light in the lightning select the
+[23:17] direction light and increase the
+[23:19] intensity like that and also you can
+[23:23] change the light color if you want and
+[23:26] press okay
+[23:28] then again select the postprocess volume
+[23:32] then in the image effect so here you can
+[23:34] see this regate and sharpen effect so
+[23:37] I'm going to add this right that can
+[23:40] increase or decrease the intensity like
+[23:43] that
+[23:44] also I'm going to add little bit sharpen
+[23:47] like that after that right here in the
+[23:51] color guarding section in global check
+[23:54] this saturation box right
+[23:56] here and increase a the saturation to
+[23:59] something like
+[24:01] 1.2 you can also add motion P if you
+[24:03] want so I'm going to add something
+[24:07] like2 and Target FPS will be
+[24:11] 24 for now we are done with this post
+[24:14] process volume now let's just select the
+[24:17] exponential height for right here we can
+[24:20] play with some settings of this
+[24:21] exponential he for like increase the
+[24:24] density little bit something like that
+[24:37] after that select the lightning P like
+[24:39] back and in the plus icon right here and
+[24:44] lights here we can add Spotlight like
+[24:50] that let's just drop this Spotlight in
+[24:54] our lights folder like that
+[24:59] grab the SP light right
+[25:03] here rotate it like that let's just
+[25:07] increase the radius of this Kong like
+[25:10] that now increase the intensity I'm
+[25:14] going to type something 10,000 for
+[25:20] now
+[25:22] 100,000 we can also increase the radius
+[25:25] if you want like uh 25,000
+[25:30] right here you can also change the light
+[25:32] color if you want I'm going to change it
+[25:34] to something like blue little
+[25:37] bit now what I'm going to do is go to
+[25:40] folage mode and Des select all of these
+[25:43] folage and I'm going to select ra like
+[25:47] that and decrease the brush
+[25:56] size now I'm going to paint some trees
+[25:58] to block the
+[26:01] light let's just increase the intensity
+[26:04] little bit more select the
+[26:08] spotlight and I'm going to increase this
+[26:11] to something like one and type one more
+[26:15] zero we can also change the source
+[26:18] radius as you can see the shadow looks
+[26:20] too
+[26:23] sharp okay so after that right here you
+[26:26] can see I added a cube to block the
+[26:30] light okay so after that we're going to
+[26:32] create fog and some clouds to add extra
+[26:34] depth to our scene now what I'm going to
+[26:37] do I'm going to create a new folder
+[26:39] right
+[26:40] here I'm going to name it
+[26:42] fog and right here I'm going to create a
+[26:45] new
+[26:46] material and I'm going to name it mcore
+[26:51] fog double click to open the
+[26:54] material right here change the blend
+[26:57] mode from OPAC to translucent like that
+[27:01] now we're going to add some nodes now to
+[27:03] add nodes in material editor just right
+[27:05] click and search
+[27:08] gradient exponential here you can see
+[27:11] that we have this radial gradient
+[27:14] exponential just click on it like that
+[27:18] now we can add multiply node now to add
+[27:20] multiply node you can right click and
+[27:22] search multiply like that or you can
+[27:25] hold M and press left Mouse button like
+[27:28] that after that I'm going to add depth
+[27:31] fed right click and search depth fed
+[27:34] like
+[27:35] that now let's just plug the depth fade
+[27:39] in the B section of multiply and Radial
+[27:42] exponential in a now the multiply into
+[27:46] opacity and also plug the base color of
+[27:49] this material into radial
+[27:51] exponential like that now to control
+[27:54] that opacity and depth fed we're going
+[27:56] to add parameters to add parameters hold
+[27:59] s and press left Mouse button like that
+[28:02] and I'm going to name it
+[28:07] opacity and again hold as and left Mouse
+[28:10] button and I'm going to name it fade
+[28:18] distance plug it like that and give them
+[28:22] our default value something like
+[28:25] one and now you can see that we have
+[28:27] this this nice
+[28:30] looking fog right here just apply
+[28:35] it and I'm going to do this layout right
+[28:38] here now we're going to create a
+[28:40] material instance of this fog material
+[28:42] right here right click create material
+[28:46] instance so that we can double click and
+[28:49] change the F distance opacity from here
+[28:51] without going into material
+[28:54] editor so I'm going to close it for now
+[29:00] let's just add a plane in the shapes
+[29:05] plane and scale it like that and select
+[29:10] the fog material instance and also
+[29:13] select the plane and here you can see
+[29:16] that materials just click on this Arrow
+[29:18] right here now we have this cool looking
+[29:22] fog right here
+[29:30] now you can see those sharp edges and
+[29:32] also the opacity is too much so I'm just
+[29:34] going to open the material instance like
+[29:38] that and I'm going to increase the fit
+[29:41] distance something like that
+[30:03] now I'm going to create some more
+[30:04] variations of this fog now to do that
+[30:07] I'm going to duplicate this fog
+[30:09] material duplicate like that double
+[30:13] click to open
+[30:15] it I'm going to close this first one and
+[30:19] right here what I'm going to do is open
+[30:22] the content browser and here you can see
+[30:25] this engine folder right here if you
+[30:27] don't see the engine folder right here
+[30:29] just go to settings and make sure to
+[30:32] enable this show engine
+[30:35] content and go to engine folder and
+[30:39] right here search
+[30:41] noise if you scroll down a little bit
+[30:43] right here and here you can see this
+[30:46] tiling noise 05 just drag and drop this
+[30:49] texture like
+[30:51] that and add another multiply
+[30:56] node just plug the multiply right here
+[31:00] and RGB into a section and the multiply
+[31:04] in
+[31:08] opacity after that in a fog material
+[31:10] let's just create a material instance of
+[31:13] this fog right
+[31:15] here and I'm going to duplicate This
+[31:19] Plane by holding
+[31:21] [Music]
+[31:23] all then I'm going to add this fog work
+[31:27] one right here as you can see we have
+[31:31] this cool looking for now what I'm going
+[31:34] to do I'm going to scale it like
+[31:39] that and to fix these edges I'm going to
+[31:42] increase the fade
+[31:45] distance something like
+[31:49] that and also you can increase or
+[31:51] decrease opacity
+[32:10] now we can animate this fog right here
+[32:12] for that just open the material fog one
+[32:17] right here
+[32:19] and we can animate the UVS of this
+[32:22] texture map right here to do that just
+[32:25] add panel right click and search panel
+[32:31] and plug the panel into
+[32:33] UVS and we just need to animate this
+[32:36] speed right here so to do that just
+[32:40] add
+[32:42] parameter I'm going to name it
+[32:47] speed plug this like that and I'm going
+[32:50] to give a value something like
+[32:53] 01 and hit apply now you can see that
+[32:57] the for is animated but the speed looks
+[33:00] too much so I'm going to change it to
+[33:02] something like
+[33:06] uh1 like that and hit apply now it looks
+[33:12] St now let's add level sequencer to our
+[33:15] scene now to add level sequencer just
+[33:18] click on this icon right here and click
+[33:21] on ADD level
+[33:23] sequencer I'm going to create a new
+[33:25] folder right here and I'm going to name
+[33:28] level
+[33:28] sequencer levelor
+[33:32] SQ
+[33:34] sorry level sequencer and I'm going to
+[33:37] save this level sequencer right here now
+[33:40] we're going to add camera to add camera
+[33:42] just click on this plus icon right here
+[33:44] and search
+[33:46] camera as you can see this C camera
+[33:49] actor just drag and drop this right here
+[33:54] and I'm going to set the viewp put like
+[33:56] uh that
+[33:58] and just right click on camera and snap
+[34:01] object to view like that then drag and
+[34:05] drop this in camera actor into our level
+[34:07] sequencer like that now we're going to
+[34:09] do some camera settings so first we're
+[34:11] going to change the digital film to
+[34:14] DSLR something like that and also make
+[34:18] sure to change this current aperture to
+[34:20] something like
+[34:22] four and also I'm going to decrease the
+[34:24] focal length for something like uh
+[34:30] 18 and also we can change the frame rate
+[34:33] to 24 something like there now let's
+[34:37] just animate the
+[34:39] camera I'm going to go right
+[34:44] here and right here I'm going to add a
+[34:46] transform key frame by clicking here
+[34:49] then navigate this line to the last
+[34:52] frame like that and move the camera a
+[34:55] little bit closer now let's just add
+[34:58] another transform key frame right
+[35:04] here we can also increase the timeline
+[35:07] length if you want write that to
+[35:10] something like 240 let's just increase
+[35:13] the camera cuts to
+[35:17] 40 like that and also drag this key
+[35:21] frame right here and also we're going to
+[35:24] change the interpolation mode of these
+[35:26] key frames just select both of these key
+[35:30] frames like that and right click and
+[35:33] change this from cubic to
+[35:36] linear like that now it looks great now
+[35:40] let's just animate the character now to
+[35:42] animate the character is really easy so
+[35:45] to do that just select the character
+[35:47] like that just drag and drop this into
+[35:49] our sequencer and here you can see this
+[35:52] animation tab right here just click on
+[35:54] this plus
+[35:55] icon and right here search
+[36:00] idle as you can see we have this idle
+[36:02] animation sequencer right here just
+[36:05] click on it and now you can see that the
+[36:09] character is animated
+[36:12] now now we can to animate the outfit of
+[36:15] this character to do that I'm going to
+[36:18] add wind search wind right
+[36:25] here just navigate right here
+[36:28] and search
+[36:30] wind just drag and drop this wind
+[36:33] directional Source like that make sure
+[36:36] this arrow pointing right at character
+[36:39] like
+[36:42] this after that I'm going to increase
+[36:44] the speed to something like 0.5 and
+[36:49] also increase the strength to something
+[36:53] like2 now to see the results you can
+[36:56] click on this three Dot right here and
+[36:59] just click on simulate like
+[37:02] that now you can see that the cloths are
+[37:05] animated
+[37:07] now as you can see you can also increase
+[37:10] or decrease the speed if you
+[37:12] want like uh if you want to increase a
+[37:15] some speed to something
+[37:19] like9 you can do that also as you can
+[37:21] see it looks great
+[37:24] now now before rendering I'm going to
+[37:26] add dragon and burs to to my scene to do
+[37:28] that I'm going to open the epicam
+[37:30] launcher again and in the marketplace
+[37:32] I'm going to
+[37:33] search
+[37:37] creature something like that and I'm
+[37:40] going to select this free filter right
+[37:43] here and here you can see that fantasy
+[37:45] creatures pack for free just click on it
+[37:49] and add it to project like that I'm
+[37:52] going to add this to my
+[37:54] tutorial now for the bir I'm going to
+[37:56] search
+[37:59] animal and just click on this free
+[38:01] filter right
+[38:03] here now you can see these animal
+[38:05] variety pack right here just click on
+[38:09] it and you can see that we have these
+[38:12] birds right here just add it to project
+[38:16] like that after adding them into our
+[38:19] project just open the content
+[38:21] browser and here you can see this
+[38:23] creatures folder right here just click
+[38:26] on it now here you can see this mountain
+[38:29] dragon folder double click to open it
+[38:32] and right here just select this skeleton
+[38:34] mesh filter like that now just drag and
+[38:38] drop this dragon and our scene like that
+[38:42] and I'm also going to drag and drop this
+[38:44] Dragon into my sequencer like
+[38:50] that now let's just increase the scale
+[38:53] of this Dragon something like that
+[38:59] now right here I'm going to add a
+[39:00] transform key frame something like that
+[39:03] now at the end of the timeline right
+[39:07] here I'm going to move the
+[39:10] dragon right here let's just add a
+[39:14] transform key frame also make sure to
+[39:16] change the interpolation mode to linear
+[39:19] something like
+[39:21] that now as you can see the location of
+[39:23] this dragon is animated now we just need
+[39:26] to add animation to our Dragon to add
+[39:29] animation we going to select this
+[39:31] animation plus icon right here and here
+[39:35] we just need to add this fly normal this
+[39:41] one like that and move this animation in
+[39:46] right here and just increase it like
+[39:51] that now as you can see the dragon is
+[39:55] animated now to add Birds we going to
+[39:57] use this uh animal variety pack right
+[40:02] here as you can see we have this grow
+[40:05] select this skeleton mesh drag and drop
+[40:07] the scroll right
+[40:10] here increase the scale a little bit and
+[40:14] I'm also going to drop this SC right
+[40:17] here I'm going to add a key frame and
+[40:20] also at the end of the timeline change
+[40:23] this change the location of this screw
+[40:25] like that
+[40:28] and I'm going to add a transform key
+[40:30] frame make sure to change the
+[40:32] interpolation mode
+[40:35] again now make sure to add an animation
+[40:38] just click on this plus icon right here
+[40:40] and I'm going to add this fly animation
+[40:43] to our
+[40:48] cow also increase the animation like
+[40:51] that
+[40:57] as you can see we have this animated
+[40:59] Crow right here looks great now at the
+[41:03] end we're going to render our scene
+[41:04] through movie render CU to do that first
+[41:06] we need to enable movie render CU plugin
+[41:09] now go to
+[41:10] edits plugins and here search movie
+[41:13] render
+[41:15] que movie
+[41:17] render here you can see this movie
+[41:19] render CU plugin right here just enable
+[41:22] it and restart now make sure to save
+[41:25] everything like that
+[41:28] after restarting it just open the level
+[41:30] sequencer again double click to open
+[41:35] it switch to the C camera actor like
+[41:38] that now let's just click on this render
+[41:41] icon right
+[41:43] here now here you can see this movie
+[41:45] render CU tab now we're going to do some
+[41:48] basic settings to render our scene just
+[41:50] click on this unsaved
+[41:53] config first I'm going to delete this
+[41:55] jpex sequence like that and and click on
+[41:57] this settings icon right here and add
+[42:00] PNG
+[42:02] sequence again click on this settings
+[42:04] icon right here and add nlaz in like
+[42:08] that here I'm going to change this
+[42:10] temporal sample count to something like
+[42:12] 32 you can also change it to 64 if you
+[42:14] want but it is going to double up your
+[42:16] renting time so I'm going to change it
+[42:19] to something like 32 and make sure to
+[42:22] enable this override intering like that
+[42:25] and also in advance
+[42:27] I'm going to add 120 warm up counts
+[42:30] something like that after that in the
+[42:33] output you can change the output
+[42:35] directory if you want you can also give
+[42:38] it a location something like that here
+[42:40] you can change the resolution and also
+[42:42] frame rate after that click on
+[42:45] accept and render local thank you so
+[42:48] much for following along if you found
+[42:50] this tutorial helpful Please share my
+[42:52] content and subscribe to my channel
+[42:54] happy creating and I'll see you in the
+[42:56] next video

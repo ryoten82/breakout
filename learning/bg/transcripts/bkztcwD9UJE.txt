@@ -1,0 +1,490 @@
+[00:04] &gt;&gt; Hi, my name is Matt Oztalay.
+[00:05] And I'm a developer relations
+[00:05] technical artist at Epic Games.
+[00:08] I helped out the Quixel team
+[00:08] with materials and performance
+[00:11] on their Medieval Game Environment.
+[00:13] And today, we're going
+[00:13] to talk about how
+[00:14] we improved the performance of the
+[00:14] project with a few simple changes
+[00:17] that didn't dramatically
+[00:17] impact the visuals.
+[00:20] In the last video,
+[00:20] we talked about how
+[00:22] we establish our benchmarks
+[00:22] and budgets, tested performance
+[00:25] consistently, analyzed performance
+[00:25] to highlight problem areas,
+[00:29] and how you can apply these
+[00:29] principles to your project.
+[00:32] In this video, we'll talk about
+[00:32] how we diagnosed performance issues
+[00:35] with our lights and shadows,
+[00:35] and how I resolved them.
+[00:38] First, let's look at our performance
+[00:38] captures from the last video.
+[00:41] If you haven't watched that
+[00:41] video, be sure to go back
+[00:43] and take a look to learn a
+[00:43] bit more about Unreal Insights
+[00:46] and how we gathered this data.
+[00:48] If I dive into these numbers,
+[00:48] I see that two of the numbers
+[00:51] are a bit bigger than I planned for.
+[00:54] And those are Lights and ShadowDepths
+[00:54] in a lot, but not all of our shots.
+[00:59] This tells me that we might
+[00:59] have some dynamic lights that
+[01:02] are visible in some
+[01:02] places, but not others,
+[01:04] and that some shots may have
+[01:04] a lot of stuff casting shadows
+[01:07] that may be causing
+[01:07] some of those issues.
+[01:09] Let's dive into the
+[01:09] lights first since this
+[01:11] may help our shadow
+[01:11] performance as well.
+[01:14] Digging into the
+[01:14] performance captures I
+[01:16] see that Lights take up a
+[01:16] disproportionate amount of time
+[01:19] in this shot here.
+[01:20] I'll raise the console command
+[01:20] input with the tilde key,
+[01:23] and run the console
+[01:23] command, stat gpu.
+[01:26] Yep, that's still high.
+[01:28] I know we have a few dynamic
+[01:28] point and spotlights in the scene,
+[01:30] but how will I know which
+[01:30] ones are causing issues?
+[01:33] I should mention that we have dozens
+[01:33] of these different stat commands.
+[01:36] And you can read all about them
+[01:36] in the links we've provided below.
+[01:39] The stat gpu happens to
+[01:39] be a favorite of mine
+[01:41] since it gives you an overview of
+[01:41] the costs of different rendering
+[01:44] features.
+[01:45] For this though, I'll
+[01:45] use the GPU Profiler.
+[01:47] It's a lightweight
+[01:47] little utility that
+[01:49] color-codes and graphs out everything
+[01:49] we did to render the frame.
+[01:52] I can either press
+[01:52] Control-Shift-Comma to invoke it
+[01:55] or the console command, profile GPU.
+[01:57] That raises this
+[01:57] window, which gives us
+[01:59] a visual breakdown showing the
+[01:59] relative timings of rendering
+[02:02] features.
+[02:03] I'll sometimes use the GPU Profiler
+[02:03] before jumping into something
+[02:06] more detailed like Render
+[02:06] Doc, because sometimes I
+[02:08] can learn everything I
+[02:08] need to just from here.
+[02:10] The Scene value here is how long
+[02:10] it took to render the scene.
+[02:14] I'll expand that value out, and
+[02:14] we can see the major passes here.
+[02:17] I want to expand Lights.
+[02:19] And here, I can see
+[02:19] shadowed and nonshadowed
+[02:22] casting dynamic lights that
+[02:22] are affecting this frame.
+[02:25] While almost all of those lights are
+[02:25] the more expensive shadow casters,
+[02:29] I can expand the ShadowedLights
+[02:29] section a bit further.
+[02:31] And it will show me each light
+[02:31] and how long each light took
+[02:34] to render shadows for.
+[02:36] I can even double-click on the
+[02:36] lights to select them in the scene.
+[02:39] There's a few causes for
+[02:39] lights to be expensive.
+[02:41] And I'll show you
+[02:41] the five that came up
+[02:43] while we were building this scene.
+[02:45] Firstly, there are these point
+[02:45] lights here in the forge.
+[02:48] They're casting shadows, but
+[02:48] because of how parts of the forge
+[02:51] are occluded, we can
+[02:51] really only see the effects
+[02:53] of this light when we're up close.
+[02:54] For this one, I set
+[02:54] the Max Draw Distance.
+[02:57] So it isn't considered at
+[02:57] all beyond a certain range--
+[03:00] and the Max Distance
+[03:00] Fade Range so that it
+[03:03] increases in power as
+[03:03] we approach it instead
+[03:05] of sharply turning on and off.
+[03:08] Secondly, we've got this light here
+[03:08] that's used in our end sequence
+[03:11] cinematic moment.
+[03:12] If you look, we're paying
+[03:12] to render the light.
+[03:14] But look here, the Intensity is 0.
+[03:17] This one's easy.
+[03:18] I just went into the
+[03:18] Sequence for that end moment
+[03:20] and added a Visibility
+[03:20] Track to turn on the light
+[03:23] before we ramped it up and set
+[03:23] the light's default Visibility
+[03:26] and Hidden In-Game to Off.
+[03:29] Thirdly, there's this
+[03:29] spotlight here that I
+[03:31] know the artists are using to really
+[03:31] sell the burned down building.
+[03:34] But its Attenuation Radius
+[03:34] is really quite high.
+[03:37] That means we're trying to resolve
+[03:37] the light and cast shadows for it
+[03:41] from here in the center of
+[03:41] the village, all the way
+[03:43] through the tree line and beyond.
+[03:45] We can bring in the
+[03:45] Attenuation Radius of the light
+[03:47] quite a bit so that it's only
+[03:47] affecting the parts of the scene
+[03:50] that it needs to.
+[03:51] And of course, I'll
+[03:51] set its Fade values.
+[03:54] Fourthly, there's this really subtle
+[03:54] fill light we added to the area
+[03:59] behind the house.
+[03:59] Its radius is already
+[03:59] pretty low, and it
+[04:02] looks like the artists set
+[04:02] the Fade values already.
+[04:04] But it's casting shadows,
+[04:04] even though there's not
+[04:07] much to cast shadows
+[04:07] from in its radius.
+[04:10] So I'll just turn that off.
+[04:12] Finally, I saw the lights from these
+[04:12] lantern blueprints in our captures.
+[04:16] I know the artists wanted these to
+[04:16] be a bit more of a dynamic element.
+[04:19] For example, they can sway
+[04:19] back and forth in the breeze,
+[04:21] but the light had a function on it.
+[04:23] I knew that light functions
+[04:23] are particularly expensive
+[04:25] and should be used sparingly
+[04:25] because it automatically
+[04:28] treats the light as if it was
+[04:28] shadow-casting and dynamic.
+[04:31] That function, for example,
+[04:31] was only flickering
+[04:34] the light intensity, which
+[04:34] isn't the most optimal use
+[04:36] for a light function.
+[04:37] Instead, and since
+[04:37] this blueprint already
+[04:40] ticks to drive this swaying motion,
+[04:40] I used a timeline to randomly
+[04:44] modulate the intensity of the light
+[04:44] as if the candle was flickering.
+[04:47] And I will definitely set the
+[04:47] Fade Distances on this light.
+[04:52] Armed with all of these different
+[04:52] cases where we weren't using lights
+[04:55] as efficiently as we could,
+[04:55] I trawled through the scene
+[04:58] to make sure each and every light
+[04:58] had Fade Distance set and appropriate
+[05:01] Attenuation Radius.
+[05:03] Made sure we're using light
+[05:03] functions effectively.
+[05:05] For example, the light from the
+[05:05] well has a caustic effect on it
+[05:08] and has a fairly low
+[05:08] Attenuation Radius.
+[05:10] And ensure that only the lights that
+[05:10] really need to, are casting shadows.
+[05:15] These aren't hard-and-fast rules
+[05:15] by any stretch of the imagination.
+[05:18] There are plenty of
+[05:18] factors that could
+[05:20] change how you'd approach optimizing
+[05:20] dynamic lights for your scene.
+[05:23] And you should take into account
+[05:23] the specific needs of your project.
+[05:26] This is just what
+[05:26] worked great for us.
+[05:29] Oh, hey, speaking of shadows, let's
+[05:29] talk about the direction of light.
+[05:32] In many cases, you'll
+[05:32] be going along working
+[05:35] on your very large open-world scene.
+[05:37] Everything's looking
+[05:37] great, and you've never
+[05:39] made anything more beautiful.
+[05:41] You start testing your scene, climb
+[05:41] to the top of the mountain, and--
+[05:44] oh, what's that?
+[05:46] Your shadows have a hard stop,
+[05:46] weighs off in the distance.
+[05:49] That's all right, you think,
+[05:49] because you know that you can just
+[05:52] raise the dynamic shadow distance
+[05:52] on your Directional Light
+[05:55] and you get your shadows back.
+[05:56] See?
+[05:56] Perfect.
+[05:57] Except now you're running
+[05:57] about 15 frames per second,
+[06:00] and you haven't even
+[06:00] started drawing shadows out
+[06:02] far enough to grab the mountains
+[06:02] on the other side of the valley.
+[06:05] Worse still, the shadows close
+[06:05] to the camera are now blurry.
+[06:08] What's going on here?
+[06:10] In Unreal, dynamic shadows cast
+[06:10] by the Directional Light use
+[06:13] what's called Cascading Shadow Maps.
+[06:16] Basically, we break up the
+[06:16] scene forward from the camera
+[06:19] into a number of Cascades, which
+[06:19] are controlled by the Directional
+[06:22] Light of a certain size.
+[06:23] Then we draw a depth map from the
+[06:23] point of view of the Directional
+[06:26] Light and use the
+[06:26] information to figure out
+[06:28] what is or is not in shadow.
+[06:31] Let's take a look at
+[06:31] this sample scene.
+[06:32] We've got four Cascades, a
+[06:32] Dynamic Shadow Distance of 10,000,
+[06:36] and a Distribution Exponent of 1.
+[06:38] This means that roughly each
+[06:38] Cascade covers 2,500 units.
+[06:42] I've spaced out each of these trees
+[06:42] so that there's only one per Cascade
+[06:46] along with a tree nearby to cast
+[06:46] some noisier shadows close to us.
+[06:49] As I increase the Dynamic
+[06:49] Shadow Distance to get shadows
+[06:52] on those further trees,
+[06:52] we can see the shadows
+[06:54] cast from the nearby
+[06:54] tree start to get blurry.
+[06:57] We're effectively decreasing the
+[06:57] Texel Density of our shadows.
+[07:00] To solve this, I could increase
+[07:00] the number of Cascades.
+[07:04] That way, more Cascades would
+[07:04] cover the same distance,
+[07:06] thereby bringing my shadow
+[07:06] Texel Density back up.
+[07:09] This method has the drawback of
+[07:09] increasing both the memory needs
+[07:12] and taking more time to render.
+[07:14] I could tweak the
+[07:14] Distribution Exponent
+[07:16] to prioritize resolution on
+[07:16] shadows nearer the camera.
+[07:19] But we're still drawing dynamic
+[07:19] shadows way off in the distance.
+[07:23] I can't really see the details of
+[07:23] the tree swaying in its shadow,
+[07:26] let alone the shadows
+[07:26] of the individual
+[07:28] leaves as if they flicker.
+[07:30] But I'm still paying to draw
+[07:30] them, which is my cue that there's
+[07:33] probably a better way to do this.
+[07:35] The good news is that
+[07:35] there's a better way
+[07:37] to handle shadows of
+[07:37] distant objects that
+[07:39] uses pre-computed mathematical
+[07:39] representations of static geometry
+[07:43] to cast shadows instead of
+[07:43] the polygons and materials.
+[07:46] These are called
+[07:46] Distance Field Shadows.
+[07:48] There are two trade-offs
+[07:48] with this method that I
+[07:50] think you should keep in mind.
+[07:51] One, since we don't compute a
+[07:51] Meshes Distance Field at runtime,
+[07:55] World Position Offset
+[07:55] effects won't be visible.
+[07:58] But at the distances where we
+[07:58] employ Distance Field Shadows,
+[08:01] this will be negligible.
+[08:03] Two, each static mesh will have some
+[08:03] additional memory overhead attached
+[08:07] to it to account for its
+[08:07] Distance Field representation.
+[08:09] For lower-resolution Distance
+[08:09] Fields this can be negligible
+[08:13] but can increase exponentially
+[08:13] as more definition is required.
+[08:16] We'll need to set Generate
+[08:16] Mesh Distance Field to True
+[08:19] in our Project Settings.
+[08:20] And I'll leave some
+[08:20] links in the description
+[08:22] so you can learn more
+[08:22] about Mesh Distance
+[08:24] Fields and all the really cool
+[08:24] effects that you can do with them.
+[08:27] When I set this up for our project,
+[08:27] I brought the Dynamic Shadow Distance
+[08:30] in to really close to the camera.
+[08:32] We were taking a big performance
+[08:32] hit, drawing so many Actors
+[08:35] in our dynamic shadows.
+[08:36] So I wanted to make
+[08:36] sure we were getting
+[08:38] what we paid for, so to speak.
+[08:40] I activated Distance Field Shadows
+[08:40] on the Directional Light as well.
+[08:43] Since Distance Field
+[08:43] Shadows will cover
+[08:45] the gap between our Dynamic Shadow
+[08:45] Distance and the Distance Field
+[08:48] Shadow Distance, I set that value to
+[08:48] be about as far away from the camera
+[08:51] as the back row of
+[08:51] trees is from here.
+[08:53] I just scooted the
+[08:53] distance up until I just
+[08:57] started to see the shadows where I
+[08:57] wanted them, and not a unit further.
+[09:01] This leaves out, however, the
+[09:01] mountains off in the distance.
+[09:04] I don't want to use Distance
+[09:04] Field Shadows to reach them
+[09:06] since they're so far away from the
+[09:06] rest of the stuff in the scene.
+[09:09] And we can't see the
+[09:09] shadows between here
+[09:11] and there, either, because
+[09:11] they're covered by the tree line.
+[09:14] I've got one last trick up my
+[09:14] sleeve, and that's the Far Cascade.
+[09:18] It's an additional
+[09:18] Cascading Shadow Map
+[09:20] that covers the distance between the
+[09:20] Distance Field Shadows and the Far
+[09:23] Cascade Distance.
+[09:24] By default, this value
+[09:24] is set really high.
+[09:27] So how do we make it more performant?
+[09:29] Well, we do that by limiting
+[09:29] the number of Actors
+[09:31] included in the Far Cascade.
+[09:33] Whereas dynamic shadows
+[09:33] are opt-out, you
+[09:36] have to turn off shadows on an
+[09:36] Actor, the Far Cascade is opt-in.
+[09:40] You must choose which
+[09:40] Actors cast Far Shadows.
+[09:43] First, in the Directional Light, I'll
+[09:43] set the number of Far Cascades to 1.
+[09:47] For this project, I knew that
+[09:47] I wanted the mountains off
+[09:50] in the distance to cast shadows
+[09:50] on themselves and each other.
+[09:53] So we'll select those Actors and
+[09:53] click the Far Shadow checkbox.
+[09:56] Finally, I tuned the
+[09:56] Far Shadow Distance
+[09:58] to ensure those mountains
+[09:58] were casting shadows.
+[10:01] This pushed the distance out a little
+[10:01] further than the default. However,
+[10:04] this was significantly less expensive
+[10:04] than any of the alternatives.
+[10:08] I used the same method I described
+[10:08] with Distance Field Shadows.
+[10:11] I just slowly pushed the distance
+[10:11] up until I got the shadows I wanted.
+[10:15] So to summarize, it's
+[10:15] best to use Cascading
+[10:18] Shadow Maps closer to the camera for
+[10:18] highly-detailed or moving shadows.
+[10:22] If you can afford the memory
+[10:22] overhead in your project,
+[10:25] you can use Distance
+[10:25] Field Shadows to extend
+[10:27] the distance at which
+[10:27] dynamic shadows are rendered
+[10:30] but at a lower level of detail.
+[10:32] Finally, you can use the Far
+[10:32] Cascade to explicitly ensure
+[10:35] large structures are casting dynamic
+[10:35] shadows at a sensible distance.
+[10:40] Of course, as with dynamic lighting,
+[10:40] there are plenty of different ways
+[10:43] to optimize the
+[10:43] shadows in your scene.
+[10:45] And you should take into account
+[10:45] the specific needs of your project.
+[10:48] These techniques worked great for
+[10:48] us given the size and composition
+[10:52] of the village.
+[10:53] There was one last factor that was
+[10:53] hurting our shadow performance,
+[10:56] and we tracked it down to
+[10:56] Distance Field Shadows.
+[10:59] It turned out that a
+[10:59] lot of our small foliage
+[11:01] were casting Distance Field
+[11:01] Shadows when more than likely, they
+[11:04] were merely ground
+[11:04] cover or other smaller
+[11:07] pieces that weren't adding anything
+[11:07] to the scene by casting shadows.
+[11:10] To turn that off, I went
+[11:10] to the Content Browser,
+[11:13] filtered by Foliage.
+[11:14] Select all, right-click,
+[11:14] Asset Actions,
+[11:18] Bulk Edit via Property Matrix.
+[11:20] And pinned Affect Distance
+[11:20] Field Lighting and unchecked
+[11:24] that for the Foliage
+[11:24] I thought wouldn't
+[11:26] need to be casting shadows
+[11:26] off in the middle distance.
+[11:28] There's more to come
+[11:28] with our Foliage,
+[11:30] so stick around for
+[11:30] the next video to see
+[11:32] what other optimizations we made.
+[11:35] Tuning dynamic shadows
+[11:35] is a tricky endeavor
+[11:37] given the vastness
+[11:37] of factors involved
+[11:39] and the options at your disposal.
+[11:41] At the end of the day, though,
+[11:41] it's all about trade-offs.
+[11:44] Choose what's best for your project,
+[11:44] and don't be afraid to experiment.
+[11:47] I hope this has given
+[11:47] you a little more
+[11:49] insight into how we tune the lights
+[11:49] and shadows in the Medieval Game
+[11:52] Environment.
+[11:52] Be sure to check out the project
+[11:52] on the Unreal Engine Marketplace
+[11:55] to get a look at how we implemented
+[11:55] all of these optimizations.
+[11:58] Thanks for watching.

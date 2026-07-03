@@ -1,0 +1,500 @@
+[00:04] &gt;&gt; Hi, my name is Matt Oztalay.
+[00:06] And I'm a developer relations
+[00:06] technical artist at Epic Games.
+[00:09] I helped out the Quixel team
+[00:09] with materials and performance
+[00:11] on their Medieval Game Environment.
+[00:13] Today, we're going to talk
+[00:13] about how we managed performance
+[00:15] on the project.
+[00:16] We'll talk about the kinds of metrics
+[00:16] we used to measure performance
+[00:19] and how they differ.
+[00:20] Then we can talk about
+[00:20] how we established
+[00:22] our benchmarks and budgets,
+[00:22] tested performance consistently,
+[00:25] analyzed performance to
+[00:25] highlight problem areas,
+[00:27] and how you can apply these
+[00:27] principles to your project.
+[00:30] There are plenty to talk about when
+[00:30] it comes to measuring performance.
+[00:33] And today, we'll be
+[00:33] focusing specifically
+[00:35] on rendering performance and how
+[00:35] long it takes to render a frame.
+[00:39] You may often hear
+[00:39] performance described in terms
+[00:41] of frames per second or FPS.
+[00:44] Well, it's good to think about
+[00:44] your target FPS for your project--
+[00:47] 30, 60, 120.
+[00:49] It's much more helpful to think
+[00:49] and measure in milliseconds--
+[00:52] since milliseconds is linear, whereas
+[00:52] frames per second is exponential.
+[00:56] For example, if you're trying
+[00:56] to get from 25 FPS to 30 FPS,
+[01:01] you need to reduce your
+[01:01] frame time by 7 milliseconds.
+[01:04] But if you need to get
+[01:04] from 55 FPS to 60 FPS,
+[01:08] you only need an improvement
+[01:08] of 1.5 milliseconds.
+[01:10] That's a big difference.
+[01:12] In order to consistently test
+[01:12] performance for the project,
+[01:15] I worked with Jakob and Viktor to
+[01:15] set a target hardware specification,
+[01:18] resolution, and frame time.
+[01:20] In order to account for some
+[01:20] dynamic elements in the scene
+[01:24] and given our access to
+[01:24] hardware during work-from-home,
+[01:26] we set our benchmark
+[01:26] as consistently hitting
+[01:29] 33 FPS or about 30 milliseconds at
+[01:29] 1080p with a 2080 RTX graphics card.
+[01:36] Even though overall we're targeting
+[01:36] 30 FPS or 33.33 milliseconds,
+[01:41] we set our performance
+[01:41] targets a bit lower than that.
+[01:43] This gives us a little wiggle
+[01:43] room in case some spikes happen
+[01:46] or a stray particle effect
+[01:46] causes a jump in timing.
+[01:49] While that should seem
+[01:49] an easy target to hit,
+[01:52] a 2080 RTX was top or
+[01:52] near top of the line
+[01:55] while we were working on the project.
+[01:57] There's still plenty that
+[01:57] can happen to cause a scene
+[01:59] to not perform well even with
+[01:59] those hardware specifications.
+[02:02] We need to be able
+[02:02] to quickly identify
+[02:04] when something comes into the project
+[02:04] that causes us to go over budget.
+[02:07] And then we need to know
+[02:07] that we've solved the issue.
+[02:11] Since we were focused on the
+[02:11] environment's performance
+[02:13] and didn't have much in the way
+[02:13] of dynamic gameplay elements,
+[02:16] we chose to set up
+[02:16] performance tracking cameras
+[02:18] throughout the level.
+[02:19] I put all of the performance
+[02:19] tools in their own sublevel
+[02:22] and I made sure to tag each
+[02:22] performance camera with the Actor
+[02:25] tag PerfCam.
+[02:26] I'll show you how I
+[02:26] use that in a blueprint
+[02:28] to automate our performance testing.
+[02:30] As an aside, make sure you're
+[02:30] scrolling down the Details
+[02:33] panel to the Actor tab and
+[02:33] setting the Actor tag there
+[02:37] instead of the Component
+[02:37] tag, which is oftentimes
+[02:40] more visible in the Details panel.
+[02:41] Just trust me on this.
+[02:43] Once the level had been blocked
+[02:43] out, I went in and placed about 10
+[02:47] of these cameras at
+[02:47] various points and angles
+[02:49] that would give us a reasonable
+[02:49] approximation of the player path.
+[02:52] I was looking to
+[02:52] catch some angles that
+[02:53] would pose particularly
+[02:53] challenging for performance,
+[02:56] like this one looking back from
+[02:56] the village toward the tree line
+[02:59] where you start out.
+[03:00] This shot in particular
+[03:00] was difficult to tune
+[03:02] because of the long sightlines,
+[03:02] which means we'll have plenty
+[03:05] to draw and shadows to worry about.
+[03:07] I'll talk about how we
+[03:07] overcame those challenges
+[03:09] in the next couple of videos.
+[03:11] Another benefit of using these
+[03:11] cameras to track our performance
+[03:13] is that every time
+[03:13] we'd run our tests--
+[03:15] which I'll explain in a moment--
+[03:15] we always got the exact same view.
+[03:19] Any deviation left or right may
+[03:19] create deviations in performance
+[03:23] that make apples to
+[03:23] apples testing impossible.
+[03:25] So for example, if I check the frame
+[03:25] time from this angle and change
+[03:29] something, then come
+[03:29] back to check again here,
+[03:32] you can see that my view has
+[03:32] changed ever so slightly.
+[03:35] Now, we're trying to render
+[03:35] this whole part of the scene
+[03:37] that we weren't before
+[03:37] in the initial test shot.
+[03:40] To make it easier to test
+[03:40] performance and any changes
+[03:43] we made to improve it,
+[03:43] I set up a blueprint
+[03:45] to automatically gather screenshots
+[03:45] from each camera and GPU and CPU
+[03:49] timing data with Unreal Insights,
+[03:49] which we'll talk about in a bit.
+[03:53] I'll walk you through the
+[03:53] blueprint in Overview.
+[03:55] You can always download the project
+[03:55] from the Unreal Engine Marketplace
+[03:58] to dig in further or follow along.
+[04:00] First up on BeginPlay, I
+[04:00] get all Actors with tags
+[04:03] to find out performance cameras.
+[04:05] Since this function doesn't always
+[04:05] return a deterministic order,
+[04:08] I built a simple sorting function to
+[04:08] sort through the performance cameras
+[04:11] by the trailing digit
+[04:11] in their Actor name.
+[04:14] This means when I look at the data, I
+[04:14] will know that the first chunk I see
+[04:18] is always for camera 0.
+[04:20] And I want my screenshots
+[04:20] to be in the same order
+[04:22] too since we can then use those to
+[04:22] make work-in-progress guess later.
+[04:27] Next, I built a few functions
+[04:27] to start the testing procedure
+[04:30] and iterate over the cameras
+[04:30] while the game is running.
+[04:32] StartPerf, EndPerf, Do PerfTest,
+[04:32] SetCam, NextCam, and BriefCam.
+[04:38] The StartPerf functionality really
+[04:38] just resets some internal variables,
+[04:42] turns on Stat FPS and
+[04:42] fires off Do PerfTest
+[04:45] with the Advanced Flag set to True.
+[04:47] So instead of looping
+[04:47] over all the cameras,
+[04:49] it's more like we're
+[04:49] recursing through the list.
+[04:51] I needed to do that this
+[04:51] way since the actual tests
+[04:54] involve a few delays.
+[04:56] Delays in for loops don't
+[04:56] always behave the way
+[04:58] that you want them to.
+[04:59] So this is how I
+[04:59] overcame that limitation.
+[05:01] Once we get into the
+[05:01] test for each camera,
+[05:04] I set the View Target of the
+[05:04] player to the current camera.
+[05:07] Then I trigger the console
+[05:07] command trace.start.
+[05:09] This tells Unreal Insights to start
+[05:09] collecting timing data for the GPU
+[05:13] and CPU.
+[05:14] We'll gather about two
+[05:14] seconds worth of data.
+[05:16] Then call the console
+[05:16] command, trace.stop.
+[05:18] These trace dot start
+[05:18] and stop functions
+[05:20] are new for Unreal Insights in 4.26.
+[05:22] Then we'll take a screenshot.
+[05:24] Output to the log that
+[05:24] the camera has finished.
+[05:27] Delay for about a second, then
+[05:27] advance to the next camera.
+[05:30] When we've reached the
+[05:30] final camera, we'll
+[05:32] kick off EndPerf which resets
+[05:32] our view to the player pawn
+[05:35] and turns off the Stat FPS overlay.
+[05:38] Now, I can test any functionality
+[05:38] I need to test in the level
+[05:41] without having to reboot the project.
+[05:43] Our performance sublevel
+[05:43] has one and only one
+[05:46] of these blueprints along
+[05:46] with the eight performance
+[05:49] tracking cameras I placed
+[05:49] throughout the scene.
+[05:51] The full testing procedure is to
+[05:51] package the build, close the editor,
+[05:55] launch the project, make
+[05:55] sure we're in full screen,
+[05:59] and hit Play in the Menu.
+[06:01] Next, I raised the console command
+[06:01] input by pressing the Tilde key,
+[06:05] and type ke asterisk startperf.
+[06:09] The ke asterisk basically
+[06:09] means loop over every blueprint
+[06:12] and try and call a custom
+[06:12] event called startperf.
+[06:15] Since we only have one blueprint that
+[06:15] has the startperf function on it,
+[06:19] I know we're only
+[06:19] kicking this off once.
+[06:20] Now, we'll sit back
+[06:20] and watch the test.
+[06:23] I can watch the Stat FPS ticker
+[06:23] on the right side of the screen
+[06:25] to get a good idea of
+[06:25] how things are going.
+[06:27] But I'll show you how to dive
+[06:27] into the data in a moment.
+[06:30] I also added a bit of
+[06:30] extra functionality
+[06:32] to the blueprint to
+[06:32] help me further diagnose
+[06:34] any issues using tools like Stat
+[06:34] GPU, Profile GPU, and RenderDock.
+[06:38] I can run the console command
+[06:38] ke star setcam number,
+[06:42] and I'll immediately set
+[06:42] my view to that camera.
+[06:45] It won't run the test, but being
+[06:45] able to get to these cameras
+[06:48] quickly and consistently makes
+[06:48] it easier to test and diagnose
+[06:51] anything that could be going wrong.
+[06:52] Let's take a look at that performance
+[06:52] data we capture with Unreal Insights
+[06:55] first.
+[06:56] The final step in the test process
+[06:56] is to check the average inclusive
+[07:00] time for the GPU and record that
+[07:00] information in a spreadsheet
+[07:03] that I share with everyone
+[07:03] working on the project.
+[07:06] Unreal Insights is a
+[07:06] stand-alone profiling system
+[07:09] that integrates with
+[07:09] the Unreal Engine
+[07:10] to collect, analyze, and
+[07:10] visualize data from the engine.
+[07:13] It covers a wide range
+[07:13] of Unreal Engine systems
+[07:16] and can be set up to record
+[07:16] remotely to minimize performance
+[07:19] impact on your actual application.
+[07:20] If you're running Unreal
+[07:20] from the Epic Games launcher,
+[07:23] you can find Unreal Insights in the
+[07:23] Engine, Binaries, Win64 directory.
+[07:27] If you've compiled
+[07:27] Unreal from source,
+[07:29] like if you've downloaded
+[07:29] it from GitHub,
+[07:31] you can build the project
+[07:31] yourself through the source
+[07:33] editor of your choice.
+[07:34] Either way, once we
+[07:34] open Insights, we'll
+[07:36] first click this Open
+[07:36] File button, then
+[07:38] navigate to our Packaged
+[07:38] Builds, Saved, Profiling folder.
+[07:42] And we'll see a .utrace file.
+[07:44] Let's open that up and
+[07:44] see what we've got.
+[07:46] Now, this might look like
+[07:46] a lot of data to process,
+[07:49] but the good news
+[07:49] is that we only need
+[07:51] to worry about a few things for now.
+[07:53] First, in the column view on
+[07:53] the right side of the screen,
+[07:56] I'll right-click and
+[07:56] go to View Column,
+[07:58] then click Average
+[07:58] Inclusive Time milliseconds.
+[08:01] Next, we can see these
+[08:01] breaks in the timing data.
+[08:04] These breaks are the
+[08:04] times between our cameras.
+[08:06] And I found it really helpful to
+[08:06] isolate the timings for each camera.
+[08:09] I'll click and drag in the timing
+[08:09] view to highlight the first camera
+[08:13] and zoom in on it.
+[08:14] You can see this top
+[08:14] value here in the column
+[08:16] view called Unaccounted,
+[08:16] which encompasses
+[08:19] all the calls made by the GPU.
+[08:21] If I highlight this
+[08:21] two-second section,
+[08:23] we can see over on the right here
+[08:23] this is the data that I want.
+[08:26] I can see the average
+[08:26] inclusive time for all
+[08:28] of the unaccounted
+[08:28] calls in my selection,
+[08:31] which is about 36 milliseconds.
+[08:33] I'll record that in my
+[08:33] spreadsheet here and do
+[08:35] that for each subsequent camera.
+[08:37] We can see by looking
+[08:37] back at our spreadsheet
+[08:39] here that we definitely went over
+[08:39] budget for a good stretch of time
+[08:42] before we got a
+[08:42] handle on performance.
+[08:44] It is, of course, better to
+[08:44] try and keep this under control
+[08:47] as much as possible so you don't
+[08:47] spend too much time panicking
+[08:49] at the end of your project to try
+[08:49] and get performance under control.
+[08:52] The added benefit of checking
+[08:52] and maintaining performance
+[08:55] early and often is that you
+[08:55] end up wasting much less effort
+[08:59] in making your scene.
+[09:00] Why spend extra hours
+[09:00] dressing up your scene
+[09:02] if you're only going to have to
+[09:02] go back and make cuts to it later?
+[09:05] Budgeting for performance will depend
+[09:05] on your application, direction,
+[09:08] design, and values.
+[09:10] Since performance is in a menu,
+[09:10] where you can order 5 static and 2
+[09:14] skeletal meshes, and
+[09:14] those will always cost 5
+[09:17] milliseconds or something
+[09:17] like that, there's
+[09:19] no equivalent exchange
+[09:19] because of the myriad
+[09:21] of factors involved in
+[09:21] rendering a frame, some of which
+[09:24] we'll discuss in more
+[09:24] detail in a later video.
+[09:26] Instead, I think a
+[09:26] better approach would
+[09:28] be to think of performance
+[09:28] budgeting like a pie chart.
+[09:30] We know how long we
+[09:30] have to render a frame.
+[09:32] And we can divvy up
+[09:32] that time proportionally
+[09:34] based on what features
+[09:34] we want to showcase,
+[09:36] which we're less
+[09:36] interested in featuring,
+[09:38] and what's important to us.
+[09:40] For example, in the
+[09:40] Medieval Game Environment,
+[09:42] we knew we had three big
+[09:42] constraining factors for performance.
+[09:46] One, we wanted to have a
+[09:46] full time of day cycle, which
+[09:49] meant fully dynamic lighting.
+[09:50] Two, we were going to use the
+[09:50] new volumetric clouds which
+[09:53] have their own performance cost
+[09:53] that we can see specifically
+[09:56] in captures and stat panels.
+[09:58] And three, our goal is to highlight
+[09:58] the quality of Quixel assets
+[10:01] in a next-gen quality environment.
+[10:04] With our values, constraints,
+[10:04] and performance targets
+[10:06] in mind, we developed a loose
+[10:06] budget for each of the major areas
+[10:09] in a frame--
+[10:10] shadows, lighting, based pass,
+[10:10] volumetric clouds, et cetera.
+[10:14] You may consider creating a
+[10:14] beautiful corner or a vertical slice
+[10:17] of your environment that
+[10:17] uses all of the features
+[10:20] that you want and looks as good as
+[10:20] you want to inform your budgets.
+[10:23] I use these numbers
+[10:23] as cues to let me know
+[10:25] when one feature or
+[10:25] another was getting
+[10:27] more expensive than we wanted.
+[10:28] And I could go in and find ways to
+[10:28] bring those numbers back into range.
+[10:32] Throughout this project,
+[10:32] my goal was to make
+[10:34] as few hard cuts as possible.
+[10:36] The goal was to maintain the visual
+[10:36] quality that Jakob and Viktor were
+[10:39] producing.
+[10:40] And we were able to do that within
+[10:40] our performance targets, which,
+[10:43] again, was 30-millisecond frames
+[10:43] at 1920 by 1080 on a 2080 RTX card.
+[10:50] So let's look in on our
+[10:50] worst-performing camera
+[10:52] and see what we can see.
+[10:53] Hmm, it looks like we're
+[10:53] spending a lot of time
+[10:56] in shadow projection,
+[10:56] lighting, and the base pass.
+[10:59] Now, I know what my
+[10:59] budgets are, and I
+[11:01] know that my goal is going to be to
+[11:01] make as few hard cuts as possible.
+[11:05] So I'm not just going to go through
+[11:05] and decimate our static meshes
+[11:08] to get the base pass down or put
+[11:08] a hard cut off on dynamic shadows.
+[11:12] Stick around for the
+[11:12] next couple of videos,
+[11:14] and I'll show you how we employed
+[11:14] a few simple tricks to improve
+[11:17] our performance without
+[11:17] sacrificing visual quality.
+[11:20] As you've probably
+[11:20] figured out by now,
+[11:22] there's so much to talk about
+[11:22] with performance optimization.
+[11:25] And I could talk about it for hours.
+[11:27] So I'll summarize what
+[11:27] we've talked about so far.
+[11:30] One, set reasonable and
+[11:30] repeatable performance targets
+[11:34] for your project.
+[11:35] Two, within those reasonable
+[11:35] performance targets,
+[11:38] create budgets for
+[11:38] rendering features.
+[11:40] If you're unsure, base your
+[11:40] numbers on beautiful corners
+[11:43] or vertical slices that showcase
+[11:43] your desired visual quality.
+[11:46] Three, be sure you're
+[11:46] testing your performance
+[11:49] in consistent and repeatable ways.
+[11:52] Four, start gathering
+[11:52] performance data early and often.
+[11:56] And five, communicate the
+[11:56] status of your performance
+[11:59] to everyone on the project.
+[12:01] Performance is everyone's
+[12:01] responsibility.
+[12:04] In the next couple of
+[12:04] videos, I'll show you
+[12:06] how we improve the
+[12:06] performance of our scene
+[12:08] without affecting visual quality
+[12:08] by tuning our lights and shadows,
+[12:11] combining draw calls, using
+[12:11] HLODs and setting call distances.
+[12:16] Thanks for watching.

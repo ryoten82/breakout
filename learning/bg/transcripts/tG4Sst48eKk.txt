@@ -1,0 +1,894 @@
+[00:00] hi everyone and welcome to this beginner
+[00:01] tutorial for Unreal Engine in this
+[00:03] tutorial I'll guide you through the
+[00:04] basics to create the stunning
+[00:06] environment you see right here we'll
+[00:08] cover how to download Unreal Engine
+[00:09] correctly how to navigate an Unreal
+[00:12] Engine solving shadows and folage issues
+[00:14] and much more I spend weeks creating
+[00:17] these tutorials for you my humble
+[00:19] request is to watch this tutorial as
+[00:21] much as possible so I can complete my
+[00:23] watchtime requirements and get monetized
+[00:25] on YouTube
+[00:27] [Music]
+[00:51] first I'll show you how to correctly
+[00:52] download Unreal Engine assuming you
+[00:54] already know how to download and install
+[00:56] epic games open the epic games launcher
+[01:04] and navigate to the Unreal Engine
+[01:06] tab then go to the library tab in the
+[01:09] library tab you'll find the Unreal
+[01:11] Engine installation section since I have
+[01:13] already downloaded my engine it shows a
+[01:16] launch button however in your case you
+[01:18] will see a download button I'm using
+[01:21] Unreal Engine 5.3.2 because there are
+[01:23] some bugs in Unreal Engine 5.4 let me
+[01:26] show you how to download it I'm going to
+[01:28] click on this plus icon here you will
+[01:30] see the install button but before
+[01:32] installing we need to adjust some
+[01:34] important settings click on install
+[01:37] you'll see a prompt asking where you
+[01:38] want the engine to be installed before
+[01:41] clicking install click on option you'll
+[01:43] notice that the download size is quite
+[01:45] large to reduce the size scroll down to
+[01:48] the Target platform section and deselect
+[01:51] all the platforms that you want be using
+[01:54] this saves a lot of storage space once
+[01:56] you made your selections click apply and
+[01:59] then install
+[02:00] after the engine is installed you can
+[02:02] launch it directly from here or create a
+[02:05] shortcut on your
+[02:07] desktop now simply launch the Unreal
+[02:09] Engine if you are launching Unreal
+[02:11] Engine 5 for the first time it might
+[02:13] take a little while to compile all the
+[02:15] shaders once Unreal Engine opens you'll
+[02:18] see the Unreal Engine project browser
+[02:20] here you'll find a variety of templates
+[02:22] such as Games Film video architecture
+[02:26] automotive and simulation since we are
+[02:29] focusing on environment design so click
+[02:31] on games tab in the games tab you'll see
+[02:34] more templates like first person third
+[02:36] person at top down however our main
+[02:39] priority is envirment design so we'll
+[02:41] choose the blank template in the project
+[02:43] default settings make sure to select the
+[02:45] blueprint and set the quality preset to
+[02:48] maximum we won't be using the starter
+[02:50] content and also we won't be enabling
+[02:53] retracing next specify the location for
+[02:55] your
+[02:56] project and give it a name I'll name
+[02:59] mine
+[03:02] tutorial finally click create now that
+[03:06] we are in Unreal Engine let's learn how
+[03:08] to navigate hold the right Mouse button
+[03:11] and use the W and D keys to move forward
+[03:14] backward left and right just like a
+[03:16] third person or first person shooter
+[03:18] game hold e to move upward and Q to move
+[03:21] downward by moving your mouse scroll
+[03:24] forward or backward while holding the
+[03:26] right Mouse button you can increase or
+[03:28] decrease the camera speed you can also
+[03:30] adjust the camera speed from the
+[03:32] settings
+[03:35] here now let's understand the user
+[03:38] interface of Unreal Engine this is our
+[03:40] main viewport on the right hand side we
+[03:42] have the outliner every actor in The
+[03:45] viewport will be listed here you can
+[03:47] hide unhide or delete actors from the
+[03:49] outliner below that we have the details
+[03:51] panel the details in this panel change
+[03:54] based on the selected actor for example
+[03:56] if you click on landscape details about
+[03:59] the landscape will be displayed if you
+[04:01] select a direction light the details
+[04:03] will change accordingly at the top there
+[04:06] is a save button you can also save your
+[04:07] project by pressing contrl + S next to
+[04:11] that we have the mode selector right now
+[04:13] we are in selection mode you can also
+[04:15] see modes like landscape folage and
+[04:18] more then we have the actor placement
+[04:20] panel on the viewport options panel you
+[04:23] can show or hide FPS or the
+[04:26] toolbar the perspective tab lets you to
+[04:29] switch views Tool top left and right
+[04:31] perspectives you can also use shortcut
+[04:34] keys moving on we have The View mode tab
+[04:37] currently we are in lit mode which shows
+[04:39] lightning you can switch to UNL mode to
+[04:41] see a flat UNL view I'll switch back to
+[04:44] L mode now in 90% of cases we won't be
+[04:46] using these mode options so don't worry
+[04:49] too much about them here we have the
+[04:51] Contra door button clicking on it opens
+[04:53] the content browser which functions like
+[04:55] a file explorer in Windows everything
+[04:58] you want to add to your project will be
+[05:00] stored here the shortcut key to open the
+[05:02] content browser is control+ space you
+[05:05] can organize your assets into folders
+[05:08] import new items and access prepacked
+[05:10] engine content we will cover the content
+[05:13] browser in more detail later in the
+[05:15] tutorial so don't worry about it for now
+[05:18] in the outliner you'll find a folder
+[05:20] named lightning this folder contains
+[05:22] several key elements that shape the
+[05:24] lightning and atmosphere of your scene
+[05:26] the first one is directional light this
+[05:28] represents the sun in your scene by
+[05:30] holding control L you can rotate the
+[05:32] direction light of simul different times
+[05:34] of day casting realistic shadows and
+[05:37] changing the light angle next one is
+[05:39] exponential height fog this adds
+[05:41] atmospheric fog to your scene enhancing
+[05:44] depth and realism it's very useful for
+[05:46] creating Ming mist or hey environments
+[05:49] Sky atmosphere this element simulates a
+[05:51] realistic sky and atmosphere
+[05:53] contributing to the overall Ambience of
+[05:55] your environment Skylight this captures
+[05:57] the Skylight and uses it to eliminate
+[06:00] your scene it helps in achieving more
+[06:02] natural Lightning by filling in Shadows
+[06:04] and adding certain light variations the
+[06:06] last one is volumetric clouds these are
+[06:08] Dynamic volumetric clouds to your Sky
+[06:10] enhancing the realism and visual appeal
+[06:13] of outdoor scenes each one of these
+[06:15] elements can be fine- tuned to create
+[06:17] the exact look and feel you want for
+[06:19] your project proper lightning can
+[06:21] enhance the visual quality and mode of
+[06:22] your scene making it an essential aspect
+[06:25] of environment design let's add a cube
+[06:27] from Play Act spanel I'm to go over here
+[06:31] shapes and I'm going to select the cube
+[06:34] once added you'll notice three arrows
+[06:36] pointing in different directions green
+[06:39] represents the y- AIS red the x-axis and
+[06:42] blue the Z AIS over your mouse cursor
+[06:45] over any axis to move the cube along
+[06:48] that axis for precise movement along
+[06:50] multiple axis grab the sphere at the
+[06:52] center and move the cube freely pressing
+[06:56] CU toles are selection mode pressing W
+[06:59] activate the move tool displaying
+[07:01] movable access arrows pressing e
+[07:03] activates the rotation tool allowing
+[07:06] rotation around each axis pressing R
+[07:09] activates a scale tool enabling you to
+[07:11] resize the cube notice how the cube
+[07:13] moves and rotates according to the grid
+[07:16] with snapping enabled which moves and
+[07:18] rotates in increments like 10° you can
+[07:21] adjust or disable snapping easily at the
+[07:23] top you can switch between move rotate
+[07:26] and scale tools there are snapping
+[07:28] options for each tool tool one for
+[07:30] moving objects one for rotating and one
+[07:33] for scaling disabling snapping allows
+[07:36] for smoother more fluid movement of the
+[07:38] cube to duplicate the cube hold alt and
+[07:41] drag the cube like that additionally
+[07:43] there is a gizmo options where you can
+[07:45] switch between world and local space
+[07:47] which affects how Transformations are
+[07:49] applied relative to the cubes
+[07:51] orientation let's create a new empty
+[07:53] level for that I'm going to go to file
+[07:55] new level and select empty level then
+[07:58] hit create
+[08:00] I won't save anything in this level so
+[08:02] simply hit don't save now we are in a
+[08:05] new empty level first we will create a
+[08:07] lightning setup there are two methods to
+[08:09] do this the traditional method is going
+[08:11] to the place actress panel under lights
+[08:13] you can find directional light and
+[08:15] Skylight and under visual effects you
+[08:17] can find Sky atmosphere height fog and
+[08:19] clouds the newer method is more
+[08:21] streamlined so farther we're going to go
+[08:23] to window environmental light mixer
+[08:26] click on it this opens the lightning
+[08:28] setup where you can create Skylight
+[08:31] atmosphere light which is also a
+[08:32] directional light sky atmosphere voltic
+[08:37] clouds and height fog with just a few
+[08:39] clicks as you can see we now have a
+[08:42] complete lightning setup and just a few
+[08:43] setups now let's start creating our
+[08:46] environment the first step is to create
+[08:48] a landscape to create a landscape go to
+[08:50] the selection mode and click on
+[08:54] landscape you can also use shortcut keys
+[08:56] if you prefer now we are in landscape
+[08:59] mode we don't need to change anything
+[09:01] except the section size change it from
+[09:03] 63 qus to 127 qus once you've done that
+[09:07] then hit create and we finally created a
+[09:10] landscape by default we are in the
+[09:12] sculpt tab here you'll find the multiple
+[09:14] sculpting tools but we will focus on the
+[09:17] first four sculpt raas smooth and
+[09:20] flatten before you start sculpting make
+[09:22] sure to save everything by pressing
+[09:24] contrl s I'll name My Level underscore
+[09:27] Main
+[09:34] let's select the sculp tool first I'm
+[09:36] going to decrease the tool strength and
+[09:38] increase the brush size you can also
+[09:40] adjust the brush follow off to sculpt
+[09:43] the landscape simply press left Mouse
+[09:45] button to sculpt downward hold shift
+[09:48] while sculpting if you make a mistake
+[09:50] you can undo it by pressing contrl Zed
+[09:53] sculpting a landscape is an artistic
+[09:55] Choice the more you practice the better
+[09:57] you'll get it's a process of of trial
+[09:59] and error and not something that can be
+[10:01] taught by setup by
+[10:05] setup if you want to erase your
+[10:07] sculpting simply select the erase tool
+[10:09] and remove the sculpted
+[10:18] areas to smooth the surface select the
+[10:21] smooth tool and make the Surface more
+[10:23] even
+[10:30] use the flat tool to create a flat area
+[10:33] for placing objects like cabin take your
+[10:36] time with
+[10:42] sculpting in the place actress panel go
+[10:45] to shapes and add a plane scale the
+[10:48] plane I'm going to scale it to something
+[10:50] like th in both axes and position it to
+[10:53] represent a lake giving you a basic idea
+[10:56] of where the lake will be located now
+[10:58] let's download the material for our
+[11:00] landscape open the quickel bridge by
+[11:02] clicking on Place actress panel and then
+[11:04] selecting quickel Bridge first make sure
+[11:06] that you are signed in quisel Bridge
+[11:08] offers a wide range of free materials
+[11:10] assets and folas to find the landscape
+[11:13] materials just click on surfaces browse
+[11:16] through the materials and select one
+[11:18] that fits your environment for this
+[11:20] tutorial I'll use this one the rocky
+[11:22] Force for material click on the material
+[11:24] to open it choose the quality whichever
+[11:27] you like I'll select the medium quality
+[11:29] and click to download it and add it to
+[11:32] your project before closing Bridge let's
+[11:35] change the library path for downloading
+[11:37] assets by default quickel Bridge stores
+[11:39] asset on the C drive which might not
+[11:41] have enough space to change the library
+[11:43] path click on this icon over here and
+[11:45] then preferences under the Library part
+[11:48] you'll likely see the C Drive listed now
+[11:51] create a new folder in the drive where
+[11:52] you want to store the assets copy the
+[11:54] path of this new
+[11:56] folder go back to meas scan library in
+[11:58] quel Bridge
+[11:59] and replace the existing Library path
+[12:01] with a new one and hit save now the
+[12:05] assets will be stored in the given
+[12:06] location now let's return to the engine
+[12:09] open your content browser and you should
+[12:11] see a mega scans folder double click to
+[12:13] open it then surfaces Rocky for
+[12:17] folder inside you'll see a material
+[12:19] instance and some textures before
+[12:22] applying this material to our landscape
+[12:24] let me show you how to create a material
+[12:26] instance first I'm going to create a new
+[12:27] folder
+[12:31] and I'm going to name it material now I
+[12:33] have downloaded some textures from
+[12:34] ambient CG just for example so I'll just
+[12:37] drag and drop them into my new
+[12:41] folder right click in the folder and
+[12:44] select material and I'm going to name it
+[12:47] example double click to open the
+[12:48] material and dock the window over here
+[12:52] you can navigate in the material editor
+[12:53] by holding the right Mouse button open
+[12:55] the content browser select all of the
+[12:57] textures and drag and drop them into the
+[12:59] material editor align
+[13:04] them then plug the albo into base color
+[13:07] normal into normal and roughness into
+[13:10] roughness and ambient occlusion into AO
+[13:14] next we're going to add a texture
+[13:15] coordinate you can right click and
+[13:17] search texture coordinate or you can
+[13:20] hold U and press left Mouse button do
+[13:23] the same with the multiply node you can
+[13:25] right click and search
+[13:26] multiply or you can hold m M and press
+[13:30] left Mouse button now we're going to add
+[13:32] parameter so for that hold s and press
+[13:35] left Mouse button I'm going to name it
+[13:39] tiling and I'm going to set a default
+[13:42] value of something like
+[13:45] one now plug the both nodes into
+[13:48] multiply and then connect the multiply
+[13:51] node to the UVS of these
+[13:55] textures click
+[13:57] apply now go back and write click on the
+[13:59] material to create a material instance
+[14:02] material instances allow you to control
+[14:04] parameters like tiling without
+[14:05] re-entering the material editor open the
+[14:08] material instance and you'll see the
+[14:10] tiling parameter that we just created
+[14:12] enable it and adjust the values as
+[14:14] needed that's how you can create a
+[14:16] material instance I'm going to delete
+[14:18] the example
+[14:20] material let's apply our main material
+[14:23] to the landscape select the material
+[14:25] instance and then select the landscape
+[14:28] in the details panel of the landscape
+[14:30] scroll down to find the landscape
+[14:33] material over here you can see that we
+[14:35] have the landscape material click on
+[14:37] this Arrow to apply the material if you
+[14:39] notice a repetitive dialing problem
+[14:42] double click to open the material
+[14:44] instance in the global tab enable the
+[14:46] tiling and offset and adjust the tiling
+[14:48] X and tiling y to something like
+[14:53] 01 the material should now look great on
+[14:55] the landscape now we're going to add
+[14:57] mountains to our scene so so for the
+[14:59] mountains I'll use a 3D Mountain asset
+[15:01] from sketch Fab the link to this asset
+[15:04] will be in the description I'm going to
+[15:06] download the
+[15:08] asset and you'll get a zip file
+[15:11] extracted
+[15:13] here and in the source folder you will
+[15:16] have the mountain fbx file in Unreal
+[15:18] Engine create a new folder I'm going to
+[15:20] name it mountain and drag and drop the
+[15:23] mountain fbx file into this folder make
+[15:26] sure to create new materials is selected
+[15:28] and then hit import all the mountain
+[15:31] asset will be imported create a new
+[15:33] folder for the
+[15:37] textures and drag and drop the mountain
+[15:39] textures into this
+[15:43] folder open the default material of the
+[15:45] mountain delete the default
+[15:48] parameter and drag and drop both
+[15:50] textures from the content browser into
+[15:52] the material editor connect the albo to
+[15:54] B color and then normal to normal click
+[15:58] apply now back in editor dag and drop
+[16:00] the mountains into the scene to see the
+[16:02] applied material duplicate the mountain
+[16:05] and use rotation and scaling to create
+[16:07] multiple variations now let's start
+[16:09] placing them randomly to enhance your
+[16:11] environment
+[16:57] after placing the mountains as you can
+[16:59] see they look great now we are going to
+[17:00] add water to our environment first we
+[17:02] need to enable the water plugin to do
+[17:05] this go to addit plugins in the search
+[17:08] bar type water and enable the water
+[17:11] plugin after enabling it restart your
+[17:13] engine make sure to save everything once
+[17:16] the engine restarts open your main map
+[17:18] then go to place actors panel and search
+[17:21] water you'll see multiple water classes
+[17:23] I'll go with the custom one drag and
+[17:25] drop the water body custom into your
+[17:27] scene like that
+[17:30] and I'm going to scale it up to
+[17:31] something like th000 in both AES as you
+[17:34] can see the water looks great the color
+[17:36] of the water in your project might be
+[17:38] different from mine to change the color
+[17:40] make sure you have the water body custom
+[17:41] selected in the outliner in the details
+[17:44] spanel scroll down a little bit until
+[17:46] you'll find the water
+[17:48] material double click to open it and
+[17:50] scroll down to the absorption and
+[17:52] scattering
+[17:54] color if the scattering is turned off in
+[17:56] your case simply enable it
+[18:00] and choose the color you want you can
+[18:02] also change the absorption color to
+[18:03] customize the water
+[18:05] appearance I'll stick with the default
+[18:07] setting so I'll close this tab now we
+[18:10] will start working on our foreground for
+[18:13] that we'll need to download assets from
+[18:14] quer bridge let's open quer bridge in
+[18:17] quer Bridge I have downloaded some rock
+[18:19] assets you can easily download them
+[18:22] too go to home 3D
+[18:25] assets nature Rock and you'll find a
+[18:28] bunch of rock assets over here download
+[18:31] and add them to your project as you can
+[18:33] see I'm using these simple rocks for the
+[18:35] ground so I'll add them to my
+[18:46] project after adding the assets close
+[18:49] the quickel bridge and undering open
+[18:51] your content browser and navigate to the
+[18:54] mega scans folder you might notice these
+[18:56] multiple filters over here if you don't
+[18:58] see the them over here just click on
+[19:00] these three lines to enable those
+[19:02] filters I'm going to select the static
+[19:04] mesh filter and you'll see all the
+[19:06] static meshes that are in the mega skin
+[19:08] folder drag and drop these assets into
+[19:10] your scene to start building your
+[19:11] foreground
+[19:52] as you can see we have set up the ground
+[19:54] for our cabin now you might notice that
+[19:56] the color of these rocks is quite
+[19:58] different different from each other to
+[20:00] match them nicely select asset and in
+[20:02] the details panel double click to open
+[20:04] the material
+[20:05] instance enable the alent option and
+[20:08] change the color to match the other
+[20:13] rocks also repeat this process for the
+[20:16] other rocks
+[20:33] now as you can see that looks great the
+[20:35] foreground is complete so let's add the
+[20:37] cabin I'm using a free wooden cabin
+[20:39] model from CG Trader I'll provide the
+[20:42] link to this cabin in the description
+[20:43] simply hit the download and make sure to
+[20:45] download the FBS file and the textures
+[20:47] map after downloading it just right
+[20:50] click and extract the file here open
+[20:52] unre engine and in the content browser
+[20:54] create a new folder I'm going to name it
+[20:56] cabin drag and drop the FBS file into
+[20:59] this folder leave the import settings as
+[21:02] they are and hit import all next again
+[21:05] create a new folder with the name of
+[21:07] textur within the cabin folder and drag
+[21:09] and drop the textas file into this
+[21:11] folder now let's apply the textes to the
+[21:13] wooden cabin now we're going to open the
+[21:15] material 01 in the material editor we're
+[21:18] going to delete this default parameter
+[21:20] then drag and drop the textures into the
+[21:22] material editor and connect them
+[21:26] accordingly albo into BAS
+[21:29] normal into normal and then roughness
+[21:31] into roughness and then we going ahead
+[21:33] to apply now the cabin should look great
+[21:36] position the cabin in your environment
+[21:38] to your liking once placed it should
+[21:40] integrate nicely into your
+[21:46] seene next we will add and customize
+[21:49] folage for our environment first open
+[21:52] quel Bridge navigate to 3D plants grass
+[21:56] wild here I'm going to use this wild
+[21:59] glass which I will add to my project now
+[22:02] back in un new engine I'm going to go to
+[22:03] selection mode and over here I'm going
+[22:05] to switch to folage mode in the folage
+[22:07] panel you'll see the grass assets that
+[22:09] we just imported make sure to select all
+[22:12] of them and activate them for painting
+[22:14] when you paint the folage the default
+[22:16] scale might be perfect here you can set
+[22:18] the minimum and maximum scale values I
+[22:21] will set the mine to something like 1.5
+[22:24] and two if you scroll up and here you
+[22:27] can adjust the brush size paint density
+[22:29] and erase density you can paint the
+[22:31] foliage by clicking left Mouse button
+[22:34] and erase it by holding shift while
+[22:35] holding left Mouse button now let's
+[22:37] start painting the foliage where we want
+[22:39] it in the scene
+[23:13] after animating the foliage we will
+[23:15] animate it and tweak its color open the
+[23:18] foliage folder in the content
+[23:22] browser and in the search bar we're
+[23:24] going to search
+[23:26] wind and enable the grass wind and also
+[23:29] this one next delete the sarr and find
+[23:32] the albo tint option enable it and
+[23:35] adjust the color to a slightly darker
+[23:37] shade to blend well with the environment
+[23:40] save everything and close the tab now
+[23:42] you'll notice the for looks great with
+[23:44] the wind animation one issue that might
+[23:47] arise is Shadows disappearing or folage
+[23:49] appearing low quality at a certain
+[23:51] distance we will address this in the
+[23:53] rendering part of the tutorial after
+[23:55] finishing the folage part let's add an
+[23:57] HD to enance environment lightning as
+[23:59] Sky first I'm going to download an hdri
+[24:02] from poly the link is in the description
+[24:04] and also big thanks to these creators
+[24:07] once downloaded just tag and drop the
+[24:08] hdri file into your content browser in
+[24:11] Unreal Engine before using HD we need to
+[24:13] enable the HD plugin first for that go
+[24:16] to
+[24:17] edit
+[24:20] plugins search for HD and enable the
+[24:23] hdri backdrop plugin restart your engine
+[24:26] make sure to save everything
+[24:28] after restarting open your main map in
+[24:31] the play actors panel search for
+[24:34] hdri and drag and drop the hdri backdrop
+[24:37] into the scene and the details spanel of
+[24:39] the HD backdrop increase the size from
+[24:41] 150 to something like 10,000 next in the
+[24:44] content browser select the HD file you
+[24:47] downloaded in the Cub map tab of the HD
+[24:50] backdrops details panel click the arrow
+[24:52] to assign the hdri as you can see it
+[24:54] looks great you can also rotate the hdri
+[24:57] backdrop to adjust the lightning and Sky
+[24:59] to your
+[25:07] preference this completes the HD setup
+[25:10] improving the visual quality of your
+[25:12] involvement after adding the HD we will
+[25:14] create fog and Mist for the mountains to
+[25:16] add extra depth first in the content
+[25:18] browser create a new folder I'm going to
+[25:20] name it
+[25:24] fog inside this folder right click and
+[25:27] create a new material material I'm going
+[25:29] to name it mcore fog double click to
+[25:32] open the material before adding any
+[25:34] notes in the details panel change the
+[25:35] blend mode from OPAC to translucent in
+[25:38] the material editor right click and
+[25:40] search for radial gradient exponential
+[25:42] then click to add
+[25:44] it add a multiply node by holding M and
+[25:47] clicking the left Mouse
+[25:50] button connect the gradient exponential
+[25:52] into base color and also into multiply
+[25:55] and then connect the multiply to the
+[25:57] opacity now in the editor add a plane
+[26:00] and scale it up then apply the fog
+[26:02] material to the plane now as you can see
+[26:05] that the edges of the fog are too sharp
+[26:07] and also the opacity is too much to
+[26:09] adjust this go back to the material
+[26:11] editor and then add a depth Fe note this
+[26:14] will help control the fair distance and
+[26:17] opacity of the material add parameters
+[26:19] for opacity and fair Distance by holding
+[26:22] s and clicking left Mouse button I'm
+[26:24] going to name it opacity and fair
+[26:26] distance
+[26:29] and I'm going to give them a default
+[26:30] value of one now in the content browser
+[26:33] I'm going to create a material instant
+[26:35] right click and create material instance
+[26:38] and I'm going to apply it to the plane
+[26:41] open the material instance and over here
+[26:43] you can see the opacity and fade
+[26:45] distance parameters adjust the opacity
+[26:47] and fade distance to blend the fog and
+[26:52] Mist now we're going to create more
+[26:54] variants of this fog so for that I'm
+[26:55] going to duplicate the first material
+[26:57] and and also I'm going to close the
+[26:59] first material
+[27:01] editor open the second material to
+[27:04] create variants we're going to use noise
+[27:06] textures open the content browser as you
+[27:08] can see I have this engine folder in
+[27:10] your case it might be
+[27:13] disabled to enable it just go to
+[27:15] settings and enable the show engine
+[27:18] content
+[27:19] option open the engine folder and search
+[27:22] for noise scroll down a little bit and
+[27:25] over here you can see tiling noise 05
+[27:28] I'm just going to drag and drop this
+[27:30] into material
+[27:34] editor and over here I'm going to add
+[27:37] another multiply node and plug the noise
+[27:39] into the
+[27:43] multiply and then multiply into opacity
+[27:46] now back in the editor now we're going
+[27:47] to create a material instance of this
+[27:49] material that we just created and apply
+[27:52] it to the
+[27:54] plane now you should see a cool looking
+[27:56] cloudy texture we can also animate it
+[27:59] now to animate the texture we're going
+[28:00] to open the material editor again now in
+[28:03] the material editor we going to add
+[28:04] panel node to animate the UVS of this
+[28:08] texture for that just right click and
+[28:10] search
+[28:12] panel click on
+[28:15] it plug the panel node into the UVS of
+[28:18] the noise texture now we're going to add
+[28:20] parameter to control the speed by
+[28:22] holding s and pressing left Mouse button
+[28:25] and I'm going to name it speed and give
+[28:27] it a value of move something like
+[28:30] 01 the fog now looks great now let's
+[28:33] just start placing the fog in your
+[28:34] environment dambly
+[29:24] after placing the FK as you can see how
+[29:26] much of a difference it makes
+[29:28] now it's time to add final elements like
+[29:30] birds fire and X we'll start with the
+[29:33] birds go to play actors panel and click
+[29:35] on the Unreal Engine Marketplace over
+[29:38] here we're going to search rural
+[29:41] Australia and we're going to download
+[29:43] this
+[29:44] pack and add it to your project once
+[29:48] added you'll find the rural Australia
+[29:49] folder in the content browser I'm going
+[29:51] to open it navigate to
+[29:53] effects and then birds and here you'll
+[29:56] find the Niagara particles system for
+[29:58] Birds drag and drop the second one into
+[30:00] the scam if the birds looks too small
+[30:03] you can adjust their scale so for that
+[30:05] we going to open the birds nagra
+[30:07] particle
+[30:09] system we're going to select this node
+[30:11] and in the details panel scroll down to
+[30:13] the mesh attributes
+[30:19] Tab and we going to change the mesh
+[30:22] uniform scale to something like 1.5 to2
+[30:28] after adjusting it the Birds should look
+[30:30] great after adding the birds we'll move
+[30:32] on to the adding file open the Unreal
+[30:34] Engine Marketplace again and search for
+[30:37] fire make sure to apply the free filter
+[30:39] over here to find the free fire pack as
+[30:42] you can see I'm going to use this fire
+[30:43] pack it's completely free and download
+[30:45] it and add it to your project now in
+[30:47] Unreal Engine the content browser you'll
+[30:48] see the M5 VFX folder click on it and
+[30:52] enable the static mesh filter drag and
+[30:55] drop the woods into your scene and place
+[30:57] them where you want
+[31:02] now I'm going to disable the static mesh
+[31:04] filter go to
+[31:06] particles then
+[31:08] fire and drag and drop the first
+[31:10] particle system on top of these Woods
+[31:13] you can scale it up if needed the fire
+[31:15] should look great now now we're going to
+[31:17] add an X to our project so for that open
+[31:19] the quickel bridge and search for
+[31:24] X choose the one you like and add it to
+[31:27] your project as you can see I'm using
+[31:30] this
+[31:31] one then close the bridge and drag and
+[31:34] drop the X into the scene and place it
+[31:36] where you
+[31:46] want as you can see it looks beautiful
+[31:48] in the scene now let's do some
+[31:50] postprocess work now first we're going
+[31:52] to change the sun's position by holding
+[31:54] CR L moving it to the left to match the
+[32:01] D next we're going to select the
+[32:03] exponential height fog and adjust the
+[32:05] fog density and fog height fall off to
+[32:08] your
+[32:18] liking then add a post process volume by
+[32:20] going to the place actors spanel visual
+[32:22] effects and clicking on post process
+[32:25] volume in the detail spinel of the post
+[32:27] process volume going to search Infinite
+[32:29] and enable this infinite extent
+[32:33] Unbound now we're going to scroll down a
+[32:35] little bit and over here in the image
+[32:37] effects we can add B and sharpen
+[32:42] effects we can also add motion BL I'm
+[32:45] going to decrease the amount of the
+[32:46] motion little bit and setting the target
+[32:48] fps to 24 now that we have our scene
+[32:52] setup let's add level sequencer to
+[32:53] animate our camera and render our shs
+[32:56] I'm going to click on this icon and add
+[32:59] level sequencer and over here I'm going
+[33:01] to create a new folder I'm going to name
+[33:03] it sqs and I'm going to save the first
+[33:06] level sequencer as an close-up
+[33:11] shot now in the same folder right click
+[33:14] go to cinematics and we going to create
+[33:16] another level sequencer with the name of
+[33:18] fight short now currently we are in
+[33:21] closeup short level sequencer so let's
+[33:23] add a camera in the play actors panel
+[33:25] search for camera and drag and drop the
+[33:27] a camera actor into the scene position
+[33:29] the angle where you want the camera to
+[33:32] be and right click on the camera into
+[33:34] outliner and select snap object to
+[33:39] view now drag and drop the camera from
+[33:42] the outliner into the
+[33:44] sequencer and set your desired
+[33:49] angle in the detail spin of the camera
+[33:51] change the lens settings from Universal
+[33:53] Zoom to 85 prime and decrease the
+[33:56] current aperture to 1.8
+[34:00] it we can expand the focus settings
+[34:03] change the focus method from manual to
+[34:05] tracking and then expand the tracking
+[34:07] Focus settings now select your X as a
+[34:10] tracking
+[34:16] actor to animate the camera set it up in
+[34:19] the desired
+[34:22] position and add a transform key frame
+[34:25] now we're going to go at the end of the
+[34:26] timeline
+[34:28] and I'm going to move my camera over
+[34:36] here then I'm going to add another
+[34:39] transform key frame over here now we're
+[34:41] going to change the frame rate from 30
+[34:42] to 24 and you can also extend the
+[34:45] timeline as
+[34:48] needed also move the second key frame at
+[34:51] the end of of
+[34:53] timeline select both of these key Fram
+[34:56] and right click and we're going to
+[34:57] change the interpolation mode from cubic
+[34:59] Auto to
+[35:02] linear now we're going to add a little
+[35:03] bit camera Shake forther open the
+[35:06] content browser and create a new folder
+[35:08] with the name of camera
+[35:10] shake and in the folder right click and
+[35:14] select blueprint cross expand the all
+[35:16] crosses Tab and search for camera
+[35:21] Shake choose camera Shake base and I'm
+[35:24] going to name it camera Shake
+[35:29] double click to open it and I'm going to
+[35:31] close the imot graph because we don't
+[35:33] need it and over here we going to choose
+[35:35] the pling noise cam Shake pattern and
+[35:37] also we going to expand the
+[35:40] tab set the duration to zero in the
+[35:43] timing
+[35:45] section in the rotation section set the
+[35:48] amplitude multiply
+[35:50] to2 and set the frequency multiplier to
+[35:55] 05 hit compile and close the
+[35:59] tab now in the sequencer click on this
+[36:01] plus icon over here camera shake and
+[36:05] choose the camera shake that we just
+[36:06] created extend it across the
+[36:11] timeline now if you play the animation
+[36:13] you will see the subtle camera Shake
+[36:15] effect before creating the white sh I'm
+[36:17] going to recommend you to render your
+[36:18] closeup sh first as we adjust some
+[36:21] camera settings for the white sh open
+[36:23] the white sh
+[36:25] sequencer and drag and drop the the
+[36:27] camera into
+[36:30] it in the details panel change the film
+[36:33] back settings from digital film to
+[36:37] DSLR and the lens settings to 12 mm
+[36:43] Prime we going to disable the focus
+[36:47] method now we going to change the frame
+[36:49] rate to 24 now to animate this sh I'm
+[36:52] going to move my camera over here and
+[36:54] I'm going to add transform key frame
+[36:56] like that and again again at the end of
+[36:58] the timeline we can add another
+[37:00] transform key frame over here and also
+[37:03] we're going to extend the timeline
+[37:04] around 384
+[37:11] frames add the camera Shake just as
+[37:16] before and change the interpolation mode
+[37:18] of the key frames to
+[37:21] linear as you can see the white sh is
+[37:23] now completed now it's time to render
+[37:25] our sh we'll use the movie render queue
+[37:27] which is the best render in Unreal
+[37:28] Engine first we're going to have to
+[37:30] enable the plugin so go to edit plugins
+[37:33] and search for movie render
+[37:35] queue enable the both of these
+[37:39] plugin and restart your engine after
+[37:42] restarting open the main map and your
+[37:44] sequencer to render our shorts click on
+[37:47] this render icon over here to open the
+[37:49] movie render Q tab before rendering
+[37:51] let's address some common folage and
+[37:53] shadows issues so first we going to fix
+[37:55] Shadows issue Shadows May dis pair of
+[37:57] fcker when viewed from certain distances
+[38:00] this can be fixed using a console
+[38:02] command you can open the console command
+[38:04] bar from here and type R do shadow.
+[38:08] distance scale space and then
+[38:11] zero and press enter this should resolve
+[38:14] the Shadows issue this command also
+[38:17] along with others will be provided in
+[38:19] the description now we're going to fix
+[38:21] some folage issues the most common
+[38:23] problem with folage is lods in full form
+[38:26] level of detail at certain distances
+[38:29] folage loses its detail and appears flat
+[38:32] while this can be fixed with a console
+[38:34] command but rendering in real time can
+[38:36] be heavy and might crash your engine by
+[38:38] the way the command is folage do Force
+[38:41] LOD space and zero and also will be
+[38:44] provided in the description instead of
+[38:46] using it in real time we will use it in
+[38:48] the movie render queue for high quality
+[38:50] foliage
+[38:53] rendering now we're going to open the
+[38:55] movie render Q Tab and I'm going to
+[38:57] click on on this unsaved settings and
+[38:59] I'm going to delete the jpex sequence
+[39:02] click on the plus setting button and add
+[39:04] ning then we can to add console
+[39:07] variables and also PNG
+[39:12] sequence now in anzing we're going to
+[39:14] set up the spal sample count to two and
+[39:17] temporal sample count to 16 make sure to
+[39:21] enable override
+[39:22] anding and in output settings you can
+[39:24] change output resolution directory and
+[39:26] frame rate if desired we will use the
+[39:29] default settings now in the console
+[39:30] variables stab click on the plus icon to
+[39:33] add variable slots the first console
+[39:35] variable that we're going to add is R do
+[39:36] Shadow do distance
+[39:38] scale with a value of
+[39:41] zero folage do Force L also with the
+[39:44] value of
+[39:47] zero then we going to add R do screen
+[39:50] percentage with the value of 200 this
+[39:52] will take the 1920 multip 1080
+[39:55] resolution and multiply by it two
+[39:58] effectively rendering in 4k and down
+[40:00] simply to 1080p for higher quality I'm
+[40:03] going to add two more
+[40:07] slots this one is R do motion blood
+[40:10] quality with the value of five and this
+[40:13] one is r. depth of field quality with
+[40:16] the value of four all the console
+[40:18] commands will be provided in description
+[40:20] for easy copying and pasting once all
+[40:23] the settings are configured just click
+[40:25] on accept and render local
+[40:27] if you encounter any rendering issue let
+[40:30] me know in the comment section thank you
+[40:32] so much for following along if you
+[40:33] learned something from this tutorial
+[40:35] please make sure to share and like it
+[40:37] until then see you in the next cool
+[40:38] tutorial

@@ -1,0 +1,441 @@
+[00:04] &gt;&gt; Hi, my name is Matt Oztalay
+[00:06] and I'm a Developer Relations
+[00:06] Technical Artist at Epic Games.
+[00:09] I helped out the Quixel team
+[00:09] with materials and performance
+[00:12] on their Medieval Game Environment.
+[00:13] Today, we're going to
+[00:13] talk about how we improved
+[00:15] the performance of the project
+[00:15] with a few simple changes
+[00:18] that didn't dramatically
+[00:18] impact the visuals.
+[00:21] In the last video, we talked about
+[00:21] how we optimized the lighting
+[00:23] and shadows in the scene.
+[00:25] And in this video,
+[00:25] we'll talk about what
+[00:26] we can do to render our
+[00:26] scene more efficiently
+[00:28] with instant Static Meshes,
+[00:28] reduce the complexity of objects
+[00:32] in the distance with the
+[00:32] Hierarchical Level of Detail system,
+[00:35] and only render what we
+[00:35] can actually see by setting
+[00:38] draw distances on foliage.
+[00:40] As my colleague Jakob Keudel
+[00:40] discussed in a previous video,
+[00:43] the thatched roofs of our
+[00:43] houses are constructed
+[00:45] of many individual Static Meshes.
+[00:48] This allowed the artists plenty
+[00:48] of freedom of construction,
+[00:51] but this isn't the most efficient
+[00:51] way to render this feature.
+[00:53] GPUs like to do the same thing
+[00:53] over and over and over again,
+[00:56] and it will take more time to do a
+[00:56] bunch of different things in a row.
+[01:00] Imagine you're painting a fence.
+[01:01] It's much easier to
+[01:01] paint a fence one color
+[01:04] than it is to paint each slat
+[01:04] a different color since you
+[01:06] don't spend as much time
+[01:06] gathering new paint for each slat.
+[01:10] In the graphics world, we call
+[01:10] these fence slats Draw Calls.
+[01:13] You can think of a Draw
+[01:13] Call as the same geometry
+[01:15] with the same material.
+[01:17] So in our example of
+[01:17] the colorful fence,
+[01:19] each slat would be a
+[01:19] different Draw Call.
+[01:21] More slats, more Draw Calls,
+[01:21] or time to render the frame.
+[01:25] We can think of this Static Mesh, for
+[01:25] example, as requiring to Draw Calls
+[01:29] since it has two material slots.
+[01:31] The old wooden barrel material
+[01:31] for the roof and the support beam
+[01:34] material for the flash.
+[01:37] We have a few different
+[01:37] thatch meshes,
+[01:39] but just because they're the same
+[01:39] geometry with the same material,
+[01:41] they're not necessarily
+[01:41] treated as a single Draw Call
+[01:44] since we don't want to worry
+[01:44] about all the thatches that aren't
+[01:47] on the screen at any given time.
+[01:50] To find a balance between culling
+[01:50] and instancing, in Unreal 4.22,
+[01:55] we added dynamic instances to
+[01:55] help batch Draw Calls together.
+[01:59] We detect if two or more nearby
+[01:59] Actors share the same geometry
+[02:02] and material, and draw
+[02:02] them as one Draw Call.
+[02:06] We can see the benefits of this
+[02:06] dynamic instancing really quickly.
+[02:09] First, we run the
+[02:09] console command Stat RHI,
+[02:13] and this shows us a number of
+[02:13] stats about the rendering part.
+[02:16] We're interested in this number
+[02:16] here, DrawPrimitive calls.
+[02:19] This is the thing
+[02:19] we're trying to reduce.
+[02:22] Next, we can turn off
+[02:22] dynamic instancing
+[02:25] by running the console command
+[02:25] r.MeshDrawCommands.DynamicInstancing 0
+[02:31] Look at the number of
+[02:31] DrawPrimitive calls increase.
+[02:34] Let's run
+[02:34] r.MeshDrawComands.DynamicInstancing 1
+[02:38] to turn that back on since
+[02:38] it saves us so many Draw Calls.
+[02:42] Dynamic instancing, however,
+[02:42] can only do so much.
+[02:45] It won't batch every
+[02:45] usage of the same geometry
+[02:47] and of the same
+[02:47] material since we need
+[02:49] to account for the various
+[02:49] LODs of a given Static Mesh
+[02:52] and how far the way the Meshes
+[02:52] are from each other, et cetera, et
+[02:54] cetera, et cetera.
+[02:57] So since we knew that the number
+[02:57] of thatches wasn't totally optimal,
+[03:00] but we wanted to maintain some amount
+[03:00] of editability for the artists,
+[03:03] we had to find a more efficient
+[03:03] way to draw the thatches.
+[03:07] We can give the GPU
+[03:07] some hints about what
+[03:09] should be batched together
+[03:09] into a single Draw Call using
+[03:11] instanced Static Mesh components.
+[03:14] Each one will effectively
+[03:14] be one Draw Call.
+[03:16] Once we were satisfied with
+[03:16] the look of the thatched roofs,
+[03:19] I merged the thatches for each
+[03:19] house into a single Actor made up
+[03:22] of a few instanced
+[03:22] Static Mesh components.
+[03:25] All I had to do was
+[03:25] select all of the thatch
+[03:27] Actors, right click,
+[03:27] Merge Actors, then
+[03:35] select this mode over on the right
+[03:35] that harvests Geo from the selected
+[03:38] Actors and merges them into an
+[03:38] instanced Static Mesh component.
+[03:43] Because we did this toward
+[03:43] the end of the project,
+[03:45] and to ensure we could change the
+[03:45] thatches if necessary, I decided
+[03:48] to use Keep Original Actors As Editor
+[03:48] Only, since they won't be rendered
+[03:53] at all but they're
+[03:53] there just in case,
+[03:55] we ever need to change things around.
+[03:57] I knew this was the right
+[03:57] way to go, because we
+[03:59] had a limited number of thatch
+[03:59] types and a whole bunch of them
+[04:02] all in the same area.
+[04:05] This led to a big overall reduction
+[04:05] in the number of Draw Calls
+[04:07] for the house.
+[04:10] This technique can be
+[04:10] really useful in places
+[04:12] where you use a lot of
+[04:12] a few different Static
+[04:15] Meshes in a contiguous area.
+[04:18] For example, in some
+[04:18] cases where you'd
+[04:20] merge your Static Meshes into
+[04:20] a single Static Mesh Actor
+[04:22] but don't want to worry
+[04:22] about the memory overhead
+[04:24] of an additional Static Mesh.
+[04:27] This technique could have been
+[04:27] applied to the windmill blades,
+[04:29] for example, which were kitbashed
+[04:29] together from a number of smaller
+[04:32] pieces of wooden shingles.
+[04:37] As I mentioned earlier, GPUs
+[04:37] like to do the exact same thing
+[04:40] over and over and over again.
+[04:42] But there is an exception, and
+[04:42] that's drawing to the same pixel
+[04:46] over and over and over again.
+[04:48] This happens if, for example,
+[04:48] we stack some fog cards
+[04:51] on top of each other.
+[04:53] Each fog plane needs
+[04:53] to be rendered so we
+[04:55] have to calculate each pixel of
+[04:55] the fog planes multiple times.
+[05:00] You can see how many times a
+[05:00] pixel is rendered in a frame
+[05:02] if we go to View Modes, Optimization
+[05:02] View Modes, Quad Overdraw.
+[05:08] The colors correspond to the
+[05:08] number of times a pixel is drawn.
+[05:11] For example, this high spot
+[05:11] in the middle is our fog,
+[05:14] and this shows us that we're
+[05:14] drawing each single pixel more
+[05:16] than 10 times.
+[05:18] If we hide these, we can see this
+[05:18] big band of green in the middle here.
+[05:21] This means that we're still rendering
+[05:21] each of these pixels about four
+[05:24] times, which isn't efficient.
+[05:26] Why is that?
+[05:28] Well, the other way a GPU will
+[05:28] end up drawing the same pixel more
+[05:31] than once is at the edges of drawing,
+[05:31] since we need rasterize that vector
+[05:34] information.
+[05:35] With that in mind, if a triangle
+[05:35] is smaller than four pixels,
+[05:39] we'll still render the four pixel
+[05:39] area occupied by that triangle
+[05:42] or quad.
+[05:44] This can often happen when you have
+[05:44] highly detailed geometry that's
+[05:46] off in the distance.
+[05:48] We've linked some
+[05:48] resources below that help
+[05:49] explain what's happening
+[05:49] here, but for now,
+[05:51] suffice it to say that subpixel
+[05:51] triangles are bad because they
+[05:54] result in Quad Overdraw,
+[05:54] which causes us to render
+[05:57] more pixels than on the screen.
+[05:58] There's a few ways
+[05:58] we can improve this.
+[06:00] The first, of course, is to
+[06:00] make sure our meshes have
+[06:02] Level of Detail meshes or LODs.
+[06:05] With each Level of Detail, we reduce
+[06:05] the complexity of the geometry
+[06:08] as the mesh gets
+[06:08] further and further away
+[06:10] from the camera to
+[06:10] help us mitigate Quad
+[06:12] Overdraw and subpixel triangles.
+[06:14] For this project, we
+[06:14] used the Unreal Engine's
+[06:17] built-in, powerful, automatic
+[06:17] LOD generation tools,
+[06:20] and that made it super
+[06:20] easy and painless for us.
+[06:23] You can learn more about this in
+[06:23] the links we've provided below.
+[06:26] But what happens when those
+[06:26] final LODs are really far away?
+[06:30] Won't those triangles be
+[06:30] too small on the screen
+[06:32] and lead to Quad Overdraw?
+[06:34] Yes.
+[06:35] That's OK.
+[06:36] One thing we could do, of
+[06:36] course, is not draw them at all
+[06:39] and set the max draw
+[06:39] distance on the Actor itself,
+[06:41] but we can't do that for
+[06:41] large objects like the houses.
+[06:46] So what do we do when we
+[06:46] want to draw something
+[06:48] beyond the final LOD of our Geo,
+[06:48] but something even more simplified?
+[06:52] Enter the Hierarchical
+[06:52] Level of Detail or HLOD.
+[06:56] The HLOD system creates an
+[06:56] even more simplified mesh
+[06:59] to represent a group
+[06:59] of objects that's
+[07:01] meant to be used very far away.
+[07:02] A proxy measure, if you will.
+[07:04] We can automatically generate
+[07:04] clusters of these objects
+[07:08] and the proxy meshes
+[07:08] for those clusters.
+[07:10] Here's how.
+[07:12] First, I'll open the HLOD
+[07:12] Outliner, which is just up
+[07:15] here under Window, HLOD Outliner.
+[07:23] For each level in which we
+[07:23] wanted to use the HLOD system,
+[07:26] we have to enable that by setting
+[07:26] it in the levels World Settings.
+[07:29] I'll go to the LODSystem group
+[07:29] and check the Enable Hierarchical
+[07:34] Level of Detail System checkbox.
+[07:37] For our purposes, we were happy
+[07:37] with the default Cluster Generation
+[07:40] and Mesh Generation
+[07:40] settings, but I highly
+[07:42] recommend you tune
+[07:42] these to your needs.
+[07:45] We'll need to set this
+[07:45] checkbox in every sublevel
+[07:47] that we use HLODs, including the
+[07:47] Persistent level, which we've just
+[07:50] done, the Geometry sublevel, and
+[07:50] each of the houses into the foliage.
+[08:00] In each House sublevel I'll, of
+[08:00] course, enable the HLOD system.
+[08:04] And in the HLOD Outliner,
+[08:04] I'll make sure to check
+[08:06] Generate Single Cluster For Level.
+[08:09] Since this whole House sublevel
+[08:09] is contained in a contiguous area,
+[08:12] we can skip the time consuming
+[08:12] Cluster Generation process
+[08:15] since we already know
+[08:15] that we only need one
+[08:18] HLOD to represent the whole house.
+[08:20] This was one of the big benefits
+[08:20] of building these houses
+[08:22] into their own sublevels.
+[08:24] Now that we've enabled the HLOD
+[08:24] system for all of our sublevels,
+[08:27] we're back in the
+[08:27] main level, and it's
+[08:29] time to turn the HLOD system loose.
+[08:31] And the HLOD Outliner, we'll just
+[08:31] hit this big red Build button up
+[08:35] in the corner.
+[08:36] This process can take
+[08:36] some time as we're
+[08:38] looping over all of the
+[08:38] geometry in the scene to group
+[08:40] it together into clusters and then
+[08:40] generating proxy messages for each
+[08:44] of those clusters.
+[08:46] Again, this will take some time for
+[08:46] the scene so sit back and relax.
+[08:51] Now that our clusters and proxy
+[08:51] meshes have finished generating,
+[08:53] we can see them all individually
+[08:53] in the HLOD Outliner.
+[08:57] I can expand one of
+[08:57] these HLOD Actors and see
+[09:01] which Actors are included in
+[09:01] the cluster, zoom to them,
+[09:06] and see the size of the cluster.
+[09:12] Since these proxy meshes
+[09:12] are automatically generated,
+[09:14] they'll need to be
+[09:14] updated from time to time
+[09:16] as you make changes to your level.
+[09:18] Just like lighting
+[09:18] needs to be rebuilt,
+[09:20] you'll see HLOD clusters
+[09:20] need to be rebuilt
+[09:22] in the top left corner
+[09:22] of your viewport
+[09:24] since we try to detect when
+[09:24] you've made changes to the level
+[09:26] and alert you.
+[09:28] You can rebuild individual
+[09:28] clusters by right clicking on them
+[09:31] and selecting Rebuild Proxy Mesh.
+[09:34] But what about foliage?
+[09:36] When you paint foliage into
+[09:36] the world using Unreal Engine's
+[09:39] built-in tools, these
+[09:39] instances aren't
+[09:40] included when we generate HLODs.
+[09:43] What can we do?
+[09:44] As with Static Mesh Actors, we
+[09:44] can set the max draw distances
+[09:48] on our foliage so that as we get
+[09:48] further away from smaller meshes,
+[09:51] we stop drawing them altogether.
+[09:53] The good news is that
+[09:53] we can tell Unreal
+[09:55] when to not draw foliage
+[09:55] with relative ease
+[09:57] using Bulk Edit via Property Matrix.
+[10:00] In the Content Browser
+[10:00] I'll filter by Foliage,
+[10:05] select All, right
+[10:05] click Asset Actions,
+[10:08] Bulk Edit via Property Matrix,
+[10:08] which shows us this view.
+[10:13] Next, we'll need to show the
+[10:13] properties we want to change.
+[10:16] I just want to see Instance Settings,
+[10:16] Call Distances, Min, and Max.
+[10:21] I'll hover over each of these
+[10:21] and click the little pin icon
+[10:24] to show these properties
+[10:24] in the Column view.
+[10:26] You can read more about these in
+[10:26] the links we've provided below.
+[10:29] Just know that we've
+[10:29] set up our foliage
+[10:31] to start fading out at the Min
+[10:31] distance and be fully faded out
+[10:34] and not drawn at all
+[10:34] at the Max distance.
+[10:37] If you don't want to
+[10:37] fade your foliage,
+[10:38] you can just set the Max distance
+[10:38] and they'll be fully invisible.
+[10:42] I set these values based
+[10:42] on the size of the foliage.
+[10:44] For example, the broken pine
+[10:44] tree assembly is rather large,
+[10:47] so we'll make sure that we
+[10:47] can see it for quite a ways.
+[10:50] As you're doing this
+[10:50] in your projects,
+[10:52] it's good to get a sense
+[10:52] of the scale of your scene
+[10:54] and the size of these objects.
+[10:55] Set your camera far away from
+[10:55] one of your target meshes
+[10:58] and tune the values accordingly.
+[11:01] I also know that anything
+[11:01] with the name Spruce in it
+[11:03] is one of our larger
+[11:03] trees that can be
+[11:05] seen from all the way
+[11:05] across the map, so we'll
+[11:07] set those values so we don't end up
+[11:07] with a sparse foliage at the tree
+[11:10] line.
+[11:12] Finally, I looked for
+[11:12] small foliage types,
+[11:14] and set those values very low.
+[11:16] For instance, we don't
+[11:16] need to see this carrot
+[11:18] from all the way across the map.
+[11:21] Be sure to check out the project
+[11:21] on the Unreal Engine Marketplace
+[11:23] to see how we set the call distances
+[11:23] for all of our different foliage
+[11:26] types.
+[11:27] I hope this video has given
+[11:27] you some ideas about how
+[11:30] to improve the performance
+[11:30] of your project
+[11:32] by cleverly reducing the
+[11:32] number of Draw Calls,
+[11:34] the number of things we're drawing,
+[11:34] and the complexity of things
+[11:37] we're drawing.
+[11:38] Thanks for watching.

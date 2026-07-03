@@ -1,0 +1,125 @@
+[00:00] In the next 5 minutes, I'm going to show
+[00:01] you how to create this underwater scene
+[00:03] in Unreal Engine. Now, I color graded my
+[00:06] scene in Dainci, but the final result
+[00:07] are pretty much the same. So, let's get
+[00:09] started.
+[00:11] First, you need to download this
+[00:13] underwater blueprint. It's completely
+[00:14] free and the link is in the description.
+[00:16] After downloading it, extract the
+[00:18] blueprint. Open the blueprint project
+[00:20] and create a new basic level. Delete the
+[00:23] default ground. Open the content browser
+[00:25] by pressingtrl + space. And in the
+[00:27] blueprint folder, drag and drop the
+[00:29] blueprint class like this. Now go to the
+[00:31] plus icon, select visual effects and add
+[00:33] a post-process volume. Select the
+[00:36] postprocess volume and in the details
+[00:38] panel, search for infinite and check the
+[00:41] box. And again in the details panels,
+[00:43] search for exposure. Check those boxes.
+[00:46] Change the metering mode from auto to
+[00:48] manual and set the value around a.
+[00:50] Scroll down a little bit. Check the
+[00:52] bloom box. Change the bloom method from
+[00:54] standard to convulation and increase the
+[00:57] intensity a little bit. Next, in the
+[01:00] image effects section, add vignette and
+[01:02] sharpen. In the global section, check
+[01:05] the saturation box and increase the
+[01:07] value to 1.2. Now, the most important
+[01:09] part in the global illumination section,
+[01:12] check the box and change it from lumen
+[01:15] to screen space. Finally, add motion
+[01:17] blur and set the target FPS to 24. Now,
+[01:20] download this 3D model from Sketch. It's
+[01:22] completely free. The link is in the
+[01:24] description. After downloading it,
+[01:26] extract the file in the engine. Create a
+[01:28] new folder and drag and drop the FBX
+[01:30] file here. Make sure the skeleton mesh
+[01:32] is selected. Also, we need to import the
+[01:34] animations and then click on import all.
+[01:37] Create a new folder for textures and
+[01:39] drag and drop the textures here. Open
+[01:42] the shark material. Delete the default
+[01:44] parameter. Drag and drop the textures
+[01:46] and plug them in like this. And apply
+[01:49] the material. Next, drag and drop the
+[01:51] shark skeleton mesh into the scene and
+[01:53] adjust it like that.
+[01:58] Create a new level sequencer and hit
+[02:01] save. Import a camera and go to the
+[02:04] location where you want the camera.
+[02:07] Right click on the camera and select
+[02:09] snap object to view. Switch to the
+[02:12] camera mode. Now in the details panel of
+[02:15] the camera, change the film back from
+[02:17] digital film to DSLR.
+[02:20] and set the aperture value to four. You
+[02:23] can also adjust the intensity of the
+[02:25] direction light and its color. Now let's
+[02:27] animate our shark and camera. Drag and
+[02:30] drop the shark and camera into our
+[02:32] sequencer. Add a transform key frame to
+[02:34] the camera. Add an animation to the
+[02:36] shark.
+[02:38] The animation is quite fast, so I'm
+[02:39] going to slow it down. Right click on
+[02:41] the animation track. Go to properties
+[02:44] and change the play rate from 1 to4.
+[02:47] Also change the frame rate to 24.
+[02:50] To animate the location of the shark,
+[02:51] add a transform key frame at the
+[02:53] beginning and a second one at the end.
+[02:57] [Music]
+[02:59] Change the interpolation mode to linear.
+[03:02] If the animation is still fast, increase
+[03:04] the timeline length.
+[03:06] [Music]
+[03:08] Now let's add a camera shape. Create a
+[03:10] new folder to keep everything organized.
+[03:12] Create a blueprint class. And in all
+[03:14] classes, search for camera shake and
+[03:17] select camera shake base. Open it. And
+[03:20] in the camera shake pattern, select
+[03:23] pollen noise camera shake pattern.
+[03:25] Change the rotation amplitude to 04 and
+[03:28] rotation frequency to 6. And in the
+[03:32] timing section, set the duration to
+[03:34] zero.
+[03:36] Now to add camera shake into our camera
+[03:39] just click on plus icon camera shake and
+[03:42] select our camera shake like that. Now
+[03:45] we are going to render this scene in
+[03:47] movie render Q. First enable the movie
+[03:49] rental Q plug-in. Go to edit plugins.
+[03:52] Search for movie render Q. Enable it and
+[03:55] restart your engine.
+[03:58] If you encounter any lightning issues
+[04:00] after restarting, you can fix them by
+[04:02] going to the post-process volume details
+[04:04] panel and changing the reflections
+[04:06] method.
+[04:12] Let's render our scene. Click on render
+[04:14] icon and then click on unsaved config
+[04:17] settings. Now I'm going to delete this
+[04:18] JPEG sequence and I'm going to add the
+[04:21] PNG sequence
+[04:23] like that.
+[04:25] [Music]
+[04:26] Add anti-lazing.
+[04:30] Set the temporal sample count to 32.
+[04:35] Check the box. And here you can also
+[04:37] adjust the frame rate and output
+[04:38] directory.
+[04:41] [Music]
+[04:43] And again in the antiasing tab, set the
+[04:46] warm-up counts to 120.
+[04:49] [Music]
+[04:51] Hit accept and render local. If you
+[04:55] learned something from this tutorial,
+[04:56] make sure to subscribe and share my
+[04:58] channel for future content.
