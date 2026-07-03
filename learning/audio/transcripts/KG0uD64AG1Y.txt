@@ -1,0 +1,471 @@
+[00:00] Hello. In this video, I'm going to give
+[00:02] you a crash course on audio in Unreal
+[00:05] Engine. I'm an authorized Unreal Engine
+[00:07] instructor and I'll walk you through the
+[00:09] essentials from looping your sounds,
+[00:11] adding automatic subtitle effects,
+[00:13] adding variations to your sounds, and
+[00:15] sound attenuation so that your audio
+[00:17] feels dynamic and professional. And
+[00:19] before we get started, if you'd like to
+[00:21] dive even deeper into Unreal Engine,
+[00:23] I've put together a free beginner
+[00:25] course. You'll find a link to that in
+[00:26] the description of this video.
+[00:28] With that being said, let's get into the
+[00:31] video. So, in order to import audio
+[00:33] files into Unreal Engine, they need to
+[00:35] be awf file format. And we can import
+[00:38] audio into Unreal Engine by just
+[00:40] dragging and dropping the file into
+[00:42] Unreal Engine
+[00:43] or just going import and selecting your
+[00:46] audio file. Unreal Engine does not
+[00:48] accept the MP3 file format. We need to
+[00:51] convert it into AOW file format in order
+[00:53] to have it in Unreal Engine. Later on in
+[00:56] this section, we'll go over how to do
+[00:57] that in case you don't know. Once you
+[00:59] import awe file format into Unreal
+[01:02] Engine, it will turn into this
+[01:03] soundwave. And if we want to preview the
+[01:05] sound, we can just click this play
+[01:07] button and it will let us know how the
+[01:09] sound sounds. We also have this sound
+[01:11] queue. With this sound queue, we can
+[01:14] manipulate the sounds we have a bit
+[01:16] more. So, we can combine sounds to make
+[01:18] a different effect. We can loop sounds
+[01:20] and do a bit more. in order to play a
+[01:23] sound in Unreal Engine. We can simply
+[01:25] just drag this into our level. And here
+[01:28] in my level, it will basically play this
+[01:29] sound. So, if I just play my game,
+[01:33] it should play that explosion sound. I
+[01:35] can scroll down and I can also preview
+[01:37] how the sound will um be by clicking
+[01:40] this play button. We can also adjust the
+[01:42] um volume and its pitch here. If we want
+[01:46] the sound to loop, we can just go over
+[01:48] to the content drawer. And if I just
+[01:49] open this up, I need to scroll down. And
+[01:52] if I just click this looping box,
+[01:54] that'll make it so the sound will
+[01:56] continuously loop forever.
+[01:58] You'll also notice as soon as I dragged
+[02:01] my sound file into my level, it
+[02:03] automatically played. If you don't want
+[02:05] that, if we just go to the details right
+[02:08] now, we can see activation is set to
+[02:10] auto activate. If I just leave this
+[02:11] unchecked, it's not going to
+[02:13] automatically play my sound when I play
+[02:15] my game.
+[02:19] We can also drag and drop sound cues
+[02:20] into our level the same way that we
+[02:22] dragged and dropped sound waves into our
+[02:24] level. With sound waves, we can also
+[02:26] make them have subtitles. So, I imported
+[02:28] this audio of someone saying, "Somebody
+[02:31] call a doctor." So, I'll just play it.
+[02:34] &gt;&gt; Somebody call a doctor. And if say when
+[02:37] I played the sound, I wanted there to be
+[02:39] subtitles of what this guy was saying. I
+[02:41] can just open this up and we can go over
+[02:44] to subtitles and I can just add a pin
+[02:47] for as many subtitles as I want. So at
+[02:50] time zero, I can basically specify the
+[02:53] text that I want to appear on the
+[02:55] screen. I can do this for multiple
+[02:58] different lines, but I'm just going to
+[02:59] make it all fit in one line. So I'm just
+[03:01] going to basically type in the text that
+[03:03] I want it to say. So I'm going to type
+[03:05] in somebody call a doctor. And if say
+[03:09] you have two um sounds which both have
+[03:12] subtitles, the one with the subtitle
+[03:15] priority which is higher is going to be
+[03:16] the one which is shown on the screen. So
+[03:18] if I just save this, close this and I'm
+[03:21] going to just remove my explosion.
+[03:25] I'll go over to my content drawer and I
+[03:27] can drag this in. If I play my game,
+[03:30] &gt;&gt; somebody call a doctor.
+[03:31] &gt;&gt; I can see the subtitles there. Now, my
+[03:34] subtitles were a bit small. If you want
+[03:35] to adjust the size of them, we can just
+[03:37] go over to edit, project settings,
+[03:41] scroll down, and go over to general
+[03:42] settings. And we just want to go over
+[03:44] here where it says advanced. And you can
+[03:46] specify the subtitle that you want to um
+[03:49] show. So, I can select robotto. And then
+[03:52] if I double click and I open this up, I
+[03:54] can change the font size of this to be
+[03:56] bigger. I will need to restart my Unreal
+[03:58] Engine editor for that to take effect
+[04:00] though.
+[04:02] Okay. But normally in a game, you don't
+[04:04] want the sound to basically just play
+[04:06] straight away. We're going to go over
+[04:08] how we can trigger and spawn the sounds.
+[04:10] So, I'm just going to delete this. And
+[04:14] if I go here where it says quickly
+[04:15] adding to the project, I'm going to go
+[04:17] over to volumes and I'm going to look
+[04:19] for a trigger volume.
+[04:24] I will just move it so I can walk
+[04:26] straight into it. And I'm just going to
+[04:29] go over to my level blueprint.
+[04:32] I will just right click, go add event
+[04:34] collision and add on activity and
+[04:37] overlap. And if I just right click and I
+[04:40] look for play sound,
+[04:42] we have a couple different main ways
+[04:44] which we can play sounds. We have this
+[04:46] play sound 2D. This will basically play
+[04:49] a sound that is not spatialized. So that
+[04:51] will basically mean this sound will be
+[04:53] heard at the same volume throughout the
+[04:56] speakers of your game regardless of the
+[04:58] location or where your player character
+[05:00] is positioned in your game. This is
+[05:02] ideal for UI sounds or narrators. We
+[05:06] then have play sound at location. Here
+[05:07] we can specify where we want the sound
+[05:09] to basically start. And then you also
+[05:11] notice we have this spawn sound 2D and
+[05:15] spawn sound at location. So the
+[05:17] difference between the play sound and
+[05:18] the spawn sound functions are the
+[05:21] following. So if I just select this one
+[05:23] spawn sound at location and then I'm
+[05:25] also going to look for play sound at
+[05:27] location.
+[05:30] With the play sound location, once we
+[05:32] play the sound, we're going to have no
+[05:33] control over it. We can't edit it or
+[05:35] change it in any way. It's going to
+[05:37] exist in our level forever. Although
+[05:39] with the spawn sound at location, we can
+[05:41] get a reference to this sound and we can
+[05:43] maybe manipulate it, delete it or
+[05:46] whatever. So with the play sound, once
+[05:48] we spawn sound, we have no control over
+[05:50] it. It will exist forever. With the
+[05:51] spawn sound, we can access the sound and
+[05:54] um change it later if we need to. So
+[05:57] when my player character
+[06:00] overlaps the trigger volume, I'm going
+[06:02] to play the explosion sound effect. And
+[06:07] um for the location of where we're going
+[06:10] to spawn the sound, I can just right
+[06:11] click and forget player character.
+[06:15] And then I will just drag up here and
+[06:17] forget actor location.
+[06:21] And that will be where I spawn the
+[06:22] sound.
+[06:24] Okay, I'll compile this. Close this. And
+[06:28] if I play my game, let me just walk
+[06:30] forward.
+[06:32] And it plays my sound.
+[06:35] Okay. So then if I just right click on
+[06:38] this, I can promote this to a variable
+[06:39] and this will give me a reference to the
+[06:41] um sound that I just spawned. So that's
+[06:43] the difference between the spawn sound
+[06:45] and the play sound. So that's an
+[06:47] introduction to audio in Unreal Engine.
+[06:53] Hello. In this video, we're going to go
+[06:55] over sound cues. These are used to
+[06:58] combine and modify sound waves to create
+[07:00] new and more complex sounds. To create a
+[07:03] soundwave, I'm just going to go over to
+[07:05] my content drawer and I'm in the starter
+[07:07] content audio folder and I'm just going
+[07:10] to right click, go over to audio, and
+[07:12] then select sound Q. I'll just leave
+[07:14] this at the default name, new sound Q,
+[07:16] and I'll double click and open it up.
+[07:19] Now, we'll have this graph here. We can
+[07:21] basically add some nodes to determine
+[07:23] what sound should play and how it should
+[07:25] play. So if I just go over to wave
+[07:27] player and I'll just drag this in here.
+[07:29] I can specify the sound wave that I want
+[07:31] to play. So there's some explosion
+[07:35] soundwave which comes with the default
+[07:37] starter content. If I just select this
+[07:39] and I connect this into output
+[07:42] and I just select this output. Then I
+[07:44] click play Q,
+[07:47] it's going to play my soundwave. So, we
+[07:50] have these nodes here on the right,
+[07:51] which we can use to modify how our sound
+[07:55] should play. So, let's go over some of
+[07:58] the most common ones. If I just drag in
+[08:00] this random node, and then I'm going to
+[08:02] press alt to break the link here and
+[08:04] just connect this into here. I'm then
+[08:06] just going to copy and paste this and
+[08:09] connect this into here. And I'm going to
+[08:13] then change this to be my explosion too,
+[08:16] and connect this into here. The way this
+[08:18] random node will work is it's going to
+[08:19] randomly select one of these sounds and
+[08:21] play them. If say you want one sound to
+[08:25] play more often than another one, we can
+[08:28] just go over here where it says weights.
+[08:29] And right now both sounds have a weight
+[08:32] of one. But if say I change this one to
+[08:34] two, then this sound is going to be
+[08:36] twice as likely to play compared to the
+[08:39] first one. We then have this randomize
+[08:41] without um replacement. The way this
+[08:44] will work is this will basically
+[08:46] randomly play these sounds. Although, if
+[08:48] this is checked, it's going to make sure
+[08:49] that um once it's played one sound
+[08:51] randomly, it will wait till it's played
+[08:53] the other sounds in here before it
+[08:55] resets again. So, that's the way the
+[08:57] random one works. Let me just delete
+[08:58] this. I will drag in the concentrator
+[09:03] and just connect this into here and this
+[09:05] into here and this into here. The way
+[09:07] the concentrator um node will work is
+[09:10] first it will basically play this sound
+[09:12] and then it'll play this one. So it'll
+[09:14] play the sounds one after another. So if
+[09:16] I just click play, make sure you just
+[09:18] select the output one and then it will
+[09:20] play the final result. If I just
+[09:22] selected this, then it's going to just
+[09:23] play this specific sound que. But if I
+[09:25] just select this one and then I go play
+[09:27] Q first. It will play this sound,
+[09:32] then it will play the second sound. We
+[09:34] then have the mixer. So let me just
+[09:35] delete this.
+[09:37] and our dragon mixer. The way this works
+[09:40] is it will basically combine both of
+[09:41] these sounds. So if I just go play sound
+[09:44] que,
+[09:46] it basically has combined both of those
+[09:48] sounds. I'm just going to delete this.
+[09:52] We then have the looping. So I can just
+[09:54] connect this into here and this into
+[09:56] here. And the way this looping will work
+[09:57] is it will basically just infinitely
+[10:00] loop the sound. Every time it's finished
+[10:02] playing, it will loop it. If you want to
+[10:04] specify the amount of times this sound
+[10:05] should loop, we can just uncheck this
+[10:07] loop indefinitely. And I can specify
+[10:09] this. So maybe I want this to only loop
+[10:11] five times. We then have the delay.
+[10:16] So the way this works is we can add a
+[10:18] random delay before the sound should
+[10:19] play. So we have this delay min and this
+[10:21] delay max. So I made this one and I made
+[10:23] this five. It's basically going to have
+[10:26] a delay between 1 and 5 seconds. So it
+[10:28] could be 3 seconds, it could be 4
+[10:29] seconds, it could be 1 second. And then
+[10:31] I'll play my sound. If I wanted this to
+[10:33] only be 1 second, then I would make both
+[10:34] of these values the same.
+[10:37] So I make both of these one. If I wanted
+[10:38] it to have a delay of 1 second every
+[10:41] time, I'll just delete this. We then
+[10:44] have the modulator. So the way this
+[10:46] works is if you play a sound, you don't
+[10:48] want it to be the same every time. So if
+[10:50] you just have the modulate node, this
+[10:52] will basically randomize the pitch and
+[10:54] the volume of the sound. So it sounds
+[10:55] slightly different every time you play
+[10:57] it. You can adjust the pitch and the
+[11:00] volume min and max values, but this will
+[11:02] just make it so the sound sounds
+[11:03] slightly different each time it's
+[11:04] played. So, those are the main nodes.
+[11:08] You may occasionally need to use the
+[11:10] branch and the switch one. So, I'm just
+[11:12] going to cover these. The way this works
+[11:14] is it's kind of like a standard branch.
+[11:16] We have a true pin and we have a false
+[11:18] pin. If this is set to true, then it's
+[11:21] going to play the sound which comes out
+[11:22] of true. If this is set to false, then
+[11:24] it's going to play the sound that comes
+[11:25] out of false. And if no um value set,
+[11:28] that's going to play the sound out of
+[11:30] parameter unset. And the switch node
+[11:32] works pretty similar. Just to showcase
+[11:34] how we um implement these ones because
+[11:37] these need some blueprint code. I'm just
+[11:39] going to do an example with a branch. So
+[11:41] I'm just going to connect this into
+[11:42] here. And uh if this is true, I'll play
+[11:45] my explosion one sound. If this is
+[11:48] false, I will play a different sound. So
+[11:50] maybe we'll play the fire sound.
+[11:52] Let's save this. Close this.
+[11:56] drag a new sound queue into my level.
+[11:59] And if I just go to the level blueprint,
+[12:02] I'm going to right click, create a
+[12:04] reference to my sound queue. I can just
+[12:05] drag up here and for set boolean
+[12:09] parameter, and I want this one set
+[12:11] boolean parameter audio component. I
+[12:13] want this to be true. For the in name,
+[12:15] we just need to get what we called it.
+[12:17] So my parameter doesn't have a name, so
+[12:19] I'll just call it example.
+[12:23] Copy this.
+[12:25] paste this here. And now it will
+[12:28] basically um set this to true. Then I'll
+[12:31] play the sound. So I'll drag up here and
+[12:33] look for play.
+[12:35] And that will play my explosion sound.
+[12:39] I'll connect from here into here. And
+[12:41] from event play into here. Compile this.
+[12:44] If I minimize this and then let's just
+[12:47] select this sound and make sure it's not
+[12:49] autoactive.
+[12:51] Then if I play when I play my game, it
+[12:53] plays the explosion sound. And if say I
+[12:56] left this unchecked, then I go compile.
+[12:58] When I play my game, it plays the fire
+[13:01] sound. So that's the way that works. So
+[13:03] those are how sound cues work. We can
+[13:05] kind of manipulate the um sound waves so
+[13:08] they sound a bit different.
+[13:14] Hello. In this video, we're going to go
+[13:16] over attenuation, which is the reduction
+[13:18] of a sound's volume over a distance. So,
+[13:21] to show you what I mean, if I just go
+[13:23] over to my audio folder, I'm going to
+[13:25] just go to this fire sound, and I'm
+[13:28] going to make sure that it's looping.
+[13:30] Then, I'm just going to close this. And
+[13:32] if I drag my fire sound into my level,
+[13:35] what I can do is I can scroll down, and
+[13:38] there's this tab called attenuation. We
+[13:40] just want to click override attenuation.
+[13:42] we're going to get these little um
+[13:44] spheres. So, what these spheres
+[13:46] represent is how loud the sound is going
+[13:48] to be. There's this inner sphere and
+[13:51] then there's this outer sphere. When I'm
+[13:54] in the inner sphere and I hear the
+[13:55] sound, I'm going to hear the sound at
+[13:57] 100% volume, although there's an outer
+[14:00] sphere. Here, the volume will decrease
+[14:02] to 100% to 0%. And how loud I hear the
+[14:06] sound will depend on where the player
+[14:08] character is. So, if I'm here, then I'm
+[14:10] barely going to hear the sound.
+[14:11] Although, if I'm closer, then I'm going
+[14:13] to hear the sound a bit more. So, if I
+[14:16] play my game, I can hear the fire sound.
+[14:19] And as I move further away from the fire
+[14:22] sound, you can see I hear it less and
+[14:24] less. We can also change the settings of
+[14:26] this. So, right now, it's set to linear.
+[14:29] So, that'll basically mean the volume
+[14:31] will decrease evenly as I move away from
+[14:33] the sound. We also have this natural
+[14:36] sound. If I change it to this, it's
+[14:38] going to try and replicate how sound
+[14:39] falls off in real life. And then the
+[14:41] other sounds, you don't really need to
+[14:43] use them. I've not really used them, but
+[14:45] log logic basically will decrease the
+[14:48] sound rapidly as you get away from it.
+[14:50] Then it'll slow down. Inverse will
+[14:53] decrease it extremely rapidly and then
+[14:55] it will slow down a lot. Log reverse
+[14:59] will basically decrease it slowly and
+[15:00] then very rapidly. and then custom. We
+[15:03] can basically
+[15:05] similar to the timeline, we can add
+[15:07] points on our um curve and control the
+[15:11] falloff, but it's just recommended to
+[15:13] leave that at linear or natural sound.
+[15:16] That is good. We can also play around
+[15:19] with the spheres. So, you'll notice as I
+[15:22] increase the inner radius,
+[15:24] it will automatically increase my outer
+[15:27] radius sphere. To control the outer
+[15:29] radius sphere, we can play around with
+[15:30] the fall-off distance. So, I can
+[15:32] decrease this and that'll make it
+[15:34] closer.
+[15:36] If I want to increase the gap, then I
+[15:38] can increase this. So, we can control
+[15:40] these spheres.
+[15:41] We can also create our own custom
+[15:44] attenuation blueprint. So if I just go
+[15:46] to the content drawer, I can right click
+[15:48] and if I go to audio and I select sound
+[15:51] attenuation,
+[15:53] if I double click and I open this up
+[15:54] here, I can basically write um the
+[15:57] settings that I want to have for this
+[15:58] attenuation. Then if I close this and
+[16:02] let's say I wanted to apply the
+[16:04] attenuation settings. So I've made um
+[16:06] this little asset. Let's say I wanted to
+[16:08] apply this to all of my sounds. Then I
+[16:11] could easily just select the fire sound
+[16:13] and then we can just uncheck this
+[16:15] override attenuation and then I can
+[16:16] select the attenuation blueprint that I
+[16:18] made and we can make it so this sound
+[16:20] will use that and then let's say I made
+[16:23] another sound I can make it have the
+[16:24] same attenuation settings. So that's how
+[16:26] sound attenuation works in Unreal
+[16:28] Engine.
+[16:36] Hello. In this video, we're going to go
+[16:39] over how we can convert MP3 files into
+[16:42] web files. We have two main ways. So, we
+[16:45] can just go over to this website,
+[16:47] freeconvert.com. This allows us to
+[16:49] convert MP3 files into web files, and
+[16:52] it's completely free. The only thing is
+[16:55] if you do this too many times in a day,
+[16:57] you're limited. But this is a quick way
+[16:59] to convert audio into web files. A
+[17:02] better way is to use Audacity. This is a
+[17:05] completely free audio editing program
+[17:08] where you can just download it. So I've
+[17:10] downloaded it for Windows. Then let's
+[17:12] say you have an MP3 file. What we can do
+[17:14] is you can just open up Audacity. It
+[17:17] will look like this. Then just go over
+[17:19] to the MP3 file that you want to
+[17:20] convert. So I'm going to So I'm just
+[17:23] going to go over to this file of a cat
+[17:25] which was me which I have made a
+[17:27] download of.
+[17:32] And then to convert this into awe file,
+[17:35] I can just go file export audio. I can
+[17:39] go export to computer. And then I just
+[17:41] want to go over here where it says
+[17:42] format, selectwave, and then choose
+[17:45] where you want to export it to. Once
+[17:48] you've got the file, you can just drag
+[17:49] and drop it into Unreal Engine. And that
+[17:51] will convert the web file into a
+[17:52] soundwave. And now you have it in your
+[17:54] Unreal Engine project. Thanks for
+[17:57] watching. I hope you enjoyed this video.
+[17:59] If you did, make sure to like and
+[18:00] subscribe. And don't forget to check out
+[18:02] my free Unreal Engine beginner course if
+[18:04] you're new to Unreal Engine. There'll be
+[18:05] a link to it in the description of the
+[18:07] video.

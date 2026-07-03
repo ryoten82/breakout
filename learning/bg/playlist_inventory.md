@@ -33,6 +33,12 @@ URL: https://www.youtube.com/playlist?list=PLuhU4QcoPlCwdd32I8k8fz-4sMoT-Xp78
 | 12:25 | HVoaR0Um08w | Landscape Basics（Layer Blend Height・Texture Bombing） | ✅ 学習済（Fable ペア照合済） |
 | 07:44 | rSYEBIflhLU | Runtime Virtual Textures（接地馴染ませ・2 Volume構成） | ✅ 学習済（Fable ペア照合済） |
 
+## その他単体動画（2026-07-04）
+
+| 長さ | video ID | タイトル | 学習状況 |
+|---|---|---|---|
+| 27:54 | ufE0QHwVP8w | NEW Mesh Painting in UE5.5 & 5.6 & 5.7!（Arganian's Puzzle Box） | ✅ 学習済（Fable ペア照合済・doctrine 反映済） |
+
 ## SCRAP BLITZ との関連度メモ
 
 - 01/02/08: 環境制作の通し工程 — 本命

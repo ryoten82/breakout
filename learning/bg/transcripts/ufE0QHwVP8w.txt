@@ -1,0 +1,755 @@
+[00:03] Welcome to Arganian's Puzzle Box. In
+[00:06] this comprehensive tutorial, we'll
+[00:07] explore mesh painting in Unreal Engine
+[00:09] 5.5 and 5.6, a powerful feature that
+[00:12] lets you stack and paint multiple
+[00:14] texture layers onto any mesh. Now, a
+[00:17] quick heads up, this is UV sensitive, so
+[00:19] make sure your your mesh has clean UVs.
+[00:23] This workflow works great on terrain,
+[00:25] walls, doors, and architectural surfaces
+[00:27] in general. This tutorial has two parts.
+[00:30] The basic mesh painting setup first,
+[00:32] then advanced techniques with real
+[00:33] realistic blending and displacement
+[00:35] mapping. Everything is based on this
+[00:37] layer diagram that you're seeing on the
+[00:40] screen. Tutorial files are free on my
+[00:42] Patreon, including pre-made materials
+[00:44] and textures. And for the price of a
+[00:46] coffee, you get access to all of my
+[00:48] projects there if you'd like. And if
+[00:50] that's not enough to convince you, like,
+[00:52] comment, and subscribe for a chance to
+[00:54] win a free project of your choice from
+[00:56] my portfolio. I'll randomly select a
+[00:58] winner in a week and announce it in a
+[01:00] short video. Now, like I've said, this
+[01:02] video is divided in two parts. The more
+[01:05] simpler the simpler approach of setting
+[01:07] this up and then a more complex version.
+[01:09] So, if you have a want to have a look at
+[01:11] the long form video, that's fine. If
+[01:12] not, just watch the short point of
+[01:17] it. Okay. Okay, so here we are in Unreal
+[01:19] Engine 5.6 and we have the plane set up
+[01:23] with the material that we needed for the
+[01:24] mesh painting. But we are going to
+[01:26] delete all of this and start from
+[01:27] scratch so I can show you the process.
+[01:29] The first thing you want to do after
+[01:31] deleting this plane is just making sure
+[01:33] that obviously in the plug-in folder you
+[01:35] have the plugin called mesh paint
+[01:38] enabled. So if this is not enabled just
+[01:39] do that and restart the engine. But
+[01:41] before you do that, also make before you
+[01:43] restart the engine basically and after
+[01:45] enabling this plug-in, you may not want
+[01:47] to do that just yet because you also
+[01:49] need to go into your project settings
+[01:52] and type in virtual texture and then
+[01:56] enable virtual texture support in here.
+[01:58] So once you do that, restart the engine
+[02:00] and then resume. Once you've done all of
+[02:03] this and you're back into the engine,
+[02:04] you'll notice that you now have a new
+[02:06] option in here called mesh paint. And
+[02:08] this is what we're going to use later on
+[02:10] when we are trying to add the new
+[02:11] layers. Now, we want to add the plane
+[02:13] back in. So, I'm going to go over here,
+[02:16] go to basic shapes, and drag in a plane.
+[02:19] Now, this is in our world right now, but
+[02:21] it is using the default Unreal Engine
+[02:23] plane mesh, which we don't really want
+[02:24] to edit. We want to make a new one. So,
+[02:26] we can actually rightclick it over here
+[02:28] and click copy. Then go into our content
+[02:30] browser and press Ctrl +V to paste. And
+[02:32] this is the new plane that we are going
+[02:34] to work with. And we're also going to
+[02:36] press this arrow here to replace the
+[02:38] current plane in the level with the one
+[02:40] we just created. Or you can just drag
+[02:42] and drop it into that slot. Now, I'm
+[02:44] going to make sure that our plane is is
+[02:46] centered into the world. And I'm press
+[02:47] F2 to go over it. We're not going to
+[02:50] change anything about the scale as of
+[02:51] yet, but we will do in a bit, and I'll
+[02:53] show you why. Now that we have this set
+[02:56] up, we need to replace this basic shape
+[02:58] material with a new material that reacts
+[02:59] to mesh painting. So, just by the way,
+[03:03] just to show you, if we actually press
+[03:05] Alt and two on the um sorry, this this
+[03:07] doesn't seem to work. Oh, yeah, there we
+[03:09] go. Alt and two on the keyboard to see
+[03:11] the wireframe. The plane obviously only
+[03:13] has two faces and only four vertices.
+[03:17] And this is important because if you
+[03:18] were doing vertex color painting, this
+[03:21] plane would basically be impossible for
+[03:22] you to do that because of the low
+[03:24] resolution from these vertices. you will
+[03:26] need a lot of vertices here to properly
+[03:28] paint um you know in this particular
+[03:31] scenario. Right. So now we're going to
+[03:34] go back into our content browser and
+[03:35] create a new material. I'm going to call
+[03:38] this m mesh paint. And then I'm going to
+[03:42] open it so we can start editing it. Now
+[03:45] over in here, it's obviously a very
+[03:46] basic material. So we need to start the
+[03:48] setup. The first thing we want to do is
+[03:51] we want to showcase how mesh painting
+[03:53] actually works. So if we right click and
+[03:55] type in mesh paint, we will have some
+[03:57] new nodes that have been added because
+[03:59] of the plug-in that we have enabled. And
+[04:01] we will need a mesh paint texture object
+[04:03] and we are also going to need a mesh
+[04:06] pane texture replace. With these two
+[04:09] nodes, we are going to make our setup.
+[04:12] Now another thing we want to do is we
+[04:14] want to add a new lur node right here.
+[04:17] Okay? And if you consider these lurp
+[04:19] nodes as you know zero and one and let's
+[04:21] just say we're using two colors very
+[04:24] quickly here and this color is going to
+[04:26] be something like you know indigo
+[04:28] whatever you want to make it out and
+[04:30] then this one is going to be maybe like
+[04:32] a red or something right and if we plug
+[04:34] these like that we then want to blend in
+[04:38] between these two using this alpha so
+[04:40] this is where mesh painting comes into
+[04:42] play right so we're going to drag out of
+[04:45] here a texture sample
+[04:47] This is going to be where the virtual
+[04:49] texture support is going to write the
+[04:51] new information that we're doing for
+[04:52] mesh painting. This is going to then
+[04:54] connect into the mesh paint texture. And
+[04:57] then where it says here default, you
+[04:58] want to plug in a value of zero like
+[05:01] that in order for this to work. And this
+[05:03] can then connect to the alpha. But if
+[05:05] you do it like that, then you're
+[05:06] basically using all the channels or the
+[05:08] the RGB channels for this. So we can
+[05:11] actually add a component
+[05:12] mask. And this one we're going to paint
+[05:15] in the red channel and we're going to
+[05:17] put this into the alpha. And now we can
+[05:19] plug this over into the base color and
+[05:21] press apply. Now if we go back into our
+[05:24] um you know here in our plane and
+[05:27] obviously we need to assign this
+[05:28] material then this is what we're going
+[05:30] to see. Like basically nothing's really
+[05:32] changed. But if we switch over to mesh
+[05:34] painting then we will be able to see the
+[05:36] effect. So we go to mesh painting. Then
+[05:39] with the plane selected, we will click
+[05:40] the texture color and then press add.
+[05:43] Now in here we want to press paint. And
+[05:46] now we have the red, green, blue and
+[05:48] alpha to paint with. So if we have a red
+[05:51] active and we start painting, you'll
+[05:54] notice that we are now adding the
+[05:56] coloring of the from that alpha. So
+[05:58] we're adding the orange in and obviously
+[06:01] wherever there's no orange then we'll
+[06:02] get that indigo. Now to make those
+[06:04] colors a bit more uh you know popping up
+[06:06] a little bit more we are going to make
+[06:08] this into an actual blue so it's
+[06:10] actually looking a lot more you know
+[06:12] different so we can properly see what's
+[06:13] going on and now I think you can clearly
+[06:15] see but the resolution of our painting
+[06:17] is very low so we need to actually
+[06:19] rectify this in order to do it with the
+[06:21] plane selected we can scroll down and
+[06:23] you'll notice that we now have this mesh
+[06:25] painting um you know um category in here
+[06:28] and you can see that the texture that is
+[06:29] generated is this one it's a virtual
+[06:31] texture as well and we and override the
+[06:34] mesh paint texture resolution. So, using
+[06:36] a 256 value will definitely help. Now
+[06:39] that we've done that, any new painting
+[06:41] is still not using the new resolution.
+[06:43] And in order for us to fix this onto the
+[06:45] mesh paint mode, we do have this button
+[06:48] called fix. And now you can see that
+[06:49] it's greatly improved our resolution for
+[06:52] painting, which is quite useful. Now,
+[06:54] left clicking obviously paints, but
+[06:56] shift left clicking deletes the layer
+[06:57] that we've just created. And if you want
+[07:00] to see what the red channel has been
+[07:01] doing onto this texture, you can always
+[07:04] switch the color view mode to RGB
+[07:06] channels or you can obviously just see
+[07:08] the red channel and the green or
+[07:10] whatever. But obviously we only painted
+[07:12] in the red channel. So that's the basic
+[07:15] setup so far. But for all intended
+[07:17] purposes, the tutorial, the first part
+[07:20] of the tutorial is pretty much done. All
+[07:22] you have to really do now is basically
+[07:24] replace these two colors with the
+[07:25] textures that you'd like. And you can do
+[07:27] this for any slot in here and that will
+[07:29] be it. But if you want to follow along
+[07:31] for the more complex blend, then I would
+[07:33] definitely greatly
+[07:36] um you know emphasize that you do to
+[07:38] learn
+[07:41] more. Now I would strongly recommend
+[07:44] that you watch my nanite tessellation
+[07:46] displacement video if you'd like after
+[07:49] this to further understand how
+[07:51] displacement works for landscapes and
+[07:53] meshes in general. uh this will teach
+[07:55] you quite a lot. So, as I said, I
+[07:57] strongly recommend that you watch this
+[07:58] uh after you see this tutorial. Now,
+[08:01] before we continue, we will need some
+[08:02] really nice highquality textures in
+[08:04] order to make this work. So, I'm
+[08:06] actually using Bridge and in order for
+[08:08] you to get access to it, you just go to
+[08:09] your your, you know, content folder. Go
+[08:12] to add and then select add quicksole
+[08:14] content and it should open bridge and
+[08:16] you can sign in. Now, obviously, if you
+[08:18] don't have Bridge or any assets on
+[08:19] Bridge, then just go and get some
+[08:20] textures. I will obviously have them in
+[08:22] the free tutorial download. So you have
+[08:24] textures there to work with. But either
+[08:26] way if you if I go on bridge I have
+[08:28] these two textures that I'm using. This
+[08:30] one here curated stone stone facade and
+[08:33] then this cracked mud. Now if we click
+[08:35] this texture for example I have actually
+[08:36] added it to the project at a high
+[08:39] quality which is 4K. I didn't use
+[08:41] highest quality. I used high quality and
+[08:43] then added to my project. The reason the
+[08:45] reason why it's important that we use
+[08:47] Quixle Bridge is because the way how the
+[08:49] textures will come in. So if you
+[08:50] actually go into the content folder and
+[08:52] go into the mega scan folder, you will
+[08:54] notice that the way these textures come
+[08:56] in is a uh diffuse normal and an ORD,
+[09:00] which stands for occlusion, roughness,
+[09:02] and displacement. If you give them give
+[09:04] the get them from FAB, they won't come
+[09:06] this way. So that's why I recommend that
+[09:08] you watch my other tutorial about the
+[09:10] texture graph in order to understand how
+[09:12] to put together your own OD textures in
+[09:15] case you got your textures from FAB or
+[09:17] somewhere else. The important bit here
+[09:19] is that the OAD texture actually comes
+[09:22] with the displacement map which is on
+[09:24] the B channel and then as I said a
+[09:26] roughness map on the green channel and
+[09:29] then an occlusion map on the red channel
+[09:31] and that's why this makes these textures
+[09:33] very valuable. Right? So now I have
+[09:36] those textures that I told you about.
+[09:38] Right? This is what these are the
+[09:39] textures that I've got. This one and
+[09:41] this one. We can now go over into our
+[09:43] material here and start creating the
+[09:44] pipeline for our work. So, the first
+[09:47] thing we want to do is want to bring in
+[09:49] the concrete uh texture, which is this,
+[09:51] as I said, the stained concrete texture.
+[09:54] Uh, I'm going to drag in the um texture.
+[09:57] Actually, it's not that one. Sorry, I
+[09:58] have the wrong one. Going to go back
+[10:00] into surfaces. I'm going to go for the
+[10:02] curated stone. So, this is the texture
+[10:04] sample for the base color. Then, we're
+[10:06] going to do the normal and the OD. Now,
+[10:08] with these in here, we don't we we want
+[10:11] obviously want to be able to change
+[10:12] their tiling. So, we are actually going
+[10:14] to add a texture coordinate um right
+[10:17] over here. So, I'm just going to right
+[10:18] click and search for texture. Oh, sorry.
+[10:21] Let me just do texture coordinate like
+[10:22] that. And then we're going to connect
+[10:24] this to a multiply node, not a this is
+[10:27] not the right node. Sorry, just a
+[10:28] multiply node like that. And then we
+[10:30] want to add the scalar parameter in
+[10:32] here, which we are going to call in call
+[10:35] UV tile, right? And we're going to set
+[10:38] this to a tile of one by default. And
+[10:40] then we can plug that into the multiply
+[10:42] node. And then this all goes into the
+[10:44] UVs like so. Okay. And this controls all
+[10:47] of our UVs for these textures, which is
+[10:49] great, right? This is what we want to
+[10:51] do. Now, the next thing we want to do is
+[10:53] we want to extract the base color in a
+[10:56] clean way. So, what I mean by this is
+[10:58] from the RGB, we're going to type in a
+[11:00] name reroute like that. And we are going
+[11:02] to call it concrete. Um, there we go.
+[11:06] Base, right? And this is going to be our
+[11:09] base color for the concrete. If you
+[11:11] want, obviously you can name it to base
+[11:13] color or whatever you want. And then
+[11:14] we're going to do the same thing for the
+[11:15] normal and the OD very quickly.
+[11:32] Okay, with this done, we now want to
+[11:34] basically be able to control our
+[11:36] displacement with far more um options
+[11:38] because displacement is very important
+[11:40] to get it right and to blend correctly.
+[11:42] So, because we have here the name
+[11:44] reroute, I'm going to unplug it and put
+[11:46] it somewhere around here. From the blue
+[11:48] channel over here, I'm going to drag out
+[11:50] and I'm going to add a add node like
+[11:52] that. And this is going to then connect
+[11:55] to a one minus. So we're going to drag
+[11:57] out and type in one minus like that. So
+[12:01] we're inverting it. And then this we're
+[12:03] going to need a lurp in here. So I'm
+[12:05] going to connect that to the A slot
+[12:06] there. And then this add node will
+[12:08] connect to the B slot like that. And
+[12:10] this lurp if we add another ad node in
+[12:13] here like so. And then we want to
+[12:15] saturate the result of all of this like
+[12:18] that. And the the saturation will go
+[12:21] into an S curve node which will allow us
+[12:24] to further refine our displacement and
+[12:26] this will connect into the concrete
+[12:28] displacement like that. Now for this add
+[12:30] node in here we want to add a scalar
+[12:32] parameter. This is going to be our
+[12:34] displacement center. So this is going to
+[12:37] be the center point for our displacement
+[12:38] which will be by default set to zero.
+[12:41] Then we're going to have a displacement
+[12:43] int intensity. So this is going to
+[12:46] control our intensity of the
+[12:48] displacement with a default value of
+[12:49] let's say something like a one. Okay.
+[12:52] And then this add node over here is
+[12:54] going to be our displacement offset. So
+[12:56] I'm going to copy this scaler put it
+[12:58] over here connected and I'm going to uh
+[13:01] rename this to offset like I've said.
+[13:03] And this is going to be by a default
+[13:05] value of
+[13:06] 0.5. And then the scurve over here we're
+[13:09] going to need to connect something to
+[13:10] the power. So again, I'm going to copy
+[13:12] this and I'm going to call this
+[13:14] displacement
+[13:16] uh scurve, which will allow us to have a
+[13:19] nice curve onto our displacement. And
+[13:22] this is going to have a value of one.
+[13:24] And this is going to be our setup for
+[13:26] the actual displacement. Done. Now in
+[13:29] with this in particular, we now have the
+[13:32] um basically the concrete. Okay, so this
+[13:34] is the concrete base like I've said. Um
+[13:37] and then we want to have the mud one.
+[13:39] So, we effectively will do exactly this
+[13:41] entire setup but for mud. So, I'm going
+[13:44] to skip that step because I will leave
+[13:46] you to do it. It's fine. Now, we have
+[13:48] our base color for the concrete and the
+[13:50] mud and the normal and everything else
+[13:52] that we needed. It's time now to blend
+[13:55] based on height information between the
+[13:57] two. So, what we're going to search for
+[13:59] is a height lur with two height maps.
+[14:01] That's what we're going to use over
+[14:03] here. Okay. Okay. And because we've uh
+[14:05] create named reroutes for everything,
+[14:07] here's an every a very cool thing. We
+[14:10] can actually type in displacement to
+[14:12] search for concrete displacement. And we
+[14:14] can obviously bring in our mud
+[14:16] displacement as well. And these two are
+[14:18] very important because onto the first
+[14:21] high texture we're going to put the
+[14:22] concrete. And then the second one we're
+[14:24] going to put our mud displacement. Now
+[14:26] for the transition phase and contrast,
+[14:28] we need two scalar parameters. So I'm
+[14:30] going to type this as going to be the
+[14:32] transition with a default value value of
+[14:33] 0.5. And this will connect over here.
+[14:36] And then we have another scalar
+[14:38] parameter for contrast like I've said.
+[14:40] And this is going to have a default
+[14:41] value of three. And we're going to
+[14:43] connect it over to the contrast. Now
+[14:45] this is very important because now we
+[14:46] can use this to blend for our diffuse.
+[14:49] So if we put this up here like that, we
+[14:52] can now get our concrete base color. So
+[14:54] what we need to type in is concrete base
+[14:57] color. connect that into the diffuse
+[14:59] like so and then we can type in mud uh
+[15:02] base color and this can connect over
+[15:05] into this second diffuse like that.
+[15:07] Okay, so this is going to effectively
+[15:09] blend what we need for our base color
+[15:12] and we need to do the same for our
+[15:14] roughness and then our uh normal as
+[15:17] well. Now this particular node here
+[15:19] where we've used for base color we can
+[15:21] get two results out of this. So the
+[15:24] first one over here is going to be
+[15:26] another name reroute called uh base
+[15:30] color right and then we can
+[15:33] say mud blend right so this is this
+[15:36] means that we have the base color where
+[15:37] we're blending between the mud and the
+[15:39] concrete as a blend and then we have
+[15:42] this resulting height map which we're
+[15:44] going to name do another name reroute
+[15:46] over like that and we are going to call
+[15:48] this displacement mud blend okay so this
+[15:53] is pretty cool because we have two maps
+[15:54] now that we can use straight away. But
+[15:56] we need to do the same thing for
+[15:58] roughness and for normal. Bear in mind,
+[16:00] we don't need to do this displacement
+[16:02] output anymore for the roughness and
+[16:03] normal because we already have defined
+[16:05] it over where we did the base color. So,
+[16:07] I'm going to speed up and and do that
+[16:09] now because there's no obviously there's
+[16:11] no point in me redoing this again. Just
+[16:13] make sure that these two here the
+[16:15] concrete one displacement and and all
+[16:17] that these are connected into every
+[16:19] other height uh map. So if you know we
+[16:22] put this over here like that, you want
+[16:24] the same nodes, right, to go into height
+[16:26] one and height two. And then these
+[16:28] transition and uh and contrast again
+[16:31] need to connect into like that. The only
+[16:33] thing that's different is what you're
+[16:34] putting into the diffuse. And in this
+[16:36] particular case, it's going to be our
+[16:38] concrete, normal, and mud. And then
+[16:40] after that, it's going to be our
+[16:41] roughness. Again, we're treating
+[16:42] everything as a diffuse, but obviously
+[16:45] that's it doesn't really matter. It will
+[16:46] work regardless. So we now have all of
+[16:49] our free blends that we needed. We have
+[16:51] it for uh base color, displacement, for
+[16:53] normal, for roughness. So everything is
+[16:55] done for this for the mud blend. So now
+[16:58] we want to do is do the mesh painting
+[17:01] blending. So we can start painting all
+[17:03] of that. Right? So what we're going to
+[17:04] do where we have the component mask over
+[17:06] here. We're going to actually duplicate
+[17:08] this two times. Okay? Like that. And
+[17:11] this component mask, the second one will
+[17:12] be using just the green channel while
+[17:15] the third one will be using just the
+[17:16] blue channel. So now we're using all
+[17:18] three channels. We're all going to
+[17:20] they're all going to be connected to the
+[17:21] same texture like so, which is quite
+[17:23] neat. Um because this allows us now to
+[17:26] paint with these three layers quite
+[17:27] easily. We can obviously use the alpha
+[17:29] channel as well if we need to, but you
+[17:31] know, let's just leave it like that.
+[17:33] Okay, so we've got one lurp here. And
+[17:35] what I want to do is I want to bring a
+[17:37] second lur and then a third lur. So we
+[17:41] have three lurps. this uh lurp the first
+[17:44] one will actually connect between the
+[17:47] concrete base color and mud base color.
+[17:50] So what this means is if we type in here
+[17:53] uh base color we have concrete base
+[17:55] color and then we're going to type in
+[17:57] mud and we have the mud base color. So
+[18:00] these two okay they will connect to the
+[18:03] first slurp like so in A and B. But now
+[18:06] we also want the concrete base color to
+[18:09] connect into the next lur, which is this
+[18:11] one here. And into the B one, we want to
+[18:14] get the mud blend. So we're going to get
+[18:17] the mud blend base color. This one, this
+[18:20] is going to go in the B. Now for for the
+[18:22] B uh for the sort of the second lur,
+[18:24] we're going to use the green channel to
+[18:26] paint that in. Okay. So now this lur
+[18:28] that is fully connected can go into the
+[18:30] A slot of the last lur node like that.
+[18:33] This one will go into the base color,
+[18:36] right? And we need to connect something
+[18:37] into the B stuff over here. So, what
+[18:40] we're going to do there is we're going
+[18:41] to put a concrete uh base color again.
+[18:45] And sorry, I made a mistake here. This
+[18:47] concrete base color should have not
+[18:48] connected to this lurp onto the A slot.
+[18:50] It should have been this lurp. So, there
+[18:53] you go. Hope that makes sense now. Okay.
+[18:56] And yes, this concrete base color does
+[18:58] need to connect to the B on the last
+[19:00] lur. And then for the alpha we are going
+[19:02] to use the um as I said the B channel
+[19:05] there like so. Now we're going to press
+[19:07] apply and our material just for base
+[19:09] color is effectively done. So if we go
+[19:11] back into our uh level in here you'll
+[19:14] notice that the paint has already taken
+[19:16] place. So there's another thing that we
+[19:19] want to do. Let's let's go to our um you
+[19:22] know mesh paint. So we can actually uh
+[19:24] you know remove everything. So with this
+[19:27] uh with this mesh selected, we can go
+[19:30] into paint like that. And this allows us
+[19:32] to now paint the layers based on, you
+[19:34] know, the red, the green, whatever we
+[19:36] want to do. Um green and blue. Like for
+[19:39] example, right now you can you'll notice
+[19:41] that blue is adding the concrete and
+[19:43] then green is again adding a concrete.
+[19:48] But what does red do? You know, red
+[19:50] effectively adds the mud in. Just the
+[19:52] mud, right? But there's going to be a
+[19:54] blend in here like uh the green for
+[19:56] example that's going to do a blend
+[19:58] between the green and the blue. Okay.
+[20:02] But there are some caveats like it
+[20:04] doesn't seem to be working well. So we
+[20:05] need to set this up more you know
+[20:07] better. So the first thing we want to do
+[20:09] is we want to search for our
+[20:11] material and then we want to rightclick
+[20:13] it and create a material instance. In
+[20:15] this instance we will drop this into the
+[20:18] material slot of this plane. So I'm
+[20:20] going to go over here and drop it in.
+[20:23] And now we can actually open the
+[20:24] material instance. Okay. And we can
+[20:26] start editing some of its options. So
+[20:29] the first thing we want to, you know,
+[20:31] obviously change in here is the actual
+[20:34] tiling. So you we've got I don't even
+[20:37] know why I've got UV tile and UV tiling.
+[20:39] I must have made a mistake somewhere. Uh
+[20:41] oh yeah, I know where I've made a
+[20:43] mistake. And I'll just rectify that
+[20:45] straight away. So, I made a mistake
+[20:47] right about here because I should have
+[20:49] connected the same thing to the mud
+[20:53] texture. You see the same connector
+[20:55] needs to go into all these UVs. So, now
+[20:57] that uh that's done, we can have a look
+[20:59] again at the material instance. And now
+[21:00] we can do UV tiling to set to two. And
+[21:03] also, if you notice, if we play around
+[21:05] with this transition, we'll be able to
+[21:07] see some different results. Right there,
+[21:09] you can see how the mud is transitioning
+[21:11] with the um with the concrete. But
+[21:15] unfortunately, we're not seeing any
+[21:17] displacement or normal or roughness
+[21:18] right now. So, we need to rectify that
+[21:20] and add those into our material. So, if
+[21:22] we go back into our material shader in
+[21:24] here, we do now have to set up the same
+[21:27] thing. So, this for roughness, normal,
+[21:30] and displacement. So, I'm going to
+[21:31] quickly do that. And it's going to be
+[21:32] quite simple. Obviously, we're just
+[21:34] copying the same nodes. So all of these
+[21:36] alphas will be in the same way as they
+[21:38] were in the base color. So we have to
+[21:40] effectively mirror all of this but now
+[21:42] for roughness, normal, and displacement.
+[21:44] So I'm going to do that and then we can
+[21:46] resume the tutorial. Okay. So now our
+[21:48] setup is done for base color, roughness,
+[21:51] and normal. But you'll notice that we
+[21:52] actually can't use a displacement slot.
+[21:54] And to do this, we're going to go over
+[21:57] here and enable tessellation, which will
+[21:59] then allow displacement to be used. So
+[22:01] we can plug that in and press apply.
+[22:04] Now, we can go back into our uh shader
+[22:06] in our viewport, but the displacement
+[22:09] isn't actually working. So, what's going
+[22:10] on? Well, the problem is that we haven't
+[22:13] actually set this plane up as a nanite
+[22:15] mesh. So, I'm going to double click it
+[22:17] over here and then over into the panel
+[22:20] here where it says enable nanite
+[22:21] support. Going to click that and press
+[22:23] apply changes. This means that now the
+[22:25] plane is a nanite mesh. And once it like
+[22:28] completely, you know, does what it needs
+[22:30] to do, then it will now have
+[22:32] displacement. As you can see there, it's
+[22:34] now doing it. Okay, now this
+[22:36] displacement looks a bit, you know, it
+[22:38] can look odd. It could be bad, worse,
+[22:41] whatever. You know what I mean? It
+[22:42] really depends on how it was set up. But
+[22:44] this is how these meshes look like in
+[22:47] terms of their displacement. So, we now
+[22:50] need to bring our uh material instance
+[22:53] again. So, we have it over here like
+[22:55] that. And one thing that I want to do
+[22:57] with a plane when it's selected, I want
+[22:59] to set its scale to 10. and then 10 over
+[23:04] here. And leave the scale here set to
+[23:06] one. And the reason why I'm doing that
+[23:08] is because I want to give the geometry
+[23:10] more space to breathe. Okay. So when we
+[23:14] look at the displacement intensity here,
+[23:15] we can actually type in a higher number.
+[23:18] Maybe something like a five or something
+[23:20] like that. Okay. But we're not really
+[23:22] getting the result that we want. So this
+[23:23] is where the experimentation comes in.
+[23:25] So, you want to put the displacement
+[23:27] curve to one, for example, which will
+[23:30] then allow for that mud to stick out a
+[23:32] bit more. Um, we also want to look at
+[23:35] our displacement offset should be 0.5.
+[23:38] Sorry, that's that's basically what it
+[23:40] needs. Now, again, I've got these
+[23:42] displacement curves twice and offset and
+[23:45] centered. And that's because I've copied
+[23:46] some nodes over. So, I'm going to go
+[23:48] over here into mesh paint and just make
+[23:50] sure that I'm using the same naming
+[23:53] convention. So, it should have been
+[23:55] displacement center. And if it isn't,
+[23:57] then I'm just going to drag this over
+[24:00] like that into the mud. And then
+[24:01] intensity like that. This is what's
+[24:04] going to happen if you copy your nodes
+[24:07] from somewhere else like I did and not
+[24:08] using the same names. But now that
+[24:12] should be fine. I'm going to press
+[24:13] apply. And this is now using only the
+[24:16] same nodes. And as you can see, the
+[24:17] number of parameters has decreased as
+[24:19] well. And our material should be a lot
+[24:22] better now. So we can actually have a
+[24:24] look at increasing the displacement
+[24:26] intensity and looking at the
+[24:28] displacement offset is fine. Uh we can
+[24:30] have a look at reducing the display the
+[24:32] displacement sc curve like that. Move
+[24:35] around the scene a little bit for those
+[24:36] shadows to be fixed whenever you're
+[24:38] changing displacement in order to make
+[24:40] sure that you fix that problem. Okay.
+[24:42] Now we obviously can play around with
+[24:44] the UV title tile more if we want. Maybe
+[24:47] a three is the right one. Uh, obviously
+[24:49] the tutorial that I told you about
+[24:51] displacement covers more of this topic.
+[24:53] Now, we're going to be going back into
+[24:55] our paint mode for textured color. So,
+[24:57] let's have a look at what the channels
+[24:59] do. So, the red channel will allow us to
+[25:02] add mud, full-on mud, wherever there is
+[25:06] no other channel overriding it. Like for
+[25:08] example, we can't paint any mud here
+[25:10] because there's the other channel. I
+[25:13] think perhaps the green channel, no,
+[25:14] sorry, the blue channel is overriding
+[25:17] this. So if we shift leftclick, we can
+[25:19] actually delete the blue channel from
+[25:21] here. But better yet, you may want to
+[25:24] actually just clear everything. So just
+[25:26] press the remove. And now you're back to
+[25:28] the concrete base which is without any
+[25:31] mud. And then if we add again and start
+[25:33] painting and let's say we paint only
+[25:36] with a red channel, this will bring on
+[25:38] full mud, right? And if we paint with a
+[25:41] green channel, this will bring in the
+[25:43] combination of mud and uh concrete
+[25:46] blend. And this blend can be then
+[25:49] controlled over by this transition right
+[25:51] here. Okay. So if this transition is set
+[25:54] to zero, for example, there is no mud.
+[25:56] But if the transition starts going up,
+[25:57] then the mud starts sticking out from
+[25:59] those crevices all the way to the point
+[26:01] where it's completely overpowering the
+[26:04] um actual concrete. Right? So I think a
+[26:07] value of 0.6 is probably about right.
+[26:09] Now, obviously, your contrast is going
+[26:11] to play a big role here in terms of like
+[26:13] getting a nicer transition or a more u
+[26:16] thick transition. So, just really play
+[26:18] around with the settings that you need
+[26:20] in order to get this done properly. And
+[26:22] then, as I said, if you want to
+[26:23] overwrite what you've done here in terms
+[26:26] of painting with the blend and just the
+[26:27] mud itself, you can always go to the
+[26:30] blue channel, which then will completely
+[26:32] eradicate the blend and the mud, right?
+[26:36] uh or you can delete both the red
+[26:38] channel and the blue. But if you want to
+[26:39] see what you've done, you can always
+[26:41] change the color view mode to RGB. So
+[26:43] this shows you what you've painted. And
+[26:45] then obviously you can also see every
+[26:47] channel individually if you need to.
+[26:49] Just bear in mind depending on where
+[26:51] you've placed your blends. So over here
+[26:56] uh like for example, the blue channel uh
+[26:58] this one will over always overpower
+[27:00] everything else because it's the last
+[27:02] blend, the last lurp in the line. While
+[27:05] the red channel is the least one be is
+[27:07] the smallest one because it's the first
+[27:08] one in the line, right? So that's how
+[27:10] you need to look at it. It's the first
+[27:12] lurp which means that every other lur
+[27:14] will overwrite it if you're if you you
+[27:16] know obviously that that just gives you
+[27:17] the logic of it all. But that's
+[27:19] basically it. That's how you do this
+[27:21] particular setup and you get your mesh
+[27:24] painting going on any surface that you
+[27:26] like. Now I hope you enjoyed this mesh
+[27:29] painting tutorial. To support the
+[27:30] channel, check out my Patreon or Fab
+[27:32] store. And remember, for just the price
+[27:34] of a coffee on Patreon, you get access
+[27:36] to all my projects with full support and
+[27:38] updates. Don't forget about the
+[27:40] giveaway. Like, comment, and subscribe
+[27:42] for a chance to win free project, sorry,
+[27:44] a project of your choice from my
+[27:46] portfolio. And the winner is announced
+[27:48] next week. Thanks for watching, and I'll
+[27:51] see you in the next one. Keep creating.

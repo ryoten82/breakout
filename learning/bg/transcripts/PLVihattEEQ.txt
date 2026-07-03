@@ -1,0 +1,769 @@
+[00:04] This is an early 20th century military
+[00:06] trench, and today we'll be enhancing and
+[00:09] optimizing this cinematic scene. This
+[00:12] scene is currently available on the Fab
+[00:14] Marketplace if you'd like to follow
+[00:16] along. We'll be doing an intermediate
+[00:18] deep dive on three unique features
+[00:20] inside of Unreal Engine 5. landscape
+[00:24] blending with Mega Scans assets using
+[00:26] RVTs, procedural scattering with PCG,
+[00:29] and we'll take a look at Unreal Insights
+[00:31] to help us [music] profile and optimize
+[00:33] the scene.
+[00:39] Virtual texture support is enabled by
+[00:41] default if using 4.6, but if you're on
+[00:44] an earlier version, verify it's enabled
+[00:46] in the project settings. Let's take a
+[00:49] look at this basic landscape material
+[00:50] I've created. I have a section for
+[00:53] layers, adjustments, a landscape layer
+[00:55] blend, and I connect the result to a
+[00:57] material attributes output. If you'd
+[01:00] like to use material attributes, you can
+[01:02] do so by ticking the box in the details
+[01:04] panel.
+[01:06] Let's take a closer look at the base
+[01:08] layer textures material function.
+[01:11] The first thing that's important to
+[01:12] cover is that in order to use RVTs to
+[01:15] blend our landscape with Mega Scans
+[01:17] assets, our landscape material has to
+[01:19] reference regular textures instead of
+[01:21] virtual textures. This is because
+[01:23] there's no feedback pass. So, the engine
+[01:26] doesn't know which tiles to stream for
+[01:28] the SVTs.
+[01:31] There's a couple ways to ensure we're
+[01:32] using regular textures instead of
+[01:34] virtual textures. You can rightclick a
+[01:37] texture and if it says convert to
+[01:39] regular texture then select the option.
+[01:44] We can also open the texture. Search for
+[01:47] virtual and select the convert to
+[01:49] regular texture button.
+[01:53] Back in the base layer textures material
+[01:56] function. Let's take a closer look at
+[01:57] the height section. I'm using the green
+[02:00] channel for my height map to drive the
+[02:01] displacement and the height output which
+[02:04] will be used for height blending the
+[02:06] landscape layers. With DXT1 compression,
+[02:10] the channels are compressed to R5, G6,
+[02:13] and B5, which makes up the 16- bit color
+[02:16] format. So, I like to use the green
+[02:18] channel to get a little bit better
+[02:19] quality with things like roughness and
+[02:21] height [music] maps. One thing to note
+[02:23] is that DXT1 compression is very
+[02:26] aggressive and prone to artifacts at
+[02:28] lower resolutions. If you find those
+[02:30] artifacts to be too much, try other
+[02:32] compression methods such as BC7. With
+[02:35] better quality compression, you'll see
+[02:37] bigger file sizes. However, you may also
+[02:39] find you can lower the resolution
+[02:41] further on textures while still having
+[02:43] better end quality. So, it's important
+[02:45] to experiment and see what works for
+[02:48] your specific needs.
+[02:51] Let's take a look at the base layer
+[02:53] adjustments material function. Now,
+[02:57] this material function contains most of
+[03:00] the material adjustments, including base
+[03:02] color, roughness, and height.
+[03:06] I've created a material instance from
+[03:08] the landscape material, and I just want
+[03:10] to get it set up in my scene. Now
+[03:14] once the material is assigned to the
+[03:16] landscape, I need to go to the landscape
+[03:18] mode and then select create layers from
+[03:21] assigned material.
+[03:25] Now I'll create the weight blended layer
+[03:27] info objects that will contain the data
+[03:30] generated when I'm painting my layers.
+[03:33] You'll notice that my landscape is still
+[03:35] black, but that's just because I need to
+[03:37] paint some layers to get them to show
+[03:39] up.
+[03:40] To enable nanite displacement for a
+[03:42] landscape, let's jump back into the
+[03:44] landscape material and go to the details
+[03:46] panel and search nanite.
+[03:50] I'll enable tessellation and under the
+[03:52] displacement dropdown, I'll set the
+[03:54] center to zero and so our landscape
+[03:56] remains in the correct location.
+[03:59] Magnitude controls the intensity of our
+[04:01] displacement which is directly affected
+[04:03] by the zcale of the landscape being set
+[04:05] to 100. So, I'll keep the magnitude low
+[04:08] to compensate for the Zcale.
+[04:13] I'm not seeing displacement on my
+[04:15] landscape because I still need to enable
+[04:16] Nanite and build the data. Then, we
+[04:18] should see displacement take effect.
+[04:23] It's a bit hard seeing displacement on
+[04:25] this mud. So, let's paint a layer of
+[04:27] rock and see what it looks like.
+[04:30] The rocks are a bit much. So, I'm going
+[04:33] to jump over to my material instance and
+[04:35] dial the displacement down a bit. Now
+[04:38] that the landscape material is set up,
+[04:39] let's dive into making use of RVTs to
+[04:42] blend the landscape with Mega Scans
+[04:44] meshes.
+[04:46] We'll need to create three RVTs. One for
+[04:49] the base color, normal, and roughness,
+[04:51] one for displacement, and one for world
+[04:54] height.
+[04:57] Before
+[05:00] we get into editing the materials, we
+[05:02] also need to assign each of these RVTs
+[05:05] to the landscape.
+[05:09] Once added, we can select create volumes
+[05:12] to generate the volumes, which
+[05:13] automatically scale to the size of the
+[05:16] landscape.
+[05:19] Let's jump back into the landscape
+[05:20] material and get the material attributes
+[05:23] we want to project into our SVTs.
+[05:29] To start, let's get our base color,
+[05:31] roughness, [music] and the normals.
+[05:36] To project these attributes into our
+[05:38] SVTs, we'll need to drive them into a
+[05:41] runtime virtual texture output node.
+[05:47] At this point, we could choose to use
+[05:48] our material attributes to avoid using
+[05:50] SVTs for the landscape. But in this
+[05:52] case, I want to sample from the RVT that
+[05:54] we set up earlier for base color,
+[05:57] roughness, and normals.
+[05:59] To do so, I'll search for a set material
+[06:01] attributes node, add base color,
+[06:04] roughness, and normal, and then connect
+[06:06] the pins.
+[06:11] Everything is looking okay in the scene.
+[06:13] But now we need to add functionality for
+[06:15] displacement.
+[06:19] Let's do that by adding the displacement
+[06:21] output for our get material attributes
+[06:24] node and make sure it's connected to our
+[06:26] runtime virtual texture output. Now
+[06:29] let's duplicate the RVT sample node and
+[06:32] replace the currently assigned RVT with
+[06:34] the displacement RVT we created earlier.
+[06:38] Let's also add a displacement pin to our
+[06:41] set material attributes and connect the
+[06:43] second RVT's displacement to the pin we
+[06:45] just created.
+[06:48] Back in the level, we can see that
+[06:50] displacement is working again.
+[06:57] I've duplicated the default virtual
+[06:59] texture mega scans material and we'll
+[07:01] use this as the source material for
+[07:03] assets I want to use RVT blending with.
+[07:08] I'll grab a world position node and a
+[07:11] RVT sample node to sample the world
+[07:13] height.
+[07:15] If I subtract the world position and Z
+[07:18] from the world height on my RVT sample
+[07:20] node, we'll get an evenly split black
+[07:22] and white mask.
+[07:25] Now I can add to this value to shift the
+[07:26] world height up and down. And I can
+[07:29] divide the value to blur the transition.
+[07:36] I'll add a one minus to invert the value
+[07:38] and a saturate node to keep the values
+[07:40] between zero and one. This is important
+[07:43] whenever using a linear interpolate node
+[07:45] since the values outside of that range
+[07:48] can produce odd effects.
+[07:52] At this point, I'm playing around with
+[07:53] values to get a feel for how these
+[07:55] parameters will affect assets in the
+[07:57] scene.
+[07:59] Now I just want to visualize the mask by
+[08:01] plugging it into the base color. From
+[08:03] here I can dial in the settings to
+[08:05] something that will work for this
+[08:07] particular asset.
+[08:10] The mask is working well for the asset.
+[08:12] So I'm going to set up a named reroute
+[08:14] node called alpha that I can call in
+[08:17] other parts of the graph.
+[08:20] I'm adding a linear interpolate node to
+[08:23] blend between the static mesh base color
+[08:26] and a value of one using the mask we
+[08:28] previously created to drive the alpha.
+[08:32] With the basic blending set up, it's
+[08:34] time to sample RVT base textures and
+[08:37] connect the base color, roughness, and
+[08:40] normal to their respective linear
+[08:42] interpolate nodes.
+[08:45] It's a bit hard to see if the blending
+[08:47] is working or not, but if I switch to
+[08:49] unlit mode, we can see that it is
+[08:52] definitely working. Now,
+[08:54] the main reason it's difficult to notice
+[08:56] if the blending is working is because
+[08:58] we're still getting a hard normal
+[09:00] transition from the intersection of the
+[09:03] mesh and the landscape.
+[09:05] If I go into the world normal view mode,
+[09:07] we can see this harsh transition line.
+[09:10] Let's fix that. First, we'll need to go
+[09:13] back to the landscape material and let's
+[09:16] add a transform node after the RBT
+[09:18] sample to convert the normals from world
+[09:21] space to tangent space.
+[09:24] Similarly, in the material for my mega
+[09:26] scans mesh, I need to do the same.
+[09:33] Now, if we check the world normal view
+[09:35] mode, we have this smooth transition
+[09:38] between the landscape and the static
+[09:40] mesh, just like we want.
+[09:44] And playing around with the mesh
+[09:46] confirms this is looking much better.
+[09:49] It's worth noting the seam will still be
+[09:51] somewhat apparent when the mesh faces
+[09:53] are perpendicular to the surface of the
+[09:55] landscape.
+[09:58] I want to upgrade the masking by adding
+[10:01] in some edge breakup. A simple way to do
+[10:04] this is by using a noise node along with
+[10:06] some parameters to control intensity and
+[10:09] contrast of the noise. It's worth noting
+[10:12] that a noise node can be a little
+[10:13] expensive compared to using a texture
+[10:16] sampler.
+[10:20] Now we can use a height lurp node.
+[10:21] Plugging our previous alpha into the
+[10:24] transition phase and the noise mask into
+[10:26] the height texture input.
+[10:33] When using a noise node, the default min
+[10:36] is set to negative one, and setting the
+[10:38] value to zero will fix the output
+[10:40] balance.
+[10:42] From there, we can grab the alpha output
+[10:44] and direct it into the previously made
+[10:47] alpha reroute node.
+[10:58] If you've used virtual textures for any
+[11:00] amount of time, you've likely run into
+[11:02] the resizing virtual texture pools
+[11:04] message before.
+[11:06] Let's go to the project settings, find
+[11:08] the virtual texture pool settings, and
+[11:11] discuss how these work. We can set the
+[11:14] default size and megabyte to affect all
+[11:16] compression types in your scene. If
+[11:19] you're in a rush and making a simple
+[11:21] cinematic, increasing this value to 512
+[11:23] or 1024 would likely make the resizing
+[11:27] pools message go away. If you need more
+[11:30] granular control, simply create new
+[11:32] fixed pools that have the same
+[11:34] compression types as the transient
+[11:36] pools. It's best to avoid setting the
+[11:39] min max tile size to the same values as
+[11:41] the transient pools, as anytime the tile
+[11:44] size shifts, it can trigger new
+[11:46] transient pool generation.
+[11:48] Instead, you can set them both to zero
+[11:50] to include all tile sizes or define a
+[11:53] range of tile sizes that fit your needs.
+[12:00] To check that it worked, delete the
+[12:02] transient pools and fly around your
+[12:04] scene to ensure transient pools are no
+[12:06] longer being generated.
+[12:14] Let's go over some additional settings.
+[12:16] console commands and what the feedback
+[12:19] those console commands are telling us
+[12:21] about our scene. RVT residency show one
+[12:25] will display some live graphs going over
+[12:27] how much memory we're using for each
+[12:29] compression type being used in our
+[12:31] scene. The red line represents pool
+[12:34] occupancy from 0 to 100%. This is the
+[12:37] culprit for the resizing pool message.
+[12:40] Typically, it gets overs subscribed from
+[12:43] small default pool sizes and having a
+[12:45] higher resolution output. The green line
+[12:48] represents mipmap bias being applied to
+[12:51] keep residency below 100%. If fixed
+[12:54] pools have enable residency mipmap bias
+[12:57] ticked on and you're becoming overs
+[13:00] subscribed on the red line, then this
+[13:02] feature will kick in to keep it below
+[13:04] 100%.
+[13:06] The yellow line represents the fixed
+[13:08] pool occupancy. This is a locked value
+[13:11] that can become overs subscribed when
+[13:13] there's a very large number of loaded
+[13:15] virtual texture assets.
+[13:19] Back in the project settings, I want to
+[13:21] increase the tile size quite a bit to
+[13:23] see if I can get better resolution on my
+[13:26] textures. This will prompt a required
+[13:28] restart of the editor. And after
+[13:30] reopening the editor, I'm noticing some
+[13:32] glitches and I'm getting the resizing
+[13:35] virtual texture pools message again. RV
+[13:38] vt residency notify 1 notifies you if
+[13:41] you're oversubscribed and I can see that
+[13:43] I'm oversubscribed in DXT1 compression.
+[13:47] Let's also take a look at our graphs now
+[13:49] and compare them to when I had it set to
+[13:51] 256.
+[13:53] We can see that page residency
+[13:55] automatically created temporary pools to
+[13:57] keep them in memory. And what we're
+[13:59] actually overs subscribed on is DXT1 in
+[14:02] the locked page residency.
+[14:06] I'll need to reduce the amount of
+[14:07] virtual texture assets in my scene to
+[14:09] get that back in memory.
+[14:14] Stat virtual texturing can be a helpful
+[14:16] set of diagnostic statistics that can
+[14:18] help inform how SVTs are being used in
+[14:22] your scene.
+[14:25] Lastly, VT borders is a useful way to
+[14:27] visualize the tiles being generated for
+[14:30] your assets.
+[14:35] &gt;&gt; [snorts]
+[14:38] &gt;&gt; Before moving to the next section, I
+[14:40] also want to bring awareness to our
+[14:42] world position node in the RVT Mega
+[14:44] Scans material. It's generally best to
+[14:46] utilize camera relative world position
+[14:48] as you'll have consistently higher
+[14:50] precision near the camera, and it's more
+[14:52] optimized, especially for large scenes
+[14:55] or open worlds. If you'd like to learn
+[14:58] more about this, there's a great write
+[14:59] up on the Unreal Engine forums that does
+[15:01] a deep dive on this topic.
+[15:10] In this part of the tutorial, we'll
+[15:12] create three PCG setups that can prove
+[15:14] useful when making environments.
+[15:19] Let's start by enabling the procedural
+[15:21] content generation framework and the
+[15:23] geometry script interop plugins.
+[15:30] And now let's create an empty PCG graph.
+[15:35] In that graph, let's grab a get actor
+[15:38] data node. This node is very useful for
+[15:40] communicating with actors in your scene.
+[15:43] And in this case, we want it to
+[15:44] communicate with itself. Let's also set
+[15:47] the mode to single point.
+[15:50] I'll add a projection node with the
+[15:52] landscape data plugged into the
+[15:54] projection target. If you want to
+[15:56] project points on top of other static
+[15:58] meshes, use the world ray hit query and
+[16:01] be sure to generate collision for your
+[16:03] static meshes.
+[16:07] Let's add a debug node. Set the scale
+[16:09] method to absolute and size down the
+[16:11] scale so we can visualize our point
+[16:13] behavior.
+[16:15] That looks right. So let's spawn a
+[16:17] static mesh in place of this single
+[16:19] point by adding a static mesh spawner
+[16:21] and adding our mesh entry.
+[16:33] And it looks like a problem has occurred
+[16:35] where when I scale the volume
+[16:37] non-uniformly, the box is scaled as
+[16:40] well.
+[16:42] I'd like the box to remain the same size
+[16:44] regardless of the scale of the volume.
+[16:46] So, let's fix that by adding a transform
+[16:49] points node [music] and enabling
+[16:51] absolute scale.
+[16:56] Now, however I scale the volume, the
+[16:58] mesh remains the same size.
+[17:03] We have the basic setup, but how do we
+[17:05] spawn a level instance through PCG?
+[17:09] It's pretty simple. We just go to our
+[17:11] level instance, rightclick, and under
+[17:13] asset actions, we can select create PCG
+[17:16] assets from level.
+[17:19] From there, we can drag and drop the PCG
+[17:22] assembly into the graph.
+[17:28] To use the PCG assembly, let's add a
+[17:30] copy points node to copy the level
+[17:33] instance to the point we created earlier
+[17:35] and connect the static mesh spawner.
+[17:42] We'll need to set the mesh selector type
+[17:44] to by attribute instead of weighted. And
+[17:47] we'll need to add mesh for the attribute
+[17:49] name.
+[17:50] Everything appears to be working. And
+[17:52] now we can set dress with this PCG graph
+[17:54] in the same way as a level instance with
+[17:57] the benefit of being able to build up
+[17:59] procedural features in parallel with or
+[18:01] after set dressing.
+[18:05] Let's go another direction and try
+[18:06] scattering some rocks on top of this
+[18:09] landform mesh.
+[18:12] I no longer want projection, so I'm
+[18:13] going to clean up this section a bit.
+[18:17] And I want to copy points again, but
+[18:19] this time I'm going to use a mesh
+[18:21] sampler for the source.
+[18:27] And let's visualize what this looks like
+[18:29] using our debug node.
+[18:32] It's a bit hard to see anything. So,
+[18:34] let's change the scale method back to
+[18:37] extents.
+[18:39] Now, let's randomize the point density
+[18:41] before a transform node to achieve some
+[18:43] random rotation and scale.
+[18:46] We can do this with an attribute noise
+[18:48] node with the input source set to
+[18:50] density.
+[18:58] I'll add a transform points node and add
+[19:00] some random rotation on the local Z-axis
+[19:03] of each point.
+[19:12] Now I want to add some noise to break up
+[19:14] the uniform scattering.
+[19:16] To do this, I'll add an attribute remap
+[19:18] to control contrast of the attribute
+[19:20] noise and a spatial noise to create a
+[19:22] pear-in like noise that'll get
+[19:24] multiplied over the random noise for a
+[19:27] varied look.
+[19:36] And now I want to play around with the
+[19:37] settings until I find a nice balance
+[19:39] between the random noise and the spatial
+[19:41] noise.
+[20:04] Let's bring in a density filter to
+[20:05] filter out some of the points using this
+[20:07] mask we've created.
+[20:15] We can make the rocks along the edges
+[20:17] smaller than the center by adding an
+[20:20] execute blueprint node and setting the
+[20:22] blueprint element to scale by density.
+[20:33] I want rocks to only show up on the up
+[20:35] faces of the mesh. So, let's add a
+[20:38] normal to density node and play around
+[20:40] with the settings a bit.
+[20:50] Let's add a density filter and see what
+[20:53] we get.
+[21:02] I've added a static mesh spawner with
+[21:04] all of the small rock meshes I want to
+[21:06] use for this.
+[21:10] It looks like we have a small issue
+[21:11] where the transforms are misplaced. And
+[21:13] it turns out I just had the wrong pin
+[21:15] going into the copy points node.
+[21:21] If we look closely at the rocks, it
+[21:22] becomes apparent that a lot of the rocks
+[21:24] are intersecting one another.
+[21:27] We could use a bounds modifier with
+[21:29] self-p pruning to clean it up a bit, but
+[21:31] I like an alternative method better.
+[21:34] I'll create a graph parameter set to
+[21:36] static mesh object reference, set it to
+[21:38] an array, and then I'll add the small
+[21:40] rock meshes to this parameter.
+[21:46] After the density filter, I'll add a
+[21:48] match and set attributes with our static
+[21:51] meshes graph parameter plugged into mesh
+[21:54] data. From there, I'll get the bounds
+[21:56] from mesh bounds modifier to adjust the
+[21:59] scaling and a self-p pruning node. This
+[22:03] will prevent intersections while doing
+[22:05] so with the [music] actual mesh
+[22:07] dimensions rather than a cube. And just
+[22:10] like we did previously, we'll need to
+[22:12] change the static mesh spawner mesh
+[22:14] selector type to by attribute. I also
+[22:18] like to copy the name of my graph
+[22:20] parameter and paste it into the
+[22:22] attribute name to prevent mismatch
+[22:24] names.
+[22:31] It looks like everything is working and
+[22:34] it's ready for a bit of polish.
+[22:37] After playing around with the scatter
+[22:38] settings a bit, I found a balance of
+[22:40] scatter that I like.
+[22:45] Let's try making another set dressing
+[22:47] tool with PCG.
+[22:49] I've duplicated the graph we've been
+[22:51] working out of, and I've also pruned
+[22:53] some nodes out and left the core graph
+[22:56] scattering functionality I want to keep
+[22:58] for this next tool. Now, we can select
+[23:01] all of the nodes and collapse them into
+[23:03] a single subgraph.
+[23:05] This will help keep our main graph
+[23:07] organized with a clean flow of data.
+[23:12] Let's open the subg graph and I'll start
+[23:14] by selecting the input and changing the
+[23:16] first pin name to points and setting the
+[23:19] allowed type to points.
+[23:21] This will act as the intake for the
+[23:23] points we generate in the main graph.
+[23:28] Now let's add another input pin called
+[23:30] static meshes and set the allowed type
+[23:33] to attribute set.
+[23:36] And let's make sure that's plugged into
+[23:39] our match and set attributes.
+[23:42] Lastly, let's change the output pin name
+[23:45] to [music] points and set the allowed
+[23:47] type to points.
+[23:53] And this is what the subgraph looks like
+[23:55] in our main graph. Now,
+[23:58] shifting gears a bit, let's make a
+[24:00] blueprint actor and open it up.
+[24:05] Let's add a spline and a PCG component.
+[24:10] On the PCG component, we'll add our main
+[24:12] PCG graph. And on the spline component,
+[24:15] I want to enable closed loop. Now, we
+[24:18] can position the points wherever we want
+[24:20] to have a good default size when
+[24:23] dragging and dropping the actor into a
+[24:25] scene.
+[24:28] And this looks like a good size to me.
+[24:33] Let's jump back into our main graph and
+[24:35] search for the get spline data node.
+[24:38] Similar to the get actor data node, this
+[24:41] node is for sending data back and forth
+[24:43] with splines in the scene. We can leave
+[24:46] the get spline data node to its default
+[24:48] settings. And let's add a spline
+[24:50] sampler.
+[25:02] In the spline sampler settings, let's
+[25:04] set the dimension to on interior and set
+[25:06] unbounded to true. I'll also increase
+[25:09] the point density by decreasing the
+[25:11] interior sample spacing value to 25.
+[25:16] And it looks like we have point spawning
+[25:18] on our spline in the scene.
+[25:21] Next, let's go to our spline sampler and
+[25:23] double click on the interior density
+[25:26] fall-off curve graph to open it in a new
+[25:28] window.
+[25:30] I find this most useful to create a
+[25:32] gradient from the center of the spline
+[25:33] to the outermost points, but you can
+[25:36] create all kinds of curve effects such
+[25:38] as concentric rings.
+[25:46] Let's go back to our blueprint and add a
+[25:48] few variables that we'll want to access
+[25:50] in our PCG graph.
+[25:53] I'll add an integer, name it density,
+[25:55] and set the variable to public. I'll add
+[25:58] another variable, name it static meshes,
+[26:01] set it to a static mesh object
+[26:04] reference, make it public, and I'll make
+[26:07] the variable an array. I've set the
+[26:10] density value to 25, which reflects what
+[26:13] we had in our spline [music] sampler.
+[26:15] And I've assigned the rock meshes I want
+[26:18] to use on my static mesh variable.
+[26:22] Let's go back to the PCG graph and add a
+[26:25] get actor property node. This will allow
+[26:27] us to fetch the variable names we made
+[26:29] in the blueprint. And if you spell the
+[26:31] name incorrectly, you'll get an error.
+[26:34] So, let's add a property for static
+[26:36] meshes with the same spelling as the
+[26:38] blueprint variable and plug that into
+[26:40] our subgraph.
+[26:44] And let's duplicate the get actor
+[26:46] property node, set the property to
+[26:48] density, and plug that into interior
+[26:52] sample spacing on our spline sampler.
+[26:55] Now, I'll just test out the density
+[26:57] setting on our blueprint in the scene to
+[26:59] confirm that it's working.
+[27:03] Back in the PCG graph, let's get our
+[27:06] static meshes spawning. I'll take the
+[27:08] spline sampler and route that into our
+[27:10] PCG subgraph. And then I'll route the
+[27:12] subgraph output to a static mesh
+[27:14] spawner.
+[27:17] Just like we've done a couple times
+[27:19] before, we'll need to set the mesh
+[27:20] selector type to by attribute and we'll
+[27:23] need to copy paste our actor property
+[27:25] name.
+[27:30] And we're seeing an error that's pretty
+[27:31] common. Naming variables with spaces is
+[27:35] usually a bit dicey and can cause a lot
+[27:37] of naming conflicts like this. If we go
+[27:40] back to the blueprint, replace the space
+[27:42] in the static meshes variable with an
+[27:44] underscore, and then replace the name in
+[27:47] our get actor property and static mesh
+[27:49] spawner, then our error will go away.
+[27:55] In the interest of saving you all some
+[27:57] time, I've skipped ahead a bit. Using
+[28:00] the same techniques I've shown so far,
+[28:02] we can expose additional parameters in
+[28:04] the subgraph, add the variables to our
+[28:06] blueprint, and add the relevant get
+[28:08] actor properties needed.
+[28:11] I've also added a scale by density after
+[28:13] the spline to make meshes in the center
+[28:16] bigger. [music]
+[28:17] And as it gets further away from the
+[28:19] center, the rocks become smaller. The
+[28:22] specific settings I'm using can be
+[28:24] pulled directly from the final blueprint
+[28:26] settings here.
+[28:28] Now that we have a PCG scatter subgraph,
+[28:30] I want to revisit the level instance
+[28:32] assembly we first set up to build up
+[28:34] some more procedural elements. This was
+[28:36] the original setup minus the landscape
+[28:38] projection we had. And I've done the
+[28:40] basic setup we've done previously,
+[28:42] including making the blueprint variables
+[28:45] and getting actor property nodes. What
+[28:47] we haven't covered is that I'm using
+[28:50] world ray hit query to drive a surface
+[28:52] sampler in both ray hit query nodes in
+[28:55] the settings. Ignore self hit must be
+[28:57] disabled. We're also getting volume data
+[29:00] on self in order to spawn points within
+[29:03] a volume I've added to the blueprint.
+[29:06] And this is the result.
+[29:12] Let's talk performance and
+[29:14] optimizations.
+[29:16] For many projects at Quixle, we focus on
+[29:18] cinematics, and this environment was set
+[29:20] up to render the best quality possible.
+[29:23] One way to start getting a better idea
+[29:24] of our performance is by using viewport
+[29:26] stats. Viewport stats could be accessed
+[29:29] under the eye and viewport stats. I'll
+[29:32] enable stat FPS and stat unit to get an
+[29:35] idea of how the scene is running. Given
+[29:38] that it's a cinematic scene, it's
+[29:39] understandably struggling. Let's get a
+[29:42] better idea of what our overhead is
+[29:43] looking like by utilizing Unreal
+[29:45] Insights. Running an Unreal Insights
+[29:48] trace in editor will capture the
+[29:50] performance of the scene and the editor.
+[29:52] So, if you're planning to ship a
+[29:54] project, it's best to run Unreal
+[29:56] Insights in a packaged build or via
+[29:58] launching in standalone game.
+[30:01] To use Unreal Insights, we can select
+[30:03] the trace tab to access the options and
+[30:05] settings. In our case, since I know I'm
+[30:07] not CPUbound, I want to focus in on the
+[30:11] GPU. So, I'll go to channels and untick
+[30:15] the CPU. From there, I can select start
+[30:18] trace from the menu or I can use the
+[30:20] small icon next to the drop down.
+[30:23] After a few seconds, I can stop the
+[30:25] trace and then open the most recent
+[30:28] trace.
+[30:30] This tool has everything you'll need to
+[30:32] profile performance in any project. And
+[30:34] as a result, it can feel a bit
+[30:36] overwhelming if it's your first time
+[30:37] using it. In this case, it'll be
+[30:40] relatively easy to identify where the
+[30:42] performance problems are coming from in
+[30:44] this scene. In the top row, we can see a
+[30:47] graph with spikes. This is our frame
+[30:50] time graph where we can select
+[30:52] individual frames and gather more
+[30:54] information on what happened during that
+[30:56] frame. There's also a nifty little guide
+[30:59] here on the left that shows a visual for
+[31:01] meeting FPS goals.
+[31:04] To see more, we can select a frame we'd
+[31:06] like to investigate, which will pull up
+[31:08] more information, including tracks and
+[31:10] names.
+[31:13] We don't need to look at the tracks, so
+[31:16] we can bring our attention to the names.
+[31:19] Names are colorcoded. green being under
+[31:21] a millisecond, orange being between a
+[31:25] second and a millisecond, and red being
+[31:28] over a second.
+[31:31] Already, we're getting some pretty clear
+[31:33] information that lighting and
+[31:34] post-processing is taking up a lot of
+[31:36] resources.
+[31:38] And to dive deeper, we can select an
+[31:40] option to see the call ease.
+[31:43] Again, we're seeing very high times to
+[31:45] render lighting and post-processing. So,
+[31:47] let's go back to the scene and see what
+[31:49] we can do to optimize.
+[31:51] In the project settings, it looks like
+[31:53] we're set to use surface cache for ray
+[31:55] lighting mode and global tracing for
+[31:57] software ray tracing mode, which are
+[31:59] both the more performant options. And I
+[32:02] want to keep everything else the same
+[32:03] for right now. Many project settings can
+[32:06] be overridden in the post-process
+[32:08] volume. So, I want to duplicate my
+[32:10] original post-process volume, disable
+[32:12] the old one, and start digging through
+[32:14] the settings here. Bloom is set to
+[32:16] convolution, which is more expensive.
+[32:18] So, I'm going to set that back to
+[32:20] standard. Scrolling down, I want to see
+[32:22] what global illumination and lumen
+[32:25] reflection settings are applied. It
+[32:27] looks like they've all been maxed out.
+[32:29] So, let's set these back to default and
+[32:31] see if we can get comparable quality
+[32:33] with these lower settings.
+[32:35] And just by changing these settings,
+[32:37] we're already seeing dramatically better
+[32:39] performance from the scene without
+[32:40] altering the visuals too much.
+[32:43] Now that we've done some optimizations,
+[32:45] let's go back to the trace dropdown.
+[32:47] I'll enable open insights after trace
+[32:49] and I'll begin the trace.
+[32:53] A cool feature with Unreal Insights is
+[32:55] that you can set a region name. Click
+[32:57] begin region and then end region and
+[33:00] that will show up in tracks as a sort of
+[33:02] chapter to help identify and organize
+[33:05] performance checks.
+[33:07] The key to optimizing any project is
+[33:09] profiling, comparing the before and
+[33:11] after, and repeating the process.
+[33:14] Performance is looking quite a bit
+[33:16] better with some easy wins. So, let's
+[33:18] shift gears and take a look at our
+[33:20] viewport settings.
+[33:22] If we select the speedometer like button
+[33:24] on the top right of the viewport, we'll
+[33:26] see viewport scalability, material
+[33:28] quality level, and screen percentage.
+[33:32] Most games these days use some form of
+[33:34] upscaling, and in our case, we're using
+[33:36] temporal super resolution. So, let's set
+[33:39] up a custom override for screen
+[33:40] percentage and set it to something
+[33:42] lower, like 70%.
+[33:46] And that helped us gain another 20 FPS.
+[33:49] If we're still struggling with editor
+[33:51] performance, we can always lower the
+[33:52] viewport scalability as well, either in
+[33:55] specific categories or across the board.
+[33:58] If you want to have the most impact
+[34:00] while still having higher quality in
+[34:01] other areas, reference your trace and
+[34:04] reduce project settings where
+[34:06] performance is struggling.
+[34:08] Thank you all for tuning in and I hope
+[34:10] you enjoyed. Don't forget you can
+[34:12] download the scene off of the Fab
+[34:14] Marketplace and I'll see you in the next
+[34:17] one.

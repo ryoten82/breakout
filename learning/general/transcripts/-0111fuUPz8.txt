@@ -1,0 +1,403 @@
+[00:00] Hello, in this video, we're going to go
+[00:02] over how to build a save system in
+[00:04] Unreal Engine. So, I have some stats. My
+[00:07] player has some health, a speed, and a
+[00:08] hat they can wear. I can make it so my
+[00:10] player's speed is like a thousand.
+[00:13] I'm going to damage my player a bit, so
+[00:15] their health is like here, and I can
+[00:16] make it so they are wearing a frog hat,
+[00:19] and then I can click save.
+[00:20] And let's say I go all the way here.
+[00:23] And then let me change the hat to be
+[00:24] nothing, and I'll just increase my
+[00:27] player's health. If I click load, then
+[00:29] it's going to load up my health, my
+[00:31] speed, the hat I was wearing, and where
+[00:33] the player was. And if I click
+[00:37] delete, this will delete my save.
+[00:40] And then if I play my game again, we can
+[00:42] see it has deleted my save, and I'm back
+[00:44] in the center of the game with all of my
+[00:46] default stats.
+[00:48] I am also going to be giving away the
+[00:50] project files of this tutorial for
+[00:51] completely free, so that you can look
+[00:53] around and see how I built the save
+[00:55] system, in case you want to do that. By
+[00:57] the end of this tutorial, you should
+[00:58] hopefully have the knowledge on how to
+[01:00] build a save system, and be able to save
+[01:03] the data that you want to in your game.
+[01:05] This tutorial will be slightly
+[01:06] different. I'm just going to be going
+[01:08] over how I built the system and
+[01:09] explaining everything I did to build the
+[01:11] save system in this way.
+[01:13] And before we get started, I'm an
+[01:14] authorized Unreal Engine instructor.
+[01:16] If you're just getting started with
+[01:18] Unreal Engine, I have a completely free
+[01:19] Unreal Engine beginner course that will
+[01:20] teach you all of the basics of it.
+[01:22] There'll be a link to that in the
+[01:23] description of the video, if you're
+[01:24] interested. With that being said, let's
+[01:26] get into the video.
+[01:27] So, to create a save system in Unreal
+[01:29] Engine, the first thing you're going to
+[01:31] want to do is create a save game
+[01:33] blueprint. To do this, you can just
+[01:35] right click, go over to blueprint class,
+[01:37] and then here in all classes, just look
+[01:39] for a save game. And you can just select
+[01:41] this and create it.
+[01:43] So, if I just open this up,
+[01:45] I created a save game blueprint, and
+[01:48] I've just created all of the variables I
+[01:50] want to save. So, I wanted to save my
+[01:52] player's health, their speed, the hat
+[01:54] they were wearing, their location, and
+[01:56] their rotation.
+[01:57] Now, in Unreal Engine, there are many
+[02:00] different places we can create and load
+[02:03] the information from our save game data.
+[02:06] And in some previous tutorials, and even
+[02:09] in my first game, Purpose Fun Zone,
+[02:12] because it was quite a small project, I
+[02:14] created and loaded the data
+[02:16] all within my first-person character.
+[02:19] Although, when it came to my second game
+[02:21] project, Magma Island, it was a bit
+[02:23] bigger, and I wanted a more flexible way
+[02:25] of saving and loading all of the data.
+[02:27] So, I actually created and loaded the
+[02:30] save inside of a game instance. And I
+[02:32] think this is a much better way to do
+[02:34] it. If you don't know what game instance
+[02:36] is, I'm going to explain it now. So, a
+[02:38] game instance is a persistent object
+[02:40] that lives for the entire lifetime of
+[02:42] the application. So, as soon as you
+[02:44] start your game project in Unreal
+[02:46] Engine, it's going to create a game
+[02:48] instance.
+[02:50] And unlike a level blueprint or a game
+[02:52] mode, all of the information inside of a
+[02:54] game instance
+[02:56] exists between levels. So, you can move
+[02:58] between levels, and all of the
+[02:59] information in the game instance is
+[03:01] going to stay the same.
+[03:02] For that reason, it makes it a really
+[03:04] good place to store information like
+[03:06] save game data.
+[03:08] So, how do you create a game instance?
+[03:10] Well,
+[03:11] inside of this project, I just have a
+[03:13] folder called blueprints. You can right
+[03:15] click, go to a blueprint class,
+[03:17] and then you can just look for a game
+[03:19] instance.
+[03:21] And you can just select it and create
+[03:22] it. So, I created one called the BP
+[03:25] Third Person Example Game Instance.
+[03:29] And you want to go inside of the event
+[03:32] graph, and just right click and look for
+[03:33] event initialize. So, this will
+[03:35] basically run as soon as the game
+[03:37] starts. And what I do is I just have
+[03:39] this node called does save game exist,
+[03:42] and then I just right click here and
+[03:44] promoted this to a variable.
+[03:45] So, in Unreal Engine,
+[03:47] your saves are assigned to a slot. So,
+[03:49] I've just created a variable called slot
+[03:51] one, and I've called my slot save. So,
+[03:54] when my game starts, I check to see if I
+[03:56] have a save game under the name save.
+[04:00] If I don't,
+[04:01] then I just use the node create save
+[04:04] game object, and then I specify the save
+[04:06] game object I want to create.
+[04:08] In this case, it's the BP example save.
+[04:12] If I do have a save, so if say I'm
+[04:14] playing this game again, and I actually
+[04:16] do have a save, then I just do the load
+[04:18] game from slot. For the slot I'm
+[04:20] checking to see if I have a slot called
+[04:22] save.
+[04:23] And then from here, I just cast to the
+[04:26] BP save example, and I promote that to a
+[04:27] variable. That way, I have a reference
+[04:29] to my save game inside of my game
+[04:32] instance.
+[04:33] In order to make sure that any blueprint
+[04:35] inside my project can access this,
+[04:38] what I did is I created a blueprint
+[04:40] function library. So, a blueprint
+[04:42] function library is basically, as the
+[04:44] name implies, a place where you can
+[04:46] create a bunch of different functions,
+[04:47] and you can use these functions in any
+[04:49] blueprint. To create it, you can just
+[04:51] right click, go to blueprint,
+[04:53] and select blueprint function library.
+[04:55] So, I've created one, and if I just open
+[04:57] it up,
+[04:58] I've just created a function that allows
+[05:00] me to reference my game instance.
+[05:03] So, inside of this function,
+[05:05] I just right click, and I get the game
+[05:08] instance,
+[05:09] and then I just drag up here, and look
+[05:11] for cast to third person example game
+[05:13] instance, or whatever you've called your
+[05:15] game instance, and just right click on
+[05:16] this, and go to convert to pure cast.
+[05:20] And then I've just hooked this up to a
+[05:21] return node, and I've made this a pure
+[05:23] function.
+[05:25] Because of that,
+[05:26] if say I minimize this,
+[05:28] and I just go over to my third person
+[05:29] character,
+[05:32] let me just find some free space. I can
+[05:33] just right click, and I called my
+[05:35] function get third person game instance.
+[05:38] I can just right click here, and I can
+[05:39] look for get third person game instance,
+[05:43] and then I can just drag up here, and
+[05:44] now I have a reference to my save.
+[05:46] So, I can look for the get save game
+[05:49] reference.
+[05:51] And I can access this anywhere. So, I
+[05:54] can go to my level blueprint.
+[05:56] And here, I can just look for get third
+[05:59] person game instance.
+[06:01] And now I can basically access my save
+[06:03] game information from anywhere.
+[06:06] Also, in order to make sure that your
+[06:08] game is using the correct game instance,
+[06:11] you are just going to want to go over to
+[06:13] edit, then project settings.
+[06:16] And then here in the search, look for
+[06:18] game instance.
+[06:21] And then go over to game instance class,
+[06:22] and make sure you're using your
+[06:25] game instance that you've created.
+[06:26] Otherwise, this won't work. So, make
+[06:28] sure you selected your game instance.
+[06:30] So, we've now established how I create
+[06:31] the save in this project. The next thing
+[06:33] I want to do is go over how we can save
+[06:36] items to our save data, and how we can
+[06:39] load items from our save data.
+[06:42] So, inside my project, I have created a
+[06:44] very simple widget blueprint example,
+[06:47] which basically shows my player's
+[06:48] health, their speed, if they wear a hat,
+[06:51] and I have some buttons that allow me to
+[06:53] save, load, and delete my save game.
+[06:57] First, let's cover what happens when I
+[06:59] want to save the information in my game.
+[07:03] So, I'm just going to go here and go on
+[07:04] click.
+[07:05] So, when I save my game,
+[07:10] I first of all reference my third person
+[07:12] game instance, and I can do that because
+[07:14] of this blueprint function library.
+[07:17] And then inside of my game instance,
+[07:19] I've created a function called save
+[07:20] player stats. So, I'm just going to go
+[07:22] to it.
+[07:23] And here's the way it works. So, event
+[07:26] initialize. So, this will run when we
+[07:28] first load our game. We are creating a
+[07:29] reference to our save game.
+[07:31] And then inside of my save player stats,
+[07:34] I basically get the save game reference,
+[07:36] and I basically set the information I
+[07:38] want to save. So,
+[07:39] I'm I'm going to drag another one in cuz
+[07:41] it's kind of messy. And let's say I
+[07:43] wanted to save my player speed, I can
+[07:45] just drag off here and look for set
+[07:46] speed.
+[07:49] And this will now set the
+[07:51] information of my player speed inside of
+[07:53] my save game.
+[07:55] But in order to actually save this,
+[07:57] we need to just do something else. So,
+[07:59] inside of my game instance, I have also
+[08:02] created another function called save
+[08:04] game. And if I just head inside here,
+[08:06] what it simply does is we basically just
+[08:09] want to use this node called save game
+[08:10] to slot.
+[08:12] Plug in your save reference and plug in
+[08:14] the slot you want to save this to.
+[08:17] So, that's essentially what it does.
+[08:19] So, if I just go back to my save player
+[08:21] stats, I essentially get my save game
+[08:23] reference, I set the information I want
+[08:25] to save, and then I save the game.
+[08:27] Technically, I could do it inside of
+[08:28] here. So, if say I wanted to save my
+[08:30] player speed to zero, I could drag off
+[08:32] here and look for save game to slot.
+[08:36] And then the save game I'm saving is
+[08:38] going to be this, and then the slot I
+[08:39] just need to make sure I
+[08:42] drag in my slot name
+[08:43] and connect this into here. I could also
+[08:45] manually type in save, and that would
+[08:47] save it to the slot as well. I just made
+[08:49] it a variable because it's a bit cleaner
+[08:51] and you're less likely to make mistakes.
+[08:54] So, inside of this function, I basically
+[08:55] allow me to set the speed, health, the
+[08:58] hat my player is wearing, and I save
+[08:59] their location and their rotation.
+[09:02] So, if I just go back to my widget
+[09:03] blueprint example,
+[09:05] inside my player, I have a reference to
+[09:06] their health, I get their [snorts]
+[09:07] speed,
+[09:08] I get the current hat they're wearing,
+[09:10] and so
+[09:12] And I also, just as an example, let's
+[09:15] say you didn't want to save all of the
+[09:16] information inside of your save game,
+[09:18] you could
+[09:20] make it so they only save for specific
+[09:22] things. So, for example, I've just
+[09:24] created this function called save player
+[09:26] speed, and here the only thing I'm
+[09:28] saving is my player speed.
+[09:31] So, if I just go back to my widget
+[09:32] blueprint example, if say I just wanted
+[09:34] to save my player speed, I could drag
+[09:35] off here, and I'll go save
+[09:38] speed.
+[09:42] And inside here, I'm only saving the
+[09:44] speed.
+[09:46] And technically, this doesn't need to be
+[09:48] a function.
+[09:50] You can just do it outright, but I just
+[09:52] made these functions cuz it makes it a
+[09:53] bit cleaner. But,
+[09:55] if say I wanted to just manually save
+[09:57] the player's speed or something else,
+[10:00] I could just
+[10:01] drag off the game instance, and I can
+[10:03] get the player
+[10:06] and I can get the save reference.
+[10:09] I could just drag up here, and I'll go
+[10:10] set speed.
+[10:14] And then, I could just
+[10:17] drag up here, and I'll go save game to
+[10:19] slot.
+[10:22] And I can specify the slot name, and it
+[10:24] would save it. The only reason I did it
+[10:27] through a function is I think it makes
+[10:28] it a bit cleaner, and you're less likely
+[10:30] to make mistakes.
+[10:32] Next, let's cover how we load
+[10:34] information from our save.
+[10:36] So, I'm just going to go back to my
+[10:37] designer, and I'm just going to click
+[10:39] this load button.
+[10:42] Okay, so when I click this button, I go
+[10:45] to this custom event.
+[10:47] And what I do is I essentially get my
+[10:49] third-person game instance. From here, I
+[10:51] can get the save. And then, I can get
+[10:52] all of the information that I have
+[10:54] inside of the save. So, I have their
+[10:56] health, their speed, their hat, their
+[10:57] location, and their rotation.
+[10:59] So,
+[11:02] when I load the player's speed, I've
+[11:03] created another custom event inside of
+[11:05] here called update player speed, and
+[11:07] we'll just click on it.
+[11:09] What I do is I have a reference to my
+[11:11] player character inside of this widget.
+[11:14] The way I created a reference to my
+[11:15] player character inside of this widget,
+[11:16] in case you're wondering, is if I just
+[11:18] go back to my third-person character
+[11:20] and event begin play, I create a widget.
+[11:23] And this widget has a variable, which I
+[11:26] set to
+[11:28] when I get the widget, I give it a
+[11:29] reference to my player character.
+[11:33] So, from my player character, I get
+[11:36] their character movement and I set their
+[11:37] speed to be whatever the value is here.
+[11:41] And I also have this slider box which
+[11:43] shows the speed of my player.
+[11:46] I also set the value of that to be
+[11:49] whatever I have from here. And I get
+[11:51] this
+[11:52] from my save game. I essentially do
+[11:56] similar process for setting up the
+[11:57] health, the hat,
+[12:00] and loading the player character's
+[12:02] location and rotation. It's all
+[12:04] essentially the same.
+[12:06] Hopefully, that makes sense. Maybe if
+[12:08] you're completely brand new to Unreal
+[12:09] Engine, this is a bit more intermediate
+[12:12] to grasp.
+[12:14] But, it's essentially the same thing.
+[12:16] I've just specified the different amount
+[12:18] of information that I want to load. And
+[12:20] depending on that information, I do
+[12:22] different things.
+[12:23] So, for example, for the update hat,
+[12:26] I get
+[12:27] um the hat.
+[12:28] I change my
+[12:31] box to show the hat that the player's
+[12:33] wearing.
+[12:35] And then depending on that,
+[12:37] inside my player, I have a function
+[12:39] which basically updates the hat that
+[12:41] they are wearing. Then if I just go back
+[12:43] to my designer, if you want to delete a
+[12:45] save,
+[12:46] I basically make this button. And if I
+[12:49] click on it,
+[12:51] I reference my game instance. And inside
+[12:53] my game instance, I created a function
+[12:55] called delete save game. And to delete
+[12:57] the save game, you can just right click
+[12:59] and look for delete
+[13:00] game in slot. And then you just need to
+[13:03] specify the slot name that you want to
+[13:05] delete. And that will delete the save.
+[13:09] Okay.
+[13:11] So, that essentially
+[13:13] is how I created a save game system in
+[13:18] Unreal Engine. And you can save and load
+[13:20] any type of variable in Unreal Engine.
+[13:23] This tutorial was actually requested by
+[13:25] a few of you, so that's why I thought
+[13:27] I'd do it.
+[13:28] If you do have more requests for other
+[13:30] specific tutorials, if a lot of people
+[13:32] want that, then I will try make a custom
+[13:35] tutorial on that.
+[13:37] Also, I am now doing this new thing with
+[13:39] my program that I sell. When you get it,
+[13:41] you also get a free 30-minute call with
+[13:43] me where we can discuss any Unreal
+[13:45] Engine problem.
+[13:46] There's a link to that in the
+[13:47] description of the video if you want
+[13:48] that. If you enjoyed this video, make
+[13:50] sure to like and subscribe, and I'll see
+[13:51] you guys in the next one.
+[13:53] Bye.

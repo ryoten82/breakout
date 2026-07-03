@@ -1,0 +1,243 @@
+[00:00] hello in this video I'm going to show
+[00:01] you how you can translate your honoral
+[00:03] engine project into multiple different
+[00:05] languages or whatever language you want
+[00:07] so I have this main menu project and if
+[00:09] I just go here to my language options I
+[00:12] can translate my game into English
+[00:14] Spanish or French let's say I click on
+[00:16] the Spanish button it will translate my
+[00:18] game into Spanish you can already see
+[00:20] it's changed the language into langua
+[00:23] and the back button now says atas for
+[00:25] back and it's translated my whole main
+[00:28] menu into Spanish
+[00:30] so in this video let's go over how you
+[00:32] can quickly and effectively translate
+[00:33] your game into multiple different
+[00:38] languages so I'm in the third person
+[00:41] template to get started I'm just going
+[00:43] to add some text in my game that I want
+[00:45] to translate so I'm just going to go
+[00:47] here quickly add things to the project
+[00:49] and look for a text renderer actor I'll
+[00:52] select
+[00:54] it I'm just going to rotate
+[00:58] it and I'm going to make this say
+[01:00] hello and I'm going to make it so I can
+[01:02] translate my game into English and
+[01:06] Spanish you'll be able to translate your
+[01:08] game into as many languages as you want
+[01:10] the process will be exactly the same one
+[01:13] thing to note when you're translating
+[01:14] things inside Anor engine it will
+[01:17] translate everything which is the text
+[01:18] element or variable so this is a text
+[01:21] element so it will translate it if you
+[01:23] have an element which is like a string
+[01:24] then unal engine will not translate it
+[01:26] it will only translate text elements now
+[01:29] that start the process of translating
+[01:30] our game project okay so the first thing
+[01:33] we want to do is go over to edit then
+[01:35] project settings we basically need to
+[01:37] configure the languages we want our game
+[01:39] to be exported in when it is packaged so
+[01:42] we just want to go to Project settings
+[01:44] packaging scroll down we going to go
+[01:46] over to Advanced and then this will
+[01:48] basically show us all of the different
+[01:50] languages which is going to package our
+[01:52] project in English should be checked by
+[01:55] default so here it is although we can
+[01:59] add different dialects of English so
+[02:01] let's say you wanted to export your game
+[02:02] to English antia and Bara we can just
+[02:07] click
+[02:08] this in this tutorial I want to showcase
+[02:11] how to export this to another language
+[02:13] I'm just going to pick Spanish so I'm
+[02:15] just going to scroll down and look for
+[02:18] Spanish again you can select the
+[02:20] different dialects but it's just
+[02:21] recommended to just select Spanish and
+[02:23] then that will include all of the below
+[02:26] as well so I'm just going to select
+[02:27] Spanish and if you don't want all of
+[02:30] these different dialect options when we
+[02:33] are setting up our languages we just
+[02:35] want to select show localized and then
+[02:38] when we export our game let's say when I
+[02:41] selected Spanish it's just going to
+[02:42] include all of the different dialects of
+[02:45] Spanish under the main Spanish category
+[02:47] so I'm just going to have this on show
+[02:49] localized then we want to just scroll
+[02:52] down and then we'll see
+[02:55] internationalization support just change
+[02:57] this to be all right now it's just set
+[02:59] to English if say your game was in
+[03:01] English French Italian German and
+[03:03] Spanish then you can select this one or
+[03:05] maybe it's in Chinese Japanese and
+[03:07] Korean you can just select this one
+[03:08] although if you're adding many different
+[03:09] languages just select all that way it
+[03:11] can be compatible with many different
+[03:12] languages so I'm just going to select
+[03:14] all and then close
+[03:17] this so now we've configured that our
+[03:20] game will basically be able to export
+[03:21] our game to different languages the next
+[03:23] thing we need to do is make it so we can
+[03:25] have different languages in our project
+[03:27] to do that we just want to go over to
+[03:28] tools
+[03:30] go over to the localization
+[03:32] dashboard and then we need to basically
+[03:35] configure and Define all of the parts of
+[03:37] our game that we want to translate to do
+[03:39] that we just need to select this box
+[03:41] gather from packages expand it then we
+[03:44] want to go to include PA W cards just
+[03:46] click add element and then here we can
+[03:49] specify all of the folders that we want
+[03:50] unal engine to translate for us so I'm
+[03:52] just going to click here choose a
+[03:54] directory and I'm going to set my
+[03:55] content folder and it's going to
+[03:57] basically find all of the text elements
+[03:59] in my content folder and allow me to
+[04:00] translate them so I'm just going to go
+[04:02] select folder and it's going to
+[04:04] basically allow me to translate
+[04:05] everything in the content folder okay
+[04:08] once I've done that we then just want to
+[04:10] go here where it says add new language
+[04:12] and I'm going to be adding the Spanish
+[04:14] language so here under the search I'm
+[04:16] going to look for
+[04:18] Spanish because that's the language I
+[04:20] set up in my product settings and then a
+[04:22] very important thing just make sure you
+[04:24] select the native to English so just
+[04:26] select yes this is the standard default
+[04:29] language our game so make sure it's set
+[04:30] to
+[04:32] English okay once you've done that just
+[04:34] select this gather text save everything
+[04:38] this will basically gather all the
+[04:39] different text elements and files inside
+[04:41] of our content
+[04:44] folder okay once you've done that you
+[04:46] can then just select okay then we just
+[04:48] want to go here where it says edit
+[04:50] translations for this
+[04:51] culture and then this will show me all
+[04:54] of the different text elements I have in
+[04:55] my project so we can see the hello this
+[04:59] basically is representing the hello that
+[05:01] I have in my map
+[05:05] here and then here I can write the
+[05:07] translation for how I want it to appear
+[05:10] in the Spanish version of my
+[05:12] game so in Spanish hello is just holla
+[05:17] so I'm just going to type in holla then
+[05:19] I can just save this I'll get this
+[05:22] little notification here let we know
+[05:23] that I save this and if say I close this
+[05:26] if I go back to my localization
+[05:28] dashboard and I click edit translations
+[05:30] I can see all the completed translations
+[05:32] that I've done so I've translated
+[05:35] hello into H for my Spanish I'm not
+[05:39] going to translate the other elements
+[05:41] but if say I wanted to I could just
+[05:43] easily do that if say there's an element
+[05:45] of text that you didn't want to have a
+[05:47] translation
+[05:49] for what we could do is I could just
+[05:51] close this and I go over to my third
+[05:53] person map let's say I didn't want this
+[05:54] text element to be translated I could
+[05:57] just click this little flag
+[06:00] and then here I have this little
+[06:02] localize option if I just had this
+[06:04] unchecked then when I gather my text it
+[06:07] won't gather this text so if there are
+[06:09] certain text elements you don't want to
+[06:11] be translated just make sure that
+[06:12] localize is unchecked by default it will
+[06:15] be
+[06:17] checked once you're happy with all of
+[06:19] the text that you've translated we can
+[06:20] just close this window go over to our
+[06:22] localization dashboard and click compile
+[06:26] text this will compile all of the
+[06:28] transations that we have made in our
+[06:30] project once it's done you can just
+[06:32] select
+[06:33] okay we can then just go over to our
+[06:35] third person map and an important thing
+[06:37] to note when you're testing translations
+[06:39] in UNR engine you can only really test
+[06:41] them in the exported version of UNR
+[06:44] engine so if I play my game and I tried
+[06:46] to translate it to Spanish it wouldn't
+[06:49] work I need to make sure that I'm in
+[06:51] Stand Alone game so that I'm simulating
+[06:53] how my project will be when it's
+[06:57] exported in order to basic write some
+[06:59] blueprint code in order to dynamically
+[07:01] translate this language I can just go
+[07:04] over here go over to open level
+[07:06] blueprint I can just right click and I
+[07:09] can press the one
+[07:13] key and when I press the one key I'm
+[07:15] just going to drag up here and translate
+[07:16] my game into Spanish so I can just drag
+[07:19] here and Set current
+[07:21] culture and then in order to translate
+[07:24] this into Spanish and get the culture of
+[07:25] this if I just close this and I go over
+[07:27] to my localization dashboard if I just
+[07:29] hover over Spanish it says es so that is
+[07:31] the culture of Spanish if I hover over
+[07:34] the English it says so that is the
+[07:36] culture of English so if I just go back
+[07:39] to my level blueprint here in the
+[07:41] culture if I type in
+[07:43] es this will translate my game into
+[07:45] Spanish and then I'm just going to right
+[07:47] click and look for the two
+[07:50] key and I'll just copy this and paste it
+[07:52] when I press two I'll translate my game
+[07:54] into English so I'll type in Ian and
+[07:56] then if you want to make it so when you
+[07:58] translate your game into another
+[08:00] language it saves it just expand this
+[08:02] and click save to config that way if I
+[08:04] translate my game into Spanish if I
+[08:05] close it then I reopen it again my game
+[08:07] will be in Spanish so I'll just save
+[08:09] this to the config compile this and
+[08:11] let's test this out make sure you test
+[08:13] this out in Sone game then go
+[08:16] play okay so I'm in an exported game if
+[08:20] I press one we can see that will
+[08:22] translate my game into Spanish and it
+[08:24] says haa if I press two then it
+[08:26] translate my game back into
+[08:28] English and just just like that it's
+[08:30] that simple to set up translations for
+[08:31] your game inside an Unreal Engine and if
+[08:34] you'd like to learn how I made this
+[08:35] professional M menu with multiple
+[08:38] languages and all the essentials that
+[08:40] you need when making a main menu and a
+[08:42] pause menu in your
+[08:44] game make sure to check out my
+[08:46] professional May menu course and all my
+[08:48] other courses there'll be a link to it
+[08:49] in the description of this video with
+[08:51] that said bye
