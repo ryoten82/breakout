@@ -33,7 +33,7 @@
 - Fab リスティング「Military Trench」（無料サンプルプロジェクト）: WebFetch 403 + Chrome拡張未接続で今回アクセス不可。ダウンロード+UE MCP直接検査という新経路の実現性はある（要Fabプラグイン経由のGUI操作+エディタ別インスタンス）が未実施
 
 ### fx/ — エフェクト（3 本学習済・2026-07-04）
-- doctrine: 未作成（3本到達、次回蒸留を検討）
+- **[fx/fx_technique_doctrine.md](fx/fx_technique_doctrine.md)** — 蒸留版 v1（2908B・2026-07-04 Fable 蒸留。Spawn/Update 配置原則・Particle State 必須の罠・Execution State・Inheritance 量産・Fluids 5 種の住み分け）
 - [fx/videos/hnUQiwJweeg_niagara-intro.md](fx/videos/hnUQiwJweeg_niagara-intro.md) — Niagara 入門（日本語公式・Fable 照合済。5 ステージ役割分担・Particle State 必須の消滅仕様・Add Velocity のステージ配置で初速/継続加算が変わる）
 - [fx/videos/niagara-official-concepts.md](fx/videos/niagara-official-concepts.md) — 公式 System/Emitter/Module/Parameter概念 + Execution State（Active/Inactive/InactiveClear/Complete=既存ノートに無い新規情報）+ Inheritance等の高度な概念。既存ノートとの用語対応関係も整理（Fable監査済・Execution State原文照合一致確認）
 - [fx/videos/niagara-fluids.md](fx/videos/niagara-fluids.md) — グリッド(気体)/FLIPハイブリッド(液体)・圧力解法・5種シミュレータ比較(2D/3D Gas・2D/3D FLIP・Shallow Water)。**FLAME UPPER(3D Gas候補)・延焼(2D Gas候補)への応用示唆**（実装未確認、Fable監査済・5種シミュレータ全項目原文照合一致確認）
@@ -62,7 +62,7 @@
 
 ### animation/ — アニメーション・リグ（3 本学習済・2026-07-04 新設）
 - ソース種別・監査方式は programming と同じ（Epic公式documentation・WebFetch再取得照合）
-- doctrine: 未作成
+- **[animation/animation_technique_doctrine.md](animation/animation_technique_doctrine.md)** — 蒸留版 v1（2540B・2026-07-04 Fable 蒸留。Asset 作成 2 方式の使い分け・Editor 要点・Modular CtrlRig は Experimental につき不採用）
 - [animation/videos/animation-system-and-control-rig.md](animation/videos/animation-system-and-control-rig.md) — Skeletal Mesh Animation System全体マップ + Rigging with Control Rig（Control Rig Asset作成2方式）。**project の motion-room の実運用 Control Rig パイプラインと直結**（Fable監査済・自己申告1件ヘッジ確認済）
 - [animation/videos/modular-control-rigs.md](animation/videos/modular-control-rigs.md) — Module/Connector/Socket構造・実行順序（root→leaf・単一スレッド）。**Experimental機能**・現行パイプライン置換は提案しない位置づけ（Fable監査済・Experimental明記+実行順序をWebFetch独立再照合し原文完全一致確認、自己申告1件は修正済）
 - [animation/videos/control-rig-editor.md](animation/videos/control-rig-editor.md) — Control Rig Editor主要パネル（ツールバー/Rig Hierarchy/Details）+ Rig Graphノード操作（Hierarchy参照・Function化）。ユーザー指定コース「Creating and Modifying Control Rig」の実質的な代替（Fable監査済・Compile/SolveDirection原文照合一致確認、自己申告1件は適切にヘッジ確認済）
@@ -77,7 +77,7 @@
 
 ### materials/ — マテリアル（3 本学習済・2026-07-04）
 - ソース種別・監査方式は programming と同じ
-- doctrine: 未作成（3本溜まったので次回蒸留を検討）
+- **[materials/materials_technique_doctrine.md](materials/materials_technique_doctrine.md)** — 蒸留版 v1（2930B・2026-07-04 Fable 蒸留+Substrate有効化+実機確認を同日反映。必須3設定・プロキットは最小構成・MI量産手順・タイリング適用条件・**本プロジェクトSubstrate有効(Adaptive GBuffer)・実害なし確認済み**・実地検査手法の使い所）
 - **[materials/inspections/](materials/inspections/)** — **新ソース種別：UE MCP実地検査**（動画/ドキュメントとは別経路）。[lower-sector-building-kit-report.md](materials/inspections/lower-sector-building-kit-report.md)：生の検査報告（一次資料）
 - [materials/videos/lower-sector-building-kit-inspection.md](materials/videos/lower-sector-building-kit-inspection.md) — 上記を正式ノート化。Fab「Lower Sector Building Kit」（CC BY 4.0・AI利用許可済）実地検査。**「TexCoord→Multiply→Scalar tiling」定型パターンがプロ配布モジュラーキットには存在しない**という発見は**独立検証2回・ノード/ピン単位で完全一致**（幻覚でないことを確認）→ bgドクトリン§定型テクニックに適用条件（Landscape等広域面限定）を追記済み。**検査手法自体の評価も収録**（ライセンス確認必須・高コスト=1キット約20万トークン相当・「なぜ」は分からない、を踏まえた要否判断）
 - [materials/videos/material-concepts-and-properties.md](materials/videos/material-concepts-and-properties.md) — Material Domain7種/Blend Mode7種/Shading Model13種の完全列挙。bgドクトリンの実践知識=フォグ材Translucent選択等を体系的に裏付け（Fable監査済・自己申告1件は既述ヘッジ確認済）
@@ -86,9 +86,6 @@
 - 関連: ユーザー指定の元チュートリアル「Create Realistic Glass Material - Substrate Glass Tutorial」（SPA・Chrome拡張復旧待ち。Substrate材システム自体の公式docで代替、ガラス材の具体的ノード構成手順は未取得）
 - [materials/videos/material-instances.md](materials/videos/material-instances.md) — Parameter作成のS/Vキーショートカット・Convert to Parameter・Parameter Groups。bgドクトリンの「MI化」フレーズの具体的作業手順（Fable監査済・S/VキーをWebFetch独立再照合し原文完全一致確認）
 - 関連: ユーザー指定の元コース「Introduction to Materials」（本セッション冒頭で最初に依頼されたコース・SPA・Chrome拡張復旧待ち）
-- 学習中: Lighting the Environment（全体マップ）+ Light Types and Their Mobility（5種のLight Type・3種のMobility・Stationary4灯制限等）の統合ノート／Lumen Global Illumination and Reflections（ソースやや薄いと明記）
-- bg ドクトリンの「影の設計」（Medieval動画由来）と重複回避・前提知識として整理する方針
-- 関連: ユーザー指定の元コース「Introduction to Lighting」（SPA・Chrome拡張復旧待ち）
 
 ### general/ — 汎用・システム系（2 本学習済・2026-07-04 新設）
 - doctrine: 未作成。**general はトピックが毛色違い（localization/savegame等）のため、単一 doctrine でなく「同一トピックが2〜3本溜まった時点でそのトピック単位に蒸留」方針
