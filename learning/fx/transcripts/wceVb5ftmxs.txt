@@ -1,0 +1,480 @@
+[00:00] Hi and welcome. [music] Today, let's see
+[00:02] how to create a toxic waterfall in
+[00:04] Unreal Engine. There's a few tricks that
+[00:07] revolve around creating this effect,
+[00:09] [music] and you can even use those same
+[00:11] tricks to make other types of liquids. I
+[00:14] previously made a similar tutorial for
+[00:16] Unity. [music]
+[00:17] But today, let's see how to do it with
+[00:19] Niagara. This project and [music] many,
+[00:21] many others are available on my Patreons
+[00:24] page where you can get access to a whole
+[00:26] lot of visual effects for your games. So
+[00:29] without [music] further ado, let's jump
+[00:30] right into this.
+[00:33] So let's [music] begin with a Niagara
+[00:35] system. Right click to create one. We
+[00:37] want to create an empty Niagara system.
+[00:39] We are going to show you everything from
+[00:41] scratch and we can rename it to toxic
+[00:43] waterfall. In here we also want a
+[00:45] minimal emitter which is basically an
+[00:47] empty meter in this case for the pipe.
+[00:50] Let's add the pipe right here just for
+[00:53] visualization purpose.
+[00:59] Let me just make it bigger and move it
+[01:02] back here. And now the most important
+[01:04] part is the waterfall. The liquid that
+[01:06] comes out of the tube, right? And we can
+[01:08] duplicate this Niagara system, call it
+[01:10] waterfall. And on the mesh renderer down
+[01:13] here, we want to assign the waterfall.
+[01:16] This specific waterfall is exactly the
+[01:18] same from this tutorial that I made a
+[01:20] while back in Unity. Feel free to follow
+[01:23] exactly those steps to get this
+[01:25] waterfall. or if you know how to 3D
+[01:27] model, you can come up with something
+[01:29] different, right? But once you have the
+[01:31] mesh, the most important part is the
+[01:33] material itself. So, let's see how to
+[01:35] create that part. We right click. I'm
+[01:37] going to create a new material, call it
+[01:39] erosion. The blend mode, it's going to
+[01:42] be additive and it's not going to be
+[01:44] influenced by the light. So, I'm going
+[01:45] to say unlit. And as it is very common,
+[01:48] we want to have a parameter to D, a
+[01:51] texture sampler parameter to D. So we
+[01:53] can control the texture of our main text
+[01:56] property. We're going to use one of
+[01:58] these noises, the noise 01. And these
+[02:00] three textures right here are available
+[02:02] for free on the link below. By the way,
+[02:04] we can also duplicate this parameter 2D
+[02:06] for the mask. And the mask here, it's an
+[02:10] extremely simple texture. If we open up
+[02:12] material maker, you can Google it. It's
+[02:15] a free software that allows you to
+[02:16] create textes via nodes with material
+[02:19] maker. I can show you that we want this
+[02:20] gradient right here. This node. If you
+[02:23] select, you can preview 2D what's going
+[02:25] on on this window on the left. And
+[02:28] essentially, we want to create these
+[02:29] gradient right here with these keys on
+[02:32] the right. It fades out. It's very
+[02:34] important to have this mask so it blends
+[02:36] properly the waterfall. And once you
+[02:38] have created the gradient, you can with
+[02:40] right click export this texture on the
+[02:42] preview 2D window and export it as a PNG
+[02:45] texture. For example, I'm going to call
+[02:46] this one gradient. And now back in
+[02:48] Unreal, I'm going to assign it to the
+[02:50] mask right here. Just so you can see how
+[02:53] some very simple textures can be created
+[02:55] with material maker. The noises are a
+[02:57] bit more complicated, but it has a bunch
+[02:59] of noise nodes if you want to dive into
+[03:01] that and create your own noise textures.
+[03:04] You will learn a lot more that way, but
+[03:05] that's up to you. Now the idea is to use
+[03:08] this mask in conjunction with this
+[03:11] particle color node. So we can allow
+[03:13] Niagara to control the color of this
+[03:16] material. We multiply these two together
+[03:17] the RGBs and connect the emissive color.
+[03:20] If on the preview we switch this to a
+[03:22] plane. You can see we have that small
+[03:24] artifact and it's very simple to fix. It
+[03:27] has to do with the wrap mode. So if we
+[03:30] go to our texture on advanced, we want
+[03:32] to set the X axis is clamped as well as
+[03:35] the Yaxis. With both axis clamped, the
+[03:38] texture cannot repeat itself now, but
+[03:41] the artifact also goes away. And since
+[03:43] we are creating an erosion shader, the
+[03:45] way we can do it is by connecting this
+[03:47] main text to a power node. The power
+[03:49] will kind of erode the main texture in a
+[03:52] way. But to erode the geometry itself,
+[03:54] the mesh itself, we can connect this to
+[03:57] the alpha of the mask and the result of
+[03:59] this power node. And we could already
+[04:01] connect to the opacity. But if we
+[04:03] connect a power node in between, we have
+[04:05] a bit more control over the erosion. And
+[04:07] to control those values directly in
+[04:09] Niagara, we usually use a dynamic
+[04:12] parameter. For example, the index zero
+[04:14] can control the power and the index one
+[04:17] can control the erosion. The power is
+[04:19] right here, the power of the texture
+[04:21] itself. And the erosion is the amount of
+[04:24] erosion we want to erode the mesh
+[04:26] itself. And we could control the default
+[04:28] values right here, by the way. But we
+[04:30] can leave them at one. Now, since this
+[04:32] is a little bit too static, we need to
+[04:34] animate it. So, we can pan these
+[04:36] textures. And we can see an erosion
+[04:38] moving around. And since it's a
+[04:40] waterfall, it makes even more sense. So,
+[04:42] let's begin with another dynamic
+[04:44] parameter. This time, it's very
+[04:45] important that the parameter index is
+[04:47] set to one down here. It's another
+[04:49] channel basically, but this time the
+[04:51] index zero is going to be for the text
+[04:54] tiling X. The one is going to be for the
+[04:56] text tiling Y. The two is going to be
+[04:58] for the text speed X. And the last one
+[05:00] for the text speed Y. All of these
+[05:03] values are to control the main texture.
+[05:05] So let's begin with tiling. First, we
+[05:07] create a texture coordinate node, which
+[05:09] is basically to have access to the UVs
+[05:12] of the mesh. Then we append the tiling X
+[05:15] and the tiling Y to create a new vector.
+[05:17] and we'll multiply that with the UVs up
+[05:19] there with the texture coordinate. And
+[05:21] for now, that's it. For the speed, we
+[05:24] can control them manually. But in our
+[05:25] case, we want to use the time variable.
+[05:27] So they are animated automatically. I'm
+[05:29] going to create two multiply nodes.
+[05:31] Connect the time to each one. And then
+[05:33] we have the speed X and the speed Y. And
+[05:36] now we can append them to create a new
+[05:38] vector. That's what append is doing. And
+[05:40] if we add these two together and then
+[05:43] connect to the UVs of the main texture.
+[05:45] Here we go. We have control over the
+[05:47] tiling and the speed now. And let's see
+[05:50] that in action inside Niagara. First, we
+[05:52] can create the material instance of this
+[05:54] erosion. Don't forget to save the
+[05:56] material. By the way, we can simply call
+[05:57] it MI erosion01. It's the first erosion
+[06:00] material. And now in Niagara, we can
+[06:03] assign it right here to the waterfall.
+[06:05] As you can see, right now it's sucking
+[06:07] everything into the pipe. And I think we
+[06:09] are aiming for the opposite, right? It's
+[06:12] all a matter of control those speed
+[06:14] values. Let's first adjust the color. A
+[06:16] greenish one will do just fine. All
+[06:18] right, here we go. And then the dynamic
+[06:20] material parameter can be added in the
+[06:23] particle spawn. It automatically goes to
+[06:25] the first channel, the zero channel. We
+[06:27] can insert three for the power and a
+[06:29] small erosion of 0 to three. But down
+[06:31] here then we can control the speed and
+[06:33] the tiling on the second channel. The
+[06:35] tiling is going to be 1 by two. So we
+[06:37] stretch on the yaxis and the speed it's
+[06:40] going to be minus 1.5 on the x. I think
+[06:42] that's a good velocity to mimic toxic
+[06:44] waste coming out of the pipe. And we can
+[06:47] drag our Niagara system into the scene
+[06:49] just to see how it is. Here we go. This
+[06:51] is what we are beginning to have. Okay.
+[06:54] So, let's improve this. Let's add a few
+[06:56] more elements, few more details. Back in
+[06:58] our Niagara, we want to copy the
+[07:00] waterfall or duplicate with Ctrl + D for
+[07:03] a second waterfall. And what's going to
+[07:05] change is the material itself. We can
+[07:07] duplicate this material instance. Ctrl +
+[07:10] D. Double click to open it up. And here
+[07:13] we can change the main texture to the
+[07:15] second noise. And as you can see, the
+[07:17] result is totally different. Noises
+[07:19] textures play an important role in
+[07:22] visual effects. That's why it's really
+[07:23] important to learn how to create your
+[07:25] own textures. Now back in a new
+[07:28] material. And we are beginning to see
+[07:30] something very different. As you can
+[07:32] see, let's isolate this one. And the
+[07:34] cool thing with our material is the
+[07:35] parameters we created. Because now, as
+[07:37] you can see, it's way too visible. It
+[07:39] has a lot of noise. But if we increase
+[07:42] the erosion, the value of three, we get
+[07:45] only these curvy paths. Can even adjust
+[07:47] the text styling 0.5. And maybe they can
+[07:50] be slower. It will create a really nice
+[07:52] contrast with our first [snorts]
+[07:53] waterfall. And in terms of color, this
+[07:56] can be bright. Increase the value. And
+[07:58] here we go. It's really nice. If we see
+[08:00] this in our scene with the
+[08:02] post-processing effects in action, looks
+[08:04] pretty cool. Let's just disable
+[08:06] antialyzing because it creates some
+[08:08] artifacts. Now the waterfall in itself
+[08:10] it's pretty much done. What we can do is
+[08:12] work on the puddle on the ground. And
+[08:14] for that we need a new emitter, an empty
+[08:16] one, minimal emitter. You can call it
+[08:18] puddle or yeah like I did text 01 which
+[08:21] is a bit more generic. But the idea is
+[08:23] we use a mesh render down here. And we
+[08:26] want to replace this with a circle but
+[08:28] it's a very specific circle. So let's go
+[08:31] to Blender. In case you have Blender
+[08:32] around, I can show you how to create
+[08:34] this part. And let's start with shift A
+[08:36] to add the sound. On this bottom left
+[08:38] panel, we want to make sure it's set to
+[08:40] nothing, the cap field type. From there,
+[08:42] we want to select the top edge loop and
+[08:44] scale it down by pressing S and then
+[08:46] zero. And then move it with G, lock it
+[08:49] on the Z-axis, and then type zero. Now,
+[08:51] we want to push the bottom edge loop up
+[08:54] by selecting it. And then with G, lock
+[08:56] it on the Z-axis, and push it a value of
+[08:58] one. Let's rename it circle 01. Oh, and
+[09:02] let's enter the delete mode again. And
+[09:03] with CtrlR, we want to add a few edge
+[09:06] loops so it becomes smoother. And then
+[09:08] in object mode, we want to press Ctrl+ A
+[09:10] to apply all transforms. And we can
+[09:12] export as an FBX to our project. Once we
+[09:16] are in our project, we can assign it
+[09:17] right here. Here we go. We don't see
+[09:19] anything because we aren't spawning. So
+[09:21] on the emitter update, let's add a spawn
+[09:23] burst instantaneous. Let's solo this.
+[09:26] Here we go. This is what we have. Now we
+[09:28] need a new material. And we can actually
+[09:30] reuse one of these erosions. Let's
+[09:32] duplicate it. Open it up. And in here,
+[09:35] the biggest difference is the mask. We
+[09:37] need a different gradient. So, let's go
+[09:39] back to material maker and begin with a
+[09:41] gradiented node. It's going to be a very
+[09:43] simple gradient, by the way, but we need
+[09:44] to adjust the keys. The first one, the
+[09:46] black one, is going to be transparent
+[09:48] alpha zero. And then this key, we can
+[09:51] push it all the way back to more or less
+[09:52] 02. And say the alpha is going to be 70,
+[09:55] for example. It's a smooth fade in. We
+[09:58] can add another key more or less around
+[09:59] here but this time the alpha is going to
+[10:01] be at its maximum and then we can add
+[10:03] another key after that and the alpha say
+[10:05] it's transparent. So this is the kind of
+[10:07] gradient we are looking for. We fade in
+[10:09] and then we fade out abruptly. This will
+[10:11] make certain parts of our circle
+[10:13] visible. Let's export this to our
+[10:15] project as the gradient 02 for example
+[10:17] and assign it here in our new material.
+[10:20] And this is what we get. As you can see
+[10:21] it's a very different result. Let's turn
+[10:24] on enable material override and assign
+[10:26] the new material we created. right here.
+[10:28] Here we go. This is the result we get.
+[10:30] That's why we made that gradient so it
+[10:32] connects perfectly with our toxic
+[10:34] waterfall. Now, let's take care of the
+[10:36] color. I'm going to use this one with
+[10:37] these specific values. And from there,
+[10:40] we can adjust the size down here. Scale
+[10:42] mode uniform. And it's going to be a
+[10:46] Yeah, four. That's all right. And now we
+[10:48] can adjust the erode and the power
+[10:50] values and whatnot with the dynamic
+[10:52] material parameter on the particle
+[10:54] spawn. For example, a power of four, but
+[10:56] an erosion of one will look really nice.
+[10:59] That's small details that we want, small
+[11:00] ripples, and we can adjust the tiling.
+[11:03] We can double it in terms of speed, a
+[11:06] value of one. This is the illusion we
+[11:08] are creating. That's really nice
+[11:09] already. Pretty cool. We can improve on
+[11:11] top of that. Obviously, in this case,
+[11:13] for example, let's duplicate this
+[11:15] emitter and call it texture 02 or
+[11:17] puddle02. But instead of this material,
+[11:20] we can change it. Duplicate it. And in
+[11:23] this case for the main text that we are
+[11:25] going to reuse the other noise that we
+[11:27] have already used on our waterfall. It
+[11:29] will look superb to creates these nice
+[11:33] We can adjust the color so it's a little
+[11:34] bit brighter.
+[11:38] And maybe it doesn't need to be that big
+[11:40] like three. In terms of material, we can
+[11:43] adjust the power. Yes. But it's going to
+[11:46] be much more eroded because we just want
+[11:48] small details from that texture, right?
+[11:51] And we don't need to repeat that much
+[11:53] the tiling. One by two should be enough
+[11:55] in terms of speed. Could be slower.
+[11:57] Yeah. 0.7. And this is what we get. If
+[12:00] we go back to our scene, yeah, it really
+[12:02] pops out. We still can't see too much of
+[12:05] the ground below. We can make a few
+[12:06] improvements in relation to that. So,
+[12:08] let's duplicate this texture too. This
+[12:11] second pedal. Call it beam 01. Going to
+[12:14] solo this. And we need a plane here. We
+[12:17] can use a plane from the engine. You can
+[12:20] turn on in content search for plane and
+[12:23] use this one. You'll do just fine. As
+[12:25] for the material, we need a new one from
+[12:28] scratch. It's a simple simple material.
+[12:30] You can even call it simple material.
+[12:32] Let me just disable autoexposer. And the
+[12:34] blend mode is going to be additive. And
+[12:37] then it's going to be lit just like the
+[12:38] other one we created. And it's as simple
+[12:40] as creating a texture sample parameter
+[12:42] 2D for our main texture. And then a
+[12:45] particle color so nagger can change the
+[12:47] color of this material. And we want to
+[12:49] multiply first the two RGBs and connect
+[12:51] to the emissive color and then the two
+[12:53] alphas. We can use another note so it
+[12:56] blends with anything that it touches.
+[12:58] Instead of cutting abruptly, it will
+[13:00] blend nicely. And for that we can use a
+[13:03] death fade. Connect it right here and
+[13:05] then connect to the opacity. In this
+[13:07] case we can control the depth fade with
+[13:09] a dynamic parameter. The first parameter
+[13:12] here. Yeah, we can even call it the same
+[13:14] name. Here we go. And default value of
+[13:17] zero. Oh, and for the texture itself,
+[13:19] yeah, we are going to need a beam, which
+[13:22] is extremely simple. If we go back to
+[13:24] material maker, it's as simple as
+[13:25] creating a shape, a circle shape,
+[13:28] control the radius, and the feather to
+[13:31] 0.7, for example, that should do it. We
+[13:34] can blur this out with a goian blur. If
+[13:36] we increase the sigma, which is strength
+[13:38] a lot, it will look better. And from
+[13:40] there we can use a colorized node to
+[13:43] remove the black background by saying
+[13:45] the alpha of the first key is zero. Here
+[13:47] we go. If we select the colorized node
+[13:50] now we can export this texture directly
+[13:52] to our project always as a PNG.
+[13:55] Let me just disable hen content. Here we
+[13:58] go. And assign the beam right here.
+[14:00] Yeah, the death fade. Sorry. It's
+[14:02] connected on the fade distance. Here we
+[14:05] go. It's used to fade anytime this mesh
+[14:07] touches another mesh. We can create an
+[14:09] instance from this called beam01 and
+[14:12] assign it right here to our beam01
+[14:15] emitter. Here we go. It's super bright.
+[14:18] Let's take care of that by saying the
+[14:19] color is a softer green.
+[14:23] And we can increase the scale. I think
+[14:24] it's six. It will do just fine. Here we
+[14:26] go. We have that bright spot in the
+[14:28] center. Could even be a little bit
+[14:30] bigger, but that's fine. Another detail
+[14:32] we can add is some shock waves. You will
+[14:34] see what I mean by that. Let's duplicate
+[14:37] it. call it shock waves and we can
+[14:39] duplicate this beam01 instance and call
+[14:42] it the circle01 for the texture right
+[14:45] here. Yeah, we need another one. And in
+[14:47] material maker, you will see how simple
+[14:49] it is to create pixels. Here we can
+[14:51] start again with a shape but this time
+[14:53] with no feather zero. And if we connect
+[14:56] this to a transform node, we can
+[14:58] decrease its size to 75% and then use a
+[15:02] math note to subtract A from B. And by
+[15:05] subtracting these two, we get a ring. As
+[15:08] you can see, it's very strong ring. We
+[15:10] want to blur this out. Can use a fast
+[15:12] blur. Here we go. That looks much
+[15:14] softer. And that's it. We can then use a
+[15:16] colorized node to remove the black
+[15:18] background by saying the first key as an
+[15:20] alpha of zero. And then we can export
+[15:23] this to our project and assign it right
+[15:25] here as the circle 01. By doing so, if
+[15:29] we replace this material on the shock
+[15:31] wave emitter with the circle we created,
+[15:33] we will have a very interesting effect.
+[15:35] If we say the lifetime is only 1 second
+[15:38] and the color can be even softer as you
+[15:41] can see. And we want a rate here, the
+[15:43] spawn rate on the emitter update of two.
+[15:46] Oh, we have the dynamic material
+[15:48] parameter. Let's remove it here and on
+[15:50] the beam as well. We don't need I mean
+[15:53] there's the fade option if you want, but
+[15:55] by default it's at one, so that's fine.
+[15:57] And for the shock waves, they should
+[15:59] grow. It will create very interesting
+[16:01] motion. So on the particle update, we
+[16:03] can use a scaled mesh size. Convert this
+[16:06] vector to a float and convert the float
+[16:08] to a vector. So we can say that it grows
+[16:11] exactly like this. If we select all of
+[16:13] these keys, we can say they are in auto
+[16:15] mode. So we can control the endles just
+[16:18] like this. Oh, and we can push the first
+[16:20] key up 0.2. So the shock waves don't
+[16:24] start from zero. We can also fade this
+[16:26] out with a scale color so they don't
+[16:28] disappear out of nowhere. Right? It's
+[16:31] the same process. We want to convert
+[16:32] this to a float and then the float to a
+[16:35] curve. And yeah, something like this
+[16:37] will do just fine. The first key is
+[16:39] going to be zero. And then we can add
+[16:41] another key more or less at 0.3 0.25.
+[16:44] And we can say its value is one. So it
+[16:46] fades in and then it slowly fades out.
+[16:48] That's what this curve does. Use auto
+[16:51] mode. So, we can adjust these handles as
+[16:53] we wish because basic curves make
+[16:56] everything much smoother and nicer. Here
+[16:59] we go. Actually, it needs to be bigger
+[17:02] yet. A value of 12 on the size will do
+[17:04] just fine. Now, that's better. And in
+[17:06] just a few minutes, we got a very decent
+[17:09] toxic waterfall. So, that's it folks.
+[17:11] For those who want to take this even
+[17:13] further, we actually made a second part
+[17:14] of this tutorial [music] for a first
+[17:16] time exclusive for our patronons where
+[17:18] you can learn a few more tricks and it's
+[17:20] available on my patrons page [music] and
+[17:22] you can also get this project and many
+[17:24] many other assets by becoming a member.
+[17:26] I want to say a big thank you to each
+[17:28] patron and as usual [music] a quick
+[17:29] shout out to top tier patronons which
+[17:32] are Albert Ember Shia Angel Mata Anna
+[17:34] Trrony [music] Ashon Kalcali Barker
+[17:36] Kumova Boris Radv Chaos Games Die Mark
+[17:40] introversal Eric Orner Frosty [music]
+[17:42] 40 Gabriel Deichi Ignassi Gerido Jade
+[17:45] Ginuga for Joseph Balashio Kian Sylveves
+[17:48] Leander Dissio Link Dimension Matt Mahon
+[17:50] Madric Cambia Oitzk Praips Rain Mast
+[17:53] Sage Ryan Lassard Spock the Gray Stephan
+[17:56] B, Junko, Valkcon S, Parisuta, whatever
+[17:59] Marta Rock, Pinching Pam, and MJ King.
+[18:02] Thank you all very much for your [music]
+[18:04] support. It's really appreciated. I hope
+[18:06] everyone enjoyed this tutorial, and I
+[18:08] hope to see you on the next one. Bye.

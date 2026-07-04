@@ -1,0 +1,454 @@
+[00:00] hello guys i am asif ali and you're
+[00:01] watching cg how video and today i have
+[00:03] created this effect from
+[00:05] scratch so let's check it out how i
+[00:06] created this
+[00:18] first of all subscribe my youtube
+[00:19] channel and also click on bell icon so
+[00:22] you will receive
+[00:22] all new video notification
+[00:27] so as you can see this guy has really
+[00:31] some cool effects here for this
+[00:34] game it's like a candy crush but it is
+[00:37] it is some chinese game so channel name
+[00:40] is hyt it has
+[00:42] lots of other stuff so i'll give the
+[00:45] link of this
+[00:46] channel this artist station profile in
+[00:49] my description
+[00:50] so all here to goes to this original
+[00:55] and from these i will
+[00:58] create this hammer effect i don't have
+[01:00] hammer or this emoji
+[01:02] but i will create this simple effect
+[01:04] from scratch for you guys
+[01:06] so you can see how i actually create the
+[01:10] so first in chrome you need to have this
+[01:14] add-on this is very helpful gif gif
+[01:18] scrubber so if you have any gif
+[01:21] playing in your browser you can just
+[01:23] right click and
+[01:25] take this and now you can check per
+[01:29] how this effect is going so you can now
+[01:33] per frame
+[01:36] okay very simple and
+[01:40] let's just start this so i'll just
+[01:42] minimize my browser and i have just this
+[01:44] window now
+[01:45] and in unreal i have this empty folder
+[01:48] right click and so this is
+[01:52] this is effect is uh impact
+[01:56] so i prefer impact and
+[02:01] for textures and materials i will create
+[02:05] but for texture these are very simple
+[02:07] texture i don't think
+[02:09] i have to create it again but i give you
+[02:11] idea if you don't have any
+[02:13] so let's just open the photoshop
+[02:17] and till then i'm i will search
+[02:20] if i have a star shape
+[02:31] this is blurred one
+[02:34] and i can use this one
+[02:38] and i also i'll show you how to create
+[02:43] one benefit with this type of texture is
+[02:45] you can erode this
+[02:48] this depth so i'll show you
+[02:51] so if you have a screen
+[02:58] oops i just
+[03:02] typed wrong value so you have this
+[03:06] so let's you have a
+[03:10] shape oops
+[03:15] very shape
+[03:18] custom shape and you have any shape
+[03:22] what happened to my photoshop or the
+[03:24] thumbnails are gone
+[03:26] so like you have this shape any shape
+[03:30] okay and color is white of course
+[03:34] i'm not creating again my star but i'm
+[03:37] just showing you how to create that
+[03:40] so you have the shape just right click
+[03:43] go to blending option and go to stroke
+[03:48] and by default you have some settings
+[03:49] here you can reset this
+[03:52] so it will be like white or black
+[03:55] something so like you have
+[03:57] a red color with this so what you have
+[04:00] to do
+[04:01] in here fill type you have to change
+[04:03] this to
+[04:05] gradient then you will have a gradient
+[04:08] then here style you will have to
+[04:11] go to shape burst and then
+[04:14] you need to increase the size
+[04:17] and this is going out outside so you
+[04:20] need to
+[04:21] make it inside and then you can do this
+[04:25] so you can see i have a depth of the
+[04:28] shape if i merge these two layer now if
+[04:31] i control and
+[04:32] press l i this level
+[04:36] window will open so now you can see i
+[04:38] have this full shape
+[04:40] and also i can erode this like this
+[04:43] how cool is this see
+[04:48] see this is really cool and you can do
+[04:51] this level thing in
+[04:53] in your religion material and you can
+[04:55] erode your textures like this
+[04:58] so simple you can just create a star
+[05:01] it has default shape then for ring
+[05:04] press ctrl h you will have this grid if
+[05:07] you don't know how to set this grid
+[05:10] just go to preference and
+[05:13] because my texture size is 1k so i'm
+[05:16] 20 to 56 pixel so it's dividing
+[05:19] 256 by 2565 and 5.2 then
+[05:23] 108 so now
+[05:26] you need to take a circle here
+[05:31] and shift and drag
+[05:35] and just leave and take a black and
+[05:37] white color by pressing d in your
+[05:39] and in new layer i will create a stroke
+[05:43] let's see 5 then
+[05:47] ctrl d to deselect and then you can
+[05:50] press ctrl t
+[05:52] and just manage so in photoshop
+[05:55] older version they'll center anchor
+[05:58] point but
+[05:59] i don't see that here so what you can do
+[06:02] you can ctrl t and just
+[06:06] select snap it here and then snap it
+[06:10] and then you can scale it down by
+[06:13] pressing alt in your keyboard but it
+[06:15] depends on the photoshop version i
+[06:17] i guess so now you have this
+[06:20] and one layer you can take this because
+[06:24] here uh where is my scribbler scrubber
+[06:27] yeah so one layer is faded you can see
+[06:31] this faded layer and one is sharp
+[06:34] so it has two layers
+[06:38] so i will take two layers in photoshop
+[06:40] and how i will take this
+[06:42] so i will just duplicate this
+[06:49] and now i have two rings now this ring
+[06:53] i will just ctrl j
+[06:57] to duplicate layer and i will blur it
+[07:01] and then i can again duplicate this
+[07:05] and just change this screen and
+[07:07] duplicate it if i want
+[07:09] more bright and then merge
+[07:12] ctrl a ctrl c and go to this layer
+[07:16] control and paste it in another channel
+[07:19] now you have two channels
+[07:21] and star i have already so i am not
+[07:24] creating that otherwise i can use this
+[07:26] blue channel
+[07:26] for my star shape so these two
+[07:30] and for the sparks i can just use the
+[07:32] radial ramp
+[07:35] in material
+[07:39] so i'll just save this i'll save it on
+[07:42] desktop ring
+[07:47] and targa
+[07:51] save in
+[07:56] unreal i will import my ring
+[08:02] right click create material and this
+[08:05] will be my ring01
+[08:09] and you can switch between these two
+[08:11] texture with dining parameter but i will
+[08:14] create separate so
+[08:15] i will take this particle color
+[08:19] and this will go to emissive
+[08:25] additive unlit two-sided
+[08:30] multiply by the red channel the sharp
+[08:36] and we'll go to opacity
+[08:40] this is my ring one
+[08:44] duplicate this material this is my ring
+[08:46] two just change the channel
+[08:48] this is blurred one save this
+[08:54] and then again i'll duplicate this this
+[08:57] will be my star
+[08:59] open this and browse this
+[09:02] star and use it here now you will see
+[09:06] how i will make this
+[09:08] sharper because this is blur so you can
+[09:12] do lots of thing you can use contrast
+[09:14] you can add value
+[09:16] and for this let's
+[09:20] i'll use power see if it will work
+[09:26] so if i increase the power value it will
+[09:29] erode this you can see
+[09:32] and if i decrease like 0.5 it will make
+[09:36] it sharper so i will use 0.2
+[09:41] or 0.3 okay so now this is my star
+[09:47] so all three materials done last
+[09:49] material will be for sparks
+[09:51] of material i can again duplicate this
+[09:55] and make it spark
+[09:58] and just take a radial
+[10:02] and notice this spark is very sharp
+[10:06] sharp not faded so you can use
+[10:09] mask if you want and you can sharp it
+[10:14] this one radial exponent
+[10:17] and what i will do just make this
+[10:21] mask and connect it here
+[10:25] it will just
+[10:30] oops it will cut it
+[10:34] sharp so all textures are done
+[10:38] materials are done and now we will start
+[10:41] our effect
+[10:42] i'll just save it so here
+[10:46] first what is happening
+[10:50] after this
+[10:55] of course rings are coming out these two
+[10:58] rings are overlapping
+[11:00] and then fading out
+[11:03] so and there's one more ring in center
+[11:07] actually these rings are overlapping all
+[11:10] the time
+[11:11] so you can do that by duplicating your
+[11:14] ammeter or you can just
+[11:16] use both layer in your material
+[11:19] so you will not have to do
+[11:22] again and again so you can you just add
+[11:25] both channel
+[11:26] here and then use
+[11:31] so now you have single layer of
+[11:34] sharpened blur
+[11:35] i will use this now so now i don't need
+[11:39] make that separate diameter and now
+[11:43] let's create this so this will be my
+[11:48] and timeline i'll do
+[11:51] this this this this and this
+[11:54] and this i will use
+[11:57] burst to emit two particles
+[12:00] and material will be my first ring
+[12:05] and spawn rate and sorry the
+[12:08] duration because this is repeating and
+[12:11] the frames
+[12:12] are one two three four five six
+[12:15] seven eight nine ten eleven thirteen
+[12:19] the rings are just eleven frames so like
+[12:22] point three or four five life so i'll
+[12:24] just make it
+[12:26] point four for now point four for now
+[12:30] and i'll just make the
+[12:34] random uniform and
+[12:38] this will be like 150
+[12:44] so you will notice one thing
+[12:49] when i'm rand using random is
+[12:52] randomly taking the size sometime these
+[12:56] almost equal sometimes a major
+[12:59] difference between these two
+[13:01] so for that what you can do
+[13:04] in 4.26 days these options are available
+[13:08] but if you unset this and
+[13:11] take the size
+[13:17] if you sprite size is available here so
+[13:20] if you take the size i guess
+[13:24] i'm doing it i think first time so and
+[13:27] if you drag it
+[13:28] it will not take but you can see
+[13:32] size the name of the here
+[13:35] if you check this name this is particle
+[13:39] so if i create a new
+[13:45] and name it size
+[13:50] i think it will work
+[13:54] sprite size
+[14:03] now you can see it's working so if i
+[14:05] make it 100
+[14:07] it's working so now i can make it float
+[14:12] and again i can use random and it will
+[14:15] work same as it is but i don't want to
+[14:17] use that
+[14:18] so i will use a uniform a and b
+[14:23] so if i put now size 150
+[14:29] and spawn all the time every time it
+[14:31] will spawn particle with this gapping
+[14:34] because it's boolean and i can
+[14:37] increase or decrease the ratio like this
+[14:40] so it will always spawn the same and now
+[14:45] i need to scale these so i will now take
+[14:49] a size again here
+[14:51] and make this float and use a curve
+[14:58] from zero to one
+[15:02] and just make it faster
+[15:12] i'll make life shorter
+[15:18] and and see here these are also fading
+[15:22] when increasing the size
+[15:25] so i will
+[15:30] make it like point seven
+[15:36] and take the color here
+[15:39] and color make the curve
+[15:42] this is cyan
+[15:49] that is fading
+[16:03] sometime is spawning just one
+[16:06] i said two everything is
+[16:13] everything is
+[16:16] fine i guess yes sometimes spawning one
+[16:25] so now i have this scaling and
+[16:28] this is not fading properly so i need to
+[16:33] make this alpha curve and then
+[16:36] i can do this curve
+[16:40] now it's disappearing properly
+[16:47] but it's not stopping it's just
+[16:50] i guess i can work on the curve
+[16:53] so if i make it point three
+[16:56] and at one shift and click to
+[17:00] key and one it is one
+[17:05] but at three i will make it point
+[17:08] like eight so it will
+[17:15] scaling so now it's scaling very fast at
+[17:18] point three then
+[17:19] keep scaling till one
+[17:24] but sometimes i don't know why it's
+[17:26] spawning one if i place this here
+[17:28] just make it local
+[17:32] if i place this here
+[17:36] now i think it will spawn every time too
+[17:51] this is weird so i will just make its
+[17:55] i will just set it i guess
+[17:58] because i've been set no that's
+[18:02] that's not the problem i guess
+[18:19] i'll fix that i'll check hers
+[18:23] so now second thing i will do
+[18:26] this soft glow over all
+[18:29] effect so for that
+[18:32] i will duplicate my spark and this is
+[18:35] glow and
+[18:38] instead of this i would use additive
+[18:43] it will become softer with
+[18:46] less density
+[18:52] i'll use this glow just duplicate this
+[18:54] and make its
+[18:55] glow and
+[18:59] use the glow material make the burst
+[19:03] like let it do and delete this
+[19:07] use random here
+[19:29] and now the sparks and
+[19:33] stars so start has two variation
+[19:36] um are very big and then for
+[19:39] very small so i can do the same
+[19:42] thing and so if i duplicate the ring
+[19:46] and make it start
+[19:52] and i'll just turn this off and
+[19:56] choose the star material
+[20:02] and i will spawn 8 or like 10
+[20:07] and instead of this i'll use
+[20:11] velocity from point
+[20:18] sizes and set let's increase this for
+[20:32] so it is very high
+[20:35] i'll make it random
+[20:41] 50 and 20 and this
+[20:45] is very faded first
+[20:48] i will just make delete this
+[20:52] and i'll open my star
+[20:57] this is very faded so
+[21:03] i will use point one and i'll
+[21:07] just make this masked
+[21:22] very short lives so random
+[21:26] 1.2 and 0.5
+[21:31] still short and let's make it 2.5
+[21:41] and some drag
+[21:47] and this is coming from a point
+[21:50] i just i don't want a
+[21:54] sphere so it will spawn from an area
+[21:57] not from a point
+[22:00] and if you'll see
+[22:05] stars will remain after hall effect
+[22:09] so it should not die very fast
+[22:12] let's get three and two
+[22:19] one and how they are dying
+[22:24] fading but i can use also scale down
+[22:37] let's just make this fade at the end
+[22:47] but because this is masked so i
+[22:50] don't i can't get the opacity
+[22:54] down here so i will use this
+[22:58] i get translate
+[23:02] you can just multiply it with some value
+[23:06] if it has some
+[23:09] opacity now it's sharp
+[23:14] and i can also fade
+[23:18] now life is too much
+[23:23] and sprite size
+[23:26] random 10 and one
+[23:31] and increase the drag two
+[23:35] i i think random
+[23:38] two and point two point five
+[23:42] one that's
+[23:46] that's fine
+[23:53] something is missing the impact so it
+[23:56] will play again
+[24:00] because of the these sparks
+[24:04] and these parts are stretching is
+[24:06] starting then
+[24:08] becomes a dot and finish so i'll
+[24:11] duplicate this
+[24:12] and this will be my spark
+[24:19] use this material
+[24:24] in sparks i will make these velocity
+[24:30] and size it's 1 in 10 for now
+[24:34] and i will use size here
+[24:40] and make the curve
+[24:43] on why because i will stress this if i
+[24:47] increase you can see while stretching
+[24:50] and i'll just decrease the
+[24:54] this and increase the velocity
+[25:00] and now i will increase on y
+[25:04] so just decrease this and in starting
+[25:08] i'll just make it 1 and starting y will
+[25:11] be 5
+[25:16] at 0.5 it will be one
+[25:32] size very big so i'll make it five
+[25:35] and i'll increase this value
+[25:39] and i will also increase the
+[25:42] color like 50
+[25:53] is still very slow so let's make it
+[25:57] point six point five
+[26:02] one and point eight and increase the
+[26:11] i think 1.5 and one
+[26:22] these are not becoming dots
+[26:27] so at 1
+[26:31] at 0.5 the y value is 1
+[26:38] i will make this point two
+[26:45] and just smooth the curves
+[26:52] i'll decrease the time
+[26:57] now becoming dots
+[27:08] four and two three
+[27:14] a little bit of life
+[27:18] and spawn rate like 20
+[27:27] and this glow will be
+[27:31] bigger so i will make this
+[27:34] like 4 and increase the size
+[27:37] like 200
+[27:43] i think 150
+[27:49] and also the life will be random point
+[27:52] seven point three point two
+[28:05] so i think elements are all done and
+[28:08] is also for 3d and
+[28:12] not 2d board
+[28:20] what else we are missing stars are
+[28:24] and stopping on a place so
+[28:28] for stars i will use more drag
+[28:34] and less life 0.5
+[28:38] and i will use rotate
+[28:42] sprite unif
+[28:45] uh if i increase it will not rotate
+[28:48] you need to use angle 2 degree
+[28:52] normalize angle 2 if i use radiant
+[28:58] rotating so i will use random
+[29:02] 90 minus 90
+[29:06] 50 minus 50.
+[29:13] and more bride and star and starting
+[29:28] and one more thing
+[29:58] now i think it's done
+[30:16] this ring is becoming white
+[30:20] so i'll just use white color and
+[30:23] start here and then
+[31:13] so this is finished now so this is how
+[31:17] great fact like this and
+[31:20] i hope you liked it if you enquiry just
+[31:22] comment below the video
+[31:24] and don't forget to subscribe my youtube
+[31:26] channel see how
+[31:27] thanks for watching keep learning bye

@@ -1,0 +1,388 @@
+[00:00] today let's see how this meteor rain
+[00:02] effect is done in
+[00:09] unreal this is a great exercise to learn
+[00:12] more about generate events in Niagara
+[00:14] plus I'm going to show you a few more
+[00:16] tricks I obviously made quite a few
+[00:18] variations here and they are all
+[00:20] available on the marketplace and on my
+[00:22] patreon page as well but I'm still going
+[00:24] to show you a simplified version of this
+[00:28] so without further Ado let's jump right
+[00:30] right into this I just want to say these
+[00:31] videos are possible thanks to my patrons
+[00:33] and by supporting me you get access to
+[00:36] plenty of visual effects you can use in
+[00:40] games so let's begin by creating an agre
+[00:43] meter in a folder right click effects
+[00:47] nag meter we can choose new Emer and
+[00:50] then select an empty so I can show you
+[00:52] the wall process of setting up an agry
+[00:54] meter from scratch this one is going to
+[00:56] be for the bright Ed of the meteor it's
+[00:59] itself and once you double click to open
+[01:02] this nager on the emitter update we want
+[01:05] this to emit something we can use the
+[01:06] spound rate so it continuously SPS a
+[01:09] value of two particles per second and on
+[01:12] initialized particle we can already take
+[01:15] care of the color we can use a direct
+[01:16] set and we can use some absurd values so
+[01:19] it becomes really bright like 764 the r
+[01:23] channel 160 for the G and zero for the B
+[01:27] and this position of sets that we are
+[01:29] going to use is to essentially control
+[01:31] where does the meteor itself start and
+[01:35] we are going to set this a value of
+[01:37] 1,200 on the z-axis let's also take care
+[01:41] of the Sprite size mode let's say
+[01:43] uniform you could use a random uniform
+[01:45] if you want some of them to be random by
+[01:47] the way but for now they will all have
+[01:49] 25 for their size from here let's
+[01:52] imagine we want them to be Spa within a
+[01:55] certain radius and for that we can use a
+[01:57] shape location module in the particle
+[02:01] spound we can leave the shape primitive
+[02:03] as sphere and we can even control the
+[02:05] scale of this Sphere for example 25 for
+[02:08] the X and Y and zero for the Z will
+[02:11] transform this basically into a circle
+[02:13] another thing we can already take care
+[02:16] is the velocity let's use an add
+[02:18] velocity node and we automatically get a
+[02:21] warning saying there's unmet
+[02:23] dependencies basically there's modeles
+[02:25] that are missing and it even suggests
+[02:28] Which models are missing we can click on
+[02:31] fix issue and it will automatically add
+[02:34] the Sol forces and velocity module in
+[02:36] the particle plate quite useful now on
+[02:40] the velocity since they are way above on
+[02:42] the Z in the sky we can now Make It Rain
+[02:45] with a value of minus 10,000 on the
+[02:48] z-axis as well this is also the place
+[02:51] where you can control if you want them
+[02:53] to come sideways for example and since
+[02:55] this is a meteor rain they will
+[02:57] eventually hit something on the ground
+[02:59] and we can take care of that in the
+[03:01] particle plate with a collision module
+[03:03] this way it will collide with any
+[03:05] geometry it touches and we want to make
+[03:08] sure that we kill the particle one way
+[03:10] to do it is by turning on Advanced aging
+[03:13] rate and set it to a ridiculous value
+[03:16] like this another module that can be
+[03:19] useful is the scale Sprite size by
+[03:22] speeds which will scale the particle
+[03:24] according to its speed and for the
+[03:27] minimum X and Y 0.5 and 0.7 and for the
+[03:30] maximum four and 10 another very
+[03:33] important step is if we want to spawn
+[03:35] particles whenever these meet your hits
+[03:37] the ground or spawn a ribbon a trail
+[03:41] attached to this particle we need to
+[03:43] generate some kind of event on the
+[03:46] particle update there's three events
+[03:48] Collision death and location we are
+[03:50] going to need first the location so we
+[03:52] can spawn a ribbon a trail and we need
+[03:55] to generate death event so we can spawn
+[03:59] like a bright flash whenever it hits the
+[04:01] ground or some particles immediately as
+[04:04] soon as we add this generate events we
+[04:06] get this red warning triangle and if you
+[04:09] go read about it it essentially requires
+[04:12] persistent IDs so Niagara can create an
+[04:15] ID for each particle and know what's
+[04:17] what so if you select the W meter and
+[04:19] scroll up you will find requires
+[04:22] persistent IDs as soon as we enable it
+[04:25] the warning goes away finally on the
+[04:28] renderer one of the last things we want
+[04:30] to do for this nag meter is align the
+[04:33] particle with its velocity so it doesn't
+[04:35] go sideways so on alignment let's choose
+[04:39] velocity alignment and here we go this
+[04:41] is what we have so far it's essentially
+[04:44] only the head of the meteor all right so
+[04:46] let's save this nagri meter and go back
+[04:49] to our scene to our level to our map and
+[04:52] let's use this in a nag system so on the
+[04:55] folder with right click on VX we can
+[04:58] create an AG system
+[05:00] create empty system and rename it to
+[05:03] nesor meteor rain for example double
+[05:06] click to open this up and on this plus
+[05:08] sign down here on the track you can go
+[05:10] to paren meters and select the one we
+[05:12] have created here we go we can save this
+[05:16] met R let me just dock This Here and Now
+[05:19] on the content rer we can even drag and
+[05:21] drop this nag system to the scene to see
+[05:24] how it is in your map and here we go
+[05:27] it's a start and you can play a bit with
+[05:30] this for example we can cover a bigger
+[05:32] area by increasing the spa rate and then
+[05:36] in shape location increasing the radius
+[05:39] on the non-uniform scale of this sphere
+[05:43] you get the idea you can play with a
+[05:44] rate with a radius and with start
+[05:46] position the position of set in
+[05:48] initialized particle right so don't
+[05:49] forget to save Niagra system and let's
+[05:51] move on to our next part which is
+[05:54] another nagri meter you can create an
+[05:56] empty meter this one is for the trail
+[05:59] the ribbon let's open it up and the
+[06:01] first thing we need to change is in the
+[06:04] render we don't want to render a Sprite
+[06:06] we want to render a ribbon let's select
+[06:09] ribbon render we have the default ribbon
+[06:12] material you can find it by clicking on
+[06:14] this folder with a magnifying glass icon
+[06:18] they are actually quite useful we can
+[06:20] even create a material instance rename
+[06:22] it to miore Trail add which is additive
+[06:27] you can drag and drop this to another
+[06:28] folder by the way
+[06:30] you can save it and then assign it on
+[06:33] our nagri meter Trail on the
+[06:38] render search for
+[06:41] trail and here we go now on the meter
+[06:45] update for a ribbon we need a beam Emer
+[06:49] set up so the beam can have a start and
+[06:51] an end on the lifetime now we can say
+[06:54] it's 0.5 we don't want this to be too
+[06:57] long and then on a ribbon y mode down
+[07:00] here we can say it's direct set a value
+[07:02] of something like five for now you can
+[07:05] adjust it later now we want to control
+[07:08] how the ribbon is faded so on the
+[07:10] particle up plate let's use a scale
+[07:12] color where we have rgba together and
+[07:15] then we can convert this to a curve
+[07:18] Vector 4 from curve it will become a
+[07:21] gradient I'm going to put the same
+[07:23] values for the color the first key and
+[07:26] for the last key I'm going to say it's
+[07:27] black 0 0 0
+[07:30] and then more or less around a third I'm
+[07:33] going to use this color right here 4.5
+[07:35] for the r and 025 for the G and zero for
+[07:39] the B it's an
+[07:40] orang so we have the gradient now we
+[07:43] want to control how wide it's going to
+[07:45] be throughout its lifetime for that on
+[07:47] the particle update since it's
+[07:49] continuously updating we need to use the
+[07:52] set parameters so on the plus sign we
+[07:54] can go get the ribbon wide of the
+[07:58] particles in here we are going to
+[08:00] convert this float to a curve because we
+[08:02] want this to be thicker when it's closer
+[08:04] to the Ed and thinner at the end right
+[08:07] so let's actually select all of the keys
+[08:09] and with right click chose Auto so it
+[08:12] becomes a busy curve essentially and on
+[08:14] the first key the value of this is going
+[08:16] to be 70 and we can leave the last key
+[08:19] as it is now a very important step is to
+[08:22] handle the generate event that we have
+[08:25] created on the meteor in this case up
+[08:27] here on the stage we want an event
+[08:30] handler so we can then on the plus sign
+[08:33] receive the location event for now the
+[08:37] location event is going to be empty but
+[08:39] on the event handler properties we can
+[08:42] say the execution mode is to spawn the
+[08:45] particles and the spound number
+[08:47] something like one will do if we save
+[08:49] this nagri meter and then go back to our
+[08:52] nagri system we can connect these two
+[08:55] let's first add the nagri meter the
+[08:57] trail we created on the track down here
+[08:59] here or with right click on the grid by
+[09:01] the way let me put it right here and on
+[09:03] the event and properties now we can say
+[09:06] the source is going to be from the nagri
+[09:08] meter met more specifically the location
+[09:13] event and as soon as we do it we get
+[09:15] this amazing Trail coming out of the
+[09:19] meteor and we essentially have the basic
+[09:21] of the meteor done at this point now we
+[09:24] are going to improve a little bit on top
+[09:25] of this so I'm going to press f2 to
+[09:28] rename this meter to trailore ad which
+[09:31] is the additive one we are going to add
+[09:34] a black background to the meteor so it
+[09:36] creates a nice contrast and then with
+[09:38] contrl c and contrl V or with contrl d
+[09:41] we can duplicate this Emer and with F2
+[09:44] rename it to AB which is Alpha Blended
+[09:47] which is essentially the way we can
+[09:49] render darker colors and we need to make
+[09:52] a change the material cannot be this one
+[09:55] let's click on this icon and now with
+[09:57] contrl d we can duplicate this miore
+[10:00] Trail additive and change this to AB in
+[10:04] the material properties over right let's
+[10:06] set the blend mode to
+[10:08] translucent and then save this if we go
+[10:11] back to our system on the trail a
+[10:14] now we can assign the trail AB material
+[10:17] that we just created this way we are
+[10:20] able to have dark color on color
+[10:23] mode let's set it to a black
+[10:26] color 0 0 0 Let's leave the alphat one
+[10:30] and we can make this one larger on the
+[10:32] ribbon white to
+[10:35] 100 we can add another key for example
+[10:37] at 0 one and say it's 130 right click
+[10:41] and set it to Auto this way it will
+[10:43] become a little bit larger as you can
+[10:45] see if I isolate this n meter this is
+[10:49] how this darker Trail looks and it
+[10:51] creates a really nice contrast that's at
+[10:53] least how we have done all of these
+[10:56] meteor rain effects which by the way has
+[10:58] a same beginning they are available on
+[11:00] the marketplace links below all right
+[11:03] looking good so one of our next steps is
+[11:06] to take advantage of the generate event
+[11:09] on death basically let spawn particles
+[11:11] whenever this eat something so with
+[11:14] right click let's create a new emitter
+[11:16] an empty one rename it to neore beam
+[11:20] double click to open it up and the first
+[11:22] thing we want to do is decrease the
+[11:25] lifetime to 0.2 it's going to be a quick
+[11:27] flash let's O say the Sprite size is
+[11:30] uniform to a value of
+[11:32] 500 and then we want to fade this out
+[11:36] with a scale color where we can say the
+[11:38] rgba is together and then convert this
+[11:41] Vector 4 to a curve and the first key is
+[11:44] going to be a bright orange and not a
+[11:47] bright white like I did my badge or you
+[11:49] can try a different color obviously then
+[11:52] we are going to add another key more or
+[11:54] less at a third with a value of three
+[11:56] for the r 1.8 for the G and 1.2 two for
+[11:59] the blue is basically a dull orange here
+[12:03] we go another thing this quick flash
+[12:06] needs is scale Sprite size on the
+[12:08] particle update and on this curve we are
+[12:10] going to add a key more less around here
+[12:13] at 0.1 with a value of two so it starts
+[12:16] big and then
+[12:17] shrinks now for this to work with the
+[12:20] meteor meter we need to add a stage for
+[12:23] the event endler and in here we want to
+[12:26] receive the death event which will come
+[12:29] out of the
+[12:30] meteor let's just say the execution mode
+[12:33] is spawn particles one in the spawn
+[12:36] number back in our nagra system let's
+[12:38] add in the track in parent the ne beam
+[12:43] which is going to be for our Flash and
+[12:46] first thing we want to do is on the
+[12:48] event and properties receive the death
+[12:51] event from the meteor and if we save
+[12:53] this and go back to our level to our map
+[12:56] if I quickly add a plane to simulate the
+[12:59] ground let me just reset the location to
+[13:02] 0 0 and increase the scale to 200 200
+[13:06] and one and here we go every time the
+[13:09] meteor dies it creates this bright flush
+[13:12] I would suggest you to use the custom
+[13:15] texture and play a little bit with the
+[13:16] color by the way now another thing we
+[13:18] can already take care of is another diag
+[13:21] meter for some particles for some Sparks
+[13:24] whenever this hits the ground and you
+[13:26] can add the new empty meter I'm going to
+[13:29] rename it to impact
+[13:30] particles and well for this one the
+[13:33] lifetime if we click on this Arrow we
+[13:35] can say it's a random range
+[13:37] float some will leave less like 03 and
+[13:40] others will leave 0.8 while longer let's
+[13:44] set the color direct set something like
+[13:47] 500 for the r 100 for the G and zero for
+[13:50] the B very bright indeed and for the
+[13:53] size nonuniform we want to squeeze them
+[13:56] in the X like five and stretch them in
+[13:58] the Y like 15 on the particle Spa we
+[14:02] also want this to have velocity once
+[14:04] again let's click on fix issues because
+[14:07] we haven't met
+[14:09] dependencies let's say it's from a cone
+[14:12] and the velocity can be random as well
+[14:15] between 2,000 and 10,000 we want the
+[14:19] cone to face up so let's say the X and Y
+[14:22] is zero and one in the Z for the cone
+[14:26] axis you can increase the angle like
+[14:28] like 100 for example so it spreads a
+[14:30] little bit more and on the particle
+[14:33] plate now let's use gravity so we can
+[14:35] pull them down a crazy value like minus
+[14:39] 10,000 in the Z and once again the scale
+[14:43] Sprite size by speed which will adjust
+[14:45] the size of each particle according to
+[14:48] its speed you can try these values for
+[14:50] example and then another module for the
+[14:52] scale Sprite size so we can shrink them
+[14:55] with this curve they start big and then
+[14:57] they end small
+[14:59] and now we need the event handler once
+[15:01] again click on the plus sign of the
+[15:03] stage and add a receive death event as
+[15:06] well same thing as we did for the flush
+[15:09] and now the execution mode is going to
+[15:11] be for spawned particles with a spawn
+[15:13] number of 40 for example and in
+[15:16] alignment before we go to our
+[15:18] system let's make sure they are aligned
+[15:20] with our velocity Vector otherwise they
+[15:22] go sideways and select velocity
+[15:24] alignment let's save this impact
+[15:27] particles I'm going to close this meter
+[15:29] and in N system we can on the track for
+[15:33] example in paranet add the impact
+[15:36] particles I place it right here nicely
+[15:39] first thing I'm going to do is say the
+[15:41] event endler the source is set to death
+[15:44] event of the
+[15:45] meteor and we should probably already
+[15:47] see something let's save this and on the
+[15:50] level here we go we have beautiful
+[15:52] particles hitting the
+[15:55] ground and that's pretty much it I'm
+[15:58] just going to change the color of the
+[16:00] impact here we go and if you want you
+[16:03] can make it go sideways and whatnot
+[16:08] here all right looking
+[16:12] good so with this technique I created a
+[16:15] few more versions that I made available
+[16:17] on the marketplace on my website and on
+[16:19] my patreon page as well if you support
+[16:22] me on my patreon you get access to
+[16:24] plenty more assets by the way quick
+[16:27] thank you to all the patron that support
+[16:28] me last math and a quick shout out to
+[16:30] the top tier patrons which are Alberto
+[16:33] ceris alen alad avat tobali cyber quo
+[16:36] Daniel Schmid dark kingdom di Mark
+[16:38] Frosty 40 graub lab Jared Billy Roland
+[16:41] Salazar Casey Miller Leon Luli Matt
+[16:43] mohorn Mike Bell n Sims Nikolai yov
+[16:47] Pride radioactive bullfrog Revenant
+[16:49] games rvr Shan agilar tin Travis
+[16:52] McCullum very whatever Marta will pan
+[16:55] Zoya KES B to sh and me J and Kim thank
+[16:59] you all for your support you guys are
+[17:01] amazing and you keep this channel going
+[17:03] so that's it guys thanks for watching
+[17:05] and see you on the next

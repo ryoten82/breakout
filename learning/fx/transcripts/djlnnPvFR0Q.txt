@@ -1,0 +1,391 @@
+[00:00] today let's see how this sword slash can
+[00:03] be done in
+[00:05] unreal I'm going to show you the whole
+[00:07] process from NRA to modeling the
+[00:09] slashing blender and how to create the
+[00:11] material for it and by the way this is
+[00:14] one of many that we made for an entire
+[00:16] pack of s slashes that are available on
+[00:18] the marketplace and on my patreon page
+[00:21] links below so without further Ado let's
+[00:25] jump right into
+[00:27] this so let's begin by create a new
+[00:32] system an empty one rename it to nsor SW
+[00:36] slash and in here with right click we
+[00:38] can add an empty meter for the SL mesh
+[00:42] the bright one there's going to be other
+[00:44] layers let's begin by adding a spawn
+[00:47] burst instantaneous in the emitter
+[00:48] update so it emits something right and
+[00:52] on here we don't want a Sprite we want a
+[00:54] mesh renderer where I'm going to assign
+[00:58] mesh which by the way if you have
+[01:00] blender this is how you can do it select
+[01:03] everything with a and press delete we
+[01:05] want a clean scene and then with shift a
+[01:08] we can add a
+[01:10] cylinder on this left bottom panel we
+[01:13] can control the vertice in case you want
+[01:15] less I'm going to leave it at 32 and
+[01:17] there's another cool thing here which is
+[01:19] the cap field type we want to set it to
+[01:22] nothing we don't want the top and the
+[01:24] bottom face of the Celler and now with
+[01:27] space bar I'm going to search for
+[01:30] shade smooth you can go to object and do
+[01:34] it here as well now let's enter in edit
+[01:36] mode with tab because we want to add
+[01:39] three Edge loops with contrl r you can
+[01:42] scroll up to add more Edge Loops press
+[01:45] enter and then Escape press a to end
+[01:48] select and then while holding shift a we
+[01:51] want to select the middle Edge Loop then
+[01:54] we want to turn on proportional editing
+[01:57] by pressing o or clicking H here
+[02:00] and with s we want to scale this up if
+[02:03] you scroll up or down you can control
+[02:05] the influence of the proportional
+[02:07] editing I'm going to leave it more or
+[02:08] less around here okay looks good and now
+[02:12] we can select everything with a press s
+[02:14] and lock it in the Z axis and you can
+[02:17] flatten this until we have this
+[02:19] shape cool that's exactly what we need
+[02:22] let's rename it to slash mesh for
+[02:25] example and then go to file and in
+[02:27] export select fbx
+[02:30] turn on selected objects navigate to
+[02:33] your project and Export these as an
+[02:39] fpx once you have the mesh assigned to
+[02:41] the mesh renderer this is something
+[02:44] that's going to happen really fast so
+[02:46] for the lifetime 0.35 is a good value
+[02:49] and in my case I'm going to give this an
+[02:51] offset in the position maybe you don't
+[02:54] need this in your S I just want to push
+[02:56] it a little bit forward Now to control
+[02:58] the size or the scale of this I'm going
+[03:00] to use down here the mesh scale in
+[03:02] uniform if you want to stretch it you
+[03:04] can use non-uniform this value and this
+[03:07] is how it's looking from here we can
+[03:10] actually rotate this I'm going to use
+[03:12] initial mesh orientation say the mode is
+[03:14] none because I want to specify down here
+[03:17] that it is 0 to 25 on the X so it faces
+[03:21] up like this as you can see it's
+[03:23] vertical now now the most interesting
+[03:25] part is the rotation and we can control
+[03:27] it with a mesh rotation Force on the
+[03:30] particle update we get a warning and if
+[03:32] we click fix issue and real will add the
+[03:35] solve forces and velocity module so it
+[03:37] can calculate all of this automatically
+[03:39] from there let's break this Vector in
+[03:41] other words make vector and essentially
+[03:44] on the Y AIS we want this to be a curve
+[03:47] where it starts at one and then we can
+[03:48] push the last key to around 0 to 75 and
+[03:51] say the values minus 0 to 25 it will
+[03:54] create a very interesting rotation let's
+[03:56] select all of these turn on auto so we
+[03:58] can control the handles so it slows down
+[04:01] towards the end and now on the scale
+[04:03] curve this is where we will control the
+[04:05] force of the rotation let's say
+[04:08] 250 and this is what we get something
+[04:11] really fast and then it slows down at
+[04:12] the end it's the basic slash motion and
+[04:15] it will look awesome now to improve this
+[04:18] visually let's create a material right
+[04:20] click material double click to open it
+[04:23] up and on the blend mode let's say it's
+[04:26] in additive so it's really bright and
+[04:28] then create a parameter Tod for a
+[04:30] texture in this case for a noise texture
+[04:32] which is going to be a vorno I'm going
+[04:33] to call it vorno but it could be noise
+[04:35] texture and I'm going to assign this one
+[04:38] right here which is available for free
+[04:41] on the link below let's duplicate this
+[04:43] texture for a mask we want to mask this
+[04:47] and I'm going to use this light beam
+[04:49] that comes with un real if you turn on
+[04:51] show engine content on the Cog and the
+[04:54] way this will work is well first we
+[04:57] actually need the particle color if we
+[04:59] want to just the call directly in
+[05:00] Niagara this particle color will do
+[05:02] exactly that and multiply it with the
+[05:05] mask itself and connect to the emission
+[05:08] from there we need a dynamic parameter
+[05:10] so we can control parameters inside this
+[05:13] Shader via Niagra the first one is going
+[05:15] to be called power and the second one
+[05:19] erosion for the power let's first drag a
+[05:22] line from the RGB of the VOR and search
+[05:24] for the power node because this is going
+[05:27] to be controlled via Dynamic par and the
+[05:30] power node essentially dissolves the
+[05:31] vorono and then let's drag a line from
+[05:34] the RGB mask and multiply it with a
+[05:39] node here's how it looks with the mask
+[05:42] we can actually copy and paste this
+[05:44] power node from back here to the front
+[05:46] because this is going to be for our
+[05:48] erosion why is it called erosion Dynamic
+[05:50] parameter because we are going to
+[05:52] connect this to the multiply this power
+[05:53] node and it's going to be connected to
+[05:55] the opacity and it will look like an
+[05:57] erosion effect and before for testing
+[06:00] these out on the slash let's already
+[06:02] make sure that we can scroll this
+[06:04] basically pan let's copy and paste this
+[06:06] Dynamic parameter make sure the
+[06:08] parameter index is in one so it's in a
+[06:11] different track basically and now for
+[06:13] the names let's go with tiling X tiling
+[06:16] y speed X and speed y the way this works
+[06:20] is first we append we create a vector
+[06:22] essentially with a tiling X and A tiling
+[06:24] Y and then we'll multiply it with this
+[06:27] text coordinate with the UVs essenti
+[06:30] and for the speed we need to create two
+[06:32] multiply nodes so we can multiply the
+[06:34] speed with the X and with the speed Y
+[06:37] and then we can append them create a new
+[06:39] Vector with these two floats essentially
+[06:42] we have now a tiling to control the
+[06:43] scale of the texture and the speed
+[06:45] control alpas it pens in the X and in
+[06:48] the Y now we want to add up here the
+[06:51] Pand and then to the UVS of the
+[06:54] V and this is what we get if we test
+[06:57] some random values on the speed let's
+[06:59] create a material instance out of this
+[07:02] material go back to nagra and then in
+[07:05] the mesh renderer let's turn on enable
+[07:07] material override and assign the one we
+[07:10] just created and this is how it's
+[07:12] looking by default since I left some
+[07:14] default values for the speed pretty cool
+[07:17] right we have the vorono moving and it's
+[07:19] masked so we don't see any hard Edge now
+[07:22] let's take care of the color let's use
+[07:24] direct set and for example this is the
+[07:26] vales that I'm using here feel free to
+[07:28] try different ones but it's basically
+[07:30] one for the r 38 for the G and 200 for
+[07:34] the B so it becomes really bright light
+[07:37] blue looking good and since we have
+[07:39] Dynamic material nodes we can use the
+[07:42] dynamic material parameters in the
+[07:43] particle update we have index zero and
+[07:46] index one on the index one you can
+[07:48] control the tiling and the speed I'm
+[07:50] going to insert these values because I
+[07:52] think they look all right but you can
+[07:54] test different ones I'm basically
+[07:56] stretching the texture and yeah for the
+[07:58] speed Minor Z two for the x and z three
+[08:02] for the Y but most importantly the power
+[08:05] hub here we want this to be a little bit
+[08:07] dissolve the voro and for the erosion
+[08:10] convert this to a curve so we can
+[08:11] animate it we want to essentially say
+[08:13] that the first key goes to 0.3 in
+[08:16] position with a value of
+[08:18] 0.05 and for the last key we want this
+[08:20] to be totally dissolved so let's say
+[08:23] one now I'm going to select all of these
+[08:26] and turn on auto mode so we can control
+[08:28] these bsy curves to create a curve
+[08:30] similar to this
+[08:32] one and then we can use the scale curve
+[08:34] down here and say it's 10 it's basically
+[08:36] multiplying that curve by a value of
+[08:39] 10 from there let's turn on local space
+[08:42] so we can move this object around and it
+[08:44] will follow and this is how it's looking
+[08:47] guys look at this we have a very
+[08:49] interesting slash where it dissolves at
+[08:51] end thanks to the erosion and this is
+[08:53] already the core of the Slash from here
+[08:56] we are going to add a few more layers
+[08:58] for example let's copy paste this slash
+[09:00] mesh and call it the SL mesh bright 02
+[09:04] we want to create another layer to add a
+[09:06] different color for example where we can
+[09:08] say it leaves a tiny less longer like
+[09:11] zot 37 and it's orange for example and
+[09:14] in this case the tiling can be different
+[09:16] as well we can zoom in in the texture
+[09:18] essentially and change even the speed if
+[09:21] we do this and say the power is four for
+[09:24] example we get essentially kind of a
+[09:26] background for our slash an orange
+[09:28] background as you can see it really mix
+[09:30] very well and you are starting to get an
+[09:33] idea of what you can do with this
+[09:35] right and now we can even add another
+[09:38] layer for a dark slush for example where
+[09:40] it Lees a little while longer almost 0.4
+[09:44] and it is completely black it will
+[09:46] create some very interesting contrast oh
+[09:48] and it is also tiny bit smaller if we
+[09:51] isolate this nothing shows up and it's
+[09:53] essentially because the material is set
+[09:55] to additive we can duplicate it
+[09:59] open it
+[10:01] up and on here on the material
+[10:03] properties over right for the blend mode
+[10:05] we can switch this to translucent so we
+[10:07] can get dark colors and then all we got
+[10:11] to do is go back to Niagara and assign
+[10:13] this to the SL dark down here in the
+[10:16] mesh renderer here we go we're beginning
+[10:19] to see something we could in this case
+[10:21] say the power is much less so it doesn't
+[10:23] dissolve the voro and then adjust a
+[10:26] little bit the erosion the curve itself
+[10:29] and say it's 30 so essentially We Get
+[10:31] Much More dark and then it erods even
+[10:34] more creating this cool effect where we
+[10:36] still see some dark at the end in our
+[10:38] slash oh and let's push this dark slash
+[10:41] to the back on the mesh render on the
+[10:43] ranging inser order int let's say it's
+[10:46] minus one here we go now it's bright and
+[10:49] then we see the black on the back pretty
+[10:52] cool right and now if we want we can add
+[10:55] an impact to this with the new empty
+[11:00] where we add a spawn burst instantaneous
+[11:03] with a short
+[11:05] lifetime a bright
+[11:07] color as you can see it's at the pivot
+[11:10] of this object you kind of need to
+[11:12] adjust this manually or you could create
+[11:14] this effect separately by the way but
+[11:17] once it's in position we could as well
+[11:19] create a new material for this a very
+[11:21] simple one as you can see but the most
+[11:23] important part is actually the texture
+[11:25] this flare right here which is available
+[11:28] for free on the link below and then we
+[11:30] could use a scale Sprite size to create
+[11:34] this kind of curve where it grows in the
+[11:35] beginning and then it
+[11:37] shrinks and it will look something like
+[11:39] this like I said you should create this
+[11:41] in a different Niagra system so you can
+[11:43] pinpoint the impact location because if
+[11:45] you don't eat anything this will still
+[11:47] play right but I'm just giving you a few
+[11:49] ideas here for example it could also
+[11:51] fade at end with a scale color exactly
+[11:55] like this where the alpha is a curve
+[11:57] here we go it looks really nice when you
+[11:59] play all of this together and another
+[12:01] cool thing that you could do is add some
+[12:04] stretched particles to this with a new
+[12:07] emitter with a spawn burst instantaneous
+[12:09] of around 20
+[12:11] particles and all you had to do is in
+[12:13] the particle spawn create an add
+[12:15] velocity module fix the issue so it adds
+[12:18] the S Forces in velocity and then you
+[12:21] could use in a cone mode with velocity
+[12:25] between random velocity between 300 and
+[12:29] and then increase the cone angle you
+[12:32] would get something like this as you can
+[12:33] see you need to push this to the same
+[12:36] position of the impact which is not
+[12:37] ideal again we are just giving you a few
+[12:39] ideas these ones should have a very
+[12:41] short lifetime between 0.1 and 0.5 and
+[12:44] then you could use a bright color like
+[12:47] this one and this is the part where you
+[12:48] need to adjust the position and very
+[12:51] importantly for this to be stretched on
+[12:53] the Sprite size mode it should be
+[12:55] nonuniform five for the X and 80 for the
+[12:58] Y and then on the Sprite Ranger say the
+[13:00] alignment is velocity alignment and this
+[13:03] will get you this pretty cool effect
+[13:05] from there you could also say that they
+[13:07] shrink towards the end with a scale
+[13:09] Sprite size as you can
+[13:11] see and then use drag so they kind of
+[13:15] slow down and turn on local space as
+[13:17] well and yeah you get this pretty cool
+[13:20] effect right like I said this should be
+[13:22] a different nagra system by the way but
+[13:24] for testing purpose we left it here
+[13:27] another cool meter we can add here is
+[13:29] for the anging particles they will stay
+[13:32] flying around for a little while on this
+[13:34] empty meter we can add a spawn burst
+[13:36] instantaneous of around 30 and then on
+[13:38] the particle spound use a shape location
+[13:41] in taus mode so it kind of has the same
+[13:44] shape of the slash where we can say the
+[13:46] large radius is 160 and down here the
+[13:51] mode it should be aligned with the slash
+[13:54] so I'm going to say axis angle the x is
+[13:57] zero and the Y is 1
+[13:59] and then yeah it should have a short
+[14:01] lifetime not as short as the stretched
+[14:03] particles almost a second for the
+[14:05] maximum and then a pretty cool color
+[14:07] like a blue a bright blue and in this
+[14:09] case I'm going to align this with the
+[14:11] position of set to the slash and say the
+[14:13] Sprite size is random between one and
+[14:15] five for example and yeah they are
+[14:17] spawning in the right position which is
+[14:19] ideal they AR moving as you can see to
+[14:22] add movement you could use a wind Force
+[14:24] for example it will look awesome just
+[14:26] click fix issue so it automatically adds
+[14:29] Sol forces and velocity and you can
+[14:31] click again so it adds aerodynamic
+[14:35] drag for the wind speed let's say the x
+[14:37] is 1 and Y is zero because we want to
+[14:40] say the turbulence the scale is 100 and
+[14:43] the frequency it's six this will make it
+[14:46] shake a lot and offset by time minus 50
+[14:49] on the Z so you can get this very cool
+[14:52] floating particles right you get the
+[14:55] idea let's fix issue on the aerodynamic
+[14:58] drag oh and disable on the Align Sprite
+[15:00] to mesh orientation disable mesh
+[15:02] orientation relative last one here we go
+[15:05] very cool effect you could drag and drop
+[15:08] while holding out the scale Sprite size
+[15:10] from the stretched particles so
+[15:12] basically they shrink towards the end
+[15:14] and also add scale color where the alpha
+[15:17] is something like this so it fades out
+[15:20] at the end fades in and Fades out and if
+[15:23] you don't want this to play indefinitely
+[15:25] go to the system this blue node and say
+[15:28] state is one
+[15:30] and here we go we have pretty cool slash
+[15:33] so that's it folks I made this entire
+[15:35] project available my Patron page you can
+[15:37] get it there and use it in your projects
+[15:40] and it comes with all of these sword
+[15:42] slashes and more and I want to say thank
+[15:44] you to each Patron that supported me
+[15:46] last month and a shout out to top tier
+[15:48] Patron which are Alberto Saras Alan Alon
+[15:51] Andre Rea David Molina di Mar Lu AMA
+[15:54] Eric Phoenix Frosty 40 grub BL even jaob
+[15:57] Casey Miller Leandro
+[15:59] Le Matt Mor Matthew Parker Mi M Bell
+[16:04] Owen easy Mar PRS radioactive bullfrog
+[16:08] revant games rvr Shan agulara B whatever
+[16:11] Marta will poon Vlad m Kim and Sango
+[16:15] hope you enjoyed this video thanks for
+[16:17] watching and see you on the next one

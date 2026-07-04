@@ -1,0 +1,306 @@
+[00:00] Hey guys, how's it going? Dutchman Games
+[00:01] here. Today we're making a sci-fi ship
+[00:04] interior kind of into horror vibe with
+[00:07] some cool lighting and some gloom. So,
+[00:12] hope you guys enjoy and uh subscribe,
+[00:15] leave a like, and uh yeah, let's get
+[00:19] going. These are completely free to use
+[00:21] assets. Um, and I'll show them right now
+[00:24] on the screen. It's polar facility and
+[00:27] it is spaceship interior and these are
+[00:30] free to use. You can download these off
+[00:32] the FB store. Links are in the
+[00:36] description. All right. So, first of
+[00:37] all, we want to go to file and we want
+[00:39] to click on new level. We're going to
+[00:42] click on empty level and we're going to
+[00:44] create. Now, we have a very dark level
+[00:47] and all that we need to do is a few
+[00:51] things. We're going to do this from the
+[00:53] start up.
+[00:55] We're going to filters and we're going
+[00:57] to select static
+[00:59] mesh. Click on it and then we'll get all
+[01:02] the static meshes that we have.
+[01:06] Naturally, I also have a few other uh
+[01:08] systems in here, few other uh content
+[01:11] file folders. So, I'm just going to
+[01:14] click on polar for
+[01:16] now. And then in here we have a few
+[01:18] floor uh things that we can use and
+[01:22] we're going to use
+[01:23] those. Click on this little button up
+[01:27] here and make sure it's set to unlit.
+[01:31] That way we can see everything more
+[01:33] clear. And uh yeah, let's get this
+[01:37] started. So first of all, let's place
+[01:40] down a floor. And we're going to base
+[01:42] everything off of one piece of the
+[01:44] flooring. Now, this floor has some holes
+[01:47] in here. Um, so you can see through the
+[01:49] map, we don't want that. So, let's look
+[01:52] for a floor who doesn't which doesn't
+[01:54] have those holes, which is this one.
+[01:56] Except this one has a kind of a weird
+[02:00] angle. So, let's actually look for
+[02:03] floor. And then
+[02:06] maybe I think Oh, well, yeah, there we
+[02:11] go. This one is perfect. All right. So,
+[02:14] we're just going to make we're going to
+[02:16] place this in the map. And we
+[02:20] want the snapping to grid enabled, the
+[02:23] snapping to rotation grid enabled, and
+[02:26] the snapping to object scale enabled.
+[02:29] And then from here, we are going to
+[02:32] pull and
+[02:35] duplicate the floor tiling. So, you can
+[02:37] hold alt and then click once and then
+[02:40] duplicate the floor tiling.
+[02:44] Then we're going to do this a few times.
+[02:46] So we have the main map layout. And then
+[02:51] we can also pull one to the side
+[02:55] here. And then maybe it will actually
+[02:57] look better if we rotate this around. So
+[03:00] what you can do, you can click on E or
+[03:03] press on this button. And you have these
+[03:05] for all of these. So Q is the object
+[03:09] selector and then you have W which is to
+[03:12] move it in the XYZ uh axis and then you
+[03:17] have E to move it around to rotate it
+[03:21] around in these axes and then you have R
+[03:23] to make it bigger in those axes and with
+[03:27] Ctrl C you can actually
+[03:31] uh revert those
+[03:33] changes. So you just want to place a few
+[03:37] of these and we're just going to make
+[03:39] like a path essentially. So this is just
+[03:41] going to be a level where you walk from
+[03:44] point A to point
+[03:47] B. So it's going to be a very short
+[03:49] level but it's all about the lightning
+[03:55] lighting and about the way in which
+[04:00] we set the level. So there we go.
+[04:06] right. And then it would be nice if
+[04:13] um here we can use this
+[04:16] floor. And then we're going to press R.
+[04:18] We're going to make it a little bit
+[04:20] bigger. And then this will be a kind of
+[04:23] like an open space area. I don't know
+[04:27] what it will be. Kind of like an open
+[04:29] little open area. All right. So this
+[04:33] will be the the the the idea of the map
+[04:36] basically. And then right here we'll
+[04:39] place a trick uh player
+[04:41] start a little bit bigger. There you go.
+[04:44] So player will start here and they'll
+[04:46] walk all the way over there. That's the
+[04:48] idea. So it's a short short map. Now
+[04:51] we're going to add walls. And these are
+[04:55] pretty easy to add. You literally just
+[04:57] place them on each
+[05:00] corner. And I think this is high
+[05:04] enough. And you just want to place all
+[05:07] these next to each other. And we're
+[05:10] going to make them look
+[05:13] better over
+[05:15] time. For now, just place these
+[05:20] walls. There we go. Oh.
+[05:27] And then you can copy this one. You can
+[05:28] rotate it 90
+[05:30] degrees. And then you can put it back in
+[05:37] here. There we
+[05:39] go. Copy this one to this
+[05:43] side. Push it back into the
+[05:47] other. There we
+[05:49] go. And then this one needs a little bit
+[05:52] of TLC to make it bigger. So you can
+[05:54] actually disable the snapping scale and
+[05:58] then make it line up
+[06:01] perfectly. And then for this, we're
+[06:04] going to copy this on here. It's okay if
+[06:06] it if it goes outside. That's fine. Also
+[06:10] do it
+[06:11] here. Push it all the way over there.
+[06:14] And rotate it again 90°. So now we'll
+[06:18] get a kind of like
+[06:27] room. Then we're going to place a wall
+[06:29] here. Place a wall over here. And then
+[06:33] what we can do is we can take these two
+[06:34] walls right next to each
+[06:36] other. Hold control to select multiple
+[06:41] them. And then we can literally just
+[06:45] place these in here.
+[06:47] Make sure at least one lines up. And
+[06:50] then this is kind of like an graphics
+[06:53] bug because they're exactly aligned. So
+[06:56] what you can do, you can make this one
+[06:58] just a teeny bit bigger and they won't
+[07:01] have that
+[07:06] issue. And then just keep grabbing
+[07:09] this. And again, this one's a little bit
+[07:11] bigger, so
+[07:17] Just need to kind of make it
+[07:19] fit. There we
+[07:23] go. And then one more. And then for this
+[07:29] part, put it over
+[07:32] here. All right. So now we have a whole
+[07:36] uh wall system here. Now, what we're
+[07:40] going to do is we're going to go to the
+[07:41] outliner and we're going to look for
+[07:43] everything that says
+[07:45] floor. And I think these also say floor.
+[07:48] So, we're just going to type in floor.
+[07:50] Select everything except the map
+[07:54] itself. And copy this to ceiling. And
+[07:58] then we'll have
+[08:00] a basically working interior. All right.
+[08:03] And now that you have this, as you can
+[08:06] see, there's some bugging going on here.
+[08:09] So, all you need to do is go to
+[08:12] scale and
+[08:15] then turn them
+[08:17] inward and then you basically
+[08:20] get a good looking
+[08:24] ceiling. There we
+[08:27] go. All right. Now, we need
+[08:30] pillars. Pillars. Pillars. Pillars. So,
+[08:34] uh, Polar has one pillar, which is this
+[08:37] one, which we could
+[08:39] use. So, what you need to do with
+[08:42] pillars is basically you need to make
+[08:43] sure that they align well on the
+[08:47] sides and that they basically
+[08:55] the open pillars in the map essentially.
+[09:02] For example, on this one, we can't
+[09:03] really place it that
+[09:06] well, but you can still put it
+[09:09] here. And then in these
+[09:12] corners, these are kind of difficult.
+[09:14] So, go to spaceship
+[09:16] interior. And then here we have
+[09:20] uh not pillars, I think they're called
+[09:23] uh yeah, piping. And then what I do is I
+[09:27] place a piece of piping in the corner
+[09:32] to kind of give the
+[09:34] illusion that it's supposed to be like
+[10:38] Add a point
+[10:39] light. Put it kind of under the
+[10:43] lamp like so. And then we're going to do
+[10:48] a bit of work on
+[10:52] So we are going to set the attenuation
+[10:54] range to 600 uh
+[10:58] 800. And then the
+[11:02] six. And then the light a little bit
+[11:07] yellowish. Just a teensy bit yellow.
+[11:15] All right. Put one over here as
+[11:20] well. Now, put one over here. This one
+[11:24] has two intensity. And then we put one
+[11:28] over here
+[11:30] under this
+[11:35] light with again six intensity.
+[11:40] Now the other one is two intensity
+[11:42] because there's no light
+[11:44] there and but we still want some light
+[11:50] course like that. You can see now that
+[11:53] there's a graphics bug here. So what we
+[11:55] can do is we can
+[11:57] take this uh piping and just put it
+[12:02] right in front of the graphics bug and
+[12:03] deal with it that
+[12:05] way. Okay. There's also one over here.
+[12:09] That's just
+[12:10] fine. There we go. That's how we fix
+[12:13] that easily. All right. So, now we need
+[12:16] one more light that goes in
+[12:19] here. Oh,
+[12:22] wow. Apparently, I already did that.
+[12:24] There we
+[12:27] go. Okay. All right. So, now that we've
+[12:30] set all this up, we're going to type in
+[12:33] fog and get the exponential height fog.
+[12:37] Put it in And then we're going to set
+[12:41] the first color. So the fox scattering
+[12:46] to kind of like
+[12:48] a redish color. Kind of like that. And
+[12:53] then add some serious
+[12:56] fog. Make the density a bit
+[13:02] bigger. It's way too
+[13:04] much. 0.5. And then make it a lot
+[13:09] too. Like
+[13:12] that. There we go. All right. So, now
+[13:14] that we have the post-process volume,
+[13:16] you want to make it scale to 500 by 500
+[13:18] by 500. Turn on the bloom. And then when
+[13:24] exposure, put it to one by one. And then
+[13:27] now we want to kind of play with this.
+[13:30] So, we can put it on for example minus
+[13:32] five, which is very bright. minus one,
+[13:35] which is okayish. Put on 0.5 and three.
+[13:40] Uh, the higher this is, the darker. It's
+[13:42] a horror game, so we can also put to 2.5
+[13:45] on four. So, it could be brighter if you
+[13:50] to. Yeah, we don't want it too bright.
+[13:53] All right. Take all the lights and put
+[13:55] the lighting on movable.
+[14:02] And all
+[14:03] right. And now that we have this set up,
+[14:06] we can go back to the exponential height
+[14:08] fog. We can kind of play with this. Make
+[14:10] it maybe look a little bit more
+[14:14] foggy like
+[14:17] that. All right. And
+[14:20] now what we can do is go to
+[14:26] uh particle
+[14:29] cascade particle system, which is the
+[14:32] old version, but that's what these
+[14:34] assets are
+[14:35] using. And then what we can do is we can
+[14:38] make we can spawn some ambient dust. And
+[14:42] you want to kind of make this bigger
+[14:44] sometimes. And you just want to place
+[14:47] this not everywhere,
+[14:50] but decent
+[14:52] amount in some places. And this light
+[14:56] you want to make a little brighter.
+[14:59] and a little bigger.
+[15:03] 1500. Maybe even place another one over
+[15:07] here. So, you can really see
+[15:11] these things coming out. And then, for
+[15:15] uh I believe there was a cable somewhere
+[15:19] hanging right here. You could put some
+[15:22] sparks on
+[15:23] this. It's a little much. Maybe this
+[15:26] one. There you
+[15:28] go. And uh put some
+[15:32] steam in this corner. Put some steam in
+[15:36] corner. Put some steam in this
+[15:43] corner. Some steam over
+[15:46] here. And there we go. We got ourselves
+[15:50] a spooky horror
+[15:53] map. All right.
+[15:57] And here we
+[15:59] are. So that is how you can pretty
+[16:05] make a core map with custom assets.
+[16:11] again when we come over we start here we
+[16:15] can walk on this side.
+[16:17] It's kind of like dark and
+[16:22] dim, but you know, it looks pretty good.
+[16:25] I like the
+[16:26] lighting. Park systems. We have no
+[16:29] sound, of course. Sound will add a lot
+[16:31] to this as
+[16:33] well. Yeah, I think it's pretty
+[16:37] cool. And all free assets. Do see a
+[16:41] little bit of a graphical anomaly here,
+[16:44] too. But those are easy to fix like we
+[16:46] did before.
+[16:48] We just move this one a teeny bit down.
+[16:50] There you
+[16:51] go. So, yeah, I hope you guys enjoyed
+[16:55] this episode. I hope you guys enjoyed
+[16:57] these kind of builds. Um, yeah, leave a
+[17:01] like and uh please do subscribe. We're
+[17:04] almost at 1,000 subscribers, so your
+[17:06] subscription would be highly
+[17:10] appreciative. And I will see you guys in
+[17:12] the next episode. Cheers.

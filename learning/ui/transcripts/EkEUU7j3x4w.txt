@@ -1,0 +1,423 @@
+[00:00] [Music]
+[00:10] hi guys and welcome back here to the dev
+[00:12] real and today we're going to be
+[00:13] carrying on our series and in the last
+[00:15] episode if you guys remember what what
+[00:17] we did is that we have created uh we
+[00:20] have finished our uh Window Shop here
+[00:24] and the uh the idea of today is that
+[00:27] we're going to create uh this list here
+[00:29] that we have on our
+[00:31] UI so we're going to be creating this uh
+[00:35] list that we have here and I think
+[00:37] pretty much that's everything we're
+[00:39] going to do for this series because
+[00:40] right now you already have the base for
+[00:43] everything uh I'll probably going to
+[00:44] leave like a challenge for you guys to
+[00:46] do I'm going to just put this uh box in
+[00:48] here so you guys can kind of create uh
+[00:50] like a large windows yourself but for
+[00:53] now let's just focus on this one here so
+[00:56] the first thing we're going to do here
+[00:58] is I am going to close I'm going to go
+[01:00] back to my Dev realm here just going put
+[01:02] this on the on the window I'm going to
+[01:04] go back to my
+[01:06] widgets and I am going to go back here
+[01:09] to where is windows again uh actually
+[01:12] I'm going to create another folder
+[01:15] list and inside this folder list I'm
+[01:18] going to
+[01:19] create uh another one which is going to
+[01:22] extend from the dev
+[01:24] realm and it's going to be called wvp
+[01:31] um item let's say I don't know we can
+[01:35] use this list for pretty much anything
+[01:36] so I'm going to open up the list right
+[01:39] and with the list open let's create here
+[01:41] a couple of things so I'm going to go
+[01:43] back to uh this variables in here I'm
+[01:45] going to right click I'm going to create
+[01:47] a new structure I'm going to call SD
+[01:49] list item right and I'm going to open up
+[01:53] this and once it's open I'm going to
+[01:56] have uh background right which is going
+[02:00] to be a texture
+[02:03] 2D and if I texture 2D just put it here
+[02:09] now if I go back to the
+[02:12] design looks like we only
+[02:16] need that because we pretty much have
+[02:18] everything else uh as you can see also
+[02:21] we need to be able to change the color
+[02:23] of our text so we're going to probably
+[02:24] do this as well so what I'm going to do
+[02:26] here I'm going to right click I'm going
+[02:27] to group this and once again you don't
+[02:30] need to follow this uh I'm just going to
+[02:33] put oh I'm just going to move this into
+[02:36] a place where you guys can copy and
+[02:37] paste this so I'm going to go here I'm
+[02:41] going to export
+[02:44] this and in
+[02:48] here download UI I'm going to right
+[02:51] click and then I'm going to create uh
+[02:57] item now inside this light e it I'm
+[03:00] going to call T background as
+[03:05] um there we go nice so now I have
+[03:08] everything done I'm going to go back
+[03:10] here to my uh real engine and in here
+[03:14] I'm going to go back to texture right
+[03:17] click I'm going to create uh called list
+[03:22] item there we go open up this Tian and
+[03:26] now let's drag and drop the item we is
+[03:30] created what is it uh Le Titan
+[03:35] here drag and drop this guy right here
+[03:38] cool I'm going to save everything nice
+[03:42] now on the main UI settings here right
+[03:47] let me just put this one if you guys
+[03:49] open up this St menu y
+[03:53] settings I'm going to add a new variable
+[03:57] SD or uh
+[04:00] just go item
+[04:02] list actually item list yeah and then
+[04:07] we're going to call SD item
+[04:11] list list
+[04:14] item actually you should probably call
+[04:17] list item just to make sure it follows
+[04:20] the same now I'm going to save all I'm
+[04:24] going to open up this guy and in here we
+[04:28] can add our new background that we added
+[04:31] so it's going to be this Titan just drag
+[04:34] and drop here right so far everything is
+[04:37] simple now let's go back to our
+[04:41] list and in here let's check uh our uh
+[04:45] design first so on our design what we
+[04:48] have is basically let me just just do a
+[04:51] zoom so we have a icon we have but also
+[04:56] the icon has some weird padding related
+[04:58] to everything else so this is really
+[05:01] important and we also have a title and
+[05:04] then we have a mini icon here and we
+[05:07] also have a title and we have a
+[05:09] separation here right so the first
+[05:12] problem that we have to fix is if you go
+[05:15] back to our uh UI let's go back to our
+[05:20] here right if I compile and save H for
+[05:25] some reason that's not loading the right
+[05:27] data there we go right so what we need
+[05:30] to do here is that we need to be able to
+[05:31] change the text color dynamically right
+[05:34] so I'm going to create here a custom
+[05:37] event and I'm going to call Api change
+[05:41] color right and in here
+[05:46] basically is that we are going to
+[05:51] basically we're going to do the same
+[05:53] thing that we
+[05:55] did here but we're going to use the
+[05:58] color instead so what we're going to do
+[06:01] here is that we're going to do the same
+[06:03] here so just going to set color and
+[06:07] opacity and here we're going to select a
+[06:10] promoted variable callede color right or
+[06:16] color and in here what we're going to do
+[06:18] is that we're going to just set the text
+[06:20] color as a parameter right here
+[06:24] right that's it so now what we can
+[06:27] actually do here is is that we can
+[06:31] change uh the
+[06:34] color and that could
+[06:38] be this
+[06:42] H let me just
+[06:45] think the way we can actually do this I
+[06:47] mean I'm going to do this right now this
+[06:50] is not the best way of doing this
+[06:52] because you always going to have the
+[06:53] secondary color but what we're going to
+[06:54] do is that since is a list we're going
+[06:57] to change that
+[06:58] color inside here or maybe what we could
+[07:04] do is something like this so we're going
+[07:07] to create another make sure that's
+[07:08] public all right make sure that Expos
+[07:12] spawn I'm going to create another
+[07:13] variable called uh use custom color
+[07:17] right make sure is public can also
+[07:20] expose on spawn and also make sure that
+[07:24] variable is false by default we're going
+[07:26] to do a select right
+[07:30] put it in that and if it's true soorry
+[07:34] if it's false we're going to use this if
+[07:36] it's true we're going to use the text
+[07:37] color and we're going to give a default
+[07:40] color of green just so we can see if
+[07:44] that can work properly so if I go back
+[07:48] here and I use custom color compile and
+[07:52] save is green but if I go back in here
+[07:55] and if probably if I change this to
+[07:57] Yellow to to this color whatever but if
+[08:00] I change it back use the normal color so
+[08:03] anyway we already got our title sorted
+[08:06] let's just press play to make sure we
+[08:07] didn't mess up anything everything looks
+[08:09] good right cool now with this one
+[08:12] finished uh the next thing that we can
+[08:15] actually do here is uh start to
+[08:18] structure this a little bit better right
+[08:21] so we're going to add here a border
+[08:23] right so we're going to add a
+[08:25] border and this is going to be the um
+[08:30] Oh wrong one it's going to call the iten
+[08:35] right now make sure is
+[08:40] cool now we're going to get the item
+[08:43] border we're going to set uh
+[08:47] texture we're going to get UI
+[08:51] settings in here we're going to just do
+[08:53] something like
+[08:55] that going to
+[09:01] and the next thing that we are going to
+[09:04] here is that we're going to get the
+[09:07] least at least IEM we going to get a
+[09:09] background so right now this should work
+[09:12] just as fine right I'm going to put here
+[09:14] on custom on this custom screen I'm
+[09:18] going to make sure we have something
+[09:20] like I don't know
+[09:22] 400 by 200 maybe that's too much buy 100
+[09:27] it's fine can always change this in
+[09:29] feature right this is just SL like a
+[09:32] rough size though can actually work now
+[09:35] let's figure out here our design so we
+[09:38] need a iton here so we need this
+[09:42] um iton right here so to do this we need
+[09:49] some kind of a vertical box so actually
+[09:51] we need two vertical Boxes by the looks
+[09:54] of it so what we're going to do here is
+[09:58] that we need here actually first uh
+[10:01] we're going to need a horizontal box
+[10:03] first so we need a
+[10:04] horizontal box first right so you're
+[10:08] going to have stuff on the horizontal
+[10:11] line and let's add the icon let's add
+[10:14] our button um icon or actually slot icon
+[10:20] here right cool so we got that icon
+[10:24] right here the only problem with this is
+[10:26] that looks like uh it doesn't stay where
+[10:30] exactly in the space where we're looking
+[10:33] for so what we need to add here
+[10:37] is maybe
+[10:41] another let me just think here so we
+[10:44] have a horizontal box where we have
+[10:48] those two in line so I'm going to add
+[10:51] here uh another horizontal
+[10:55] box horizontal box
+[10:59] and I'm just going to add here a
+[11:03] title let's just add here ah title
+[11:08] right I'm going to make sure this one it
+[11:10] FS the whole s
+[11:13] actually oh yeah it doesn't f because
+[11:15] the parent one it needs to be able to
+[11:27] extend um
+[11:30] fuse so we're going to leave this one
+[11:36] okay now this one here we want to be
+[11:39] able to F the whole
+[11:41] size yeah kind of but maybe the text we
+[11:46] want to make to feel
+[11:49] everything but a line on the
+[11:53] middle yeah kind of that works kind of
+[11:59] let me go back to my here let's just put
+[12:05] icon uh search let's just add a search
+[12:08] icon for now compile and save now what
+[12:12] I'm going to do here as you can see the
+[12:13] size a be screw up so I'm just going of
+[12:15] wrap this
+[12:16] guy with a size
+[12:20] box and the size we're going to have for
+[12:22] this is something
+[12:31] let's do 64 by
+[12:36] 64 um maybe let me just try to add it
+[12:39] this one because it looks like that we
+[12:41] may need to
+[12:43] add uh because we have we're going to
+[12:48] here let me just wrap here with a
+[12:53] scale just to see what it looks like on
+[12:58] item doesn't look like it changed that
+[13:02] much so what we're going to do
+[13:05] here is that I'm going to leave it like
+[13:07] this for now and then after we can play
+[13:09] around more with this design but so far
+[13:11] what we can do here is the we could also
+[13:15] hide a border as well that would
+[13:18] help or we could add some kind of a
+[13:25] there so if we add a
+[13:30] ah is because of the Interior using a
+[13:32] scale box so anyway I'm going to
+[13:35] replace with the children here so I'm
+[13:38] going to just remove this let's see if I
+[13:41] add a padding will make it any
+[13:43] difference it kind of does a little bit
+[13:47] um but we can leave this one here for
+[13:49] now let's don't worry about this for now
+[13:53] so uh the next thing we just going to
+[13:54] hide the quantity so we display
+[13:57] that also you see that the frame is a
+[14:00] little bit different than this one this
+[14:02] Frame is a little bit more soft uh but I
+[14:05] think for this case it's fine I'm not
+[14:08] going to change this you guys can change
+[14:10] this if you want you can create the
+[14:11] whole Boolean uh if is inverted you can
+[14:14] just switch to different one but for now
+[14:16] I think that will be fine right so let's
+[14:18] just call this uh health potion and
+[14:23] let's change this color to Let's I'm
+[14:26] just going to put a color green here
+[14:28] let's just pick up a random green color
+[14:31] we also need to make sure that we use a
+[14:32] custom color otherwise you won't be able
+[14:35] to to replicate that for us nice
+[14:39] so we got it kind of working fine it has
+[14:42] a a more soft green here but we can just
+[14:45] leave it like this for now now we need
+[14:48] to add here uh where we have this
+[14:51] line we need to wrap this with a
+[14:59] right so we're going to have a vertical
+[15:04] box and where we going to have here the
+[15:11] title and I'm going to add here uh
+[15:17] the uh
+[15:24] divider let's see if you can search for
+[15:27] or uh spacer
+[15:30] I'm going to add a spacer in here for
+[15:35] now and then I'm going to duplicate the
+[15:38] title put a spacer in the
+[15:40] middle and in here we're going to just
+[15:43] add um quantity and icon or something
+[15:50] right now what I'm going to do here is
+[15:54] I'm going to search for our uh icon
+[16:00] slot quantity icon nice I'm just going
+[16:04] to invert this so the title is going to
+[16:06] be uh quantity and it's just going to be
+[16:11] uh money icon or
+[16:15] something there we go now what we can
+[16:19] actually do here is that we're going to
+[16:22] hide the Border going to hide the
+[16:24] quantity and we going to get the T
+[16:27] search again let me just get let's see
+[16:29] if I have another decent icon here I
+[16:32] don't let me go back to
+[16:36] icons I am just going to go back in
+[16:39] here I'm going to export this
+[16:44] icon go back in here
+[16:50] icons I'm going to call this T coin
+[16:54] right and I'm going to go back to here
+[17:03] I'm going to go open up
+[17:10] my icon and I'm just going to drag and
+[17:13] drop this one right here
+[17:15] nice now I can drag the icon right there
+[17:18] cool save
+[17:21] all um you can see here that looks a
+[17:24] little bit weird so I think what we're
+[17:26] going to probably do here instead of
+[17:27] using the icon I'm going to use a
+[17:35] image put the icon right there right
+[17:38] compile and save and now we just let me
+[17:43] have a look on the design how it was
+[17:44] before so let's make sure that this text
+[17:48] say 500
+[17:51] so 500 and let's make sure we have like
+[17:55] I don't know
+[17:56] 12 so there not something to maybe dis
+[17:58] is too small let's 16 let's align this
+[18:01] guy on the right
+[18:05] right okay I don't want to use uh
+[18:08] secondary Uh custom color for this now
+[18:11] this is looking a little bit weird as
+[18:14] you can see so what I'm going to do here
+[18:16] is I'm going to first change to a
+[18:20] icon and I'm going to wrap with uh scale
+[18:24] box I
+[18:26] guess so it keeps the scale but but
+[18:30] also I'm going to wrap with the size
+[18:34] box uh actually instead of a scale box
+[18:37] let's just put add the sales at add the
+[18:40] size box
+[18:41] first right size
+[18:44] box and let's make sure we have like I
+[18:46] don't know 32 by
+[18:49] 32 that looks okay it doesn't look too
+[18:53] bad it doesn't look uh because it
+[18:55] doesn't have the definitions but it's
+[18:57] fine once you look it from far it
+[18:59] doesn't change now let's see if you can
+[19:01] centralize this a little bit so if I try
+[19:04] Center doesn't work maybe
+[19:08] this yep that sounds good the last thing
+[19:12] we got to add here to make sure this is
+[19:14] working fine also I am going to change
+[19:17] this Frame here in a second I just want
+[19:18] to make sure that we also
+[19:21] add uh this line here this white line so
+[19:25] I'm just going to export
+[19:27] here I'm going to back to desktop
+[19:32] UI and then I'm going to go back to uh
+[19:37] item and I'm going to add here T the
+[19:44] vision or divider there you go now I'm
+[19:48] going to go back to my icons
+[19:51] again iton let me just go back to real
+[19:55] engine let's just uh go where we we have
+[20:00] uh this one here so let me just
+[20:03] drop the divider right
+[20:06] here now open up your t uh least
+[20:10] Titan and let's just add the divider
+[20:16] make sure it's a texture today right I'm
+[20:19] going to save
+[20:21] all go back to the
+[20:23] settings drag and drop to
+[20:26] divider save everything
+[20:29] go back to the list compile and save I'm
+[20:32] going to press play so it fix all
+[20:33] whatever the arrows that we have cool
+[20:37] now the next thing we need here is that
+[20:38] we're going to add a
+[20:41] image where we're going to replace the
+[20:44] spacer all right and now this image here
+[20:48] is going to be called
+[20:51] divider going to go back to graph
+[20:55] here Set uh texture from
+[20:59] uh Bush texture which is
+[21:02] fine put right in here and I'm going to
+[21:05] save compile and save let's see how does
+[21:09] it look it looks all right now you can
+[21:12] see that I saw uh it has like a weird
+[21:14] size it doesn't follow right right
+[21:16] everything is all out of place this is
+[21:19] because we need to wrap this guy with a
+[21:25] okay and the size box we need to keep
+[21:27] for this it's something really thing
+[21:32] um like I don't know maybe two pixels
+[21:35] how is in the in the design let's have a
+[21:38] look the design is like something like
+[21:40] around one so
+[21:43] one very subtle you know very subtle
+[21:47] design now what we're going to do here
+[21:50] is on the designer
+[21:52] here divider box I'm just going to add a
+[21:57] pading and from Top I'm going to add 10
+[22:01] and from bottom I'm going to add
+[22:04] five and I think we got the list kind of
+[22:10] a you know pretty much
+[22:12] working um now we just need to fix uh
+[22:16] this icon here so what I'm going to do
+[22:18] is just because the video is getting a
+[22:19] little bit longer I'm going to pause
+[22:21] this one for here right now and you guys
+[22:23] can go ahead and start to create your
+[22:24] events or hookups and stuff uh so but in
+[22:28] the next one is going to be the final
+[22:30] video for this series but I'm just going
+[22:32] to fix so we have option to switch this
+[22:34] background and then I'm going to show
+[22:36] you guys how to add those lists
+[22:38] dynamically into your content so once
+[22:41] again thank you very much for watching
+[22:42] and I see you in the next one

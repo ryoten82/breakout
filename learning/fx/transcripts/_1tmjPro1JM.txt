@@ -1,0 +1,279 @@
+[00:00] Hi guys, I'm Master watching C job
+[00:02] video. Today we'll make this cool
+[00:04] material from scratch. Everything you
+[00:06] will learn in this tutorial. Each and
+[00:09] everything how to do that. How to make
+[00:11] these edges, two colors,
+[00:14] this sci-fi material. So let's dive in.
+[00:18] So let's get started. So I have this
+[00:20] map. I'll just put a sphere here.
+[00:24] Maybe I'll scale it
+[00:27] this much.
+[00:32] this much is enough. Okay, so now we
+[00:35] will make a material for this sphere. So
+[00:38] let's make a material and you can call
+[00:41] it anything like a dom effect. This is
+[00:46] going to be just a material. You can use
+[00:48] that in Niagara if you want. So we have
+[00:50] a sphere here also that is from here.
+[00:53] You can change the shapes but we will
+[00:54] use a sphere. So what I need I'll use
+[00:58] this texture and if you don't have I
+[01:02] have a previous video where I let me
+[01:05] just show you
+[01:10] this one. It has the same kind of
+[01:12] texture and which is free. You can
+[01:14] download from the link in the
+[01:15] description. So if you don't have Okay.
+[01:18] So I'll use this maybe
+[01:23] let it be. I I want to use it actually
+[01:25] unlit but let it be for now. So let's
+[01:30] connect this here and connect this here
+[01:32] or maybe just use this unlit for now.
+[01:35] Okay. So we have this first I will
+[01:38] decide the tiling but for before that
+[01:41] because this is all white I want more
+[01:43] contrast. So I'll use a power
+[01:47] maybe three or four. It depends on your
+[01:50] texture. You don't need to do that. Now
+[01:52] there's more contrast.
+[01:54] I'll use the tiling and maybe
+[02:00] and one. So it will be like lines
+[02:02] vertical. Then I want horizontal line
+[02:05] that will make it crease and cross. So
+[02:08] before that
+[02:10] let's take a noise texture a different
+[02:12] noise texture.
+[02:22] simple noise. Okay, this is a simple
+[02:28] Or maybe just I'll just search a
+[02:30] different one. Noise actually
+[02:38] have actually lots of noise. I'll use
+[02:40] this one. This how it looks. It's quite
+[02:43] simple noise. Okay. So I'll use this one
+[02:46] here. Then I also want to make contrast
+[02:50] in this noise. So I will again use a
+[02:53] and of course the tiling maybe
+[02:56] four four is enough. It depends on your
+[03:00] Okay. Then we can multiply these
+[03:07] So we will have these lines. Then we
+[03:10] want horizontal lines. So I can just
+[03:12] duplicate this
+[03:14] and just swap this. So this will be 1
+[03:17] and 50. So if I preview this is
+[03:20] horizontal lines. Now if I multiply with
+[03:24] the same noise I will have horizontal
+[03:27] thing. Now I can add this and this. So I
+[03:32] will have something like crisscross
+[03:34] thing like this.
+[03:37] Looks cool, right?
+[03:39] Then I want to do the same thing again
+[03:42] but with different offset. So what I'll
+[03:46] I'll just use this I'll just copy this
+[03:49] noise. I'll use the same tiling. I'll
+[03:52] just add a random number to offset maybe
+[03:55] 25 6 anything. So it will be the same
+[03:58] tiling but the offset will be there.
+[04:01] Okay. Then I can multiply this
+[04:13] And this I will multiply.
+[04:27] Yeah, it's actually not showing in the
+[04:29] title. That's why I was confused. So I'm
+[04:31] multiplying this and again this
+[04:37] and then
+[04:39] add these together.
+[04:42] So I have one more crisscross but
+[04:45] there's a offset in the in the noise. So
+[04:49] now I want two different color in these
+[04:52] two. So you can see there's a offset in
+[04:54] these two. So if I'll take the lurp and
+[04:58] connect this and take two colors any two
+[05:01] colors. Maybe I'll take this can and
+[05:04] maybe something like magenta.
+[05:07] And if I connect this here preview
+[05:12] so magenta is basically that crescent
+[05:15] cross and this can is basically the
+[05:17] brown background. So we can use this can
+[05:20] to multiply this noise.
+[05:24] So it will come on this. Then we can add
+[05:27] this here. So now if I show you the lur,
+[05:30] it will have both colors.
+[05:32] Cool. Now we can just add this here.
+[05:36] Turn this off.
+[05:38] So now we have this. Then if you want to
+[05:42] make it like more more like a sci-fi
+[05:46] kind of thing like pixelated thing, you
+[05:49] can do things. You have this and you
+[05:52] have this which is for the noise. You
+[05:54] can pixelate it. How to pixelate? So
+[05:57] this is the noise. This is a texture
+[05:58] coordinate. Just multiply it and with
+[06:01] take a floor and then divide and put the
+[06:05] same value in this multiplier and in
+[06:07] this divide. And if I connect if I this
+[06:11] is like around five four you can see the
+[06:14] boxes. If you'll increase it, it will be
+[06:17] the same. So it's like how many you
+[06:19] want. So I think 50 is enough. Okay. And
+[06:24] same thing you can do here. So I can
+[06:26] just use this here and it has offset.
+[06:31] Okay. And now
+[06:34] this is how it will look. So it has this
+[06:37] pixelated kind of thing and these lines
+[06:39] also. Then of course you can add pen. So
+[06:43] if you want to add different pans, you
+[06:45] need to duplicate this because it's
+[06:48] using the same. So now you can add one
+[06:51] panner here.
+[06:53] I'll use maybe 2 and I'll copy this and
+[06:58] I'll use here different speed maybe.3.
+[07:03] So the can and the magenta color will
+[07:05] have both different panning speed as you
+[07:08] can see maybe 4 double the speed. So now
+[07:11] you will notice it more
+[07:16] So we have this. Now I want bright
+[07:18] edges. So what I'll do I'll take the
+[07:22] first. If I preview this fail, we have
+[07:24] to control it. So I'll just make it two
+[07:26] or sorry two. Then I'll take the power.
+[07:30] So it will be just the edges. Then I
+[07:33] will multiply it with this whole thing.
+[07:36] So it will have this color. Then I will
+[07:39] multiply again to increase the
+[07:40] brightness. Maybe 100. It depends how
+[07:43] much you want. And we will control this.
+[07:47] Now we just want edges this much. Then I
+[07:50] will add it back to the original
+[07:54] and we will have bright edges.
+[07:58] Cool. Now I can just uh let's make ding
+[08:02] par uh instance material if you want.
+[08:05] Let me save also.
+[08:07] I'll just drag it here.
+[08:12] And it's kind of not visible here. No
+[08:15] idea why. So let me save it again.
+[08:20] While saving you can just subscribe if
+[08:23] you haven't. So this is how it looks. If
+[08:26] you don't like the brightness of edges
+[08:28] anything you can control from here. So
+[08:31] this will be
+[08:37] which is currently five
+[08:42] and this is I'll just call it pal
+[08:50] and this is currently 100 which you can
+[08:53] increase. Okay you can make the panel
+[08:55] parameter anything you want to make.
+[08:58] Then I want some bright lines going on.
+[09:01] So for that what I'll do.
+[09:04] I'll just copy this one.
+[09:09] Actually I want a vertical lines. So
+[09:12] I'll make this 50 and one. Then I will
+[09:15] add panner here.
+[09:18] Maybe six. It will be faster in all the
+[09:22] pen we have like this. Or maybe just
+[09:25] one. Then I'll just multiply this with
+[09:29] any of my noise. Uh these are my noises.
+[09:35] So it will cut through. Then I will
+[09:38] multiply it with this all color
+[09:44] like I did with the fin.
+[09:47] Then to control the brightness again
+[09:49] maybe I'll make 20.
+[09:51] So these line will be brighter.
+[09:56] And then you can just add it back to the
+[10:03] I guess this is clear. Now we have some
+[10:06] bright lines. Now I want some lines here
+[10:10] on the edge of interaction. For that
+[10:14] let's make it transl.
+[10:17] And the opacity is uh Z one. You can
+[10:20] increase it if you want. Okay.
+[10:24] So let's make it side for now.
+[10:29] So for that
+[10:32] first thing I will control the opacity.
+[10:35] So what I'll do I will add
+[10:39] this thing before color. This thing
+[10:42] before color and then add pin nail again
+[10:48] before color.
+[10:51] Then I will add these lines again before
+[10:55] color. So I just added all the black and
+[10:58] white things before multiplying it with
+[11:01] the color. So I got this. Then I will
+[11:04] just multiply it and connect this here.
+[11:06] And I'll call this opacity
+[11:11] default one. Let's save it and check how
+[11:14] does it look in
+[11:16] here. So if I open the instance
+[11:23] this is opacity of course you can
+[11:25] increase but it looks like a case. So we
+[11:27] need to add over all opacity also. So
+[11:31] after multiplying it I will add I'll
+[11:34] call it add opacity
+[11:41] which is zero currently. Let it be.
+[11:47] So basically if you decrease the opacity
+[11:49] back to one and then you will add see
+[11:53] this is basically the transparency of
+[11:58] And then we have for nail thickness
+[12:01] brightness if you want
+[12:06] like this.
+[12:11] You can make it pure black if you want
+[12:13] and I think brightness is too much.
+[12:17] Then I will add some brightness here on
+[12:20] the interaction. So for that we need
+[12:26] we need a bit.
+[12:30] Okay. And then I will invert this and we
+[12:34] need to add it on the opacity.
+[12:42] And we can control the
+[12:46] depth edge.
+[12:49] The distance currently is 100.
+[12:54] Okay, let's save it and see how it
+[13:01] We need to also multiply it with color
+[13:03] that we actually didn't.
+[13:08] So let me do that. So we have this. I
+[13:11] will also multiply it.
+[13:14] Actually I just multiply it with the
+[13:16] single color maybe blue.
+[13:19] And then I will add it
+[13:22] at the last of my node.
+[13:26] And then I will put one multiply here
+[13:28] just to control how much I want. Let me
+[13:31] make a parameter. This will be
+[13:40] fraction edge value currently one.
+[13:45] Save it.
+[13:49] Now you can see that. So we can increase
+[13:52] it. Make it quite bright. And there's a
+[13:56] depth edge that we can reduce.
+[13:59] But you'll notice this is just edge. I
+[14:02] want a cool glow that go up. So what you
+[14:05] can do instead of using this one minus
+[14:10] inverting it. Let me show you something.
+[14:12] So if you have a gradient
+[14:16] and this gradient is like this or maybe
+[14:20] this and this is a basic gradient. But
+[14:22] if you use a divide and use a very low
+[14:25] value, it will be a cool gradient which
+[14:28] is very bright here. Then fading. So I
+[14:32] will use that here. I will just take a
+[14:35] divide instead of this.
+[14:39] And let's make the value for the divide.
+[14:42] I just call it divide 01.
+[14:46] After divide, I will also use a power to
+[14:49] control it how much I want.
+[14:52] edge power.
+[14:55] I'll show you how it will work. Default
+[14:57] value one.
+[14:59] Save it.
+[15:03] So now you can see it's going all over
+[15:08] so I can decrease it. This is my divide.
+[15:14] Okay. And there's a
+[15:18] depth edge. Let's make it 100. And then
+[15:21] there's a
+[15:23] interaction value which we can reduce
+[15:27] maybe this much and then add power.
+[15:55] you need to put very low value although
+[15:57] here now it's very bright and you can
+[16:00] see that glow I think I need to also
+[16:04] make a multiplier here just
+[16:12] because we are using so many low value
+[16:16] so it's quite bright I will make it.1
+[16:19] one. Yeah.
+[16:21] Then we can increase it.
+[16:35] Cool. So you have to just control it.
+[16:38] Okay. And I will also fail edge value I
+[16:42] will increase.
+[16:45] And this is how it looks.
+[16:52] I hope you liked it. Thanks for

@@ -25,6 +25,8 @@
 - 従来の Blend Mode/Shading Model 固定体系を置換する新枠組み。Slab（物質薄層）BSDF を Operator（Horizontal Blend/Vertical Layer 等）で積層。Metallic/Specular でなく **F0/Diffuse Albedo の物理量**でパラメータ化
 - GBuffer 選択: Blendable=軽量・レガシー互換 / Adaptive=高忠実・高コスト
 - **本プロジェクトは Substrate materials 有効・GBuffer=Adaptive**（2026-07-04 手動ON、従来OFF）。**実機確認済み**: 有効化直後に一部テクスチャが一時未貼付→再貼付される一過性挙動のみ、以降は見た目・性能とも変化なし（実害なし）
+- **メモリ予算**（Epic 公式 Bali 講演・ペア照合済）: Simple 8B/px → Single 24B → Complex 36B → Complex Special 52B。`r.Substrate.BytesPerPixel` デフォルト 80B、超過時はパラメータブレンドで自動簡略化。複雑化する際の予算判断基準に使う
+- 表現の引き出し: Second Roughness/Fuzz/Glint/SSS MFP（応用 11 種は個別ノート参照）
 
 ## Fab アセット実地検査という手法（使い所）
 

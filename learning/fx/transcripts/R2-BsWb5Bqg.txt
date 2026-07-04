@@ -1,0 +1,563 @@
+[00:00] so let's see how to create the same
+[00:01] effect in three different game gines in
+[00:04] unity in un realine and in gou we are
+[00:07] going to do some Sparks a very simple
+[00:09] exercise I know but it's a good exercise
+[00:12] that requires a nice amount of
+[00:14] properties from a particle system and
+[00:16] it's something we can do quickly while
+[00:18] we compare the three engines quick
+[00:21] overview of the engines in terms of EFX
+[00:23] Tools in unity we have the particle
+[00:26] system and VFX graph one for CPU
+[00:28] particles and the other for or GPU
+[00:30] particles in unreal we used to have
+[00:33] Cascade but now it's all Niagra which
+[00:35] can also Spa CPU or GPU particles and in
+[00:39] goo we also have the possibility to
+[00:41] spawn CPU or GPU particles which is
+[00:44] great in terms of interface and workflow
+[00:48] godo's particle system is closer to
+[00:50] Unity particle system but very different
+[00:53] from Unity VFX graph and unreal Niagara
+[00:57] as a matter of fact Unity VFX graph is
+[00:59] very simil to un realine nagra and
+[01:02] lastly all of these three engines have a
+[01:05] node based Shader tool which is awesome
+[01:07] and useful for many people in unity is
+[01:10] Shader graph in unreal inine it's
+[01:11] material editor and in godo it's the
+[01:14] visual Shader right so let's jump right
+[01:18] into these and see the difference
+[01:19] between each one of these engines before
+[01:22] that I just want to say that these
+[01:23] videos are possible thanks to my Patron
+[01:26] and by supporting me you get access to
+[01:28] huge library of visual effects and you
+[01:30] keep this channel
+[01:32] going so let's start with unity as you
+[01:35] can see I have a particle system for
+[01:36] Sparks and for flare the same thing in a
+[01:39] real Sparks and flare and in godo too
+[01:42] Sparks and flare that's all we are going
+[01:44] to do and it's going to give us plenty
+[01:46] of properties to look into and workflows
+[01:49] so in unity it's a good practice to
+[01:52] start with an empty game object and
+[01:54] rename it to VFX uncore Sparks for
+[01:56] example reset transform and push it a
+[01:58] value of 1.5 in in the Y AIS with right
+[02:01] click we can create an effect a particle
+[02:04] system for the Sparks so what we have
+[02:07] here well it's already looping which is
+[02:10] great then we can say the lifetime the
+[02:12] start lifetime is actually random we
+[02:14] want some Randomness between 02 and 5 we
+[02:17] also want some Randomness for the start
+[02:19] Speed between 1.5 and 13 for example and
+[02:23] they go flying forward the direction of
+[02:26] the particles are influenced by the
+[02:27] shape module down here which is set to a
+[02:30] cone if I turn on the gizmos you can see
+[02:31] it's a big ass cone let's decrease the
+[02:34] radius to 0.05 and the angle to 15 which
+[02:38] enough and I think we need more
+[02:40] particles so on the emission let's say
+[02:42] something crazy like 180 for the rate
+[02:46] yeah lot of particles and now it would
+[02:48] be super useful to control these with
+[02:50] gravity so they kind of fall down we can
+[02:53] say the gravity is random between 0.2
+[02:56] and 4 so the motion is pretty much there
+[02:59] now let's take take care of the aspect
+[03:01] we need to stretch them for that we can
+[03:03] use the 3D start size where the X can be
+[03:06] 0.04 and Y 0.3 and here we go we have
+[03:10] some needles pointing up always facing
+[03:13] up as you can see but we want them to
+[03:15] face their velocity Vector so down here
+[03:18] in the render in the render mode we can
+[03:20] say stretched billboard and it will
+[03:22] align with our velocity Vector as you
+[03:24] can see great they are too stretched
+[03:27] because of this length scale let's set
+[03:29] it to one and if you look at the
+[03:32] beginning they are huge right at the
+[03:34] start of the cyer so let's use a size
+[03:38] over Lifetime by default it comes with
+[03:40] this curve which goes from small to big
+[03:42] but we can say it goes from Big to small
+[03:44] with this one and then with right click
+[03:46] add a key and push the first key all the
+[03:49] way down and it creates this nice
+[03:51] Randomness between the size of the
+[03:53] particles and they don't start that big
+[03:55] now let's add color to these and
+[03:58] brightness for that we need a material
+[04:00] so with right click I'm going to go
+[04:01] ahead and create a material and rename
+[04:03] it to flarecore tutorial for example
+[04:06] what's important is up here on the
+[04:08] Shader let's say it's particles and then
+[04:11] standard unlit we can immediately drag
+[04:13] and drop this material to our Sparks
+[04:15] particle system it's all a bunch of
+[04:18] stretched squares because we need to say
+[04:20] in the albo what's going to be the
+[04:21] texture and it's the one that I've
+[04:23] provided for free on a link below which
+[04:26] is the flare 00 assign it to the albo
+[04:29] it's still a bunch of squares because
+[04:30] the rending mode is set to a pack let's
+[04:32] switch it to fade and here we go the
+[04:34] cool thing now is that with this color
+[04:37] since it is an HDR color we can increase
+[04:40] the intensity to something like two or
+[04:42] three a value between these two and they
+[04:44] become bright mostly because I've Bloom
+[04:47] on my scene but you get the idea now we
+[04:50] can for example control the color on the
+[04:52] particle system the start color and say
+[04:54] it's a dark orange like this one and it
+[04:56] will look fantastic for the flare which
+[04:59] which is also a curious particle system
+[05:01] because it's going to be a static flare
+[05:03] let's create a new particle system call
+[05:04] it flare since it's going to be static
+[05:06] and fast let's say the lifetime is
+[05:09] something between 0.1 and 0.2 and let's
+[05:12] say the start Speed is zero we don't
+[05:14] want this to move and it's still moving
+[05:16] because of the shape if we turn it off
+[05:18] it stays in the exact same position and
+[05:21] then we can say the start size is random
+[05:23] between 0.2 and 0.6 more or
+[05:26] less let's take care of the aspect let's
+[05:29] sign the material
+[05:32] recreated it's super bright right now
+[05:35] but we can select the dark orange and
+[05:37] then decrease the
+[05:39] value until you think it looks nice
+[05:42] right so this is a flare and a
+[05:45] Sparks it is kind of blinking really
+[05:47] fast and abruptly to fix that we can use
+[05:50] a color over lifetime which will change
+[05:52] the alpha in the beginning and in the
+[05:54] end it's going to be transparent and in
+[05:56] the middle it's going to be visible and
+[05:57] it will look smoother right
+[06:00] we can also use the size of our lifetime
+[06:03] where it grows like this from small to
+[06:06] big and that's pretty much it and then
+[06:08] increase the emission perhaps play a
+[06:10] little bit with the colar but that's
+[06:12] essentially it we have created some very
+[06:15] quick Sparks and as you can see it's
+[06:17] quite straightforward the particle
+[06:19] system contains everything really nicely
+[06:21] organized and by default we already have
+[06:23] a material that works with the particle
+[06:25] system a Shader as a matter of fact and
+[06:27] that's it in a real
+[06:29] it's a little bit different to workflow
+[06:32] so let's see how it is you see in unreal
+[06:34] with the Niagara particle system we have
+[06:37] two distinct actors an nagri meter and
+[06:40] an Agra system an nagra system requires
+[06:43] nagers only the nagra system goes to the
+[06:46] scene into the scene as you can see this
+[06:49] is the nagra system with two nagra
+[06:51] meters so let's start right there let's
+[06:54] start by creating two nagri meters with
+[06:56] right click effects nagri Metter and
+[07:00] there's a bunch of templates that we can
+[07:02] start from right which is useful I like
+[07:05] to start from the simple Sprite
+[07:08] burst going to select that one and press
+[07:12] finish this is going to be for the ne
+[07:15] which is nag meter underscore Sparks
+[07:18] uncore tutorial and then another nagre
+[07:21] meter you can also start from the same
+[07:23] template the simple Sprite burst and
+[07:26] this one is actually going to be for an
+[07:29] andore well Sprite burst and from these
+[07:33] two nagri meters you can then create a
+[07:36] nagra system also with right click on
+[07:38] effects NRA system and let's start with
+[07:41] new system from selected emitters
+[07:43] because we can start system from the
+[07:46] templates or from the emitters we have
+[07:48] created let's select both while holding
+[07:51] control click the plus sign and as soon
+[07:53] as we press finish boom here we go our
+[07:56] nagra system will have these two nagri
+[08:00] meters what's the advantage of this well
+[08:03] we can see nagri meters as prefabs as
+[08:06] parents and then we will state Childs in
+[08:09] nagra systems on the nagra system I'm
+[08:12] going to click this Arrow to enter on
+[08:14] the nagri meter it will open up a new
+[08:17] tab and let's create some Sparks here we
+[08:19] have a different structure we have the
+[08:21] meter options and then the particle
+[08:23] spawn particle update and the render on
+[08:26] the emitter this is set to Loop only
+[08:28] once we want want it to be infinite
+[08:30] instead and we don't want a burst on
+[08:32] this plus sign we can search for a rate
+[08:34] similarly to what we have done in unity
+[08:37] you can remove the burst and then we
+[08:39] have the initialized particle with the
+[08:41] lifetime the start color basically the
+[08:44] position and the size down here which is
+[08:47] set to uniform which means we cannot
+[08:50] stretch the particle let's set it to
+[08:52] random nonuniform and that's how it's
+[08:54] stretch it oh yeah we don't have
+[08:56] particles because spawn rate is set to
+[08:58] zero let's set it to 100 particles for
+[09:01] example and now we can stretch the
+[09:03] particles on the initialized particle to
+[09:05] be between 1 and 10 for the minimum of
+[09:07] the X and Y and for the maximum of X and
+[09:10] Y between five and
+[09:13] 50 we don't see much of a difference
+[09:16] let's take care of that by adding
+[09:18] velocity to them on the particles bound
+[09:20] R we want to say that these particles
+[09:22] will be BN with a certain velocity and
+[09:25] we can select linear from point or from
+[09:28] code we want a cone shape
+[09:32] yeah this is different from the shape
+[09:35] model we have in the particle system of
+[09:37] unity it's only the velocity yeah sorry
+[09:39] the timeline was paused you can press
+[09:41] play down here and see how it looks
+[09:44] there are still overlap a little bit so
+[09:45] let's increase the velocity so it gets
+[09:48] scattered cool thing is that we can
+[09:50] transform values into another property
+[09:52] for example we can say this fault is
+[09:53] random now on this Arrow random range
+[09:56] something between 250 and 1,000
+[10:00] 500 here we go and just like in unity
+[10:03] they are all facing up and they are not
+[10:06] aligned with their velocity vector and
+[10:08] we fix it in the same spot on the render
+[10:11] down here on the Sprite render the
+[10:12] alignment can be velocity alignment and
+[10:16] here we go we have some Sparks look at
+[10:17] them beautiful that's pretty much it the
+[10:20] only thing we are missing is gravity now
+[10:22] in relation to what we have done in
+[10:23] unity and gravity is a force that needs
+[10:25] to be continuously applied so that's
+[10:28] something we can do in the particle fate
+[10:31] looking good that's pretty much it if we
+[10:33] save this and go back to our Niagra
+[10:36] system where we build our effects in the
+[10:38] Niagra system there's a little bug here
+[10:41] I believe which is the velocity line
+[10:43] didn't take effect but all of the rest
+[10:45] is exactly the same as its parent so
+[10:48] yeah on the Sprite render we can say
+[10:49] velocity align
+[10:51] it here we go that's it let's take care
+[10:55] of the Sprite burst here very quickly
+[10:58] for example it does Loop so in the meter
+[11:01] State instead of once let's say it's
+[11:04] infinite and we also don't want the
+[11:06] burst we want the rate for the spawn
+[11:08] remove the burst and a rate of 10
+[11:11] perhaps that should be
+[11:12] enough similarly to what we have done in
+[11:15] unity let's add a random size in this
+[11:19] particle we can say it's random uniform
+[11:22] this time between 50 and
+[11:25] 100 then we have the scale color just
+[11:28] like we did in unity so Fades out which
+[11:30] is what it's doing it's only scaling the
+[11:33] alpha and we can also search for size on
+[11:36] the particle update and use a scale
+[11:38] Sprite size which will control the size
+[11:40] of the particle throughout its lifetime
+[11:43] we can say it's growing just like this
+[11:44] you can leave it as it is and down here
+[11:47] as you can see in the timeline yeah the
+[11:49] lifetime is very very long so let's
+[11:51] decrease it something shorter up here we
+[11:54] can say random between 0.1 and
+[11:57] 0.3 here we go very quickly that's
+[12:00] pretty much it if you go to our nro
+[12:02] system this updates automatically the
+[12:04] changes that we have done let me just
+[12:07] push the timeline to the beginning and
+[12:09] here we go if we go to our map to our
+[12:12] level on the content drawer we can drag
+[12:14] and drop our Niagra system to the scene
+[12:17] place it somewhere nice and that's
+[12:19] essentially it we have some Sparks we
+[12:21] just need to adjust color a cool thing
+[12:24] about Niagra and VFX graph is that we
+[12:27] can expose properties let's do that very
+[12:30] quickly on these user
+[12:31] parameters on the plus sign let's search
+[12:34] for linear color rename it to Sparks
+[12:37] color and then on the Sparks on the
+[12:41] particle on the color we can assign the
+[12:46] color and now if you go to the map this
+[12:49] is exposed and we can directly control
+[12:51] in the inspector in the level the color
+[12:54] for example and here we go super bright
+[12:58] ins spire
+[12:59] you can do the same for the flare yeah
+[13:02] you can go again to the Agro system
+[13:04] search for the type you want in this
+[13:06] case linear color and assign it to the
+[13:09] color in the initialized particle of the
+[13:10] Sprite burst and that's essentially it
+[13:13] now you can adjust the color on the
+[13:16] level there we go that's it we have some
+[13:19] Sparks also in un real so as you can see
+[13:22] there is major difference here when it
+[13:23] comes to workflows you have nagri meters
+[13:26] that goes inside nagri systems
+[13:29] and then not everything is exposed you
+[13:31] need to search for specific models like
+[13:33] we did for the gravity for the Sprite
+[13:35] size scale yeah so that's the major
+[13:37] difference let's have a look at goo
+[13:40] which is very similar to the particle
+[13:42] system of unity let me just add this and
+[13:47] just like in unity we want to start with
+[13:48] an empty game object in this case a node
+[13:51] 3D that we can rename to VFX uncore
+[13:55] sparksor tutorial or V2 yeah sure and
+[13:58] and with right click here we want to add
+[14:00] a sh node this time for the GPU
+[14:04] 3D this is the particle system rame it
+[14:08] to Sparks and we need we need a new
+[14:11] particle process
+[14:13] material which has a bunch of properties
+[14:16] similar to the particle system of unity
+[14:18] it's essentially the particle system and
+[14:20] then we need a draw pass which is
+[14:22] basically what is the mesh that we are
+[14:23] going to draw in this case we want to
+[14:25] draw a quad which by default it's
+[14:28] already setting unity and in unreal but
+[14:30] here we need to specify and then in
+[14:33] Geometry it's basically the material in
+[14:35] this case we are going to use a standard
+[14:37] material 3D and we can open this
+[14:40] material over right by clicking on the
+[14:41] sphere and we have a bunch of material
+[14:44] properties that you can control let's
+[14:46] start from the top basically
+[14:48] transparency yes we want it to be in
+[14:50] Alpha Co mode is basically if it is
+[14:53] two-sided as you can see we don't see
+[14:55] from the back let's say it's disabled so
+[14:58] we can see from back and from the front
+[15:01] and as you may have noticed the back is
+[15:02] a little bit darker that's because in
+[15:04] shading mode we wanted to set it to
+[15:07] unshaded so it isn't affected by the
+[15:09] lights of the scene in this case vertex
+[15:12] color we'll see in a moment in albo we
+[15:13] can assign our texture here I'm going to
+[15:17] do a quick load I have already flare 00
+[15:19] on this
+[15:21] project and here we go lastly the
+[15:25] billboard is specifically set on the
+[15:28] material not on the particle system
+[15:30] that's a huge difference compared to
+[15:32] Unity particle system or Niagra which is
+[15:35] all right totally all right we want to
+[15:36] set it to particle billboard so it
+[15:38] always faces the camera as you can see
+[15:41] and we'll see a funny thing in a moment
+[15:43] let's also turn on keep scale so we can
+[15:46] change the size of the particle right
+[15:48] I'm just going to push this empty Hub a
+[15:51] value of
+[15:52] 1.5 on the Y and now for the Sparks well
+[15:56] let's go up here to the particle process
+[15:58] material let's start from way above the
+[16:00] amount of particles we want the rate
+[16:02] let's set it to something crazy again
+[16:04] like 160 and the time of each particle
+[16:08] lifetime in this case it's going to be
+[16:10] 1.2 but we are going to add Randomness
+[16:13] to that Lifetime on the process material
+[16:16] you can say the lifetime Randomness is
+[16:18] 0.5 a bit weird why is it so far below
+[16:22] emission shape we can say it's a sphere
+[16:24] we don't have code but that's all right
+[16:27] and the radius can be small like 0.2 or
+[16:30] 0.1 just so they don't start at the
+[16:32] exact same
+[16:33] position this is always going down
+[16:35] because of the gravity we can set it to
+[16:38] Minus 5 and then we want some initial
+[16:41] velocity which is basically the start
+[16:42] speed in unity of the particle system
+[16:45] and add velocity in Niagra a minimum of
+[16:48] three and a maximum of
+[16:50] six and they are going in a specific
+[16:53] direction that is set up there we will
+[16:55] see in a moment for now let's decrease
+[16:58] the size which is scale and we can say
+[17:02] 0.02 and
+[17:04] 0.1 everything is a little bit mixed up
+[17:06] in here I would say but it's all right
+[17:08] once you get to know where everything is
+[17:11] for example the color I have already a
+[17:12] Swatch here I'm going to select it you
+[17:15] can copy the values from the RW section
+[17:18] if it goes above one it will become
+[17:20] brighter and on this case nothing is
+[17:22] showing because on the material we need
+[17:25] to specify the vertex color we want to
+[17:27] enable we want to use as albo and here
+[17:30] we go beautiful color so the particle
+[17:33] system can communicate with the color of
+[17:35] the material it's also worth mentioning
+[17:37] that I have also postprocessing effects
+[17:41] like some
+[17:42] glow which really adds that nice Clow
+[17:45] anyway back to the Sparks they are round
+[17:49] as you can see we need to stretch them
+[17:51] right just like we did in unity and in
+[17:54] unreal but first as you can see up here
+[17:56] we have the direction if you if you set
+[17:58] it to one in y it goes up and if we set
+[18:01] it to one in Z it goes to the Z I'm
+[18:04] going to leave it at one in X but the
+[18:06] spread essentially is the angle even
+[18:10] though it's spawning in a sphere
+[18:11] location thanks to this direction it's
+[18:14] going to the xais Direction with an
+[18:16] angle of 45 which we can decrease to 20
+[18:20] to take care of the stretch of the
+[18:23] particle how do we stretch it it's also
+[18:25] in scale but for some weird reason it
+[18:28] it's via curve we want to use here a
+[18:31] curve X Y and Z texture we need to
+[18:33] create a new curve for the X Y and Z
+[18:37] which by default they are all set to
+[18:38] zero as well and let's open the Z curve
+[18:42] for example create a key push it to one
+[18:45] do the same now for the Y create key
+[18:49] push it to one and in the X a new key
+[18:51] and push it to one here we go they are
+[18:54] visible so here's the cool thing now we
+[18:56] can stretch them in the Y
+[18:59] AIS we can say the max value of this
+[19:02] graph is three and then push this key
+[19:05] all the way up and here we go we are
+[19:07] stretching them let's add a key at the
+[19:09] end and push it down so they shrink at
+[19:11] the end let's do the same in X we want
+[19:14] the key at the end push it down exactly
+[19:16] like this so they become smaller at the
+[19:19] end okay so they are stretched but they
+[19:22] are not aligned with their velocity
+[19:24] Vector so how do we do that here in goo
+[19:26] it's a little bit weird when again but
+[19:29] it works that's all right it works we
+[19:31] want to turn on a line Y in the
+[19:34] particles flag nothing really changes
+[19:37] and that got me wondering why nothing is
+[19:39] changing well after making a few tests I
+[19:42] realized that billboard is getting in
+[19:44] the way if we disable it as you can see
+[19:46] now each particle is aligned with their
+[19:48] velocity vector and it looks awesome
+[19:51] that's it we have some Sparks in G so
+[19:54] yeah I would say a bit more confusing
+[19:56] with a few improvements in organization
+[19:58] this will be awesome let's create the
+[20:00] flare by the way right click add the sh
+[20:03] node GPU particle 3D rename it to flare
+[20:07] and we need to create the same process
+[20:09] here new particle process material
+[20:12] exactly we need a draw pass which is the
+[20:15] mesh let's say it's a quad and G
+[20:18] material new standard material 3D
+[20:21] transparency it's Alpha shading is
+[20:26] unshaded vertical color yes use as albo
+[20:31] and a textor quick load flare 00
+[20:35] 0 and now this one yeah we need it to be
+[20:37] in billboard mode particle billboard
+[20:40] andent turn on keep scale so we can
+[20:42] change it scale on the particle system
+[20:44] up there and now let's say the amount is
+[20:47] four the rate and the lifetime is 0.2
+[20:50] and now on the process material let's
+[20:53] click it to open this up let's say the
+[20:55] lifetime is random one for example
+[20:58] example shape is all right let's say
+[21:00] it's smaller the scale between 0.1 and
+[21:04] 0.5 we also want a curve texture which
+[21:07] is different than the other one that
+[21:08] Expos each axis and in here we want to
+[21:11] say it grows for example from small to
+[21:13] big something like this the user
+[21:15] experience of the curves is great here
+[21:17] in GTO gravity yeah it doesn't need to
+[21:19] move so I'm going to set it to zero and
+[21:21] here we go we have a flare a static
+[21:23] flare all we got to do now is select the
+[21:25] color I'm going to use on the Swatch is
+[21:28] the same color that I had previously and
+[21:30] that's essentially it I didn't show you
+[21:32] all to fade in and fade out but it is
+[21:34] the color ramp forgot to record that but
+[21:38] now you get an idea of the differences
+[21:40] between each one of these three engines
+[21:44] I would say God is a little bit more
+[21:45] confusing it's normal it's compared to
+[21:48] Unreal and unity it's more recent
+[21:50] andreal has a ton of experience but you
+[21:53] need to know what you are doing you need
+[21:54] to know which models you want to use the
+[21:57] same thing happens in VFX graph which we
+[21:59] didn't use here but if you want to watch
+[22:01] this tutorial you will see how to create
+[22:03] the same effect in the particle system
+[22:04] and in VFX graph which is also some
+[22:06] Sparks and you will see the difference
+[22:08] between each one and then we have the
+[22:10] particle system from Unity which is very
+[22:12] well organized everything is there and
+[22:14] it has been used for many games and
+[22:16] works in all platforms so yeah that's
+[22:19] pretty much it I hope you have enjoyed
+[22:21] this video I triy to show a little bit
+[22:23] of each engine in terms of particle
+[22:25] systems and what they can do and how do
+[22:28] you set up the basic stuff you know so
+[22:31] yeah that's it these videos are possible
+[22:32] thanks my Patron I going to say thank
+[22:34] you to each one of them and if you can
+[22:36] support me that would be awesome and I
+[22:37] would be able to keep on creating these
+[22:39] type of videos for you and lastly a
+[22:41] quick shout out to the top tier patrons
+[22:43] as usual which are admin lion car
+[22:45] Alberto Sager Alexander brazy alen alad
+[22:48] alvan Aon fire avat tobali Brian plam
+[22:51] cyber cradle Daniel Schmid daaku Diana
+[22:54] siman dad di Marx di stle El Sheriff
+[22:57] Eric orner F Striker Frosty 40 George
+[23:00] Michael B gr labam trindad Jackson Doyle
+[23:03] Jared Billy GC DC Miller top Leon n Luli
+[23:07] Matt Mor ma resesi Mike Bell Nat Sims
+[23:10] Nikolai yov passy 98 pan vut fryan
+[23:14] radioactive bullfrog Revenant games
+[23:16] Robert tting rvr the Gap here Tom Tom
+[23:19] Travis mull baruta will H will poon Shan
+[23:23] D MD CH and MJ game so that's it guys I
+[23:26] hope you have enjoyed and
+[23:28] I hope to see you in the next one thanks

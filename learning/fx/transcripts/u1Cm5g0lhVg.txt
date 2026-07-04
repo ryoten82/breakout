@@ -1,0 +1,339 @@
+[00:00] Hi guys, I'm Master W video. Today we
+[00:03] will make this simple but looking cool
+[00:04] effect in Unreal Engine So I will
+[00:07] make everything from scratch the
+[00:09] material and all the amters. So you will
+[00:12] not skip anything and just you will
+[00:15] learn everything and by the end of this
+[00:17] video you will make this kind of effect
+[00:19] by yourself. If you have any question,
+[00:21] if you like just comment below the video
+[00:23] and don't forget to subscribe my channel
+[00:24] for more videos like this. So let's dive
+[00:27] in. So let's start this. So, first I
+[00:29] need a map. So, I'll just take this one.
+[00:33] And let me make the lighting little
+[00:35] darker. Maybe just one. And this ground
+[00:40] And I don't need this player start. So,
+[00:42] I will delete this.
+[00:46] Then I will need a sequencer. Can take
+[00:50] it from here.
+[00:52] And let's open this. Now, you need a
+[00:54] animation. So I just found this one in
+[00:57] my project. So you can use proper
+[01:00] animation if you want. So this one will
+[01:03] also work here. So I'll just drag into
+[01:06] the sequencer
+[01:09] and choose the animation here. But but
+[01:11] the animation name is uh block
+[01:17] idle. So I'll just here type the block
+[01:21] idle. And now we got this animation.
+[01:25] Cool. Now we will make our effect around
+[01:28] it. Let me rotate it like this. Maybe
+[01:32] just 90°.
+[01:40] Okay. You can also put a camera if you
+[01:47] like like so.
+[01:52] Cool. You can also add light if you
+[01:54] want. And I think I will rotate it a
+[01:58] little bit
+[02:00] because it's too much on this.
+[02:07] Yeah. This one. And I'll just reduce the
+[02:10] focal length.
+[02:13] Make it sharp like this. Cool. Now we
+[02:16] will make our effect here.
+[02:19] And this one little bit here in the
+[02:21] center. Cool. So, I'll just save
+[02:26] I'll just save the map. Okay. So, first
+[02:29] we need a cool material and it's all
+[02:31] about material because your particle
+[02:33] system going to be very simple. So, it's
+[02:35] all about material. So, let's check
+[02:37] that. So, I'll just make m ring. I'll
+[02:41] make the a ring kind of material. Uh
+[02:45] some stylization I will add. Not simple.
+[02:48] So I will use unlit and translent
+[02:52] material. You can make it two side if
+[02:54] you want. If you don't you can use
+[02:57] single side. So basically to make a
+[02:59] radial to make a ring there are lots of
+[03:01] ways. You can just take a radial and use
+[03:03] a sign here
+[03:09] and it will make you a ring. But this is
+[03:12] sharp from here and outer part is faded.
+[03:15] So you can make the sign too. So it will
+[03:17] be faded from both side and then you
+[03:19] will have a control with the power how
+[03:22] much you want to like make the
+[03:27] Okay. Then the second thing I want to
+[03:29] add some stylization in it. So what I'll
+[03:32] do I'll take the noise or you can take
+[03:36] noise texture if you want but I'll take
+[03:38] this aura texture that I have.
+[03:43] Okay. And because this aura texture is
+[03:46] like flat, it should be like a radial.
+[03:49] So for that I will need back to radial
+[03:54] not. And just connect this radial
+[03:56] coordinates to here and see what
+[03:59] happens. Cool. This seam if you want to
+[04:02] remove that select your texture ramper
+[04:04] go here and use the flavor.
+[04:08] It will go on. There are lots of other
+[04:09] ways to remove that. Now you can handle
+[04:13] the tiling of this letter. But if you
+[04:16] multiply these both, but you'll have
+[04:19] we'll have a ring
+[04:22] little bit styliz. You can see here.
+[04:25] Let's do some more tiling.
+[04:29] Maybe I'll use two for now. So now you
+[04:32] will see more here.
+[04:35] And after that to make it more stylized
+[04:38] but I'll do because this is all faded
+[04:40] you can multiply it with a higher value
+[04:43] then take the floor
+[04:49] and then divide
+[04:51] and use the same parameter in the
+[04:53] multiplier and divide. What it will do
+[04:56] it will
+[04:58] make these values round so the fadness
+[05:02] will go. Let me show you how. So if you
+[05:05] have this like four now you will see how
+[05:09] it looks. Let it compile. See. So it has
+[05:12] now these layers bright dull then model.
+[05:17] This value if you'll increase it will
+[05:20] keep adding layers on it of details and
+[05:23] it will be same as it was. If you
+[05:26] increase too much it's same. So you can
+[05:28] decrease it according to what you need.
+[05:32] So let's say it's four for now. Now I
+[05:36] want different colors with this shading.
+[05:40] So I had a tutorial recently I created.
+[05:43] If I'll show you
+[05:45] there's a new node otherwise I use
+[05:48] different thing but there's a new node
+[05:51] this one color ramp. 3 weeks ago I
+[05:54] created this video. So color ramp is new
+[05:57] thing in this material and you can just
+[06:00] put this here. connect. So I'll just
+[06:03] saturate it for uh let's
+[06:07] multiply it because it's little faded.
+[06:10] So I will multiply it like three and
+[06:13] then saturate. Let me preview this
+[06:16] first. If I will like then I will go as
+[06:19] too much. Maybe 1.5 just little bit.
+[06:26] maybe 1.2.
+[06:28] Then we can use this in the color ramp.
+[06:31] What color ramp will give us? It has a
+[06:34] gradient here. So depends on your
+[06:37] texture or your uh color texture or
+[06:40] anything you have in in the input, it
+[06:42] will give you the colors. So first I
+[06:45] want this whole white to turn black. So
+[06:47] that means this white part will be
+[06:50] black. And then I'll make this black
+[06:53] part white.
+[06:55] So now it will be same as it was. But
+[06:58] now I can control this. So let's say
+[07:02] after the black which is this background
+[07:04] the second layer is this which is very
+[07:06] dark. So I want to make this uh some
+[07:09] color. So you can see this is the same
+[07:11] color tone here from here to here. So I
+[07:14] will add a swatch here. And let's make
+[07:17] it blue
+[07:20] like that. The rest is white. Then the
+[07:23] second layer is this one which is around
+[07:26] here. I can add one layer here and make
+[07:30] this like bright blue. So now this is
+[07:34] color. Now the third layer which is
+[07:36] white which is taking from here. So you
+[07:38] can just use it like this or you can
+[07:41] make it a little brighter maybe five. So
+[07:44] it will be brighter like that. Cool. So
+[07:47] this is how you do things. And now I
+[07:50] will connect this here.
+[07:52] I'll take the particle color. Uh if you
+[07:54] want to increase or decrease things
+[07:57] multiply then I will multiply this with
+[08:01] the alpha
+[08:03] connect this and there's a error here so
+[08:06] what I'll do
+[08:10] after the saturate I'll set three C for
+[08:12] the masking I'll just take the red
+[08:14] channel and put it here
+[08:20] where is showing me the node multiply
+[08:26] I'll do the same here.
+[08:31] Where is giving me the error?
+[08:37] Let me save.
+[08:39] Let me check
+[08:44] float three and float four.
+[08:58] Oh, this one giving me an error. So
+[09:01] maybe I'll have to use a this thing
+[09:04] here. And just actually I need RGB
+[09:10] because this is slot 4. It has also
+[09:13] alpha. So it's flot 4. And this is just
+[09:16] RGB. So it's flot three. That's why this
+[09:19] is flo for if you will use this it will
+[09:21] take this. So cool. So if I
+[09:27] show you this is with the opacity mask
+[09:29] now. Cool. And I have to make some
+[09:32] parameter first. This we can call it
+[09:35] layers. By default I will make it four.
+[09:40] So this is layer.
+[09:43] I'll make it four.
+[09:45] Then we have tiling. So I will use
+[09:47] append. So because I want tiling X and Y
+[09:50] separately. So I'll connect this here.
+[09:53] Connect this here. I'll just call it TX
+[09:58] and TY.
+[10:00] Anything else I want? Yeah,
+[10:03] I want this which is the the thickness
+[10:06] of rad the ring. So this is ring
+[10:12] Ring thickness.
+[10:15] Okay. So let's save it
+[10:19] and see what we can do in the material
+[10:23] in the Niagara sorry I'll take the
+[10:25] Niagara and take this empty one
+[10:29] and it's false
+[10:33] I need particle so I will use this
+[10:36] emitter minimal I'll just take the bust
+[10:40] one particle
+[10:42] okay and let's say The size of this
+[10:46] maybe 200.
+[10:49] Okay, I'll use this material. Browse
+[10:51] this and
+[10:53] pick it here. Then dynamic parameter
+[10:57] default settings layer four tiling one
+[11:00] bun and ring thickness maybe six. Okay.
+[11:04] So now this is a thickness.
+[11:09] This is a tile.
+[11:15] this much I like it this much. And this
+[11:19] is details. If you increase it, it will
+[11:21] be faded and which also I like. So I
+[11:24] will use little more sharper in this one
+[11:27] in this layer. Cool.
+[11:31] You can add uh rate rotation basically
+[11:35] here if you want.
+[11:37] Reply. Let's make this local space. Let
+[11:41] me check the size. So I will drag it
+[11:43] here into the sequencer.
+[11:46] Move it here
+[11:49] and move back on the X
+[11:54] is little more big instead of 200 150 I
+[12:03] So maybe 120.
+[12:06] So it should also fade in fade out or
+[12:09] you can dissolve it because with this
+[12:11] node thickness is 2.7.
+[12:14] If you decrease it, it's almost
+[12:16] decreasing like 40. So you can also
+[12:21] animate this with the fade in fader out.
+[12:24] So let's say I make curve I make use
+[12:27] this one 2.5 and both side 40.
+[12:32] So it will come and go. But I want this
+[12:35] curve. So it will remain two for a
+[12:41] And life. Uh let me have delete this and
+[12:44] take the spawn rate maybe two
+[12:47] or five.
+[12:52] Or what you can do don't do this. Take
+[12:55] the bust. Take one particle spawn once
+[12:59] and turn this off. So life will remain
+[13:01] forever. And I just want this to be 2.5.
+[13:06] So it will be remain same always. Cool.
+[13:09] Then I'll duplicate this layer. And the
+[13:12] second layer what I'll do? I'll increase
+[13:14] the thickness
+[13:19] and increase the this thing. And also
+[13:22] I'll change the tiling maybe
+[13:25] two and four.
+[13:32] this one and I'll decrease the opacity.
+[13:37] Basically, I'll go here.
+[13:45] So, we will have both. I can make it
+[13:48] little more bigger if you want and also
+[13:52] change this this so it will have like
+[13:57] both thing together. You can also make
+[14:00] it more blue if you want from here
+[14:03] and decrease the alpha even more maybe
+[14:08] So now there's a fading thing and
+[14:10] there's a sharp thing. So basically both
+[14:14] things are there.
+[14:18] You can add more that rotating fast or
+[14:21] something like that. So you can just
+[14:23] duplicate it one more time.
+[14:25] Like you can
+[14:29] make this thin. Then you can increase
+[14:31] the tiling
+[14:35] like this. Then make it faster, more
+[14:39] faster. And you can make it brighter.
+[14:45] Just showing you. It depends how you
+[14:48] want it.
+[14:53] It's too much, right?
+[14:56] I'll just make it
+[15:01] like this. So, you will have something
+[15:04] going on here. So, it depends. If you
+[15:06] want it, you can use it. If you don't
+[15:09] don't use it, maybe 100. I'll use 80,
+[15:14] I think. 90.
+[15:16] So, it should be Yeah, 100.
+[15:21] Looks cool, right? So, it's very simple.
+[15:24] I'm not making it very complex or
+[15:26] something. It looks simple. If you want
+[15:29] to make the background little darker,
+[15:31] you can also do that. So, let's say this
+[15:34] one, the first one, you can just
+[15:36] increase the alpha. If I make this
+[15:38] direct and increase the alpha like this,
+[15:42] it will be
+[15:44] like very opaque, right? So you can also
+[15:48] do one thing.
+[15:51] Make it one. I'll duplicate the second
+[15:54] one. Just testing something. And let's
+[15:57] make it black.
+[16:00] And increase the alpha like this because
+[16:03] it it is softer. So it will make that
+[16:07] Cool. I think this is too much. This
+[16:09] much is enough.
+[16:14] You can add more fluidic effect in this
+[16:16] if you want. So for that I'll go to the
+[16:19] material like distort this. So what I'll
+[16:22] do I'll take a noise texture.
+[16:31] Any noise you can take
+[16:34] like I'll take this one. And then first
+[16:39] I will add a panner in this one
+[16:43] maybe 0.1.
+[16:46] So it will pan
+[16:48] not this direction maybe 0.1. And let's
+[16:51] add also 0.1 here.
+[16:56] Okay. And then I will use the same
+[16:59] setting for noise. And then multiply
+[17:02] this noise and add it
+[17:06] back here.
+[17:09] for the UVs of this and this multiplier
+[17:12] is basically how much I want distortion.
+[17:15] So I will duplicate this
+[17:18] and make this one because I want another
+[17:23] and I'll call it distort
+[17:26] and just connect it here in the
+[17:27] multiplier. Let's save it.
+[17:35] So don't see that. Uh so what I'll do
+[17:39] first distortion I will make zero and
+[17:42] see is penny.
+[17:44] Okay. And then we can make like 0.1
+[17:48] or 2. So now it's more fluidic.
+[17:53] Cool. And now you have this second
+[17:55] layer. You can make it more fluidic.
+[17:57] Maybe one
+[18:00] looks cool.
+[18:02] And then we have this black layer. It
+[18:05] looks fine. So all together this look
+[18:09] fine. Just the rotation is missing. I
+[18:12] will make it faster. Maybe 50
+[18:19] and 10.
+[18:22] Yeah, now it's it has more animation and
+[18:26] looks fine.
+[18:28] Cool. You can add a light if you want a
+[18:30] point light.
+[18:33] Make it blue.
+[18:36] Yeah. And decrease the size
+[18:41] and open it just little bit so it will
+[18:45] connect with your effect. So I hope
+[18:47] that's it. I hope you liked it. Thanks
+[18:49] for watching. Keep learning and bye-bye.

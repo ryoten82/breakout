@@ -19,9 +19,11 @@
 
 ## ドメイン構成
 
-### bg/ — 背景（23 本学習済・2026-07-04）
-- **[bg/bg_technique_doctrine.md](bg/bg_technique_doctrine.md)** — 蒸留版 v4（3149B・日常はこれだけ読む。§14にパフォーマンス対策の引き出し追加・圧縮済）
+### bg/ — 背景（25 本学習済・2026-07-04）
+- **[bg/bg_technique_doctrine.md](bg/bg_technique_doctrine.md)** — 蒸留版 **v5**（2026-07-04 Fable 蒸留。KitBash3D 273分コース統合: PLIワークフロー詳細化（Pivot設計・事後変更不可・1.75倍則）・Is Spatially Loaded・MPC一括制御・構図原則F/M/B+フォーカルポイント・大→中→小の密度・Shared Wrap地雷・Mesh to Collision）
 - [bg/playlist_inventory.md](bg/playlist_inventory.md) — 動画目録・学習状況
+- [bg/videos/AkDRS7g0LtM_kitbash3d-mission-to-minerva.md](bg/videos/AkDRS7g0LtM_kitbash3d-mission-to-minerva.md) — KitBash3D「Mission to Minerva」フルコース273分（9チャンク並列抽出・**Fableスポット照合済**: Is Spatially LoadedのASR崩れ"especially loaded"復元と1.75倍則[196:53]を原文確認）。**Packed Level Instanceワークフロー・Is Spatially Loadedオフ・MPC一括制御**が横断的な核心技術
+- [bg/videos/oEQCAnwclTg_realistic-scifi-free-assets.md](bg/videos/oEQCAnwclTg_realistic-scifi-free-assets.md) — 無料アセットでSci-Fi通路を組む17分動画（**Fableスポット照合済**）。ライト非対称配置（主光源6/補助光2）・プロップで継ぎ目を隠す手法・Exposure方向をジャンルトーンから逆算
 - 個別ノート 23 本 = 環境系 3 + Starter Course 4 + フォグ/水中/スタイライズ + 工事現場（set dressing の本命）+ Epic 公式 Medieval 最適化 5（計測駆動 / Lights&Shadows / HLOD / Landscape+LayerBlendHeight / RVT）+ Mesh Paint（UE5.5+ 新機能）
 - [bg/videos/pcg-overview.md](bg/videos/pcg-overview.md) — PCG（Points/NodeGraph16種/Attributes-Metadata）。**set dressing自動化の可否を仮説整理**（anchor連鎖=不向き／整列崩し・decal散布=向く候補）
 - [bg/videos/common-memory-cpu-considerations.md](bg/videos/common-memory-cpu-considerations.md) — GC/ObjectPooling/非同期スポーン分散(5体×6フレーム具体例)/PSOPrecaching。§9-13「計測の次の対策」（Fable監査済・原文数値照合一致）
@@ -32,14 +34,39 @@
 - [bg/applications/bgtest01_experiment_plan.md](bg/applications/bgtest01_experiment_plan.md) — L_BGTest01 実験 E1〜E6（UE エディタ起動待ち）
 - Fab リスティング「Military Trench」（無料サンプルプロジェクト）: WebFetch 403 + Chrome拡張未接続で今回アクセス不可。ダウンロード+UE MCP直接検査という新経路の実現性はある（要Fabプラグイン経由のGUI操作+エディタ別インスタンス）が未実施
 
-### fx/ — エフェクト（3 本学習済・2026-07-04）
-- **[fx/fx_technique_doctrine.md](fx/fx_technique_doctrine.md)** — 蒸留版 v1（2908B・2026-07-04 Fable 蒸留。Spawn/Update 配置原則・Particle State 必須の罠・Execution State・Inheritance 量産・Fluids 5 種の住み分け）
+### fx/ — エフェクト（22 本学習済 + 公式サンプル実地検査 60 システム・2026-07-04）
+- **[fx/fx_technique_doctrine.md](fx/fx_technique_doctrine.md)** — 蒸留版 **v2.1**（2026-07-04。動画19本統合のv2に公式Niagara Examples実測を上書き反映: **公式はSort Order HintでなくRendererVisibilityタグ+ブレンドモード分離／Death EventでなくAttributeReader連鎖が推奨形**・System階層=監督パターン・NDC・Stateless(Lightweight)エミッタ・1粒3レンダラー）
+- **[fx/inspections/](fx/inspections/)** — **UE MCP実地検査**（公式Niagara Examples、MyProject sandbox、読み取り専用）。3レポート: [01=カタログ60件+PickUp/Markers/Player](fx/inspections/niagara-examples-01-catalog-pickup-markers-player.md)（Pickup 4部作パターン・Marker収束リング=テレグラフ教科書・Statelessは.uasset直接解析が必要）／[02=Explosions/Smoke/Sparks](fx/inspections/niagara-examples-02-explosions-smoke-sparks.md)（System監督・VisibilityTag分岐・二次火花当選方式・AlphaComposite+DefaultLit煙）／[03=Weapons/Ribbons/NDC](fx/inspections/niagara-examples-03-weapons-ribbons-ndc.md)（MuzzleFlash 6エミッタ・Impact骨格・SimpleRibbonTrail最小形・TeslaCoil・NDC常駐バッチング）。検査ツール一式は [fx/inspections/tools/](fx/inspections/tools/)（mcp_call.py+uassetパーサ、再検査時に再利用）
+- [fx/playlist_inventory_toxic-falls-etc.md](fx/playlist_inventory_toxic-falls-etc.md) — 「Toxic Waterfall」等50本のプレイリスト目録。実質チュートリアル14本を全処理（残り35本超はショーケース映像のためスキップ）。**Dynamic Parameter外部化・Generate/Receive Event疎結合・Additive/Translucent使い分け・Sort Order Hint描画順制御**が横断的な共通設計。**2026-07-04 Fableスポット照合済（幻覚なし）**
+- [fx/videos/wceVb5ftmxs_toxic-waterfall.md](fx/videos/wceVb5ftmxs_toxic-waterfall.md) / [graozMcShMA_anime-waterfall-splash.md](fx/videos/graozMcShMA_anime-waterfall-splash.md) — 毒沼/背景水表現。Erosionマテリアル・Voronoi浸食
+- [fx/videos/SGoNF1UTD3I_muzzle-flash-vfx.md](fx/videos/SGoNF1UTD3I_muzzle-flash-vfx.md) — 交差平面+コーンの4層マズルフラッシュ構成
+- [fx/videos/djlnnPvFR0Q_sword-slash-vfx.md](fx/videos/djlnnPvFR0Q_sword-slash-vfx.md) / [meig8T9uWNc_slash-attack-vfx.md](fx/videos/meig8T9uWNc_slash-attack-vfx.md) — METEOコンボ斬撃直結。Mesh Rotation Forceイージング・多層Bright/Dark構成・4方向クロス複製
+- [fx/videos/EXWwZ4F_reA_ground-slash-vfx.md](fx/videos/EXWwZ4F_reA_ground-slash-vfx.md) — 地上SP技。Decal+Light+Follow Ground Blueprint
+- [fx/videos/NbbFytz-JDk_vertical-beam-vfx.md](fx/videos/NbbFytz-JDk_vertical-beam-vfx.md) — 光柱SP技。5層積層（コア/フレネル/暗背景/Voronoi×2）
+- [fx/videos/omkwqdWMB_U_scifi-barrier.md](fx/videos/omkwqdWMB_U_scifi-barrier.md) — ボス/プレイヤーシールド。ドット+ノイズ+ボーダー加算
+- [fx/videos/HRagD5L-WF8_stylized-smoke-vfx.md](fx/videos/HRagD5L-WF8_stylized-smoke-vfx.md) / [OnxiEY3Khow_stylized-fire-vfx.md](fx/videos/OnxiEY3Khow_stylized-fire-vfx.md) — 爆発煙/炎3層構成（Flames+Smoke+Embers）
+- [fx/videos/kS4Y5DKqsAI_ice-attack-effect.md](fx/videos/kS4Y5DKqsAI_ice-attack-effect.md) — 属性攻撃。Generate/Receive Event同期・多段ウェーブカスケード
+- [fx/videos/-Cdn0_98PXM_meteor-rain-vfx.md](fx/videos/-Cdn0_98PXM_meteor-rain-vfx.md) — 広範囲SP技。Location/Death Event分岐
+- [fx/videos/iDrsEp3AGWA_magic-orbs.md](fx/videos/iDrsEp3AGWA_magic-orbs.md) — OCジェム/浮遊オーブ直結。Sort Order Hint多層構成
+- [fx/videos/R2-BsWb5Bqg_sparks-vfx-engine-comparison.md](fx/videos/R2-BsWb5Bqg_sparks-vfx-engine-comparison.md) — 汎用スパーク。User Parameters公開手法
 - [fx/videos/hnUQiwJweeg_niagara-intro.md](fx/videos/hnUQiwJweeg_niagara-intro.md) — Niagara 入門（日本語公式・Fable 照合済。5 ステージ役割分担・Particle State 必須の消滅仕様・Add Velocity のステージ配置で初速/継続加算が変わる）
 - [fx/videos/niagara-official-concepts.md](fx/videos/niagara-official-concepts.md) — 公式 System/Emitter/Module/Parameter概念 + Execution State（Active/Inactive/InactiveClear/Complete=既存ノートに無い新規情報）+ Inheritance等の高度な概念。既存ノートとの用語対応関係も整理（Fable監査済・Execution State原文照合一致確認）
 - [fx/videos/niagara-fluids.md](fx/videos/niagara-fluids.md) — グリッド(気体)/FLIPハイブリッド(液体)・圧力解法・5種シミュレータ比較(2D/3D Gas・2D/3D FLIP・Shallow Water)。**FLAME UPPER(3D Gas候補)・延焼(2D Gas候補)への応用示唆**（実装未確認、Fable監査済・5種シミュレータ全項目原文照合一致確認）
+- [fx/playlist_inventory_cghow-niagara.md](fx/playlist_inventory_cghow-niagara.md) — CGHOWチャンネル「Niagara VFX Tutorials」全461本の目録（実践的エフェクトレシピ集、UE4世代混在）。461本全処理は費用対効果が見合わず目録のみ作成、5本をパイロット処理（**2026-07-04 Fableスポット照合済・幻覚なし**）
+- [fx/videos/_1tmjPro1JM_scifi-dome-material.md](fx/videos/_1tmjPro1JM_scifi-dome-material.md) — SF Domeマテリアル。Depth Fadeで接触部分発光・クリスクロスパターン・Divide(小値)によるグロー化Tips。**Stage3巨大発光球体への適合性が高い**
+- [fx/videos/owdDqNd-_-s_danger-zone-vfx.md](fx/videos/owdDqNd-_-s_danger-zone-vfx.md) — Danger Zone VFX。既存SBMine型AOEテレグラフとは「常時ループの装飾」vs「時間軸に紐づく攻撃予告」で目的レイヤーが異なると整理、フェイクグロー/Spring Force拘束は装飾レイヤーとして流用検討
+- [fx/videos/UyFSE5fIAWU_perfect-hit-marker.md](fx/videos/UyFSE5fIAWU_perfect-hit-marker.md) — Perfect Hit Marker。多層リング+放射ストリークでコンボヒット/ジャストブロック差別化に応用可、地面向き設定は2.5D固定カメラ向けに要再検討
+- [fx/videos/u1Cm5g0lhVg_force-push-ring.md](fx/videos/u1Cm5g0lhVg_force-push-ring.md) — Force Push Ring。Sine×2両側フェード・Floor+Divide段階化・ColorRamp着色の3層構成、SuperKnockChainノックバック演出への応用
+- [fx/videos/cBc31YcWw_M_impact-burst-effects.md](fx/videos/cBc31YcWw_M_impact-burst-effects.md) — Impact Burst（UE4 Cascade動画、Niagara読み替え注記あり）。リング+グロー+スパーク+星の4層テンプレート、強Dragによる余韻演出
 
-### ui/ — ゲーム UI（0 本・2026-07-03 新設）
-- doctrine: 未作成。UMG/HUD 系動画の投入待ち
+### ui/ — ゲーム UI（4 本 + 参照DB 3 件・2026-07-04）
+- **[ui/ui_technique_doctrine.md](ui/ui_technique_doctrine.md)** — 蒸留版 v1（2026-07-04 Fable 蒸留。Fast/Slow Path負荷原理とチェックリスト・機能選定表（CommonUI/ViewModel等）・テーマ管理定型と3つの罠（親Pre Construct/Draw As/Save All）・Size Box vs Scale Box・参照DB観察の要点）
+- [ui/playlist_inventory.md](ui/playlist_inventory.md) — UE UI Designシリーズ全13本の目録・学習状況（3本パイロット済・**Fableスポット照合済**、残り10本は継続要否未決定）
+- [ui/videos/epic-ue5-ui-design-optimization.md](ui/videos/epic-ue5-ui-design-optimization.md) — Epic Games Japan公式スライド「UE5で作成するUIと最適化手法」81ページ（WebFetch可・独立再取得4項目ペア照合済）。UE5新機能6種（UMG Preview/Slate PostBuffer/UI Component/SlateIM/CommonUI/UMG ViewModel）対応バージョン表・最適化チェック項目（Canvas Panel乱用禁止/Collapsed vs Hidden等）・Fast Path/Slow Pathの負荷原理
+- [ui/videos/bnJ3wDK1f04_part01-setup.md](ui/videos/bnJ3wDK1f04_part01-setup.md) / [PwAUEKNOuCA_part06-button.md](ui/videos/PwAUEKNOuCA_part06-button.md) / [EkEUU7j3x4w_part12-list-item.md](ui/videos/EkEUU7j3x4w_part12-list-item.md) — UE UI Designシリーズ（UE5.3収録・やや古い）パイロット3本（**Fableスポット照合済**: 親Pre Construct罠[15:15]・Save All運用[08:55]・Size Box切替[18:34]を原文確認）。共通親Widget継承・構造体+Data Tableテーマ管理は現行UE5.8でも通用と判断。スタイル管理は現行ではWidget Style Asset等がモダンと注記
+- [ui/reference/gameuidatabase_ghostwire-tokyo.md](ui/reference/gameuidatabase_ghostwire-tokyo.md) — **画像リファレンスDB**（gameuidatabase.com、Ghostwire: Tokyoの実機UI65枚をカテゴリ分類）。常時HUD/Skill Tree/Inventory/Weapon Wheel/通知オーバーレイの重ね順・レイアウト設計を6枚実閲覧して観察。実画像は`reference/images/`でgit管理外
+- [ui/reference/gameuidatabase_concord.md](ui/reference/gameuidatabase_concord.md) — 画像リファレンスDB（gameuidatabase.com、Concordの5v5戦闘UI）。ワールド空間名前タグ+HPバー一体型ラベル・ability icon+キーバインド+クールダウン塗りつぶし・チームHPロースターを6枚実閲覧して観察
+- [ui/reference/gameuidatabase_blazblue-entropy-effect-x.md](ui/reference/gameuidatabase_blazblue-entropy-effect-x.md) — 画像リファレンスDB（gameuidatabase.com、BlazBlue Entropy Effect Xの2.5D横スクロールアクション×ローグライクUI＝**SCRAP BLITZ UEと同ジャンル**）。六角形MPゲージ・ボス戦時のみ出現するHPバー・横方向バー選択肢UI（強化/休憩選択）を6枚実閲覧して観察
 
 ### audio/ — サウンド（1 本学習済・2026-07-04 新設）
 - doctrine: 未作成（2〜3 本溜まったら蒸留）
@@ -69,13 +96,15 @@
 - スキップ: 「Modular Control Rig - Rigging with Modules」チュートリアル（`/community/learning/tutorials/` もSPA・Chrome拡張復旧待ち。代替探索でも既存 modular-control-rigs.md と同一ページ止まりのためユーザー判断でスキップ）
 - 関連: ユーザー指定の元コース「Introduction for Gameplay Animation」「Skeleton Creation and Body Rigging」（いずれもSPA・Chrome拡張復旧待ち）
 
-### lighting/ — ライティング（2 本学習済・2026-07-04 新設）
+### lighting/ — ライティング（3 本学習済・2026-07-04）
 - ソース種別・監査方式は programming と同じ
-- doctrine: 未作成
+- **[lighting/lighting_technique_doctrine.md](lighting/lighting_technique_doctrine.md)** — 蒸留版 v1（2026-07-04 Fable 蒸留。Light5種/Mobility基礎 + SQEX実務ワークフロー: Exposureロック先行・色はライトで作る・極端値での角度決定分離・SourceRadius硬軟・黒で締める・Emissive豊富なら直射光を弱められる）
 - [lighting/videos/lighting-overview-and-mobility.md](lighting/videos/lighting-overview-and-mobility.md) — Lighting全体マップ + Light Type5種/Mobility3状態（Stationary4灯制限等、bgドクトリン§11と棲み分け整理済）（Fable監査済・自己申告なし）
 - [lighting/videos/lumen-global-illumination.md](lighting/videos/lumen-global-illumination.md) — Lumen概要・Nanite/WorldPartition/VirtualShadowMaps統合（ソースやや薄いと明記、Fable監査済・WebFetch独立再照合で統合関係を原文確認・自己申告なし）
+- [lighting/videos/lighting-tips-unreal-fest-tokyo-2025-sqex.md](lighting/videos/lighting-tips-unreal-fest-tokyo-2025-sqex.md) — スクウェア・エニックス講演（Unreal Fest Tokyo 2025）。Exposureロック・SourceRadius硬軟・「黒で締める」引き算ライティング・Lumen Hit Lightingの4項目を独立再取得ペア照合（3項目一致・Hit Lightingのパラメータ表記のみ曖昧と明記）
 
-### materials/ — マテリアル（3 本学習済・2026-07-04）
+### materials/ — マテリアル（4 本学習済・2026-07-04）
+- [materials/videos/substrate-unreal-fest-bali-2025.md](materials/videos/substrate-unreal-fest-bali-2025.md) — Epic公式Substrate深掘り講演（Unreal Fest Bali 2025・91ページ）。メモリバジェット表（Simple8B/Single24B/Complex36B/Complex Special52B）・`r.Substrate.BytesPerPixel`デフォルト80B・応用事例11種を独立再取得3項目ペア照合（全一致）。既存[substrate-materials.md](materials/videos/substrate-materials.md)（概要）を補完する実践編。**メモリ予算はdoctrineへ昇格済（2026-07-04）**
 - ソース種別・監査方式は programming と同じ
 - **[materials/materials_technique_doctrine.md](materials/materials_technique_doctrine.md)** — 蒸留版 v1（2930B・2026-07-04 Fable 蒸留+Substrate有効化+実機確認を同日反映。必須3設定・プロキットは最小構成・MI量産手順・タイリング適用条件・**本プロジェクトSubstrate有効(Adaptive GBuffer)・実害なし確認済み**・実地検査手法の使い所）
 - **[materials/inspections/](materials/inspections/)** — **新ソース種別：UE MCP実地検査**（動画/ドキュメントとは別経路）。[lower-sector-building-kit-report.md](materials/inspections/lower-sector-building-kit-report.md)：生の検査報告（一次資料）

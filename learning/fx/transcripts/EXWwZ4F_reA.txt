@@ -1,0 +1,483 @@
+[00:00] today let's see how this ground slash
+[00:02] can be done in a
+[00:08] real I have previously created this
+[00:10] effect for Unity and it turned out
+[00:12] really cool and now I have decided to
+[00:15] show you how you can do it in a real
+[00:17] Engine 5 it's full of tricks from
+[00:19] Niagara to blueprints from Material
+[00:22] Editor to mesh creation you are going to
+[00:24] learn a lot so let's jump right into
+[00:28] this oh and I made this entire project
+[00:31] along with many others available on my
+[00:33] patreon page links below so let's begin
+[00:36] by creating a new Niagara system an
+[00:40] one rename it to nesor ground slash and
+[00:44] double click to open it up once inside
+[00:47] with right click we can add an empty
+[00:50] Emer which is going to be for the slash
+[00:52] mesh which essentially means down here
+[00:55] in the render we can remove the Sprite
+[00:57] render and replace it with the mesh
+[01:00] renderer and let's add a spawn burst
+[01:03] instantaneous in the meter update so we
+[01:05] can see something here we go now for the
+[01:09] mesh we are going to use this one right
+[01:12] here which I'm going to show you how to
+[01:14] create in blender so let's start by
+[01:16] selecting everything with a and pressing
+[01:19] delete so we have a clean scene we want
+[01:22] to press shift a to
+[01:24] add a busier curve I'm going to press
+[01:27] seven in the numpad so we go to the top
+[01:29] view and I'm going to rotate it minus
+[01:32] 90° in the Z axis and then we can press
+[01:35] tab to enter edit mode and I'm going to
+[01:38] select this handle right here and all we
+[01:40] got to do is push it more or less around
+[01:42] here as you can see we have kind of a
+[01:45] slash shape if you go right here to the
+[01:48] B tab in the geometry drop- down menu we
+[01:51] can extrude an amount of 0.3 more or
+[01:54] less that's
+[01:56] enough and that's when we start seeing
+[01:58] something let's go to up object mode and
+[02:01] from here we can convert this to a mesh
+[02:03] with alt C and by pressing tab we can go
+[02:06] to edit mode and with crlr we can add an
+[02:09] edge Loop right in the middle press
+[02:12] Escape so it stays in place while
+[02:15] holding shift and out I'm going to
+[02:17] select this vertice and I'm going to go
+[02:19] again to the top view with seven in the
+[02:22] numpad and push it with G lock it in the
+[02:26] x axis more or less this amount as you
+[02:29] can see we have some thickness right now
+[02:31] I'm going to scale this down with s and
+[02:34] lock it in the Z we don't need this to
+[02:35] be so thick and then we can take care of
+[02:39] the UVS by creating a new window drag
+[02:42] this corner down here on the left and on
+[02:44] the top left corner we can go ahead and
+[02:47] select UV editor and if we press on this
+[02:50] little icon with two arrows we can now
+[02:53] select this vertic Hub here with b and
+[02:55] in the right window we can see which
+[02:57] vertic we have selected and in this case
+[03:00] it means we need to rotate this select
+[03:03] everything in the UV editor and rotate
+[03:05] it minus 90° so basically this vert are
+[03:09] on the
+[03:10] left and if we select this vertic on the
+[03:13] right as you can see we have the bottom
+[03:16] Edge Loop and we want to go ahead and in
+[03:19] the UV drop down menu turn on constraint
+[03:22] to image bound this will allow us to
+[03:25] push all of this vertex with G lock it
+[03:27] in the X push it all the way way to the
+[03:30] left until it overlaps with the other
+[03:32] vertices and since these vertices on the
+[03:35] mid represent the front of our slash we
+[03:37] can push this all the way to the right
+[03:39] just like this this way we can create a
+[03:42] gradient texture and the front of the
+[03:43] slash will be brighter UVS are extremely
+[03:46] important to map a texture
+[03:49] properly now if you want you can go
+[03:51] ahead and shape a little bit this until
+[03:53] it looks a little bit better in my case
+[03:56] I'm going to push this vertice to the
+[03:58] left so it becomes thinner at the top
+[04:02] and a little bit thicker towards the
+[04:05] bottom oh and by the way these two ver
+[04:07] is right here you can scale them down in
+[04:10] the z-axis you can press zero and then
+[04:13] enter until they are overlapping I think
+[04:16] it will look a little bit
+[04:20] nicer okay so once you have a shape that
+[04:23] you like that you are pleased with we
+[04:26] can go ahead
+[04:27] and let me just get out of C through
+[04:30] mode by pressing Z and with space bar
+[04:33] I'm going to go ahead and search for
+[04:35] shade smooth you can find it up here as
+[04:37] well in the object drop down menu and
+[04:40] this will make it look a little bit
+[04:42] nicer from here we can export this in
+[04:45] the file drop down menu as an
+[04:48] fbx make sure you rename it and up here
+[04:51] you turn on selected object so you
+[04:54] export only the
+[04:57] Slash and once you have the mesh not
+[04:59] forget to assign it to the mesh
+[05:02] render because now we are going to need
+[05:04] a new
+[05:05] material so with right click let's go
+[05:08] ahead and create a new material I'm
+[05:09] going to Simply rename it to mcore
+[05:12] material 01 the first thing we can do is
+[05:15] to make sure this works with whatever
+[05:17] color we choose in Niagara and for that
+[05:20] we can search for particle color another
+[05:23] very useful thing is a texture sample
+[05:25] peram 2D which is going to represent our
+[05:28] main texture from there we can create
+[05:30] two multiply nodes by holding M and
+[05:33] clicking with the left Mouse button
+[05:35] where we are going to multiply the RGB
+[05:37] form partical color with the RGB from
+[05:39] the texture and connect this to the
+[05:42] color then we can multiply the two
+[05:45] alphas and connect them to the opacity
+[05:48] even though it's gray we can now go to
+[05:51] the details of this material and in
+[05:53] blend mode say it's
+[05:55] additive and for the main texture we can
+[05:58] assign this texture right here gradient
+[06:01] horizontal which is available for free
+[06:02] on the link below it essentially goes
+[06:05] from transparent to fully white and well
+[06:08] that's it we can save our Shader our
+[06:10] material and go ahead and create an
+[06:12] instance out of it I prefer to use the
+[06:15] instance than the original material now
+[06:18] let's go back to our nagra system and in
+[06:20] the mesh render let's turn on enable
+[06:22] material override and in here we can add
+[06:25] a new array element for the material we
+[06:28] just created and here we go it's
+[06:30] beginning to look like
+[06:31] something now let's control how much
+[06:33] time this leaves on the initialized
+[06:36] particle we can say the lifetime is 1.8
+[06:39] and let's say the color mode is direct
+[06:40] set so we can use a very bright color
+[06:42] like 80 22 and 6.6 which will look
+[06:46] something like this and from there if
+[06:49] you want to adjust the scale you can do
+[06:51] it down here in the mesh scale mode by
+[06:53] the way uniform or
+[06:55] nonuniform now let's make sure this
+[06:57] grows a little bit in the beginning by
+[06:59] adding on the particle update a scale
+[07:01] mesh size and on this Arrow let's
+[07:04] convert this Vector to a float which
+[07:07] will be very useful to control the size
+[07:09] of this with a curve we can click on
+[07:12] this template the first one add a key
+[07:14] more or less in the middle say it's at
+[07:16] 0.3 down here with a value of 0.9 so it
+[07:19] grows fast in the beginning and then
+[07:21] stays pretty much the same size I'm
+[07:23] going to select all of these keys and
+[07:24] turn on auto so we can get these nice
+[07:27] curves and fix the first handle to
+[07:29] something like this and at this point
+[07:31] this is what we got it disappears out of
+[07:34] nowhere so what we can do is with a
+[07:36] scale color on the particle plate
+[07:38] disable scale RGB but say the scale
+[07:41] Alpha is a curve and from there we can
+[07:44] say that the first key goes to around Z
+[07:46] 4 which means it's still visible around
+[07:49] half of its lifetime and then we can
+[07:51] select this and select auto mode so we
+[07:54] can have these handles to create this
+[07:56] curve as you can see it fades out
+[07:58] towards the end great now let's turn on
+[08:02] local space so this follows its parent
+[08:05] object and we can shoot this basically
+[08:07] with blueprint and while we are here
+[08:09] let's add another emitter an empty one
+[08:12] for a
+[08:13] light down here we can remove the Sprite
+[08:15] render and replace it with a light
+[08:18] render and then add a spa burst
+[08:20] instantaneous on the Emer update and
+[08:23] this will essentially emit one light
+[08:26] initialized particle we can say it
+[08:27] leaves exactly the same as the slash 1.8
+[08:31] and for the color we can copy the color
+[08:33] from the slash copy and paste exactly
+[08:36] but in the value increase it to 8,000 so
+[08:40] we can see something and all we got to
+[08:42] do now is in the position offset push
+[08:44] this a little bit up otherwise it will
+[08:46] intersect the ground value of 50 will do
+[08:48] fine from there we can hold alt on the
+[08:51] scale color of the Slash and drag and
+[08:54] drop it to the particle update it will
+[08:56] create a duplicate one last thing we can
+[08:58] do on the light renderer is turn on
+[09:01] Alpha scale brightness which means the
+[09:04] scale color will influence the
+[09:05] brightness of the
+[09:07] light increase the radius to 100 oh and
+[09:11] let's make sure this is also in local
+[09:13] space and just out of curiosity if I
+[09:15] drag this to the scene this is how it
+[09:18] looks we have the light and the mesh
+[09:21] itself great let's add another emitter
+[09:25] this time for the deal bright it's a
+[09:28] text that it's going to up to the ground
+[09:30] below and it's going to be bright which
+[09:32] means down here in the render we can
+[09:34] remove the Sprite render and replace it
+[09:36] with the deal render and on the emiter
+[09:39] state let's set it to self instead of
+[09:41] being equal to the system because we
+[09:43] want to make sure that the loop Behavior
+[09:46] it's only going to play once with a loop
+[09:48] duration of 1.8 which is the same amount
+[09:50] of the slash itself the mesh from there
+[09:54] we want to use a spound rate or a spound
+[09:56] per unit but on the spound rate we can
+[09:58] say it's a curve and it's going to keep
+[10:01] on emitting until more or less half of
+[10:03] the loop duration from there it's going
+[10:05] to go to zero it's going to stop
+[10:07] emitting I'm going to select all of
+[10:08] these and say it's Auto and then on the
+[10:11] scale curve we can control the spawn
+[10:13] rate and say it's
+[10:14] 20 now let's duplicate this original
+[10:17] material we need to modify this material
+[10:20] so it works with deals and on the
+[10:22] material domain we can say it's the
+[10:25] third dial and the blend mode is
+[10:28] translucent and and for this to work as
+[10:30] a decal we need to replace this particle
+[10:32] color with a decal color replace the
+[10:34] connections and that's it we can
+[10:37] actually already replace this text down
+[10:39] here and use one that comes with unre
+[10:41] for example the light beam fall off 02
+[10:44] if you turn on show a giant contents
+[10:46] these will show up by the
+[10:48] way there we go now let's save this and
+[10:52] create a material instance out of this
+[10:54] so we can use it in our deal bright down
+[10:57] here on the deal render search for the
+[10:59] material we just created assign it here
+[11:03] and then let's adjust the lifetime we
+[11:05] don't want that much something like 1.6
+[11:08] for example we'll leave a nice trail
+[11:10] behind and yeah we can copy the color
+[11:12] from the SL mesh and paste it right here
+[11:15] let's just say it's direct set but
+[11:17] decrease the value to around
+[11:20] 40 and if we test it again in our SC
+[11:23] this is how it looks I will show you in
+[11:25] a moment the blueprints that I have for
+[11:28] now we can move it back back and
+[11:30] forward now let's go back to Niagara and
+[11:33] on the partic CL update let's make sure
+[11:35] that this shrinks over time we are going
+[11:37] to use a set parameters and then up here
+[11:40] on this plus sign we can search for deal
+[11:42] size there's very specific variables
+[11:45] only for deal deal size will do just
+[11:48] fine but we want to break this Vector
+[11:51] you can search for make vector and it
+[11:53] will separate each axis and then we want
+[11:55] to say 54 the X and 154 the Y but the Z
+[12:00] is going to be a curve the first key is
+[12:02] going to be zero but then we can add
+[12:04] another key more or less at around Z two
+[12:06] and say the value is one and then select
+[12:09] all of these and say it's in auto mode
+[12:12] so we can control these handles and
+[12:13] create this curve and then we can scale
+[12:16] this to around 35 and as you can see
+[12:19] they will shrink they will become
+[12:21] thinner and thinner it will create a
+[12:23] very interesting effect once this is
+[12:25] moving let's also make sure this Fades
+[12:27] out with a scale color this time let's
+[12:30] turn off scale Alpha and scale the RGB
+[12:33] but we can convert it to a float and
+[12:35] then convert it to a curve and let's
+[12:37] just select the endles and say it's in
+[12:39] auto mode here we go and then it fades
+[12:43] out and as you can see it looks much
+[12:46] more interesting once we have the
+[12:47] blueprints working to add motion to the
+[12:50] ground slash so how does These
+[12:52] Blueprints work you may ask well I'm
+[12:55] going to give you an overview in case
+[12:57] you are interested basically on my see I
+[12:59] have a spa blueprint that essentially
+[13:02] once the game is running it checks if we
+[13:04] press space bar with this input system
+[13:07] and once we press space bar it will
+[13:08] spawn the ground /
+[13:11] blueprint this blueprint right here is
+[13:13] where most of the magic happened in here
+[13:16] we have the Niagara with the ground
+[13:19] slash and attached to it we have the
+[13:21] follow ground component basically once
+[13:23] the game is running we use this line
+[13:25] Trace function that it starts on the
+[13:27] target itself which is the ground slash
+[13:29] and it will shoot a vertical line only
+[13:32] on the z-axis we can control the
+[13:34] distance of that vertical line and we
+[13:37] check if it has collided if it has
+[13:39] collided we move the owner of this
+[13:41] component to that position this way it
+[13:44] will follow the ground essentially then
+[13:46] on the ground SL blueprint we have this
+[13:49] reduced speed or decreased speed which
+[13:52] will basically pick up the projectile
+[13:55] component which is also attached right
+[13:58] here which is already available in
+[14:00] unreal and the component to decrease the
+[14:02] speed we'll check if we have it and then
+[14:05] after certain delay the bullion to
+[14:07] reduce speed will become true and we
+[14:10] keep on checking that and if it has
+[14:12] become true then we do an interpolation
+[14:15] of the current speed the velocity until
+[14:18] it becomes zero essentially and that's
+[14:21] how this works we make sure the ground
+[14:24] slash follows the ground and then we
+[14:25] decrease its speed creating this very
+[14:27] interesting effect feel free to try to
+[14:30] replicate it or you can get access to
+[14:32] this project on my Patron's page links
+[14:36] below another thing we can show you is
+[14:39] how to add the breeze to
+[14:42] this I'm going to use this 3D model
+[14:44] right here if you have blender let's see
+[14:48] how we can add some debris to this so if
+[14:50] you go back to your blender file you can
+[14:52] go to Ed and in preference in addons you
+[14:55] can search for cell fracture turn it on
+[14:58] and then we need to add the cube with
+[15:00] shift a and with space bar I'm going to
+[15:03] go with cell fracture which you can find
+[15:05] in object quick effects this panel shows
+[15:09] up and we can increase the source limit
+[15:10] above 10 recursive we can set it to one
+[15:13] and it's important that we set the noise
+[15:15] to one and then we can press
+[15:17] okay and we get a fractured Cube which
+[15:20] means now you can select one or two
+[15:24] debris from here and delete everything
+[15:27] else once you have these two debris
+[15:29] what's important is that you select them
+[15:31] and you press contrl a to apply the
+[15:33] rotation and scale from here now you can
+[15:36] select both of these debris go to file
+[15:39] and in export select fbx turn on
+[15:42] selected objects don't forget about it
+[15:45] otherwise you will export the slash as
+[15:47] well once you have the debris you can
+[15:49] assign a basic shaped material which
+[15:52] comes with un real if you turn on show
+[15:54] engine content for example and from
+[15:56] there we want to set the emitter state
+[15:58] to self
+[15:59] Loop Behavior to
+[16:01] once and loop duration to 1.1 for
+[16:05] example let's make sure this emit
+[16:07] something with the spawn rate in the
+[16:09] emitter update we can use the same
+[16:11] technique a curve let's say it's in auto
+[16:14] mode and let's scale this to spound 30
+[16:18] for the rate for example and lifetime of
+[16:20] around 1.5 seconds should do just fine
+[16:24] and let's add some Randomness to the
+[16:26] mesh scale between one and two from
+[16:29] there we want to add the Sensation that
+[16:30] they are moving and being expelled from
+[16:32] the ground right so let's add the
+[16:34] velocity on the particle spawn yeah we
+[16:37] get a few warnings but if you click fix
+[16:39] issue it will add the solve forces and
+[16:42] automatically and from there we can say
+[16:44] the velocity speed is random between
+[16:48] 250 and 450 that's the values we think
+[16:51] look great oh and on the cone axis it's
+[16:54] not on the X but on the Z and then we
+[16:57] can decrease that cone to 20 we will see
+[17:00] how it's looking in a moment for now
+[17:01] let's add Randomness to the rotation
+[17:03] with initial mesh orientation make sure
+[17:06] it's random up there and that's it here
+[17:08] go for now let's make sure they shrink
+[17:11] towards the end of their lifetime with
+[17:13] the scale mesh size in the partic plate
+[17:16] where the first key is around 0
+[17:21] 7 and then add another key push it a
+[17:24] little bit forward with a value of one
+[17:26] and then another
+[17:27] key closer to 0. 5 with a value of one
+[17:32] and say this is all in auto mode so we
+[17:35] can have these busy curves and control
+[17:37] them to create something like this we
+[17:38] get a bunch of debris going up and never
+[17:41] coming down but that's an easy fix if we
+[17:43] use gravity we can leave it as it is and
+[17:46] then add Collision so it collides with
+[17:49] everything but we need to decrease the
+[17:51] bounce to around Z one and the friction
+[17:54] bump it up to around 20 and this is what
+[17:57] we get as you you can see it looks like
+[18:00] it's piercing the ground and there's
+[18:02] debris all over the place now it would
+[18:04] look even much better if we had debris
+[18:06] closer to the ground static to the
+[18:08] ground right so let's duplicate this
+[18:11] debris air and call it debris ground I'm
+[18:15] just going to switch the mesh but you
+[18:16] can use the same and the loop duration
+[18:19] will be
+[18:20] longer like
+[18:22] 1.5 and then for the spawn rate we can
+[18:25] use this template and say the anal are
+[18:27] in auto mode and then we we can
+[18:29] say the scale curve is 80 these ones
+[18:33] will live longer like three and we need
+[18:36] to offset them in the Y and on the Z
+[18:39] around minus 20 - 30 they can be smaller
+[18:42] in terms of size at least because I've
+[18:44] change the mesh we don't need the add
+[18:46] velocity let's remove it and for the
+[18:49] scale mesh size I'm just going to make
+[18:52] small adjustments like this and finally
+[18:55] we can remove the gravity and the
+[18:57] collision and so forces and velocity
+[19:00] let's copy and paste this because the
+[19:02] debris is ground 01 where for the left
+[19:04] side now for the right side all we're
+[19:06] got to do is adjust the position offset
+[19:08] make this positive on the Y and this is
+[19:11] the end result I really think this is a
+[19:14] great exercise we have seen a little bit
+[19:16] of everything and it gives you an idea
+[19:18] of what you can do I then obviously
+[19:21] added a few more things like some
+[19:23] ribbons like some particles and whatnot
+[19:26] but the car of the it's a is
+[19:29] that I made all of this available on my
+[19:32] patreon page in case you want to get
+[19:34] your ends on this project along with
+[19:36] many other projects and assets for your
+[19:38] games or to study up close for in real
+[19:41] and for Unity and goo it's all in the
+[19:44] link below want to say thank you to each
+[19:45] Patron that supported me last month and
+[19:47] a quick shout out to the top tier
+[19:49] patrons as usual which are Alberto Saras
+[19:52] Alan alre reer David Molina di Marx Lu
+[19:55] amama Eric Phoenix Frosty 40 gra lab Ste
+[19:58] Jacobi Casey Miller Leandro deu lean
+[20:01] Matt Mor Matthew Parker Mi Nastasia mik
+[20:04] Bell Owen aam easy Pier Maru PR
+[20:09] radioactive bullfrog revant games rvr
+[20:11] Shan agular very whever Marta will poon
+[20:14] Vlad m Kim and sang so thank you all for
+[20:17] watching I hope you have enjoyed and I
+[20:19] hope to see you on the next one thank
+[20:22] you bye

@@ -59,3 +59,6 @@ coverage/
 *.sqlite
 *.db
 data/local/
+
+# === learning/ 画像リファレンスキャッシュ（容量が大きいためgit管理外） ===
+learning/**/reference/images/

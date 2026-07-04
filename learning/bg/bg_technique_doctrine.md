@@ -1,41 +1,44 @@
-# 背景クオリティ・ドクトリン（蒸留版）
+# 背景クオリティ・ドクトリン（蒸留版 v5）
 
-学習動画 20 本+公式doc 4本からの横断抽出。**日常作業ではこのファイルだけ読む**（上限 3.5KB・超過時は要圧縮）。
-出典・詳細・全パラメータは `videos/` の個別ノート（読むときは Sonnet 委譲）。
+動画 25 本+公式 doc 4 本の横断抽出（v5: KitBash3D 273 分統合）。**日常はこれだけ読む**（上限 3.5KB）。詳細は `videos/`（Sonnet 委譲）。
 
 ## 画作りの原則
 
-1. **露出は Manual 固定が先、物量は後** — Auto Exposure に画を任せない
-2. **色調統一が「寄せ集め感」を消す** — Unlit Mode で確認し全マテリアルを Multiply で同一色相へ。例外なし
-3. **縁・継ぎ目を消すのが質感の分水嶺** — フォグは Depth Fade／地形の粗は地物で隠す／decal でシーム隠し／接地は RVT
+1. **露出は Manual 固定が先、物量は後**
+2. **色調統一が「寄せ集め感」を消す** — Unlit Mode 確認・全マテリアル Multiply で同一色相へ
+3. **縁・継ぎ目が質感の分水嶺** — フォグ=Depth Fade／地形の粗は地物で隠す／decal でシーム隠し／接地=RVT
 4. **スケール基準を最初に固定**（自機 10m canonical）
+5. **構図は F/M/B + フォーカルポイント** — 全リーディングラインを焦点へ収束、「どこからでも見える」を保証。コントラスト最大は焦点側のみ
 
-## set dressing（配置センス）
+## set dressing
 
-5. **anchor 連鎖** — 大物→関連小物へ「物語」を連鎖。均等散布しない
-6. **整列崩し** — 直線に小回転・寄り掛からせ生活感
-7. **構造物は構図装置** — barrier / leading line / 陰影とディテール面積
-8. **decal 3 種で汚す** — 漏水シミ・埃堆積・路面ライン。地面に「読める情報」
+6. **anchor 連鎖** — 大物→関連小物へ物語を連鎖。**大→中→小の順で密度を積む**
+7. **整列崩し** — 人工物はスナップ ON、自然物は OFF+Local 非一様スケール
+8. **構造物は構図装置** — barrier / leading line / 好奇心を誘うシルエット
+9. **decal 3 種で汚す** — 漏水・埃・路面ライン
+10. **見えない場所に手間をかけない** — 密度に緩急、奥は岩で隠す程度。プレイテストで視認範囲を確認
 
 ## 定型テクニック
 
-- **自作フォグ平面**: Translucent + Radial Gradient Exp + Depth Fade + Noise版2種 → MI 化
-- **タイリング対策**: TexCoord→Multiply→Scalar "tiling"。広域は Texture Bombing。**適用対象はLandscape等の広域連続面のみ**——プロ配布のモジュラーキット（Fab等）はパーツ専用ベイク済みでTexCoordノード自体が無いのが通常（実機検査で確認、⚠自作時に無条件適用しない）
-- **Height Fog** density 0.08 前後。**PostProcess**: Unbound / Manual Exposure(9〜12) / Vignette / Saturation 1.1
-- **RVT 2 Volume**（接地の height blend）。⚠垂直面シーム残存／Tile size変更は要再起動+DXT1オーバーサブスクライブ注意
-- **Layer Blend Height** / **Mesh Paint（UE5.5+）**: weight blendの「べったり感」を height 情報で解消。低ポリでも高解像度の個体差汚し可（UVクリーン前提）
-- **PCG Self-Pruning**: 小物重なり回避は実寸バウンズ判定（キューブでなく Get Bounds→Self-Pruning）
-- **バリエーション量産**: Packed Level Actor 分解→改変→再パッケージ
+- **PLI 量産**: 使い回す群を選択→Packed Level Actor 化（Pivot=MinZ 接地/Center。⚠事後変更不可）。Edit→Commit で全インスタンス反映。複製は回転+スケールでシルエット差し（一様 1.3〜1.7・**非一様 1.75 倍までバレない**［伝聞・未検証］）
+- **Is Spatially Loaded=OFF** — WP で遠景が距離消失する時の第一手。恒久表示の書割に必須
+- **MPC 一括制御** — 環境全体トーンは MI 個別でなく MPC へ。**「後で直す」より「入口で決める」**（Bridge 側で Master Material 指定後に Add）
+- **自作フォグ平面**: Translucent + Radial Gradient Exp + Depth Fade + Noise 版 2 種 → MI
+- **タイリング対策**: TexCoord→Multiply→tiling は広域連続面のみ（プロキットはベイク済で TexCoord 無し・実測）。広域は Texture Bombing、単調さは 8K オーバーレイ（Lerp 0.5 前後）
+- **Landscape 造形**: Flatten はピンポイント／高さ揃えは Flatten Target／Smooth→Erosion→Smooth 反復。地形はラフで良い
+- **Layer Blend**: Sampler Source=**Shared: Wrap 必須**（16 上限の地雷）／Height Blend で境界の説得力／真っ黒=Layer Info 未登録
+- **Height Fog** density 0.08 前後。**PostProcess**: Unbound / Manual Exposure(9〜12) / Saturation 1.1
+- **RVT 2 Volume**（⚠垂直面シーム）／**Mesh Paint（5.5+）**／**PCG Self-Pruning**（実寸バウンズ）
+- **Mesh to Collision（Modeling Mode）**: 汎用キットは Convex Hulls/Per Component 生成が SM エディタ内蔵より良好。すり抜け時のみ Complex as Simple
 
 ## パフォーマンス（計測してから削る）
 
-9. **ms で考える** — 固定 PerfCam + Insights で再現計測。budget は機能別配分
-10. **映る範囲だけ品質** — 見えない Foliage は置かない・遠景 billboard・Cull Distance 必須
-11. **影の設計** — CSM近景+DFS遠景+FarCascade(巨大構造物opt-in)。重いライト5点検: MaxDrawDistance/Intensity0/Attenuation過大/不要shadow/LightFunction誤用
-12. **draw call 統合** — Merge Actors→ISM化・遠景は HLOD
-13. **開発/本番切替** — 作業時 `foliage.ForceLOD 5`、レンダ時 0 + `r.ScreenPercentage 200`
-14. **スポーン/メモリ対策の引き出し**: 大量スポーンはフレーム分散（例5体×6フレーム）／頻繁生成はObject Pooling／新規FX初出現のヒッチはPSO Precaching／メモリ内訳調査はLLM（カスタムタグ可）
+11. **ms で考える** — 固定 PerfCam + Insights、budget 機能別配分
+12. **映る範囲だけ品質** — 遠景 billboard・Cull Distance 必須
+13. **影の設計** — CSM+DFS+FarCascade。重いライト 5 点検
+14. **draw call 統合** — Merge Actors→ISM・HLOD。作業時 `foliage.ForceLOD 5`↔0
+15. **スポーン/メモリ** — フレーム分散・Object Pooling・PSO Precaching・LLM
 
 ## 運用
 
-- **タイトルは中身を保証しない**（実例: "Military Trench"動画が実際はRVT/PCG技術解説だった）
+- **タイトルは中身を保証しない**（実例: Military Trench→RVT 解説）

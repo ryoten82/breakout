@@ -1,0 +1,365 @@
+[00:00] today let's see how this vertical beam
+[00:02] is done in
+[00:05] unre it's a pretty cool effect where you
+[00:08] will learn a bunch of cool tricks and as
+[00:10] usual we made quite a few variations as
+[00:12] you can see and since it is quite
+[00:14] complex we are going to show you a
+[00:15] simplified version which is a good basis
+[00:18] for you to get started we made all of
+[00:20] these variations available on the
+[00:22] marketplace and on my patrons page too
+[00:25] links below where you will get access to
+[00:28] a huge library of visual effect for un
+[00:30] real and unity so without further Ado
+[00:33] let's jump right into this so for this
+[00:36] vertical beam let's start with the nagra
+[00:39] system an empty one and then we will add
+[00:42] emitters as we
+[00:43] go rename it double click to open it up
+[00:47] and with right click we can add an empty
+[00:49] meter for the mesh core which is
+[00:52] basically the cinder at the center that
+[00:54] is very bright so down here on the
+[00:57] Sprite render we can remove it and
+[00:59] replace it with the mesh renderer where
+[01:02] we are going to assign this Cinder right
+[01:04] here if you open up blender I can
+[01:08] quickly show you how to create
+[01:10] one essentially we want an empty
+[01:13] scene and in add we want to add a
+[01:16] s on this left bottom panel we want to
+[01:20] say the cap field type is nothing so it
+[01:23] is essentially only a ring with no top
+[01:26] and bottom faces and with tab we can
+[01:29] enter it mode
+[01:30] select everything with a and with G we
+[01:33] want to move this up only in z a value
+[01:36] of one we are doing this so the poo is
+[01:39] at the bottom and we can scale It Up
+[01:41] From The Bottom let's use shade smooth
+[01:46] object so it becomes smooth rename this
+[01:48] to Sender too for example and with the
+[01:51] sender selected on file let's go to
+[01:54] fbx turn on selected objects navigate to
+[01:57] your project rename these and Export it
+[02:01] so once you have assigned the sander to
+[02:03] the mesh Ranger we can enable material
+[02:05] override add a new one and let's use one
+[02:08] that comes with unre because we just
+[02:09] want to make this very bright so I'm
+[02:11] going to use Goman Alpha and now let's
+[02:14] make sure we spound something right so
+[02:16] on the IM update let's add a spawn burst
+[02:19] instantaneous this is what we have at
+[02:21] this point and well let's improve for
+[02:24] example lifetime could be short like
+[02:26] three and let's already take care of the
+[02:29] color we want to make this bright like
+[02:30] 50 on the R 17 for the G and 9 for the B
+[02:34] and then very importantly on the mesh
+[02:36] scale mode let's say it's non uniform so
+[02:38] we can stretch it on the Z by a value of
+[02:41] 15 for example this is how tall it's
+[02:43] going to be I'm going to use 15 and it's
+[02:45] already super bright looking good now
+[02:48] let's take care of the way these
+[02:49] animates we can do it with a scale mesh
+[02:53] size but it's much more useful if we
+[02:56] convert this to a vector so we can have
+[02:59] each a axis and then for example convert
+[03:01] X to a curve and basically X and Y will
+[03:05] kind of add a Wubble that's why we
+[03:07] created this curve right here which by
+[03:09] the way took some time so we skipped
+[03:11] that part but you can copy as a matter
+[03:13] of fact I highly recommend you to test
+[03:15] different curves and see the feeling it
+[03:17] gives you but essentially X and Y will
+[03:20] control its radius right and it will
+[03:22] kind of add a nice wubble if we add this
+[03:25] curve what's very important is that the
+[03:27] Z which is also going to be a curve it
+[03:29] grow rows basically so for example first
+[03:32] key is going to be zero and the last key
+[03:34] we can push it to 0.1 and say it's one
+[03:37] terms of value so it grows very rapidly
+[03:39] in the beginning and then we can select
+[03:41] these curves and say they are in auto
+[03:45] mode and fix these handles so it grows
+[03:48] really quick in the beginning as you can
+[03:49] see and then it kind of wobbles a little
+[03:51] bit and it shrinks that's the feeling we
+[03:53] are aiming for feel free to take some
+[03:56] time and test different curves it will
+[03:58] make a lot of difference because now now
+[04:00] once you have that part done we are
+[04:01] going to duplicate this mesh core emiter
+[04:04] and call it the mesh outside frenel it's
+[04:06] going to have a frenel in a moment and
+[04:08] the first thing you want to do is
+[04:10] increase its radius to something like
+[04:12] four for the X and Y here we go it's
+[04:14] super bright yes indeed let's take care
+[04:17] of that we are going to create a very
+[04:19] quick freno basic freno so right click
+[04:22] new material yes indeed rename it and
+[04:25] double click to open it up and the blend
+[04:27] mode it's going to be additive with that
+[04:30] we can now for example search for a
+[04:32] vector parameter so we can control its
+[04:35] color and then a fral we can multiply
+[04:38] these two together so we can influence
+[04:39] the color of the freno I'm creating
+[04:41] multiply nodes with M by the way M and
+[04:44] click let's connect this to the emissive
+[04:46] color first and this is going to be
+[04:49] multiplied by something the particle
+[04:51] color which essentially allows us to
+[04:54] control the color of the fral directly
+[04:57] Niagara we also want to control a much
+[04:59] fral we want basically it's thickness so
+[05:01] let's create the scaler and call it the
+[05:03] fral power with a default value of two
+[05:06] and connect to the exponential
+[05:10] in now let's take care of the color
+[05:12] increase its white value let's press
+[05:14] okay so we can see something I'm just
+[05:17] going to decrease the base reflect
+[05:19] fraction and that's it we can save this
+[05:21] material and then create a new instance
+[05:24] I prefer to use instance instead of the
+[05:26] original material and now let's go back
+[05:28] to Niagara and our mesh outside fren now
+[05:31] it's going to have this material that we
+[05:33] created and this is what we get so it's
+[05:36] going to be really bright on the edges
+[05:38] essentially so here I'm going to
+[05:40] increase its brightness to a lot like
+[05:44] 2,250 here we go we got something
+[05:47] looking nice and then it closes very
+[05:50] nice let's add a few more layers for
+[05:52] example let's duplicate the mesh outside
+[05:54] fral and call it the mesh outside dark
+[05:56] it's going to be basically a dark
+[05:58] background so we can have a really nice
+[05:59] nice contrast with all of these bright
+[06:01] elements on the mesh renderer we need to
+[06:03] switch the material to The Gnome Alpha
+[06:05] that comes with unre and well
+[06:07] initialized particle it's going to be
+[06:09] basically almost a black color but we
+[06:12] are going to give it a little bit of
+[06:14] dark purple this is the vales we have
+[06:16] used and this one can be a tiny bit
+[06:18] smaller in terms of radius like 3.9
+[06:21] exactly and we need to make sure it
+[06:23] renders behind everything so on the mesh
+[06:25] renderer down here on the rendering we
+[06:28] can say the sort order in is minus
+[06:31] one this is what we have in isolation
+[06:34] mode show everything else this is what
+[06:37] we get looking good all right let's add
+[06:40] another layer let's duplicate this
+[06:42] outside dark and call it mesh outside
+[06:46] voro because now we are going to need a
+[06:49] voro so let's create a new material
+[06:51] called the mcore voro double click to
+[06:54] open it up and let's make this by parts
+[06:57] for example let's start with the blend
+[06:59] mode it's going to be masked so we can
+[07:01] basically erode this mesh according to a
+[07:04] texture and that texture we need a
+[07:06] parameter Tod we can call it the main
+[07:09] text and let's already make sure we can
+[07:11] control the color of this via Niagara so
+[07:13] let's create a particle color and
+[07:16] multiply these two together connect to
+[07:18] the emissive
+[07:20] color and the r to the opacity mask as
+[07:24] you can see with the default texture we
+[07:26] already have some erosion let's replace
+[07:29] this text Tex with the VOR which is
+[07:30] available for free on the link below by
+[07:32] the way this texture go grab it now
+[07:35] let's see how it looks directly in ag
+[07:37] I'm going to create a new instance
+[07:38] because I prefer to use
+[07:40] instance and then in Niagra on the mesh
+[07:43] render we can replace this with the
+[07:47] voronoi and this is what we get as you
+[07:50] can see it's already eroding and we are
+[07:52] going to control a few more things for
+[07:54] example let's already take care of the
+[07:55] color let's say it's 500 5 and then zero
+[07:59] it's going to be super bright and this
+[08:01] one is going to be a tiny bit bigger
+[08:03] like 4.2 for the X and
+[08:06] Y super cool look at this all right
+[08:10] let's make a few more improvements for
+[08:12] example we can use the dynamic parameter
+[08:14] node rename the first one to erosion and
+[08:18] the second one to power what we can do
+[08:21] is pick the RGB connect to a power node
+[08:24] replace this connection and this second
+[08:27] parameter of the dynamic parameter can
+[08:29] control that value and it's awesome
+[08:32] because we can directly in Niagara
+[08:34] control it for example if you go back to
+[08:36] Niagara the way we control this is with
+[08:38] the dynamic material
+[08:41] parameters and still with this Dynamic
+[08:43] parameter note we can control the
+[08:45] erosion for example by multiplying this
+[08:47] with the R value and replacing the
+[08:49] connection to the opacity
+[08:51] mask and now we can play with this note
+[08:54] and it will control how much voro we
+[08:56] dissolve for example the power and the
+[08:58] erosion will Well Control how much Ro we
+[09:02] want and that's the neat part of this
+[09:05] trick let's make a few more improvements
+[09:08] for example it would be cool if you
+[09:09] could control the tiling and we could
+[09:11] make this pan basically scroll so let's
+[09:14] add another damic parameter but it's
+[09:16] very important that we increase the
+[09:18] parameter index to one because parameter
+[09:21] index of zero is already used in the
+[09:23] other Dynamic
+[09:26] parameter now let's rename this to text
+[09:28] or tiling X and the second one is going
+[09:31] to be for the tiling in the
+[09:33] Y default values of one by the way and
+[09:36] the way this works is first we need to
+[09:38] append these two together basically
+[09:40] create a vector with the X and the Y and
+[09:43] then multiply this with a texter
+[09:45] coordinate and the texter coordinate
+[09:47] it's basically the UVS of the mesh we
+[09:50] multiply these two together and we can
+[09:52] connect it to the main text to the
+[09:55] UVS if we go back to Niagara the way
+[09:58] this works now is by turning on another
+[10:01] index the first one the 0 one is already
+[10:03] used the second one is now for the
+[10:06] tiling which for example we can say it's
+[10:08] one and one or we can play with these
+[10:10] and stretch these however we want as you
+[10:12] can see the values that we think look
+[10:15] great are for example five in the X and
+[10:17] z. three in the Y very stretched yes
+[10:21] indeed because now it's going to move so
+[10:24] still on this Dynamic parameter node the
+[10:27] index two can be for the speed X
+[10:30] and the index tree can be for the speed
+[10:31] y with default values of 0 and zero and
+[10:35] every time we need to animate something
+[10:37] most likely we are going to need a Time
+[10:39] note let's create two multiply notes by
+[10:43] holding M and then clicking with left
+[10:45] Mouse button and now we can multiply the
+[10:47] speed y down here and the speed X down
+[10:51] here to the B option of each multiply
+[10:54] the a option is going to be for the time
+[10:57] now once again we need to append but
+[10:59] this time many we could use an a pen
+[11:01] normal by the way and then we only need
+[11:04] to add these two
+[11:05] together and as you can see now we get
+[11:08] movement and it's very cool when you
+[11:10] animate this something like 0 7 on the X
+[11:14] and one on the Y all right looking good
+[11:17] that's the hardest part now we can add
+[11:19] another layer for example this is the
+[11:21] orange one let's duplicate this for a
+[11:23] blue with this color more or less 40 70
+[11:26] and 500 and it's going to be a tiny tiny
+[11:29] bits bigger as well and we can adjust
+[11:32] the erosion to Z at seven the tiling as
+[11:36] well and the speed this is the vales
+[11:39] that we think look great obviously I
+[11:41] highly recommend to test out different
+[11:43] values but that's essentially it for the
+[11:46] core of this Effect one last thing that
+[11:48] I can quickly show you is how to add
+[11:50] some stretched particles I'm going to
+[11:52] add an empty meter down here rename it
+[11:55] with F2 to stretched particles I'm going
+[11:58] to isolate and since it's an empty
+[12:01] emitter on the emitter spawn for this
+[12:04] case we can use the spawn rate we get a
+[12:06] warning saying we need the meter State
+[12:09] and we can click fix issue n will
+[12:11] automatically fix that and we can say
+[12:13] the spound rate is 30 we also need these
+[12:16] particles to have a short Lifetime on
+[12:18] initialized particle we can say it's
+[12:19] random between 0.2 and 0.8 that should
+[12:23] do it and yeah they are all spawning in
+[12:25] the same position so let's take care of
+[12:27] that in the particles pound let's add a
+[12:30] shape location but instead of being a
+[12:32] sphere let's switch to a Taurus let's
+[12:34] try 600 more or less for the large
+[12:37] radius 650 550 we will see and now yeah
+[12:41] let's make the move by adding velocity
+[12:44] on the particle Spa click fix issue and
+[12:47] in the Z let's bump this up to 5,000
+[12:49] that should do it definitely and here we
+[12:52] go we have some particles going up we
+[12:55] can stretch them now by simply going to
+[12:57] the initialized particle and saying the
+[12:59] Sprite size mode is random non-uniform
+[13:03] let's squeeze them in the X something
+[13:06] like 10 and 20 and in the wir let's
+[13:08] stretch it
+[13:09] 150 200 that should do it just to give
+[13:12] you an idea how this can be done it
+[13:14] looks like it's all right but there's
+[13:16] one thing missing on the Sprite Ranger
+[13:18] let's make sure they are aligned with
+[13:20] our velocity and that's
+[13:24] it oh yeah and then you can play with
+[13:26] the color make sure it's something
+[13:28] bright that looks looks nice you
+[13:30] know not too
+[13:32] bright but you get the idea and what I
+[13:36] can still show is an overview of what we
+[13:38] added for example we then added some
+[13:40] debris it's an easy 3d model like this
+[13:43] one and it really adds a nice touch like
+[13:46] if it was ripping off the ground and
+[13:49] then we also added debris at the bottom
+[13:52] and particles stretched particles at the
+[13:54] bottom as well and there should be a
+[13:56] connection between the ground and the
+[13:57] vertical beam so we added this kind of
+[14:00] cone going really fast yeah it really
+[14:03] adds that nice touch to the vertical
+[14:05] beip and finally we added some ground
+[14:08] cracks and ground marks like if it was
+[14:11] burnt they were done with material maker
+[14:13] by the way and that's it you get the
+[14:15] idea obviously we created a bunch of
+[14:17] variations from this we really have a
+[14:19] great pack here in my opinion it's all
+[14:21] available on the marketplace I'll have
+[14:23] the link below and you will get these
+[14:26] awesome variations we also added this to
+[14:28] the patreon page where you can also get
+[14:31] a bunch of other projects if you decide
+[14:33] to support us and talking about patrons
+[14:36] I want to say thank you to each one
+[14:37] that's part of last month and a quick
+[14:39] shout out to the top tier patrons which
+[14:40] are Alberto Sader Alan Alon Andre Rea
+[14:43] David Molina Mar Lu amama Eric Phoenix
+[14:47] Frosty 40 gr BLB Ian Jacobi Casey Miller
+[14:50] Leandro deu Leon ult Matt M Matthew
+[14:53] Parker Mi M Bell Owen P easy Pier Mar s
+[14:59] radioactive bullfrog Revenant games rvr
+[15:01] Shan agulara very Su whatever Marta will
+[15:04] poon Vlad MIM and sang hope you enjoyed
+[15:07] this video thanks for watching and see
+[15:09] you on the next one bye

@@ -1,0 +1,450 @@
+[00:00] today let's see this crazy cross slash
+[00:03] in and
+[00:07] real there's also a Unity version of
+[00:10] this tutal by the way it's a pretty cool
+[00:13] effect and you will learn some very
+[00:14] interesting visual effects tricks I made
+[00:17] it all available on my patrons page
+[00:19] where by joining the others you will get
+[00:21] access to plenty more assets that you
+[00:24] can use in your games or study up close
+[00:27] so without further Ado let's jump right
+[00:31] this so let's begin by creating the
+[00:34] Niagra system already an empty system
+[00:37] and we will add ERS as we go we can
+[00:40] rename this to NS and not NE like I did
+[00:43] sorry guys and the scar cross slash
+[00:46] let's open it up with double click and
+[00:48] with right click we can add an Emer an
+[00:51] empty one rename it to sl01 we are going
+[00:53] to have several slashes here and this
+[00:56] one is going to need a mesh and not a
+[00:58] Sprite so let's remove move the Sprite
+[01:00] and replace it with a mesh renderer and
+[01:03] for now just test things out we can use
+[01:05] a cube just so we can get the motion
+[01:07] right let's add a spawn burst on the
+[01:10] emitter update so we can see something
+[01:12] happening all right here we go and on
+[01:14] the initialized particle let's try a
+[01:16] lifetime of
+[01:17] 0.45 I'm going to give you very precise
+[01:20] values because it's the ones we have
+[01:21] tested and we think it looks nice and if
+[01:24] we want to move this forward we need the
+[01:26] particle update because it continuously
+[01:28] keeps updating the particle and we are
+[01:30] going to animate its position so on the
+[01:33] particle attributes where you can get
+[01:35] attributes from each particle let's drag
+[01:37] and drop to position into the particle
+[01:39] plate and now let's convert this Vector
+[01:41] to position and from here let's make
+[01:44] this into a vector so we can get each
+[01:46] axis separated and in this case we are
+[01:48] going to animate the x axis let's
+[01:50] convert it to a curve and the last key
+[01:53] we can increase it to something CES like
+[01:55] 1,800 and then we can select all of
+[01:57] these keys and say it's Auto so we have
+[02:00] these smooth handles that we can control
+[02:02] to create this curve if you look to the
+[02:04] cube here we go that's a very nice
+[02:07] motion and we can proceed with that
+[02:09] something that's going to be useful is
+[02:11] to scale this mesh as it goes so a scale
+[02:15] size that we can convert to float and
+[02:19] from a float convert to a
+[02:21] curve and we can say for example that
+[02:23] it's going to have a third of its size
+[02:26] in the beginning 0.33 and at the end
+[02:28] it's going to be one it's going to reach
+[02:30] its full size let's select all of these
+[02:33] and say it's Auto so we can have these
+[02:34] smooth handles and control them all
+[02:37] right looking good this is how the cube
+[02:39] is looking by the way very nice now we
+[02:42] need a very simple material so let's
+[02:44] create one with right click new material
+[02:47] yes indeed the first thing we can say is
+[02:50] the blend mode is additive and then we
+[02:53] can do the basic setup where we have a
+[02:55] parameter 2D for a
+[02:58] texture and then the particle color so
+[03:01] nagro can influence the color of the
+[03:03] texture while holding M let's add two
+[03:06] multiply nodes so we can multiply RGB
+[03:08] with RGB and connect to
+[03:10] theive and then Alpha with Alpha and
+[03:13] connect to the opacity down here for the
+[03:16] texture let's use the gradient
+[03:18] horizontal we are going to give you for
+[03:20] free this texture it's available on the
+[03:22] link below by the way let's save this
+[03:24] and essentially this texture is
+[03:27] highlighting the edge of the slush now
+[03:29] I'm going to create a very quick
+[03:31] instance of this material I prefer to
+[03:33] use instance instead of the original one
+[03:36] and then on the slash down here in the
+[03:38] mesh renderer let's turn on material
+[03:40] override click on the plus sign and
+[03:43] let's assign the instance we have
+[03:45] created and now I'm going to replace it
+[03:47] with the SL mesh which by the way it's
+[03:50] this one right here and it's from this
+[03:52] tutorial I highly recommend to check out
+[03:54] this tutorial where we create exactly
+[03:56] this mesh even though it's for Unity
+[03:58] what's important for you is the mesh
+[04:00] itself and it's very well explained
+[04:02] there so yeah make sure to check that
+[04:04] out I left the link below as well once
+[04:06] you have it you can come back here and
+[04:08] in initialized particle now we can
+[04:10] adjust the color for example I'm going
+[04:11] to use these values right here eight for
+[04:13] the r zero for the G and 100 for the B
+[04:16] and then down here on the mesh scale
+[04:18] mode which is set to nonuniform you can
+[04:21] adjust its scale for example I'm going
+[04:23] to use 1.2 for the X one for the Y and
+[04:25] 1.5 for the Z so it's a little bit
+[04:27] taller on the particles p I'm going to
+[04:30] add an initial mesh orientation it might
+[04:33] be useful let's set the mesh orientation
+[04:35] mode to none if we need to rotate this
+[04:37] we can control it down here on the
+[04:39] rotation and let's make sure it fades
+[04:41] out whenever the lifetime ends with a
+[04:43] scale color on the part CL update in
+[04:45] here we can say rgba is linear color
+[04:48] curve it will create a gradient and we
+[04:50] can push the first key of the
+[04:51] transparency more or less around here so
+[04:54] it fades out at the end now in order for
+[04:56] us to spawn particles as the slash moves
+[04:59] we need in the particle update a
+[05:01] generate location event we get a warning
+[05:04] saying there's a few models that are
+[05:05] missing and we can click fix issue nager
+[05:08] will add them we still get a warning
+[05:11] saying basically that persistent IDs
+[05:13] need to be turned on we can do it in the
+[05:15] meter properties up there so nagra can
+[05:17] identify each particle with this issues
+[05:20] solved we can go down here on the
+[05:21] generate location event and the event
+[05:23] send rate could be a curve so throughout
+[05:25] the end of its lifetime it spawns less
+[05:28] particles it will spawn less debris less
+[05:30] Sparks and so on can push this first key
+[05:33] to around Z five and then select all of
+[05:36] these and the right click say it's Auto
+[05:38] so we can get these bsy curves and it
+[05:40] becomes smoother and here we go this is
+[05:42] what we have at this point looking good
+[05:45] we have the basis of the slash all right
+[05:47] so let's move on to the next emiter
+[05:49] which is for the Sparks so we can take
+[05:51] advantage of the generate location event
+[05:54] we can call it spark 01 and we can place
+[05:56] it more or less around here and let's
+[05:58] make sure this SPS something by going
+[06:00] into the emitter update and search for a
+[06:02] spound rate we can say it's 20 here that
+[06:05] should be enough I'm just going to
+[06:07] isolate this emitter to show you that
+[06:08] they are all overlapping they have all
+[06:11] the same Lifetime and the position so on
+[06:13] the initialized particle we can say the
+[06:15] Life Time mode is random between 0.2 and
+[06:18] 0.4 and the color mode can be a direct
+[06:21] set I'm going to use these values for
+[06:23] color for example 8.5 for the r zero for
+[06:26] the G and 100 for the B on the Sprite
+[06:28] size mode this time it can be nonuniform
+[06:31] so you can stretch this for example we
+[06:33] can use a small valy like three and
+[06:35] something like 30 and here we go this is
+[06:37] how it looks it's stretched now let's
+[06:39] add some movement to this on the
+[06:41] particle spound we can say it uses add
+[06:44] velocity we get a few warnings again
+[06:46] saying that there's a few models missing
+[06:48] all we got to do is Click fix issue it's
+[06:50] basically the Sol forces and velocity
+[06:52] that is missing on the add velocity the
+[06:54] velocity mode could be in a cone and the
+[06:57] speed can be random so they all have
+[06:59] different velocities between 800 and
+[07:03] 1,500 let's say the cone axis is random
+[07:06] and let's try something between minus 50
+[07:08] in the X for the minimum and maximum
+[07:11] zero for the Y and 10 and 5050 for the Z
+[07:14] this will give it a random direction oh
+[07:16] and let's add a drag force on the
+[07:18] particle plate and since they are not
+[07:21] aligned with their velocity vector and
+[07:23] they are going always facing up down
+[07:25] here on the Sprite render on the
+[07:27] alignment we can say velocity align it
+[07:29] and here we go we have some very
+[07:30] interesting Sparks that we can now apply
+[07:32] to our slash let's make sure they scale
+[07:35] down with a scale Sprite size it's just
+[07:37] a nice detail and let's use this curve
+[07:40] so throughout the end of the lifetime
+[07:42] they shrink just going to push the first
+[07:43] key to 0.4 select everything and say
+[07:46] it's Auto so we can have something like
+[07:47] this so how do we apply this well we
+[07:50] need to go up here to the stage and add
+[07:52] an event handler so you can receive the
+[07:54] generate location event on the event
+[07:57] handler we can say the execution mode
+[07:59] spawn particles and the spawn number can
+[08:02] be three for example you can adjust
+[08:04] these values play with it so you can see
+[08:05] what they do but very importantly on the
+[08:07] source we must say it's from the
+[08:09] location event of the
+[08:11] Slash and yes we can disable spawn rate
+[08:13] it was just for demonstration purpose
+[08:15] but if you get out of isolation mode
+[08:17] this is how it looks everything together
+[08:19] the Sparks with the slash looking good
+[08:22] now another thing we can already take
+[08:24] care and we can duplicate this park 01
+[08:27] module with contrl D or contrl C and
+[08:30] is the debris which is a 3D object we
+[08:32] made available for free on the link
+[08:34] below which means down here on the
+[08:36] render we can add a mesh render and
+[08:38] remove the Sprite render I actually use
+[08:40] the cube just to test things out by the
+[08:43] way you can turn on spawn rate again
+[08:45] just to see how things are going let's
+[08:47] add a material to these you can
+[08:49] literally search for Gnome and use the
+[08:51] alpha one it's a material that comes
+[08:52] with unre obviously you can add
+[08:54] different materials to this we are just
+[08:56] going to add a black color and that's it
+[08:59] just just for demonstration purpose but
+[09:01] the lifetime should be bigger between
+[09:03] 1.8 and
+[09:05] 2.8 we are not going to use PR size mod
+[09:08] but we are going to use a mesh scale
+[09:10] mode random uniform between Z 25 and Z
+[09:13] 75 for example and here we go we have a
+[09:16] bunch of cubes and now let's just add an
+[09:18] initial mesh orientation so they can
+[09:20] have a different
+[09:21] rotation exactly like this looking good
+[09:24] and on the add
+[09:26] velocity we can say the X for the goe
+[09:29] axis is zero but it's 50 and 100 for the
+[09:33] Z oh and the velocity could be less
+[09:36] since it's thebr it's a little bit
+[09:37] heavier like 700 and 1,200 we can open
+[09:41] up the angle as well of the cone to 120
+[09:44] now let's remove the scale Sprite size
+[09:47] because we need the scale mesh size
+[09:49] where we say the scale factor is a float
+[09:52] and then it's a
+[09:53] curve where the first key could be at
+[09:56] around 0.5 and that's it let's just say
+[09:58] it's out
+[10:00] fix a little bit
+[10:01] handles and here we go yeah drag is a
+[10:04] little bit too high I'm going to
+[10:05] decrease it to four and add the Gravity
+[10:08] Force so they all go down the drag
+[10:10] basically slows them down by the way and
+[10:12] the Gravity Force pushes them down I'm
+[10:14] going to multiply the Z by three of the
+[10:17] gravity force and add a collision so it
+[10:19] collides well with the
+[10:21] environment with less bounce to 0.2 now
+[10:25] I'm just going to replace the mesh with
+[10:28] debris the this one and here we go
+[10:31] looking good now once again we need to
+[10:33] attach this to the slash let's disable
+[10:35] Spa rate and turn on receive location
+[10:37] event and Spa number can be one and now
+[10:40] let's see how it looks directly on the
+[10:42] map I'm just going to drag it and here
+[10:44] we go looking very interesting already
+[10:47] the rocks are folic but we can add a
+[10:49] plane for example so they collide with
+[10:52] it here we go it's a start we can make a
+[10:55] few improvements for example it would be
+[10:57] cool to leave a trail on the ground as
+[10:59] if it was burning the ground so let's go
+[11:01] back to Niagara create a new empty for
+[11:04] the ground Mark
+[11:05] bright yeah and instead of using a
+[11:08] Sprite let's use a mesh because it's
+[11:10] easier to set up with a plane it will
+[11:13] work better let's override materials add
+[11:16] a new material and and we can select the
+[11:18] default Sprite material that should do
+[11:20] just fine yeah this needs to emit
+[11:22] something so let's add a spa burst
+[11:24] instantaneous to the emitter update
+[11:26] let's just isolate this this is what we
+[11:28] got you can try using a projector by the
+[11:30] way or a deal but for tutorial sake this
+[11:32] will do fine let's just make sure that
+[11:34] lifetime is random between 0.6 and 0.8
+[11:38] and that color mode is a direct set this
+[11:40] case something bright like 0.8 0 and 10
+[11:44] and very importantly down here on the
+[11:46] mesh scale mode let's say it's random
+[11:48] non-uniform so we can stretch it in the
+[11:50] X and shrink it in the Y these values
+[11:54] worked out well for us let's just add a
+[11:57] quick fade out with a scale color in the
+[11:59] partic update make sure it's RGB linear
+[12:02] color curve it's a gradient essentially
+[12:04] and the last key we can delete it and
+[12:06] the key up here could be a dark color
+[12:09] like this here we go and to connect this
+[12:13] now to the slash let's go to stage and
+[12:15] add the event handler and in here let's
+[12:18] receive the location event let's say
+[12:21] it's pounded particles for the execution
+[12:23] mode one for the spawn number and let's
+[12:25] say the source is the location event
+[12:27] from the Slash and now we can turn spawn
+[12:29] burst instantaneous and this is what we
+[12:31] got so far looking good now just to
+[12:34] create some contrast on the trail on the
+[12:36] ground let's duplicate the ground Mark
+[12:38] bright and call it the ground Mark dark
+[12:40] it's going to be larger and it's going
+[12:42] to be darker we need to change the
+[12:43] material by the way we can duplicate the
+[12:46] default Sprite material I'm just going
+[12:48] to call it AB because if we open this up
+[12:50] on the material property overr the blend
+[12:52] mode can be translucent which means
+[12:55] basically it can render dark colors
+[12:57] opposite to the additive let's assign it
+[13:00] here on the ground Mark and on
+[13:02] initialized particle let's say it's
+[13:04] completely dark and a little bit
+[13:05] transparent like 03 and yeah let's
+[13:08] enlarge this on the mesh scale oh and if
+[13:11] we want this to fade out on the scale
+[13:13] color we need to add a transparent key
+[13:15] at the end like this and that's
+[13:18] it very importantly we want this to
+[13:20] render below the ground Mark bright so
+[13:22] on the mesh render on rendering let's
+[13:24] say the start order int is minus one
+[13:27] here we go it's it's nice we have a nice
+[13:30] contrast and since it's a cross slash at
+[13:33] this point it's all a matter of well
+[13:35] duplicating this four times right the
+[13:38] difference is for example if we
+[13:40] duplicate this slash up here the
+[13:42] position it should be negative on the X
+[13:44] we can scale curve minus one and we also
+[13:47] need to rotate the slash on the initial
+[13:49] mesh orientation 0.5 for the Z even
+[13:52] though we don't have the trail on the
+[13:53] ground and de breeze and the particles
+[13:55] let's duplicate one more time the slash
+[13:57] this time for the slash three but this
+[13:58] time the position we can copy this X
+[14:01] curve we can reset this value because we
+[14:04] need it to be on the Y let's convert to
+[14:06] Y to a curve and paste it right
+[14:09] here and say the scale curve is one and
+[14:12] the orientation is 0.25 so it goes to
+[14:15] the right if I'm not wrong let's
+[14:17] duplicate this one more time and
+[14:19] essentially it's more of the same since
+[14:21] it's already in the Y the scale curve of
+[14:23] the position can be minus one initial
+[14:25] mesh orientation can be 0 75 and here go
+[14:29] we have four slashes I'm sure there's
+[14:31] other ways to do this but yeah this is
+[14:33] the quickest one well now it's basically
+[14:35] a matter of duplicating the Sparks the
+[14:38] debris and the ground Mark bright and
+[14:40] dark and make the right connections for
+[14:42] example the Sparks we can duplicate it
+[14:44] and instead of the source of the event
+[14:47] handler coming from the sl01 it's going
+[14:49] to be from the sl02 and now we need to
+[14:52] fix the velocity for example like this
+[14:54] and we can duplicate this one more time
+[14:56] the Sparks and say the source is /03
+[15:00] adjust the velocity but this time it's
+[15:02] in the Y
+[15:03] AIS and duplicate one more time but this
+[15:06] time the source of the event handler is
+[15:08] going to be for the SL 4 you get the
+[15:10] idea right and then you need to fix the
+[15:12] velocity it's going to be positive here
+[15:15] and we have slashes for each
+[15:18] one and the same thing happens with the
+[15:20] breeze but this time we can add another
+[15:23] event handler instead of duplicating
+[15:25] receive another location event say it's
+[15:28] spound particles one for the spawn
+[15:30] particle and it's for the sl02 it's much
+[15:33] easier with the debris it's a different
+[15:36] method you can do this two more times
+[15:38] for the sl03 and then for the
+[15:43] sl04 here we go looking good and almost
+[15:47] the same thing happens on the ground
+[15:49] Mark but this time this bright one is
+[15:51] going to be for the
+[15:52] xaxis we can add another event handler
+[15:55] and another receive location event the
+[15:57] source is going to be 0 two spawn
+[15:59] particles one for the spa number yes
+[16:01] indeed and we can duplicate this but for
+[16:04] the y axis because on the initialized
+[16:06] particle we need to stretch them on the
+[16:09] Y instead of being on the X and I'm sure
+[16:12] there's other ways to do this but you
+[16:13] get the idea yeah I'm just going to
+[16:15] remove this event endlers by mistake
+[16:17] because we could simply switch the
+[16:20] sl03 and then to
+[16:22] sl04 and now the same exact thing will
+[16:25] happen for the ground Mark dark right
+[16:27] one for the X and then another one for
+[16:29] the way and this is essentially the end
+[16:31] result we get with this cool technique
+[16:34] I'm just going to increase their
+[16:35] lifetime of the ground Mark dark and go
+[16:38] to the slashes to each one to the P off
+[16:41] set and add 100 for the
+[16:44] xaxis and the trail will look better and
+[16:46] it comes out exactly behind the slash so
+[16:50] that's essentially it folks I made a few
+[16:52] more variations and they are all
+[16:54] available on my patrons page and by
+[16:56] supporting me you get access to plenty
+[16:58] of visual effects that you can use in
+[17:00] your games links below so that's it I
+[17:03] want to appreciate every Patron that
+[17:05] sported me last month and the quick
+[17:07] shout out goes to the top tier patrons
+[17:09] which are Alberto sjer Alex alien alad
+[17:12] avat tobali cyber cradle Daniel Schmid
+[17:14] David Molina di Mar Lu am Frosty 40 grub
+[17:17] lab Jared Billy Jonathan Carlson Casey
+[17:20] Miller leean Al Matt mower Mike Bale mop
+[17:23] SDA orrion Pier Mario Ru prip
+[17:26] radioactive b revant games RV Shen AG
+[17:31] stsk te very Mar
+[17:36] Will MIM and S so thank you all for
+[17:41] watching and I hope to see you on the
+[17:43] next one thank you

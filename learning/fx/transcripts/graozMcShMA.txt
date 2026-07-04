@@ -1,0 +1,496 @@
+[00:00] Today, let's see how this anim/stylized
+[00:02] waterfall splash can be done in Unreal.
+[00:06] I have previously done a similar version
+[00:08] in Unity because you are interested,
+[00:10] links below. But today, let's see how we
+[00:12] can do it in Unreal. It can be quite
+[00:14] useful if you are working with water in
+[00:16] an anim or stylized game. And we made
+[00:20] all of these versions available on my
+[00:22] Patreon page for my patronons. In case
+[00:24] you are interested, you will get access
+[00:25] to many VFX projects and VFX assets for
+[00:29] Unreal, for Unity, and Godo. So without
+[00:32] further ado, let's jump right into this.
+[00:34] So let's begin with a new Niagara
+[00:36] system, an empty one.
+[00:39] We can call it NES
+[00:42] waterplash. We are going to use Niagara
+[00:44] because we can have more control over a
+[00:46] few parameters. And it's going to be an
+[00:47] empty one so you can see everything from
+[00:50] scratch. This way you always learn
+[00:52] something new. It's totally empty. So
+[00:54] with right click, we can add an emitter.
+[00:57] You can click again on this bottom left
+[00:59] button to make sure it's an empty
+[01:01] emitter. In this case, it's called
+[01:02] minimal emitter. We are going to use it
+[01:05] for the water cylinder. And if you want
+[01:07] to see something spawning, we can do it
+[01:10] on the emitter update by searching for
+[01:12] spawn burst instantaneous. It's going to
+[01:15] spawn a particle one time. And down
+[01:18] here, let's go already down here in the
+[01:19] render, which is in this case the sprite
+[01:21] that it's visible right there. In this
+[01:24] case, we don't want a sprite. We want a
+[01:26] mesh render.
+[01:28] It's spawning this axis. You can change
+[01:31] it up here. And in our case, we need a
+[01:34] new mesh, more specifically a sander.
+[01:37] It's very simple, very straightforward.
+[01:39] We are going to use Blender. I'm going
+[01:40] to show you how create one. In here, we
+[01:43] want a clean scene. And then we can go
+[01:45] ahead with shift A and add a cylinder on
+[01:49] this bottom left panel. We can control
+[01:51] the vertice and radius. But what's
+[01:54] really important for us is the cap field
+[01:56] type. We want it to be nothing. So we
+[01:58] don't have the top and the bottom faces.
+[02:01] We can press tab to enter this mode. And
+[02:03] we want to select everything with A and
+[02:05] then with G. We want to move it up only
+[02:07] on the Z-axis. You can press Z to lock
+[02:10] it on the Z-axis. and type a value of
+[02:13] one and then enter. Here we go. It's
+[02:15] already aligned with its pivo.
+[02:17] Fantastic. And now we can smooth this
+[02:20] vertx with shade smooth. You can go up
+[02:22] there in object. You'll find it there
+[02:25] too. And let's rename it to simply
+[02:27] sander01. And that's it. We can go ahead
+[02:30] to file and export as an FBX directly to
+[02:34] our project. We have a models folder
+[02:36] here. We're going to rename it to
+[02:38] sander01 as well. Turn on selected
+[02:41] objects so it exports only this one just
+[02:43] to make sure and then press export FBX
+[02:46] and that's it. If we go back to Unreal,
+[02:49] we can import the sander and then we can
+[02:52] assign it right here. Here we go. And if
+[02:54] you press F or A on the preview window,
+[02:57] you will see the sander entirely. Great.
+[03:00] On the initialize part, we can control a
+[03:03] few things like the lifetime, but most
+[03:05] importantly the scale. We want to say
+[03:07] it's nonuniform. So we can stretch it
+[03:10] however we want. And for example X and Y
+[03:12] can be zero five but make it taller on
+[03:15] the Z like a value of five. Here we go.
+[03:17] So it's really tall. We are already
+[03:19] seeing that splash waterfall the
+[03:22] beginning of it. Now it's very important
+[03:24] to create a specific material to have
+[03:26] the anem waterfall the stallized water
+[03:29] aspect. Make sure override is on and
+[03:32] then down here we can add a new
+[03:34] material. We don't have any but we are
+[03:36] going to show you how to create one from
+[03:38] scratch. So in our content drawer, let's
+[03:40] go to a folder and we right click create
+[03:43] a material. The first one we are going
+[03:45] to create, we're going to call it the
+[03:46] solid color. It's extremely basic one
+[03:48] just so we can have some blue. We want
+[03:51] to say it's translucent on the blend
+[03:53] mode and it's going to be unlit, which
+[03:55] means the lights of the scene are not
+[03:57] going to influence this material. And
+[03:59] from there we can create a particle
+[04:01] color which basically allows Niagara
+[04:03] system to control the color of this
+[04:05] material and connect the RGB to the
+[04:07] emissive color. Let me just disable the
+[04:10] exposure. Here we go. This is what we
+[04:12] want. Extremely simple. Let's save it.
+[04:16] Basically, we want this material. Add it
+[04:18] right here. And this allows us to
+[04:20] control the color on the initialized
+[04:22] particle. For example, we can pick a
+[04:24] blue. We already have some default
+[04:26] values like zero on the R sh channel, Z4
+[04:29] on the G shadow and that's it, one on
+[04:31] the blue shadow. This is our base color
+[04:34] for the new waterfall. Extremely simple,
+[04:37] extremely basic. Now let's spice this
+[04:39] up. This is where things get
+[04:40] interesting. We can first duplicate
+[04:42] this. Ctrl + C, Ctrl + V, water
+[04:45] cylinder. Let's call it 02. And now
+[04:47] let's see how to create an erosion
+[04:48] material. So, right click, new material,
+[04:52] MC erosion. Double click to open it up.
+[04:56] And in here, first thing we want to do
+[04:58] is disable the exposure cuz it's kind of
+[05:01] annoying. We are going to need this to
+[05:04] be in a masked blend mode. So, we can
+[05:07] erode some parts of it. We are going to
+[05:09] erode the sander. It doesn't need to be
+[05:12] affected by light. So, we can say unlit.
+[05:14] And the first thing we want to do is
+[05:16] create a parameter. In this case, a
+[05:19] texture sample parameter 2D for our main
+[05:22] text which will receive the most
+[05:24] important texture for this material, a
+[05:26] voronoid texture. This one, as you can
+[05:28] see, which is available for free on the
+[05:30] link below. If we connect this to the
+[05:32] emissive color, we can see how the
+[05:33] texture looks. As a matter of fact, we
+[05:35] can change this to a cylinder so we can
+[05:37] have a better perception of how it will
+[05:39] look on our waterfall. Next part is to
+[05:42] make sure that Niagara can control the
+[05:44] color of this material with a particle
+[05:46] color which is something that we have
+[05:47] seen previously. We can multiply these
+[05:50] two together
+[05:53] and connect to the emissive color.
+[05:56] Nothing will change because it's still
+[05:58] white inside of the particle color by
+[06:01] default. We will control that on
+[06:02] Niagara. We also want to control a few
+[06:04] more parameters and for that we use a
+[06:07] dynamic parameter node. For example, to
+[06:09] control the amount of erosion, that's
+[06:11] going to be the first index and the
+[06:14] power value.
+[06:16] We can connect this RGB value to a power
+[06:21] and the power value right here to
+[06:24] control how much we want to dissolve
+[06:25] this voronoid. That's what it does. As
+[06:28] for the erosion, let's create a multiply
+[06:30] node by holding M and pressing left
+[06:33] mouse button. And then connect the
+[06:34] erosion from the dynamic parameter. And
+[06:37] this is going to be connected to the
+[06:38] opacity mask. And here we go. That's the
+[06:41] most important aspect of this because
+[06:43] right here, as you can see now, you will
+[06:45] be able to control how much you want to
+[06:48] erode. And it will give that sensation
+[06:50] of any water. This is the basic setup.
+[06:53] Let's just make sure that this parameter
+[06:56] index is set to one, which is basically
+[06:58] the second channel because we are going
+[07:00] to need another dynamic parameter. And
+[07:02] in this case, we can leave it on the
+[07:04] first channel, the zero parameter index.
+[07:07] That's how you can create several
+[07:08] dynamic parameters inside the material
+[07:10] by changing the parameter index. This
+[07:12] one, we are going to use it to control
+[07:14] the tiling X and Y on the red and on
+[07:17] green channel, and for the blue and the
+[07:19] white channel, the speed X and speed Y.
+[07:22] And by default, we can leave these
+[07:23] values as they are. We need to add a
+[07:26] little bit more motion to our material,
+[07:28] and that's what this is for. water moves
+[07:30] a lot and this is going to help mimic
+[07:32] that. Up here we can begin by a text
+[07:35] coordinate which is basically the UVs of
+[07:38] our cylinder and control the tiling of a
+[07:40] text. We are going to need it. First we
+[07:42] append tiling X and Y and then we'll
+[07:45] multiply the text coordinate just like
+[07:48] this. We are going to connect all of it
+[07:50] to a texture in a moment. For now, let's
+[07:53] take care of this bit by first creating
+[07:55] a time node. So, it animates the texture
+[07:58] panning vertically or horizontally. We
+[08:01] need two multiply nodes, one for the X
+[08:03] and another for the Y. And time is
+[08:06] connected to both. And then we need to
+[08:07] append this to create a vector. We're
+[08:09] going to use append many. Here we go.
+[08:13] And we can add these two together and
+[08:15] connect it to our main texture. It's
+[08:18] moving as you can see. Really
+[08:20] interesting. We have a small glitch. In
+[08:22] this case, this happens to you. It's
+[08:24] most likely because of post-processing
+[08:26] effects. You can disable them. Now it's
+[08:28] smooth and it looks cool. For example,
+[08:30] the dynamic parameter. We can say the
+[08:32] speed on the y-axis is zero as well as
+[08:35] on the x-axis by default. You know, we
+[08:38] are going to change this on the Niagara
+[08:41] because all of these values now are
+[08:42] available on the Niagara side thanks to
+[08:44] the dynamic parameters. For this one,
+[08:46] let's create an instance by going with
+[08:49] right click to the material we just
+[08:50] made. Create material instance. I'm
+[08:53] going to drag it outside of this folder.
+[08:56] What really matters is that we add it to
+[08:58] our Wasand 02. This erosion. Let's solo
+[09:02] by clicking this little guy icon right
+[09:04] here. So, we can see only this particle
+[09:07] system. And for example, in this case,
+[09:08] for the color, we can actually leave it
+[09:10] at white. You can obviously test
+[09:12] different colors, but for now, let's
+[09:13] leave it as white. And let's say it's a
+[09:16] little bit wider, like 0.55 on the X and
+[09:19] on the Y. Just like this. As you can
+[09:21] see, it's just a little bit outside of
+[09:24] the base color. Now, to access the
+[09:27] dynamic parameters we created on the
+[09:28] particle spawn, we can add a dynamic
+[09:30] material parameter. We can control the
+[09:33] tiling right here. Let's say it's one by
+[09:35] one or better yet, let's say it's three
+[09:38] on the X. We are repeating this pattern.
+[09:40] And for now, that's it for this dynamic
+[09:43] parameter. We can use the other dynamic
+[09:44] parameter, the one with erosion and
+[09:46] power by saying this is a float. Erosion
+[09:49] is at zero. That's why we don't see
+[09:50] anything. Something like 1.3 will look
+[09:53] very interesting. As you can see, you
+[09:55] can then control how much of this water
+[09:57] foam you want on the power. Feel free to
+[10:00] play with that value as well. But let's
+[10:02] add some motion on the speed Y like
+[10:04] minus 1.5. Here we go. And if we put
+[10:06] these two together, this beginning of
+[10:08] our animfall stallized waterfall. As you
+[10:11] can see, we can also test it in our
+[10:13] scene. We have a very basic blue color
+[10:15] for the ground to mimic water. Very
+[10:18] realistic. But yeah, you get the idea.
+[10:20] Now, it's all about adding a few more
+[10:22] details like ripples and whatnot. Let's
+[10:25] go back to Niagara. We can duplicate the
+[10:27] water cylinder too, the foam,
+[10:32] and call it ripples. In this case, we
+[10:35] need a different mesh. So, let's go back
+[10:37] to Blender. We can add this other sand.
+[10:40] And then with shift A add another
+[10:42] sander. In this case we can select the
+[10:44] top vertx only and scale it down with S.
+[10:47] You can type zero and then press enter.
+[10:49] And then with G we want to move it on
+[10:51] the Z-axis a value of minus one. And
+[10:54] then we can select the bottom vertice
+[10:56] and push it up with G lock it in the Z a
+[10:59] value of one. We're basically creating a
+[11:01] circle as you can see. And we are using
+[11:03] a sander for that. So the UVs are
+[11:05] perfect. It's easier in a way. Let's go
+[11:08] back to object mode. Select shade
+[11:10] smooth. And that's it. We can call this
+[11:12] one the circle 01. Oh, as a matter of
+[11:15] fact, let's go back in edit mode with
+[11:17] tab and with ct controllr add a couple
+[11:20] of edge loops. You can scroll up and
+[11:22] down to add a few more edge loops and
+[11:24] then press enter and then escape so it
+[11:26] stays at the center. This way you don't
+[11:28] get strange artifacts when creating this
+[11:30] effect. Our idea with this circle is to
+[11:34] scroll a texture. In this case, the
+[11:35] voronoid texture. That's why the UVs are
+[11:38] the way they are. So we can get this
+[11:40] effect and it will look like a puddle.
+[11:42] It's awesome. It's a great trick by the
+[11:44] way. So let's press Ctrl+ A to apply all
+[11:46] transform. So we make sure that the
+[11:48] scale, the rotation will be the same
+[11:50] when we export this to Unreal. And in
+[11:52] file we can export as an FBX. Call it
+[11:55] circle01. And that's it. Export.
+[11:58] Now back to Niagara on our repos meter.
+[12:02] We want to change the mesh to the
+[12:04] circle. Exactly this one. Here we go.
+[12:06] It's very small. We'll fix that. And on
+[12:08] this case, we want to spawn more than
+[12:10] one per second. We want to spawn a few
+[12:13] of these.
+[12:14] So on the emitter update, let's add a
+[12:16] spawn rate of three. We can leave the
+[12:19] spawn burst instantaneous. That's all
+[12:21] right. But on the initialize particle,
+[12:24] let's decrease this to 2 seconds. They
+[12:26] are going to be faster. If you want the
+[12:28] sounder can leave more than five, by the
+[12:29] way. As for the size of the ripples,
+[12:32] let's make sure it's random uniform. We
+[12:34] don't need to stretch them. Let's say
+[12:36] it's between two and three. We just want
+[12:38] a few of them that are smaller, others
+[12:40] that are bigger. This is what we get at
+[12:42] this point. If you want, you could
+[12:44] improve your shader by adding a mask so
+[12:46] you don't get the cut on the edge of the
+[12:48] circle every time the veronite gets
+[12:50] closer. But that's another trick for
+[12:52] another time. As a matter of fact, if
+[12:53] you watch my channel, you will discover
+[12:55] that trick very easily. Now, let's make
+[12:58] sure that the tiling is different. It
+[13:00] will make a huge difference, especially
+[13:02] if we say on the Y it's Zot 5. And if
+[13:05] you want slower ripples, you can
+[13:07] decrease the speed Y. We don't have a
+[13:10] mask, but we can animate our erosion. If
+[13:13] we convert this to float from a curve,
+[13:16] the scale curve can be 1.3. And then we
+[13:19] can select these two key points and we
+[13:20] right click say it's auto. So we can
+[13:22] control their handles. So we can
+[13:24] basically say that it erodess faster at
+[13:27] the beginning. Make sure to play with
+[13:29] this erosion. It's quite powerful. You
+[13:31] will see. For now we can say power level
+[13:34] is two. It creates this kind of
+[13:36] gradient. And since it is repeating
+[13:38] itself so much the only thing we are
+[13:40] missing is on the particle spawn an
+[13:43] initial mesh orientation. First we want
+[13:46] to say it's none. And then we can turn
+[13:48] on rotation down here. Make sure it's
+[13:50] random range vector. So we can say it
+[13:53] has a random orientation on the zaxis
+[13:56] between zero and one. This is not
+[13:58] degrees. It's quaternians I believe. But
+[14:00] between zero and one, it will rotate
+[14:02] randomly 360°.
+[14:04] You can also bump up the color value.
+[14:07] Say it's 12 on the RGB, it will become
+[14:10] brighter. That's something you will
+[14:11] notice in your scene. Another change I'm
+[14:14] going to do is push this position offset
+[14:17] a little bit up a value of Z.1 so it
+[14:19] doesn't intersect with our water.
+[14:21] Another small detail we can add is make
+[14:24] sure that this grows over time with a
+[14:26] scale mesh size on the particle update
+[14:28] and then convert this to a float, this
+[14:31] vector to a float. So we can convert the
+[14:33] float to a curve. We can use one of
+[14:35] these templates so it goes from small to
+[14:37] big. Select all of these keys, right
+[14:40] click, choose auto just so we can
+[14:42] control the endles and create this curve
+[14:44] right here. Here we go. And the cool
+[14:46] thing is that if we drag the dynamic
+[14:48] material parameter module down here to
+[14:50] the particle update, it will
+[14:52] continuously animate the values there,
+[14:54] creating this effect, it has different
+[14:56] results if used on the particle spawn or
+[14:58] on the particle update, creating these
+[15:00] small ripples. Feel free to obviously
+[15:02] play with the values and see what you
+[15:04] can get because there's a few different
+[15:06] results depending on the values. As you
+[15:08] can see, these ones are kind of
+[15:09] triangular. They stretched. Now, let's
+[15:11] create some round ripples. So let's copy
+[15:14] this ripple01. Rename it to rile02. If
+[15:18] we change a few values on the dynamic
+[15:20] material parameters. Let's just isolate
+[15:22] it. For example, let's first say the
+[15:25] tiling is different like 0.5 on the X
+[15:27] and one on the Y. You immediately get
+[15:30] round ripples. That's how cool this is.
+[15:32] Let me just decrease the intensity, the
+[15:35] value in this case. And that's it. We
+[15:37] have very different ripples. Now if we
+[15:39] solo these two together, this is what we
+[15:41] get. I'm noticing the round ripples are
+[15:44] eroding too early. So we can increase
+[15:46] the erosion to 1.5 for example. We can
+[15:48] say the power is zero. So it's fully
+[15:50] white and we get this awesome effect.
+[15:53] Cool. In terms of ripples and waterfall.
+[15:56] That's pretty much it. What we can still
+[15:58] show you on this tutorial is how to
+[16:00] create kind of foam at the base of
+[16:02] waterfall. So let's copy this ripple 02
+[16:05] for the ring base 01.
+[16:08] Let's solo this. And on mesh render we
+[16:11] are going to change it. Let's go back to
+[16:13] blender to create something that looks
+[16:16] like a ring. We are going to begin with
+[16:18] a sander with shift A. We can already
+[16:20] shade smooth this. And then if we enter
+[16:22] edit mode with tab, we can use CtrlR to
+[16:25] add three edge loops. You can press
+[16:27] enter and then escape so it stays at the
+[16:29] center. We can scale all of these only
+[16:31] on the Z-axis a value of 0.5. And then
+[16:34] by selecting the top and the bottom
+[16:35] edges and enable proportional editing.
+[16:38] Let's scale this down. And then you can
+[16:40] control the influence by scrolling up or
+[16:42] down on the mouse wheel. Here we go.
+[16:44] Let's push this a little bit outwards
+[16:46] with S. And that's pretty much it. You
+[16:49] get this ring. You can rename it and
+[16:51] then apply the transforms
+[16:54] and export as an FBX to your project.
+[16:58] Back to Niagara. We can add it right
+[17:00] here. And for now, this is what we get
+[17:01] as soon as we replace it. So yeah, we
+[17:04] need to make a few adjustments on the
+[17:05] dynamic material parameter. That's how
+[17:07] cool this module is. You can control a
+[17:10] lot of things inside the shader. I'm
+[17:12] going to say the tiling Y is smaller so
+[17:14] the texture looks bigger. And as a
+[17:16] matter of fact, we can disable speed by
+[17:18] saying it's zero. And increase the scale
+[17:20] curve of the erosion like four, but can
+[17:23] go from big to small with this curve
+[17:26] like this. Small value in the power. And
+[17:29] as soon as you play this, this is what
+[17:30] we get. As you can see, we have these
+[17:32] random rings appearing. They already
+[17:35] have random rotation and they are
+[17:36] growing up. Maybe we can increase the
+[17:39] spawn rate. Maybe that's too much, but
+[17:41] we are going to leave it as it is for
+[17:46] I've increased the scale curve on the
+[17:48] scale mesh size, but that's way too big.
+[17:51] Instead, we can go to initialize
+[17:52] particle and they should leave less by
+[17:55] the way, like 0.5. But yeah, the size is
+[17:58] really big. So with the random
+[18:00] non-uniform we can say it's a minimum of
+[18:02] 0.5 on the X and 0.3 on the Z and for
+[18:06] the maximum 0.7 on the Y and on the X
+[18:08] and 0.5 on the Z. Yeah, now it's with
+[18:12] the correct proportions as you can see.
+[18:14] And it really adds a lot because it was
+[18:15] the missing connection between the
+[18:17] waterfall and the ripples. As you can
+[18:19] see, if you look at this on the scene,
+[18:21] it looks much better already with just a
+[18:23] few emitters. And if you add a couple of
+[18:25] particles and splashes here and there,
+[18:28] you get really interesting result.
+[18:29] That's what we did here with all of
+[18:31] these versions that we made available on
+[18:33] my Patreon page and on my website links
+[18:36] below in case you are interested.
+[18:37] Talking about patrons, I want to say
+[18:39] thank you to each patronon that
+[18:40] supported me last month. And as usual, a
+[18:43] quick shout out to the top tier patrons
+[18:44] which are Albert and Guin Amarantos,
+[18:47] Ashkan Kalcali, America Kumova,
+[18:49] Christian Ludana, Die Maru, Dimitri
+[18:51] Kipka, Eric Alamirano, Frosty 40,
+[18:53] Gabriel Dichi, Jade Ginuga 4, Leandro
+[18:56] Dissu, Lua, Matt Morren, Medic,
+[19:01] Praen, Rain M, Sage, Stephen B, Jono,
+[19:04] Valkcan S, Visuta, whatever Marta will
+[19:08] pang Jang Leosa and MJ King. Thank you
+[19:12] all very much for your support. I hope
+[19:13] everyone enjoyed this video and I hope
+[19:15] to see you on the next one. Thank you.

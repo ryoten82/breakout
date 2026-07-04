@@ -1,0 +1,267 @@
+[00:00] today let's see how to create stylized
+[00:02] smoke in
+[00:06] unreal this is one of the most useful
+[00:08] tricks to know when it comes to visual
+[00:12] effects knowing how tooll meshes can
+[00:15] yield some pretty cool results
+[00:17] especially when trying to recreate
+[00:20] stylized effects so let's see a
+[00:22] simplified version as usual be made
+[00:24] quite a few variations and they are all
+[00:26] available on the marketplace and on my
+[00:29] patreon page 2 links below so without
+[00:33] further Ado let's jump right into this
+[00:35] just want to say these videos are
+[00:37] possible thanks M patrons and by
+[00:39] supporting me you get access to these
+[00:41] projects and many many more assets that
+[00:44] you can use in your
+[00:46] games so for this one we can begin with
+[00:49] an nagra system directly an empty one
+[00:52] and rename it to stz it smoke and inside
+[00:56] here with right click we can add an
+[00:58] empty meter this is going to be for our
+[01:01] smoke this way you see how to set up an
+[01:03] Emer from scratch as well the first
+[01:06] thing we need is to change the render we
+[01:09] are not going to emit Sprites we are
+[01:10] going to emit a mesh render because we
+[01:13] want to emit a specific mesh for this
+[01:15] effect that we will show you in a moment
+[01:17] how to create for now let's get the
+[01:20] basic motion of this Emer
+[01:22] right then what we need is to Spa
+[01:25] something right so on the meter update
+[01:27] we can add the spawn rate of around
+[01:30] 20 and say the lifetime in the
+[01:33] initialized particle is random between
+[01:35] 1.2 and 1.6 we can already say that the
+[01:40] scale is going to be something between 1
+[01:42] and two we will see later on if that's
+[01:44] okay let's just add a shape location so
+[01:47] they don't all spawn in the same
+[01:49] position it can be a cinder with no eigh
+[01:52] but with a radius of 20 small thing
+[01:55] finally some motion with ADD velocity
+[01:58] this gives us a warning essentially
+[02:00] saying that we are missing the S Forces
+[02:02] and velocity and we can click fix issue
+[02:05] and on real will automatically add it oh
+[02:08] let's say the velocity is in cone around
+[02:12] 800 and if we want this to go up we can
+[02:15] say the cone axis is 0 0 for the X and Y
+[02:18] and one for the Z and then you can play
+[02:20] a little bit with the cone angle so it
+[02:21] spreads this is what we got as you can
+[02:23] see some basic axis 3D models but the
+[02:28] motion is more or less there now let's
+[02:30] take care of the aspect of this and
+[02:32] let's create a very basic mesh we are
+[02:34] going to use blender because it's easy
+[02:36] to pick up and it's free and I'm going
+[02:38] to guide you the best that I can for
+[02:40] example we want to select everything
+[02:42] with a and then press delete so we can
+[02:44] have a clean scene and then with shift a
+[02:47] we want to start with an iOS sphere and
+[02:49] down here on the left bottom panel we
+[02:52] want to set the subdivisions to one
+[02:54] because they will look better if we add
+[02:56] a modifier right here called subdivision
+[02:59] C surface just like this now the idea is
+[03:03] to duplicate this a couple of times two
+[03:06] three times four so we kind of have this
+[03:09] Cloud this smoke this shape you can test
+[03:12] different shapes obviously it's totally
+[03:15] fine the idea then is to select these
+[03:17] meshes and with contrl J we are going to
+[03:21] join them into one mesh now this has a
+[03:24] lot of vertic inside there that we don't
+[03:27] need so let's use a remesh modifier and
+[03:31] with voxel selected let's say the voxel
+[03:33] size is around 05 oh and turn on smooth
+[03:37] shading so it looks smoother feel free
+[03:39] to test different voxel size values and
+[03:42] lastly we want to apply these modifiers
+[03:45] from the top the subdivision and then
+[03:47] the remesh and with all of these applied
+[03:50] now we can use decimate to decrease the
+[03:53] poly count I'm going to use UNS
+[03:55] subdivide and increase a little bit the
+[03:57] iterations you can play with these
+[03:59] values and adjust it however you want
+[04:01] and then we need to apply this now for
+[04:04] this to work properly with our Shader we
+[04:06] need to fix the UVS I'm going to open up
+[04:09] a new window and select UV editor and on
+[04:12] the right window with tab we can enter
+[04:14] edit mode and as you can see this
+[04:16] doesn't have UV Maps so one very simple
+[04:20] way to unwrap this and get a decent UV
+[04:22] map is by pressing U and select sphere
+[04:25] projection now we need to make sure that
+[04:27] everything is inside this boundary this
+[04:30] Square we can scale it down with s
+[04:33] select the vertex that are outside the
+[04:35] boundaries with b and push them inside
+[04:37] with G they won't be perfect but they're
+[04:40] acceptable UVS for this effect now let's
+[04:44] rename this to smoke 01 and let's export
+[04:47] these in file export and select fbx turn
+[04:51] on select the object so we only export
+[04:53] this we rame it to SCM and thecore smoke
+[04:57] and in our case we are going to export
+[04:59] this Direct ly to the unreal project as
+[05:01] soon as we switch over to Unreal it has
+[05:03] detected that there's a new file it asks
+[05:06] us if we want to import and we can say
+[05:08] import all close this window and now
+[05:11] let's assign this right here so we can
+[05:14] see something and here we go that's the
+[05:16] beginning looks very interesting already
+[05:19] now let's make sure that it has some
+[05:21] random Rotation by adding the initial
+[05:24] mesh orientation module to the particle
+[05:26] spound make sure mesh orientation mode
+[05:28] is set to random
+[05:30] and finally we can control the scale of
+[05:32] this with a scale mesh size on the
+[05:34] partic plate let's transform this into a
+[05:37] float and then transform it to a curve
+[05:41] and we want this to essentially grow so
+[05:43] the first key is going to be 0.1 more
+[05:45] less and the last key 1.5 for example
+[05:49] I'm going to use alutto so it's a little
+[05:50] bit smoother and fix the handles so we
+[05:53] can have this curve right here and this
+[05:55] is what we get at this
+[05:57] point right so we need need to take care
+[06:00] of the aspect of this let's go ahead and
+[06:03] create a material with right click
+[06:05] material I'm going to call it the M
+[06:07] uncore smoke double click to open it up
+[06:10] and on the details let's already switch
+[06:12] the material to masked so we can
+[06:15] essentially erode this and that's the
+[06:17] foundation on how we made all of these
+[06:19] effects which are all available on the
+[06:22] marketplace by the
+[06:23] way now we essentially need a texture to
+[06:26] eroll this according to that texture so
+[06:28] let's search for a parameter 2D call it
+[06:31] the main text and to aoll that texture
+[06:34] we can connect the RGB to a power node
+[06:38] now if we want the colors of Niagara to
+[06:40] influence this material we need the
+[06:42] particle color node multiply it with the
+[06:44] power and connected to the emissive
+[06:47] color now there's one thing we need
+[06:49] which is to control that power value how
+[06:52] much we dissolve the main text through
+[06:54] Niagara for that we use a dynamic
+[06:57] parameter node it comes with four
+[07:00] parameters we can rename the first one
+[07:02] to erosion and the second one to power
+[07:05] and the default values could be 20 and
+[07:08] zero we can connect the power to the
+[07:11] power node and the erosion parap is a
+[07:13] cool trick that we can multiply with the
+[07:15] r channel of the main text and then
+[07:19] connect to the opacity
+[07:21] mask this is what will erode the power
+[07:25] is to dissolve the texture in
+[07:27] combination you can create very
+[07:29] interesting effects I'm just going to
+[07:31] assign the vono to the main texture
+[07:33] which by the way it's available for free
+[07:35] on the link below and this is what we
+[07:37] have lastly if you guys want to control
+[07:40] the metallic and specular values you can
+[07:42] create a scalar parameter for the
+[07:46] metallic and for the specular with
+[07:48] default values of 0 and 0.1 respectively
+[07:51] let's save this and as a good practice
+[07:54] let's create a material instance out of
+[07:56] this original
+[07:58] material I'm going to drag it outside of
+[08:00] The Originals it's just good practice
+[08:04] let's go back to our Niagara system and
+[08:06] on the mesh render let's enable material
+[08:08] override add a new material override and
+[08:11] well assign the material instance of the
+[08:14] smoke and here we go it's a beginning
+[08:18] now the cool trick is to animate the
+[08:20] erosion and if you want to animate
+[08:22] something it needs to be in the particle
+[08:24] plate where we can use the dynamic
+[08:26] material parameters so we can access the
+[08:29] those values that we have Exposed on the
+[08:31] material and as you can see Niagra
+[08:33] immediately detects that there is an
+[08:34] erosion and a power parameter for the
+[08:37] erosion let's convert this float to a
+[08:39] curve and the way this works is well in
+[08:42] the beginning let's say the first key
+[08:44] starts at
+[08:45] 0.3 and it has a value of 15 and last
+[08:49] key we can leave it as it is let's
+[08:51] select everything and say it's Alo so we
+[08:54] can have these handles and create this
+[08:56] curve right here what will happen is
+[08:58] that 15 needs no erosion and zero is
+[09:01] completely eroded so in the beginning we
+[09:04] don't have erosion and at the end well
+[09:06] it's eroded creating this cool effect
+[09:09] and now you can do all type of things
+[09:10] for example let's use a scale color say
+[09:13] it's rgba together and convert this to a
+[09:17] curve and it will create a gradient and
+[09:18] the cool thing is that we can push the
+[09:20] last key more or less around here as
+[09:22] well as the first key to around 025 add
+[09:26] a key in the middle we can say it as
+[09:28] this value in terms of gray and for the
+[09:30] last key a very close dark and we create
+[09:33] this very cool stylized smoke just look
+[09:36] how awesome it is and now if you want to
+[09:38] control these as if it was a wind you
+[09:41] can add a wind force in the partic
+[09:43] update we get a warning saying that
+[09:45] there's a few moduls that are missing
+[09:47] like the drag module we can click fix
+[09:50] issue there's another warning on the
+[09:52] drag saying that it needs the drag to be
+[09:55] before solve forces and velocity can
+[09:58] click fix ISS isue and NRA automatically
+[10:00] fix this which is awesome and now well
+[10:03] on the wind speed we could say something
+[10:06] like 1,500 for the X and for the Z as
+[10:09] well and we prefer to disable turbulance
+[10:11] we get a more realistic feeling and this
+[10:14] is what we get so as you can see you can
+[10:16] control the wind force can play with
+[10:18] these and it's super cool the effect we
+[10:20] can get just the
+[10:22] erosion now it would be super awesome if
+[10:25] you guys could support us on Patron
+[10:27] where you can get all of these effects
+[10:30] from this pack and many many more assets
+[10:32] that you can use that would be awesome
+[10:34] and we would appreciate a lot if you
+[10:36] guys could support us this is also
+[10:38] available on the marketplace by the way
+[10:40] I want to say thank you to each Patron
+[10:41] that supported last month and a quick sh
+[10:44] out goes to the top tier patrons which
+[10:46] are Alberto Sager alexe alien ala avat
+[10:49] to Bali cyber cradle Daniel Schmid David
+[10:51] Molina di Mar Lu am Frosty 40 grub lab
+[10:55] Jared Billy Jonathan Carlson Casey
+[10:57] Miller Lee and Al m mat moow Mike Bell M
+[11:00] SDA orrion Pier Mario prip radioactive
+[11:04] bu Revenant games rvr Shen agular Spence
+[11:10] Stan Mar
+[11:14] Will MIM and Sano so thank you all very
+[11:18] much I hope you are enjoying this unreal
+[11:20] enant tutorial series with Niagara and I
+[11:23] hope to see you on the next one thank

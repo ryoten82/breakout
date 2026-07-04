@@ -1,0 +1,267 @@
+[00:00] today let's see this sci-fi barrier in
+[00:03] unreal very commonly used to protect
+[00:05] players or for a force field of some
+[00:08] kind and today I'm going to show you a
+[00:10] simple version of this as usual we made
+[00:13] quite a few variations and they are all
+[00:15] available on the marketplace or on my
+[00:17] patrons page as a matter of fact this is
+[00:20] actually part of this huge sci-fi pack
+[00:25] below so let's jump right into this
+[00:31] all right so let's begin by creating a
+[00:32] new Niagara system with right click in
+[00:36] effects an empty system that we can
+[00:38] rename to nesor sci-fi
+[00:42] barrier in here with right click we can
+[00:45] add an empty meter and rename it to mesh
+[00:48] it's going to be the mesh for the
+[00:49] barrier essentially which means down
+[00:52] here on the render we going to replace
+[00:54] the Sprite render with a mesh render so
+[00:57] we can emit meshes and in here I'm going
+[00:59] to this mesh right here which
+[01:02] essentially comes from this tutorial the
+[01:05] exact same mesh where I use blender to
+[01:07] create the barrier I left the link below
+[01:10] it's for you but what matters is the
+[01:12] mesh itself once you have the mesh what
+[01:14] really matters now is that we go to the
+[01:18] emitter update and use a spound burst
+[01:20] instantaneous so we can emit one
+[01:22] particle and here we go we have the mesh
+[01:25] now down here we want to enable material
+[01:28] overwhite add a new material and this is
+[01:31] where we are going to need to create a
+[01:32] new material essentially so on the
+[01:34] folder with right click I'm going to
+[01:36] create a new material and call it the
+[01:38] mcore barrier material for example open
+[01:42] it up and first thing we want to say is
+[01:44] that the blend mode is additive from
+[01:47] there we need a text sampler Tod for our
+[01:50] main text and in here I'm going to use
+[01:52] this dots texture which essentially a
+[01:54] made on material maker it's very easy
+[01:57] and very straightforward and I highly
+[01:59] recommend it to use material maker to
+[02:01] create text and once you have downloaded
+[02:03] which is available on each doio you can
+[02:05] open it up and this is material maker I
+[02:08] already have some nodes here but
+[02:10] essentially what we want to do is search
+[02:12] for a pattern generic yes indeed with
+[02:17] this pattern right here we want to
+[02:19] increase the X and Y tiling like 16 by
+[02:23] 16 for example and that's essentially it
+[02:26] now all we got to do is remove the black
+[02:28] background and the way we do it is with
+[02:30] a colorized node the first key which is
+[02:34] black should also be with Alpha at zero
+[02:38] as you can see now black is completely
+[02:40] transparent and that's going to be
+[02:41] useful for us for our sci-fi barrier
+[02:44] between these two if you don't want
+[02:46] these dots to be round you can use a
+[02:49] step node by the way every time you
+[02:50] select a node you can preview what it is
+[02:52] doing right and in this case the value
+[02:56] if it's smaller the dots are going to be
+[02:58] bigger and the wide will control how
+[03:00] smooth they are by the way replace
+[03:02] connection to colorize and with the
+[03:04] colorize node selected now on this
+[03:07] preview to the window with right click
+[03:09] we can go to export and select for
+[03:11] example 2048 by 2048 and then you can
+[03:15] export this directly to your project
+[03:17] call it the dot 01 text or something
+[03:19] like that export as a PNG yes indeed all
+[03:23] right so now that we have our texture
+[03:24] the dots text we can assign it here and
+[03:27] we want to connect the RGB to theive
+[03:29] color and here we go this is what we
+[03:31] have at this stage now there's a couple
+[03:33] ways of doing this but I like to use a
+[03:35] dynamic parameter node to control the
+[03:37] text tiling on the X and on the Y so we
+[03:41] can adjust it to the barrier and for
+[03:43] this to work we need to join the X and Y
+[03:46] we are going to use an aen note and then
+[03:48] we need the text coordinates essentially
+[03:51] the UVS if we multiply these two
+[03:53] together and connect these to UVS of the
+[03:56] main text on the dynamic parameter now
+[03:58] we can control the tiling of this text
+[04:00] as you can see I'm going to leave it at
+[04:02] one and one looking good now let's copy
+[04:06] all of this contrl c contrl v I'm going
+[04:09] to rename this to the noise text so it
+[04:12] can kind of break that pattern you see
+[04:15] and I'm going to use this noise texture
+[04:17] right here which by the way you can
+[04:18] create a very similar one in material
+[04:21] maker as well essentially I began with
+[04:24] searching for noise and using the fbm
+[04:26] noise there's plenty of nois by the way
+[04:29] and it cre inreasing the scale to eight
+[04:31] in the X and in the Y and then I use the
+[04:34] tones to control how much black or Whit
+[04:37] I want right I don't want that many
+[04:39] blacks by the way and that's essentially
+[04:41] it now I simply exported this texture as
+[04:44] a PNG to the project all right so now
+[04:47] that we have this noise texture we can
+[04:49] connect this to the emissive color I
+[04:51] just want to show you that the dynamic
+[04:52] parameter node should have the parameter
+[04:55] index set to one it's very important and
+[04:58] let's just rename this two noise text
+[05:00] styling X and Y and now we want to use
+[05:03] these two parameters down here for the
+[05:05] noise text speed in the
+[05:08] X and noise Tex speed in the
+[05:11] Y and for these two new parameters we
+[05:14] are going to need the time note let me
+[05:17] push this all the way back and we are
+[05:20] going to create two multiply nodes while
+[05:22] holding M and then clicking with left
+[05:25] Mouse button and then speed X goes to
+[05:27] this B right here and speed y goes to
+[05:31] the B right here once again the way this
+[05:33] works is that we need to join them and
+[05:36] we are going to use an a pen manyu or an
+[05:39] a pen would work as well and we want to
+[05:42] add this RG to the tiling just like this
+[05:46] and then replace this connection to the
+[05:48] UVS of the noise text and here we go
+[05:50] it's already moving because by default
+[05:53] speed X and speed Y is set to one now
+[05:56] how do we join all of this together we
+[05:58] can do it right here here with a
+[06:00] multiply note by multiplying the main
+[06:02] text with the noise text and then
+[06:04] replacing the connection to the emission
+[06:06] and here we go it's just a nice trick to
+[06:09] break the dots pattern essentially it
+[06:12] will add a really nice touch another
+[06:14] fantastic detail that we can add is a
+[06:17] glowing border to our barrier so let's
+[06:20] create a new parameter 2D and call it
+[06:22] the Border text and this time we are
+[06:24] going to use this text right here which
+[06:26] again all I did was follow this tutorial
+[06:29] essentially we extracted the UVS and
+[06:31] then painted the Border in crit or in
+[06:34] Photoshop you can do the same and then
+[06:36] once you have this texture let me just
+[06:38] connect this to theive color so we can
+[06:40] see what's happening what we want to do
+[06:42] is create a constant Vector 4 convert it
+[06:45] to a parameter and call it the Border
+[06:48] color and if we multiply these two
+[06:51] together replace this connection to the
+[06:53] emissive and for example choose an
+[06:55] orange color like 5 for R 0.85 for the G
+[06:59] and 0 5 for the B we get this nice
+[07:02] orange glowing right now how do we add
+[07:05] this to the rest of what we have here
+[07:08] well first we need to subtract the
+[07:12] Border exactly like
+[07:15] this as you can see now the border is
+[07:18] gone from that equation and then we need
+[07:20] to read it again but first what we can
+[07:23] do is copy this border color call it the
+[07:26] well the center color for example and
+[07:28] switch it to a blue color color and then
+[07:30] multiply these two
+[07:32] together with all of this done now we
+[07:34] can read add the border with its own
+[07:38] color and as soon as we do it and
+[07:41] replace the emissive color connection
+[07:43] here we
+[07:44] go this is how it's looking now I'm just
+[07:47] going to create a material instance
+[07:49] because I like to use instance instead
+[07:51] of the original material and on the
+[07:53] barrier itself on the nagra system on
+[07:56] the mesh render I'm going to use it
+[07:58] right here and and here we go as you can
+[08:00] see the dots are stretched so on the
+[08:03] particle update or on the particle spawn
+[08:06] the update will keep on updating these
+[08:08] values by the way we want to say that
+[08:10] the main text styling is 1.6 for the X
+[08:13] and one for the Y at least I found these
+[08:16] values to work better looks rounder and
+[08:19] now yeah the noise styling can be one
+[08:21] for the X and one for the Y and the
+[08:23] speed something like 02 for the Y will
+[08:26] add a nice touch as you can see
+[08:28] obviously the blue is with too much
+[08:29] saturation but you get the idea now a
+[08:32] cool thing we can do is for example
+[08:34] control its size right here on the
+[08:36] initialized particle that's why it's
+[08:38] useful to use the system you could
+[08:40] do that here or if you want to animate
+[08:43] this on the particle plate you could use
+[08:46] a scale mesh size where for example you
+[08:49] can make a vector from this that's the
+[08:50] name but essentially it will separate
+[08:52] each axis and now we can say the Z is
+[08:54] controlled by a curve let me just say
+[08:57] the X and Y is one
+[09:00] and you can create an interesting motion
+[09:02] with only the Z where you say that the
+[09:05] first and last key are zero but then you
+[09:07] add a key marless around here with a
+[09:10] value of 1.2 so it grows really fast in
+[09:12] the beginning like Bo and then you can
+[09:14] add another key at Z one and more or
+[09:17] less near the end at 095 you can say
+[09:19] it's still
+[09:22] one by the way let's select everything
+[09:24] and with right click say it's Auto so it
+[09:26] becomes smoother and then you can
+[09:28] obviously adjust these handles however
+[09:31] you want but essentially this is the
+[09:32] motion you get by playing with the
+[09:34] z-axis as you can see it's really cool
+[09:37] you can do this in the x or in the Y AIS
+[09:39] and see how it looks for example I'm
+[09:41] going to copy this Z curve let me just
+[09:43] convert X to a
+[09:47] curve and then paste it right here and
+[09:50] now I'm going to select these three keys
+[09:53] press F to focus on them and I'm going
+[09:55] to push them a little bit to the front
+[09:57] off set them I'm going to copy this and
+[09:59] paste it on the Y but first I need to
+[10:02] convert this to a curve and here we go
+[10:05] we get a very interesting motion just by
+[10:07] playing with these curves and you can
+[10:09] obviously try different feelings and
+[10:12] different colors once again this is all
+[10:14] part of the Sci-Fi pack that I made
+[10:17] available on the marketplace and on my
+[10:19] Patron's page it's a great sci-fi
+[10:21] collection links below by supporting me
+[10:23] on the patreon page you get access to
+[10:25] plenty more assets that you can use in
+[10:27] your games I want to say thank you to
+[10:30] each Patron that supported me last month
+[10:32] and as usual a quick shout out to the
+[10:33] top tier patrons which are Alberto sjer
+[10:36] alexe Alan aler Andre reer aat tobali
+[10:39] Ben Basel cyber cradle Daniel Schmid
+[10:41] David Molina di Marcus Lua Alma Frosty
+[10:44] 40 grab lab ingward popup Ivan jobi
+[10:47] Jared Billy jelly mesh Jonathan Carlson
+[10:49] Casey Miller Lee and old Matt M Mike
+[10:52] Bell Nathan peeken aurion Mayu prips
+[10:56] radioactive bullfrog Revenant games Ray
+[10:58] RV are Shan agil Studio pra th P
+[11:03] whatever Mar Will Zur V dong sh MJ Kim
+[11:08] and Sango thank you all very much for
+[11:10] your support and I hope to see you all
+[11:12] on the next one thank you bye

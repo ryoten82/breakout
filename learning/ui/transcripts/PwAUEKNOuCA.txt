@@ -1,0 +1,354 @@
+[00:00] [Music]
+[00:10] hi guys and welcome back here to the dev
+[00:12] realm and today we're going to be
+[00:13] carrying on our series and if you guys
+[00:14] remember what we did last time is that
+[00:16] we have created a checkbox component uh
+[00:19] what we're going to be doing today is
+[00:21] that we're going to be creating a button
+[00:23] right so let's go and let's do the the
+[00:26] button one so uh following our design
+[00:29] here we have a button that has a icon
+[00:32] and it has two versions one is a
+[00:37] negative version the other one is a
+[00:38] positive version so uh what we're going
+[00:40] to be doing here is that we're going to
+[00:42] create uh button that will support icon
+[00:46] a title and it's going to support to
+[00:48] change uh
+[00:50] the the background as you guys can see
+[00:53] here all right so without uh wasting too
+[00:56] much time let's do this so the first
+[00:58] thing you're going to do here is that
+[01:00] we're going to create another I uh
+[01:03] blueprint here this is going to come
+[01:06] from the de Dev realm UI based base
+[01:10] right we're going to call
+[01:12] wbp uh button right and there we go
+[01:16] right so and the next thing that we're
+[01:19] going to be doing
+[01:21] here is that we are going to add a
+[01:28] buttom right this is the
+[01:35] bottom and the next thing that we need
+[01:37] to do here is to add icon and the text
+[01:40] so what we do going to do is just use a
+[01:42] horizontal box to do this horizontal box
+[01:46] really easy nothing too complicated and
+[01:49] inside here we're going to search for
+[01:51] the icon that we
+[01:54] created and for the icon we are actually
+[01:58] let custom size
+[02:01] screen uh let's make sure it's like yeah
+[02:04] 600 just want to make sure the custom
+[02:06] size 600 so we can actually see the icon
+[02:09] coming here uh let's see if you can
+[02:11] search for the T
+[02:13] Das um
+[02:16] search there we go for this
+[02:20] example I don't want to use the
+[02:23] background or the
+[02:25] quantity and I'm going to add a title
+[02:31] right Title Here make sure we align
+[02:35] those guys on the middle right now they
+[02:38] have some little Gap
+[02:42] so we're going to make it so if
+[02:46] actually I'm going to make sure so this
+[02:48] feels horizontally right it doesn't have
+[02:52] too much
+[02:53] padding uh also now this one we wanted
+[02:58] to stay on the left
+[03:00] but the button text we want to make sure
+[03:12] and okay sounds all right now let's
+[03:16] change this to for
+[03:19] example um the
+[03:25] text actually let's just edit this
+[03:28] component because it just found a bug on
+[03:30] there uh this one is not exposed is
+[03:34] it it
+[03:36] is let's just go back to the
+[03:39] button and oh yeah default text is going
+[03:42] to be called my button right cool I'm
+[03:47] going to make sure we increase the size
+[03:49] of this a little bit so let's put it
+[03:52] like uh 42 for
+[03:56] and all right that looks a little bit
+[03:59] this look too
+[04:01] bad it does have a
+[04:05] gap maybe if I do like this and add a
+[04:08] pading left to something like I don't
+[04:10] know maybe
+[04:11] 20 um on the design it looks a little
+[04:14] bit like 40 so the pting is quite what
+[04:18] is double this that looks good
+[04:22] right now I have the base of the a UI
+[04:25] then the next thing we're going to do go
+[04:27] back in here and right click
+[04:30] we're going to create a button right so
+[04:35] button um and now the button that we're
+[04:39] going to create is basically we're going
+[04:41] to add two variables so it's going to be
+[04:49] 01 and background
+[04:52] 02 so we're going to have two
+[04:54] backgrounds to use that now we're going
+[04:58] to type texture
+[05:01] 2D and here texture
+[05:05] 2D texture
+[05:10] right cool this is good now the next
+[05:15] thing we're going to do we're going to
+[05:17] open up our main
+[05:21] settings go to
+[05:23] button going to add a button one we're
+[05:25] going to ask the
+[05:27] button nice save now we're just going to
+[05:32] save all here now we got to import those
+[05:36] uh buttons here but first let's just
+[05:38] create a new folder called button just
+[05:42] to keep everything nice and easy I'm
+[05:44] going to go back here once again you
+[05:46] don't have to follow the step it's just
+[05:48] uh so it's easy for me to explain show
+[05:51] you guys so I'm just going to go back in
+[05:56] desktop uh download UI I'm going to
+[05:59] create a another
+[06:00] folder and this is going to be button
+[06:03] right so I'm going to call this
+[06:06] background right
+[06:10] background1 and this one
+[06:14] actually and
+[06:17] group this guy here is going to be
+[06:23] called oh that's the wrong
+[06:27] one pictures doc and what is it uh
+[06:36] UI here and I'm going to
+[06:39] call this background 02 right
+[06:46] perfect now we're going to go back here
+[06:49] we are going to get
+[06:52] the what is it let me just open up those
+[06:55] here you why we're going to go to
+[07:01] and I'm going to bring these guy right
+[07:03] there cool save and that's it now what
+[07:08] happen is that we going to get this
+[07:11] pasted in here and this background 02
+[07:14] paste on background
+[07:16] 02 nice so that's pretty much everything
+[07:18] we needed now on the button itself what
+[07:21] we're going to do here is that we're
+[07:22] going to get the button reference and we
+[07:25] are going to get here we're going to set
+[07:29] text texures or set
+[07:34] style and here we're going to make style
+[07:40] right and now what we need is get uh UI
+[07:46] settings we are going to break
+[07:49] this and from
+[07:52] here we're going to get the input I'm
+[07:55] going to break this
+[07:56] also and from the normal
+[08:00] we're going to
+[08:01] make ah slate Bush right and here is
+[08:06] where things going to be get complicated
+[08:08] but we just going to bear with me all
+[08:11] right so the first thing here let's make
+[08:12] sure we set up the first background so
+[08:15] there's a image once he hold once is
+[08:20] actually once is disabled it's fine but
+[08:25] what I want to do here once it's over I
+[08:28] want to invert the colors and I'm going
+[08:31] to show you in a second so once it's
+[08:34] over and once it's pressed I'm going to
+[08:37] just get the background color too all
+[08:40] right compile and save uh this is going
+[08:42] to show
+[08:43] error let me just restart this happens
+[08:47] uh in case you guys wonder why this
+[08:48] keeps happening is just because the UN
+[08:51] engine uh when you import images and you
+[08:55] don't save in the asset and then when
+[08:57] you press save the widget it kind of
+[08:59] lost the references so what you got to
+[09:02] is make sure you save all once you work
+[09:06] in the widget before do this it those
+[09:08] crashes they happen but anyway let's go
+[09:11] back in here and fantastic I lost all my
+[09:14] changes but anyway not a lot of stuff to
+[09:16] do let's do this stuff again so I'm
+[09:19] going to do this set
+[09:23] Styles here here
+[09:41] right going to break this
+[10:13] right there we go all right cool now if
+[10:16] I compile and save I should have uh a
+[10:20] button color now as you can see this is
+[10:22] completely broken so we need to fix that
+[10:26] so the way to fix this let me open up
+[10:30] test widget just to see how it looks
+[10:34] wvp right uh
+[10:37] wvp test there you go so let's add the
+[10:43] button here if I press
+[10:47] play this thing looks weird it looks
+[10:49] really weird but once I hold over the
+[10:51] button you see change the color right so
+[10:54] what I'm going to do
+[10:56] here I'm going to go back here
+[10:59] and I'm going to add some uh PTY let's
+[11:04] say 10 or maybe 20 or maybe even
+[11:09] 30 right let's see how does it look like
+[11:12] it looks
+[11:13] horrible uh maybe that's not the right
+[11:15] way of adding this so let's add a ping
+[11:17] on left
+[11:20] instead uh
+[11:23] 25 uh
+[11:25] 40 all right looks a little bit better
+[11:30] okay that looks better now I'm going to
+[11:32] do one thing here I don't like normally
+[11:34] to do this but in this scenario we need
+[11:36] to make sure everything scales with the
+[11:38] size of our button so I'm going to wrap
+[11:41] this with a scale box right cuz I want
+[11:45] to make sure that my text will always
+[11:48] scale according to the size of this now
+[11:51] it does look a little bit weird so let's
+[11:54] play with this volue let's make sure we
+[11:57] Center this can we
+[12:01] size I don't think we can do
+[12:05] that maybe this button here needs
+[12:10] to let me double checking here what size
+[12:13] we trying to use because I know that if
+[12:16] we do something like this will uh
+[12:18] increase the
+[12:22] size but what we want ideally is we want
+[12:26] everything to scale accordingly right
+[12:29] so what we're going to do
+[12:32] here is that we go okay 600
+[12:37] by by 10 by 100 so let's put the size
+[12:42] here to 600 by 100 so this is the normal
+[12:47] size that we can see on the screen that
+[12:49] looks good right but what happen if you
+[12:52] change this to a size that doesn't
+[12:53] necessarily match right maybe something
+[12:55] that goes out of place so what we're
+[12:58] going to do here is is uh the scale box
+[13:01] kind of work which is
+[13:03] fine that works fine but we need to make
+[13:06] sure that we add some pades in that as
+[13:09] well just to make sure everything looks
+[13:11] good so we're going to add some kind of
+[13:14] a padding here maybe 10
+[13:17] or 100's too much 20 let's see if 20
+[13:21] looks good 20 looks good there's too
+[13:23] much space in here on the left so now
+[13:26] what we can do here is just removing
+[13:28] that whole Space that we added there how
+[13:31] does that
+[13:32] look yeah I think it looks good and the
+[13:34] cool thing about these as well is that
+[13:37] because we're using a scale box and if
+[13:39] you guys are not familiar with scale box
+[13:41] it's just scale the text to the size we
+[13:43] want I know we're not going to have a
+[13:45] button like this
+[13:46] but as you can see the button kind of
+[13:49] scales to the right size which is really
+[13:51] good right cool so now let's create the
+[13:54] the one that inverts the color right to
+[13:56] invert the color of this is very easy so
+[13:59] the first thing we're going to do here
+[14:00] we're going to create a something called
+[14:03] inverted color or something um and then
+[14:07] in here we're going to line this and
+[14:10] look how cool is this so we're going to
+[14:11] get this and we're going to do a select
+[14:14] right and we're going to get inverted
+[14:17] color and okay if inverted is true or
+[14:22] false we're just going to do the same
+[14:24] thing for those right so you're going to
+[14:26] do here now this is going to be on top
+[14:30] this one is going to be on the bottom
+[14:31] here B and plug it right there now if I
+[14:35] go back and compile and
+[14:38] save so if is
+[14:40] inverted on the default
+[14:45] settings here make sure you expose this
+[14:50] spawn right so if I go back let's go
+[14:54] back here so if I click on the button
+[14:56] and say inverted to true you change the
+[14:59] color of the button as you can see and
+[15:02] now if you hover they have like a
+[15:03] different color and if you mark it
+[15:06] invert it they have a different color
+[15:09] once you hold the button of course you
+[15:11] may have to fix this icon because this
+[15:13] icon doesn't have a necessary uh cool
+[15:15] palette but what you can do with the
+[15:16] icon here as well uh if you want it of
+[15:21] course is that you go to the
+[15:23] button and in here you just enable
+[15:27] the the board if you want compile and
+[15:30] save and what happened is that you have
+[15:33] border there of course you have to
+[15:35] adjust the size properly but in this
+[15:37] case our
+[15:39] UI specific say to hide the box which is
+[15:42] not here because I deleted but as you
+[15:44] can see it just hides the box right
+[15:47] there which is uh yeah quite cool so
+[15:51] what we're going to do now is compile
+[15:53] and save
+[15:55] this and I think we got everything that
+[16:00] we need for the button there's one more
+[16:02] thing here that I forgot of course I
+[16:03] forgot about this which is basically we
+[16:07] need to create a new event
+[16:09] dispatcher on
+[16:15] click now you're going to get a
+[16:20] button on
+[16:22] clicked and now we're going to call this
+[16:25] uh call on button clicked right um I
+[16:29] always use only on button click but if
+[16:31] you want to do also on release and hover
+[16:33] and all this stuff you can do it as well
+[16:36] if you want
+[16:38] to and I think let's test to make sure
+[16:41] this is working before uh we can
+[16:44] actually finish this part of the video
+[16:47] so to make sure this this is working
+[16:49] properly you got the button let's make
+[16:51] sure invert the color to look nice we're
+[16:53] going to get the button
+[16:56] there bind event
+[16:59] on button
+[17:01] clicked right and now we can create a
+[17:05] event and I'm going to
+[17:08] print just something hello right and now
+[17:12] you say hello you can even go further as
+[17:15] well if you guys want to and uh I don't
+[17:18] have a decent UI and sounds that I can
+[17:21] share but if you're searching sounds in
+[17:24] here you can add sound cues once you
+[17:27] hover the icon as well
+[17:29] so for example uh I'm not sure if the
+[17:31] sound's going to work through the
+[17:32] streaming uh but I can do maybe
+[17:35] something like this I don't know so if I
+[17:37] go back in
+[17:38] here it will like play the sound as you
+[17:43] as you play play uh but you have to set
+[17:46] this the sound as part of the style so
+[17:48] basically uh you have to do it in here
+[17:52] right where is it here you have to set
+[17:55] the hover sound and press sound here if
+[17:57] you want to but uh I'm not going to do
+[17:59] this one because I don't have a decent
+[18:01] sound to share but anyway guys thank you
+[18:03] very much for watching uh and then in
+[18:05] the next one we are going to do uh one
+[18:08] more component which is uh probably just
+[18:12] drop down here and then after this we're
+[18:14] going to do a window uh and then after
+[18:16] that you guys are pretty much set to do
+[18:18] pretty much everything uh I also going
+[18:21] to show how to create a list as well so
+[18:23] like how we can actually create a list
+[18:25] with this with a scroll and everything
+[18:27] uh so you guys can create some nice UI
+[18:29] for your games so once again thank you
+[18:31] very much for watching and I see you in
+[18:33] the next one

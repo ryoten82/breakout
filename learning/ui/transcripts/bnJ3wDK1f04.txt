@@ -1,0 +1,415 @@
+[00:00] [Music]
+[00:10] hi guys and welcome back here to the dev
+[00:12] realm and today we're going to be
+[00:13] starting a new series in the series of
+[00:15] today we are going to basically create a
+[00:18] nice and easy UI in a real engine so I
+[00:22] have created this very basic UI here in
+[00:26] uh inkscape so we're going to basically
+[00:28] be uh using this uh as a base I'm going
+[00:31] to put all those files in the
+[00:33] description so you're going to be able
+[00:34] to download all the files before you
+[00:36] start the project uh I'm not going to
+[00:39] explain how to use inkscape this is just
+[00:41] going to be in a real engine So
+[00:42] eventually I'm going to pop up inkscape
+[00:44] just to copy some text or export some uh
+[00:47] boxes but I'm going to leave all those
+[00:49] boxes inside the folder structure so you
+[00:52] can actually download it so uh we're
+[00:54] going to be doing this UI here as you
+[00:56] can see and let's get started so the
+[00:59] idea of this asset is that we're going
+[01:01] to basically make it so it's reusable so
+[01:04] what happened the problem with a real
+[01:05] engine that you guys probably are right
+[01:08] now is that every time you start in a
+[01:10] new UI it always looks very janky uh and
+[01:14] you don't have a nice and easy way to
+[01:16] copy and paste and reuse the UI uh so
+[01:20] what I'm going to be doing here is
+[01:22] creating uh this UI here that will be
+[01:25] fully reusable for any kind of game you
+[01:27] want to use uh I'm not sure if I'm going
+[01:29] to create like all those Talent stuff
+[01:31] working but we're going to be creating
+[01:32] at least the boxes and the base so you
+[01:35] should be able to create those yourself
+[01:38] we're not going to do any kind of uh
+[01:40] Quest logic in here this is just UI only
+[01:43] all right so uh without wasting too much
+[01:46] time let's get started so I'm going to
+[01:47] create here I'm going to launch the game
+[01:50] um by the by the way uh this is done in
+[01:53] real 5.3 I think by the end of this
+[01:55] video real 5.4 will be available so I
+[01:58] may have to switch update the project
+[02:00] but that shouldn't uh affect anything
+[02:03] related to the UI but anyway so once now
+[02:06] the engine is booting and
+[02:09] running which it is uh right
+[02:13] now I'm just going to pause the video
+[02:15] and then I'm going to resume all right
+[02:18] guys yeah so my Ang is up and running so
+[02:20] for this project you can or create a
+[02:22] blank project or create a third person
+[02:25] project I'm just going to go ahead and
+[02:26] create a third person project just
+[02:27] because I like to have something that I
+[02:29] can run and check if the UI if I need to
+[02:31] do a UI in game I'm going to call this
+[02:34] uh UI tutorial right and you can call
+[02:39] whatever you want and I'm just going to
+[02:41] create the project while we create the
+[02:44] project I'm just going to go back in
+[02:45] here and basically I'm going to create a
+[02:48] folder on my downloads in here called UI
+[02:50] so I'm going to create another folder in
+[02:52] here and this by the way is going to be
+[02:54] available for you to download so don't
+[02:55] worry about this you don't have to do
+[02:57] this step I'm just going to show you uh
+[02:59] what I'm going to do here and the first
+[03:02] windows that I'm going to do here is
+[03:04] basically a text input so we're going to
+[03:06] start for all the inputs first and then
+[03:09] we're going to work our way to uh
+[03:11] buttons and and text and messages and
+[03:14] all that stuff as you can see I have a
+[03:16] primary a secondary color a tary color
+[03:18] and a qu quinary color uh but anyway so
+[03:21] let's start it so the first thing we're
+[03:23] going to do here is I'm just going to
+[03:25] ungroup this and I'm going to bring this
+[03:28] data right here
+[03:30] I'm going to group it because I just
+[03:33] want to export this little guy here
+[03:37] right so I'm going to select this and I
+[03:40] am going to export this and I am going
+[03:43] to put this file
+[03:44] inside so just this PC I'm just going to
+[03:48] go to uh where is it download here UI
+[03:53] and I'm going to move this follow right
+[03:54] here and I am going to create another
+[03:57] folder and it's going to be called
+[04:00] inputs right and I am going to C uh text
+[04:06] field BG all right so I'm just going to
+[04:11] do some contrl Z in here and there you
+[04:14] go nice so the next thing that we got to
+[04:17] do here right now is basically on this
+[04:20] folder now we have a folder called
+[04:22] inputs and if I open up I have just that
+[04:25] uh thing that I exported so by by the
+[04:28] way on real engine I always the right
+[04:30] way of doing this is just you always
+[04:32] import textures with uh capital T Dash
+[04:35] the T stands for texture otherwise it's
+[04:39] just the way that you follow the the the
+[04:42] structures in R real but anyway so the
+[04:44] next thing that we're going to do here
+[04:45] right now is that press play nothing
+[04:48] going to happen that's fine I am going
+[04:50] to of course just play on a new window
+[04:52] just because I prefer this way I'm going
+[04:54] to right click and I'm going to create a
+[04:56] new folder and this folder is going to
+[04:58] be called UI right uh or we could call
+[05:02] the dev realm
+[05:04] UI the dev realm UI there you go so
+[05:10] we're going to open up the UI and in
+[05:12] here the way I like to structure this is
+[05:15] that every UI that I created including
+[05:18] buttons they always extend from the same
+[05:21] class and I'm going to show you why
+[05:22] we're going to do this so the first
+[05:24] thing you're going to do is right click
+[05:26] and you're going to go to user interface
+[05:28] we're going to create here and I'm going
+[05:29] to call
+[05:32] wbp and this is going to be the dev
+[05:37] UI base all right you don't need to call
+[05:40] the dev realm UI you can call your your
+[05:42] own UI name it's just because we're
+[05:44] using this as a base but anyway and now
+[05:47] I'm going to create another uh blueprint
+[05:50] uh widget blueprint right and this time
+[05:54] we have all classes and in here I'm
+[05:56] going to search for
+[05:58] wbp the dev realm y base I'm going to
+[06:01] select that and I'm going to call
+[06:03] wbp button right or actually input field
+[06:10] right now I'm going to right click I'm
+[06:11] going to create another folder called
+[06:13] widgets right and I'm going to move all
+[06:15] those widgets
+[06:17] inside and inside this folder widget
+[06:19] widget I'm going to create another
+[06:21] folder called
+[06:22] inputs uh inputs because we have buttons
+[06:26] you know it's just to make it more
+[06:28] organized and stuff move that right cool
+[06:31] now the next thing we're going to do
+[06:33] here we're going to open up this input
+[06:36] right and here we have a blank input and
+[06:39] then we have the dev realm UI base right
+[06:42] so if I go back to the design the design
+[06:44] doesn't necessar has a label right but
+[06:48] what we're going to do here is we're
+[06:50] going to add a label inside our game
+[06:52] because otherwise it can looks confusing
+[06:54] to the user I prefer to have stuff with
+[06:57] a label on it so the next thing that
+[07:00] we're going to do here basically is that
+[07:03] we need to create the structure of our
+[07:07] input right so the first thing that
+[07:09] we're going to do here is that we're
+[07:11] going to go back to this and we're going
+[07:14] to right click uh sorry we're going to
+[07:16] search for a horizontal box right I'm
+[07:19] going to drag and drop a horizontal box
+[07:21] here actually is a vertical
+[07:23] box and a vertical
+[07:26] box we're going to add a text
+[07:30] and we are going to add a button or
+[07:33] actually a input right or text field I
+[07:38] think I'm call text field uh text
+[07:42] box it's just a
+[07:47] text text I think it's this one here
+[07:53] text there we
+[07:56] go let me double check if is the uh
+[08:00] input text box there you go sorry it's
+[08:04] called text box that's the one we we
+[08:06] want to use right so first thing as you
+[08:09] can see everything looks weird we don't
+[08:11] have the right textures and everything
+[08:13] so the way we can the first thing we're
+[08:15] going to do we're going to select on the
+[08:16] text and here you can change where you
+[08:18] want text to be normally you always
+[08:20] click on the left right so you always
+[08:23] leave the text here on the left we're
+[08:25] going to add a
+[08:27] spacer um between the to and the spacer
+[08:31] is basically just going to give us a
+[08:33] quick Gap so I'm just going to put 10 10
+[08:35] is too much maybe five there we go
+[08:39] now we can actually put that texture in
+[08:43] here right but let's just import texture
+[08:47] and then I'm going to show you the other
+[08:49] way I'm going to do this so normally you
+[08:51] will just drag and drop your image right
+[08:54] here the problem with this is that if
+[08:56] you come in the future and say okay I
+[08:58] want to change this button now to uh red
+[09:01] I want to change these whole palad to
+[09:03] blue or something like this I think
+[09:05] what's going to happen is you're going
+[09:06] to have to replace every single uh
+[09:07] reference and that's really uh tedious
+[09:10] to do this so uh way that I come up here
+[09:13] in previous tutorials or even on my own
+[09:15] assets that I have is that you go to the
+[09:18] parent class here right and we're going
+[09:20] to go to the dev room I'm going to
+[09:22] create here another folder and I'm going
+[09:24] to call variables
+[09:26] right and I'm going to create here uh um
+[09:30] blueprint structure right and I'm going
+[09:33] to call SD inputs right there you go I'm
+[09:37] going to open up S
+[09:39] inputs and in here I am going to create
+[09:43] background and the background is going
+[09:45] to be a texture 2D all right nice and
+[09:50] make sure the object reference compile
+[09:52] and sa right so there's two ways you can
+[09:55] actually do this or you can add this
+[09:57] variable straight away in here right so
+[10:00] you can just go to your the dev realm UI
+[10:02] the base one and you just add that
+[10:05] variable in that or we create uh another
+[10:09] one which is going to basically hold all
+[10:11] the variables and settings for us so
+[10:14] that's the way I like to do so I'm going
+[10:15] to create here another variable and in
+[10:18] here is going to be uh
+[10:23] SD uh
+[10:25] main uh UI settings I'm just going to
+[10:28] call Main y settings I'm going to open
+[10:31] up the settings and in here I'm going to
+[10:34] call input right and this is going to be
+[10:41] input the one we just created right this
+[10:44] guy here we're going to put it right
+[10:46] here great now there's one thing here
+[10:49] that I want to do as well is that I'm
+[10:51] going to create a data table that I'm
+[10:52] going to handle this with a data table
+[10:55] so I'm going to go back in here uh on
+[10:57] this folder I'm going to right click I'm
+[10:59] going to go to uh missu I'm going to
+[11:03] here where is he uh data table right
+[11:08] here make sure you put this St main UI
+[11:12] settings all right open that I'm going
+[11:15] to call DT UI settings nice I'm going to
+[11:20] open up this guy I'm going to create a
+[11:22] new row and the new row here we just
+[11:26] going to call the name of the row um I
+[11:28] don't know
+[11:29] RPG purple it doesn't matter how you
+[11:32] call it and now here is going to ask for
+[11:35] input so now it's time let's input uh
+[11:37] let's bring our texture here so I'm
+[11:38] going to create another folder called
+[11:41] texture I'm going to create another
+[11:43] folder called
+[11:46] inputs and now I can go back to my
+[11:50] inputs here right inside the UI input
+[11:53] and just going drag and drop this guy
+[11:55] right there cool so this guy is going to
+[11:58] be here nice now um just for testing
+[12:03] right just for testing we don't need to
+[12:05] do this if you don't want to just want
+[12:07] to see how does the input
+[12:09] looks uh right now so I have my input
+[12:13] here selected so I'm going to go back in
+[12:15] here and put it right there let's see
+[12:18] how does it
+[12:19] look as you guys can see the input looks
+[12:23] all right doesn't look too bad it looks
+[12:25] quite decent and I'm just going to put
+[12:27] here uh desired
+[12:30] and maybe uh custom size and
+[12:33] Screen just going to like 600 and there
+[12:36] you go so that's going to be the input
+[12:39] there's one thing here you can do as
+[12:40] well which is in the
+[12:42] image uh draw as a image here so it
+[12:46] looks way better so on this part you
+[12:49] make sure you click draw as a image
+[12:51] because otherwise it's just going to
+[12:52] have a like as a box is going to have
+[12:55] weird pixel things so make sure it's a
+[12:57] image but anyway so let's make this uh
+[13:00] Dynamic all right so I'm going to clear
+[13:02] this data this is going to be uh the
+[13:05] one I'm going to go back here to my uh
+[13:08] main Widget the parent class this guy
+[13:12] here and in here we're going to add a
+[13:15] new variable called UI settings
+[13:19] selection all right and in here I'm
+[13:22] going to select uh DT sorry uh data
+[13:26] table row handle make sure it's public
+[13:30] compile and save and then here is going
+[13:32] to basically ask for the data table so
+[13:36] we only have created one data table
+[13:38] which is the data table uui settings and
+[13:40] in here it's going to ask out which Ro
+[13:42] do you want to use and we're going to
+[13:43] call the we're going to use the RPG
+[13:45] purple all right now this will basically
+[13:49] what I'm going to do here on the
+[13:50] pre-construct get I'm going to break
+[13:53] this guy and here is going to give me
+[13:57] the row information now we have to
+[13:59] extract that row um data so to do that
+[14:04] we're going to basically get row
+[14:07] data no uh get data
+[14:13] table uh get
+[14:17] row yes get data table row that's the
+[14:20] one here is going to ask for the row let
+[14:23] going to put it in there here's going to
+[14:24] ask for which data table you want to use
+[14:27] just select this guy and here here is
+[14:30] the variable we can use so I'm going to
+[14:32] promote this to a variable called
+[14:35] UI settings all right make sure it's
+[14:39] public okay now this should be
+[14:43] everything you needed so I'm just going
+[14:45] to comment and say load the
+[14:49] default uh UI
+[14:52] settings cool so we're going to compile
+[14:55] and save this now on the input field
+[14:59] here as you can see this extends from
+[15:02] this parent class so I'm going to open
+[15:04] up here on the graph now now here's very
+[15:07] important thing if you for example get
+[15:09] UI settings uh you are going to get
+[15:13] something that's not fully loaded
+[15:15] because this hasn't called the parent
+[15:17] function yet so what I'm going to do
+[15:19] here is going to right click on this uh
+[15:21] parent function and I'm going to add Cod
+[15:24] to the parent
+[15:26] function now I'm going to plug this one
+[15:31] now I should have access to the UI
+[15:33] settings from here what we can actually
+[15:36] do is something really easy uh but I'm
+[15:40] just going to show you how to do this so
+[15:44] for to change this uh dynamically here
+[15:48] right what we can do is I'm just going
+[15:50] to edit this to uh input input
+[15:55] text and here I'm going to change to
+[15:57] label oh
+[16:03] label and in the input section I'm going
+[16:06] to get input drag and drop here and here
+[16:10] I'm going to
+[16:12] sent the styling set style there we
+[16:18] go now here is going to ask for what
+[16:21] style do you want to set right so what I
+[16:24] want to do here is I want to make a
+[16:26] editable style and here is going to
+[16:29] basically ask me for a bunch of
+[16:32] information uh let me see if I can maybe
+[16:35] set the
+[16:38] back yeah that is not going to work but
+[16:42] anyway so what we can do here right for
+[16:46] the background we can make
+[16:48] one sorry
+[16:51] make uh this item here right so here
+[16:56] here here it's good remember we want to
+[16:59] draw the image no tiling uh we don't
+[17:02] have a image size we don't have a tint
+[17:04] we only have here the image we don't
+[17:06] care about this stuff yet so I'm just
+[17:09] going to break this I am going to break
+[17:16] input all right and I'm going to plug it
+[17:18] right there now as you can see uh
+[17:21] there's some other stuff that we can
+[17:23] actually plug so I'm going to plug the
+[17:24] same one on Hover and on Focus
+[17:29] and on read only
+[17:31] right and that should be everything we
+[17:36] need now let's see if this is going to
+[17:40] actually work right so now if I compile
+[17:43] in compile nothing going to change
+[17:46] that's because we're doing stuff on the
+[17:48] event construct I'm just going to plug
+[17:49] this on the
+[17:50] pre-construct that should work and
+[17:53] change our UI
+[17:56] style for some reason
+[17:59] is not changing let's have a look if we
+[18:02] have the row
+[18:04] selected you got the purple selected we
+[18:08] go to
+[18:09] settings created I'm just going to make
+[18:11] sure it doesn't need to replicate input
+[18:14] yes we don't have a image attached to
+[18:17] this yet so we're going to go back in
+[18:19] here we're going to drag and drop this
+[18:20] image go back compile and save and there
+[18:24] you go as you can see we change we addit
+[18:28] the image back to the UI settings and
+[18:31] you already reflected on here so as you
+[18:34] can see you can apply this to do all
+[18:36] sorts of stuff you can uh change colors
+[18:39] and do all sorts of things in here so I
+[18:42] think that's pretty much what we need um
+[18:47] for this first part of the series is
+[18:48] getting quite big so what I'm going to
+[18:50] do here I'm going to pause this because
+[18:52] this was mainly the set up of this
+[18:54] project and then in the next one we're
+[18:56] going to be loading the phont so once
+[18:58] again thank you very much for watching
+[18:59] and I see you guys in the next one

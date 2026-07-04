@@ -1,0 +1,245 @@
+[00:00] Hi guys, I'm Asalier watching Cob video.
+[00:02] Today we will make this cool very simple
+[00:04] danger zone effect in Unreal Engine
+[00:07] So in this tutorial you will
+[00:08] learn each and everything how to make
+[00:11] material these uh separate things this
+[00:14] glow these moving things here shapes
+[00:18] everything basically this is from the
+[00:20] scratch step-by-step tutorial. So let's
+[00:22] dive in. So let's start this. So
+[00:24] yesterday I created this effect and it
+[00:26] has these rings. So, I will use the same
+[00:29] material. So, if you haven't watched
+[00:31] this, you can watch the tutorial. I just
+[00:33] created it yesterday. So, I'll just hide
+[00:36] it. But here's the effect. And here's
+[00:38] the material I used for the ring. So,
+[00:41] this is my material. Basically, I have a
+[00:44] radial with sign and power to control
+[00:46] the thickness. And this is how it looks.
+[00:49] Okay. So, and here's my effect. But I
+[00:53] will create this here. So I'll just take
+[00:56] this empty one NS and this will be
+[01:00] danger zone.
+[01:06] So I need one particle. I'll just take
+[01:09] the minimal emitter and it should just
+[01:12] spawn once. So in the state self once
+[01:15] loop behavior then I need a particle bus
+[01:18] one particle. It should never die. So in
+[01:21] the particle state turn this off. So it
+[01:23] will never die. whatever you like you
+[01:25] have it will never die. So now I'll use
+[01:28] this material which I created yesterday.
+[01:30] So I'll use it here and you can see that
+[01:33] ring with the ding parameter I can
+[01:35] decrease this thickness. Okay. And now
+[01:39] here I can change the size.
+[01:42] Let me make it locker and just drag it
+[01:44] into the scene. So as you can see this
+[01:48] is camera facing. We need to face it on
+[01:50] the face the Z-axis the ground axis. So
+[01:53] in the sprite renderers use custom
+[01:56] alignment custom facing vector and the
+[01:58] facing and then take here align to mesh
+[02:01] orientation. By default it will align
+[02:03] your material your particle to x-axis.
+[02:06] So just change the x to z. And now it's
+[02:09] facing the z here can move it a little
+[02:12] up. And of course I will make it bigger.
+[02:16] Maybe this much. And thickness maybe
+[02:21] it depends how long as you want. Oh,
+[02:23] it's too big actually.
+[02:29] I think this is fine. So, I'll decrease
+[02:34] the thickness
+[02:36] more. Then I'll make this
+[02:45] like this.
+[02:49] Make it maybe five little bright.
+[02:53] Okay. Then I actually I need a glow
+[02:56] around it. So you can do that in
+[02:58] material but I I'm doing it here just to
+[03:00] make the layers. So I'll duplicate this
+[03:03] and in this one I'll make this red
+[03:08] a little bigger. So I'll just change the
+[03:10] thickness here.
+[03:14] Now you can see we have this. And now
+[03:16] you can do one more thing. You can
+[03:18] duplicate this one more time. And this
+[03:20] time just make the wider.
+[03:24] Then I will reduce the opacity here.
+[03:29] So it will be look like it has glow.
+[03:32] It's a fake glow. We are not increasing
+[03:34] the brightness of this but it's a fake
+[03:36] glow that you can use and you can uh add
+[03:40] it if you want. Looks fine. Now we need
+[03:44] some shapes inside it. So let me just
+[03:48] search. I have a You can use any shapes
+[03:52] you want. It depends on you. But maybe
+[03:55] I'll just use this
+[04:00] I have a texture.
+[04:12] This one it has this random shapes. So I
+[04:17] have already a material for this. So
+[04:19] it's 4x4 subuv. And this is my material.
+[04:23] So I'll just browse this in my effects.
+[04:26] I'll duplicate any of these. Maybe first
+[04:29] one. Paste.
+[04:32] And then I'll just change the material.
+[04:35] It's 4x4. So I'll put here. Then it's
+[04:38] not sequence. It's just random frames.
+[04:40] So animation
+[04:43] and just use random here and render
+[04:47] here. Then we need multiple particles
+[04:50] maybe eight and let me use smaller size
+[04:56] and then I'll take the location and I'll
+[04:59] take location.
+[05:02] So we can increase the ta location like
+[05:05] this and I think this uh I'll make this
+[05:08] one zero. This should not be like
+[05:10] aligned. So in here I will reset this.
+[05:15] And I don't need this module either. So
+[05:17] these are now camera facing. Looks like
+[05:22] Cool. But very big still. So I'll close
+[05:26] this. I'll make and one more thing the
+[05:29] distribution is random. Sometime these
+[05:31] are four particles are near then there's
+[05:34] a space. So in the location of chorus
+[05:38] there's a distribution that is random
+[05:40] make it direct and then here just use
+[05:43] execution index.
+[05:46] Now there will be a equal distribution
+[05:49] you can turn this off so it will not
+[05:51] overlap like this. Then the size of the
+[05:55] particle which is 175. I will just go
+[05:58] random maybe 150.
+[06:03] Cool. And these are going under the
+[06:05] ground. You can move it up from here.
+[06:10] Or just use camera offset if you want
+[06:12] like this.
+[06:18] Then I want to add something more around
+[06:20] here. And yeah, I want to add that. So
+[06:25] for that I'll make a new material.
+[06:31] So I'll just duplicate my ring material.
+[06:34] Duplicate. And this is ring one.
+[06:38] First thing I want to make this ring
+[06:40] half. So I'll just use a texture
+[06:43] coordinate set. Take any channel. It
+[06:46] will give you a gradient whether it's
+[06:48] horizontal or vertical. Then just
+[06:51] multiply it with this. So it will make
+[06:54] your ring half.
+[06:58] It will cut it from here. But when you
+[07:00] will increase this value,
+[07:05] I'm doing it on a wrong place. It should
+[07:09] be after sign because sign is making it
+[07:11] a ring.
+[07:16] So now you can see
+[07:18] we have this half ring. Then I'll take a
+[07:21] noise or you can just use this thing. It
+[07:25] will work.
+[07:26] Let's use it.
+[07:29] So I'll just save it. And while saving
+[07:31] you can subscribe if you like. If you
+[07:33] want anything you can just comment below
+[07:34] in the video I will reply. So I'll use
+[07:37] this and here I will duplicate one of my
+[07:40] emitter again
+[07:43] like this. I'll use that. Here we have
+[07:47] dynamic parameter.
+[07:50] And I'll make this little brighter. Make
+[07:53] it just one.
+[07:56] Or maybe I'll make it five. Now I can
+[07:59] decrease this like this. And we can
+[08:03] increase also alpha if you want to make
+[08:05] it hard like this. So maybe this much.
+[08:09] This much. Okay. Now life. I want some
+[08:14] life. So here I will use maybe random
+[08:17] two and one. Let's say then instead of
+[08:20] burst I'll use spawn rate
+[08:23] maybe 10. Then instead of once it should
+[08:26] be infinite
+[08:28] and then I will use here in the initial
+[08:31] particle random rotation. So it this arc
+[08:35] will randomly distribute like this. Then
+[08:38] we can just use size
+[08:42] and go out like this and it should also
+[08:46] fade in fade out.
+[08:50] I'll just use this curve. So it will
+[08:53] also fade and fade out.
+[08:57] Oh, I
+[09:01] test this thing
+[09:03] fade in and fade out.
+[09:07] Okay. And then we will see how it looks.
+[09:11] Uh so the initial size should be like
+[09:15] maybe 0.5. So it not starting from the
+[09:19] zero. Then here we can increase the
+[09:21] size. So it will only for the outer
+[09:24] part. And then the thickness I will
+[09:30] by making this 50. I need to increase
+[09:32] the alpha
+[09:39] It's up to you how you want it. And this
+[09:42] is how it looks.
+[09:46] And I think we need to we don't need to
+[09:49] scale it this much. Maybe I'll use it 7.
+[09:53] It's just8.
+[09:56] It just need to be around here. Yeah,
+[10:00] it's giving you that vibe.
+[10:03] Although this whole effect looks too big
+[10:05] to me. I I want to scale it. Let me see
+[10:09] if I can just scale it directly.
+[10:13] No, because of lots of reasons. So, I'll
+[10:17] just quickly
+[10:20] change the size here. So, this is 1,000.
+[10:23] I need maybe 800
+[10:32] And then this location
+[10:36] around here.
+[10:38] And then this last emitter which is just
+[10:41] I added
+[10:43] I think.
+[10:48] Yeah. This much is fine. That was too
+[10:50] big actually. Yeah.
+[10:54] So I think this looks nice.
+[10:59] One more thing you can do if you want to
+[11:01] add a glow here. Uh
+[11:05] so you can just copy paste
+[11:09] delete the sprite renderer take it again
+[11:11] so it will come with a radial material
+[11:13] then custom alignment custom facing
+[11:16] vector again
+[11:18] and I'll just make this
+[11:25] up to you how you want to make it
+[11:29] like this maybe little more opacity down
+[11:32] maybe 2. So it will give you just a
+[11:37] So this is like a danger zone for a
+[11:40] character I created. You can do a lots
+[11:42] of thing in this. If you want if you
+[11:44] want to add little animation in these,
+[11:47] you can do that. So let me do this.
+[11:50] Let's you have this. If I add point uh
+[11:55] let's say you want to add velocity,
+[11:58] it will go outside.
+[12:01] value point velocity. Let me recompile
+[12:04] this whole thing.
+[12:12] Sometime it doesn't work but it will
+[12:14] work perfectly.
+[12:16] It will work.
+[12:19] Let me also add car noise
+[12:30] also animate this.
+[12:33] So now I don't know is working but they
+[12:35] will just keep moving and they will
+[12:37] leave the area. So now I will use a
+[12:41] spring node
+[12:43] and in here I will tell them to come
+[12:46] back to the initial position.
+[12:53] No noise maybe just kept it
+[12:56] little bit.
+[13:06] Yeah, everything is fine. They are just
+[13:09] moving and you can also add little
+[13:12] rotation also if you want. I'll just
+[13:14] take the rate and just randomly I will
+[13:18] add maybe 15 minus 50. Some will go this
+[13:23] direction some other and you can do a
+[13:26] lots of thing in this.
+[13:29] So if I see with all now we have this
+[13:35] symbols whatever you call them. So, I
+[13:38] hope you liked it. Thanks for watching.
+[13:40] Keep learning.

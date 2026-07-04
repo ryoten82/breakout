@@ -1,0 +1,468 @@
+[00:00] today let's see how a good muzzle flash
+[00:02] can be done in
+[00:05] unreal I'm going to show you the whole
+[00:07] process from setting up Niagara creating
+[00:09] the meshes and drawing a quick texture
+[00:11] too and we are going to specifically see
+[00:14] this one which is one of the many I have
+[00:16] available on the marketplace or my
+[00:19] patreon page there's two volumes with
+[00:21] more than 50 muzzles so yeah lots of
+[00:24] Varity I left links below so without
+[00:28] further Ado let's jump right into the
+[00:31] so let's begin by creating a nagra
+[00:33] system with right click there's plenty
+[00:35] of templates but we can start with an
+[00:36] empty one down here on this
+[00:39] button after you have renamed this you
+[00:42] can open it up
+[00:44] and and with right click let's add an
+[00:47] meter an empty one this one and a muzzle
+[00:51] flash is done by using basically two
+[00:53] planes intersecting and with this cone
+[00:56] mesh so we need two meshes so this is
+[00:59] for the muzzle ples down here it's set
+[01:02] to Sprite rener let's remove
+[01:05] that and replace it with a mesh renderer
+[01:09] for now it's using this 3D axis thing
+[01:13] and we cannot see it because there's
+[01:15] nothing emitting particles so on theer
+[01:18] plate let's add a burst spawn burst
+[01:20] instantaneous with one for the count
+[01:22] here we go we have the axis sping but we
+[01:26] want to replace this with the
+[01:28] intersecting planes right so I'm going
+[01:30] to show you how to create it it's very
+[01:31] simple and I'm going to use blender
+[01:33] because it's free and it's easy to pick
+[01:35] up you can select everything and delete
+[01:38] and with shift a you want to add a plane
+[01:42] we want to enter in edit mode with tab
+[01:45] select everything with a and duplicate
+[01:48] it with shift d and then press Escape so
+[01:51] it stays right there because now we want
+[01:53] to rotate it with r on the Y AIS 90° and
+[01:57] here we go we have our B planer
+[02:00] done they are intersecting and that's
+[02:02] almost just it first let's make sure
+[02:05] that every time this scales up it scales
+[02:08] from the muzzle of the gun so we want to
+[02:10] select these two Vertes and with shift s
+[02:14] say cursor to select it or go up here on
+[02:17] mesh snap cursor to
+[02:22] select and let's use tab to go to object
+[02:26] mode and then in object set origin
+[02:30] origin to 3D cursor because and every
+[02:32] time we will scale this it scales
+[02:34] properly from the muzzle of the gun
+[02:37] let's just rename this to a muzzle plane
+[02:40] in my case tutal so I can distinguish
+[02:42] from the other planes and with contrl a
+[02:45] or her in object let's apply rotation
+[02:50] scale so it looks exactly like this in
+[02:53] unreal I'm going to drag a new window
+[02:55] from this bottom left corner so we can
+[02:58] select the UV editor because we want
+[02:59] want to make sure that the UVS which is
+[03:01] the way the texture maps to the mesh are
+[03:04] correct I'm going to press this UV sync
+[03:07] selection button so the selection on the
+[03:09] UVS that on the mesh are synced and now
+[03:11] let's say that this is where the muzzle
+[03:13] of the gun should be and as you can see
+[03:15] on the UV it's the top Edge which means
+[03:19] let's select everything and rotate with
+[03:21] Rus 90° so the orientation matches
+[03:25] exactly like this looking good with a
+[03:27] plane selected let's go to file EXP Port
+[03:30] fbx I'm going to navigate to my
+[03:34] folder turn on selected objects and
+[03:37] Export as an
+[03:39] fpx back in unreal we want to say import
+[03:42] yes indeed import all and now on the
+[03:45] muzzle planes Z meter we can replace
+[03:47] this with our muzzle flash
+[03:52] plane it's only visible in one side but
+[03:55] on the material we'll fix it in a moment
+[03:59] for now let's shorten this Loop
+[04:01] direction to one second that should be
+[04:04] more than enough and let's say that the
+[04:07] lifetime is very short it's a muzzle
+[04:10] it's something quick let's say it's
+[04:11] random between zot one and Z two a
+[04:14] muzzle should have some Randomness not
+[04:17] much but a little bit and before
+[04:20] creating the texture we can take care of
+[04:23] the scale we want this to grow so with a
+[04:26] scale mesh
+[04:28] size let's convert this Vector to a
+[04:30] float and the float to a
+[04:35] curve let's s this line that goes from 0
+[04:38] to one probably we won't see anything
+[04:41] because we need to say on the
+[04:43] initialized particle what size does this
+[04:46] mesh as on the mesh scale mode we want
+[04:49] to use random and
+[04:51] nonuniform a little bit too random for
+[04:54] example the Y AIS controls how long it
+[04:57] is let's say the minimum is one 5 and
+[05:02] 2 and for the x and z between 08 and
+[05:08] 1.2 but there's a little problem because
+[05:11] it's scaling up from the middle of the
+[05:14] mesh and we made sure that the pivo was
+[05:18] in only in one side so it grows from the
+[05:21] muzzle of the gun right and not like
+[05:24] this so I noticed that the mesh needs to
+[05:26] be centered with world origin we can
+[05:30] easily fix that if we press n to get
+[05:32] access to this to this panel and on the
+[05:34] item section the location the Y AIS
+[05:37] let's make sure it's zero and as you can
+[05:39] see it's centered with the world all
+[05:41] right in object in snap I'm going to say
+[05:44] the cursor is to selected just to make
+[05:47] sure everything is all right and Export
+[05:50] this again replace the other one yes
+[05:52] indeed in unreal you can import again
+[05:55] yes and here we go it's growing properly
+[06:01] let's improve the aspect of this by
+[06:03] creating a texture there's very
+[06:05] different ways to create textures I'm
+[06:07] going to show you a very simple one if
+[06:09] you have cre or photoshop around you can
+[06:12] create a new file with 1024x
+[06:15] 1024 with a black background two layers
+[06:18] on the empty layer let's make sure that
+[06:20] we select this
+[06:23] brush the hair brush soft make sure the
+[06:26] color is white and more or less with
+[06:28] this brush size
+[06:31] let's draw this
+[06:38] shape now I'm going to press
+[06:41] it to pick the Eraser and cut these
+[06:44] parts right here in the front and then
+[06:47] in the back so it's a little bit
+[06:51] sharper I'm going to decrease the size
+[06:53] of the Eraser and create some cavities
+[06:57] here and there
+[07:00] I'm going to click up here it will
+[07:02] mirror my actions from one side to the
+[07:05] other and we can also align this right
+[07:07] in the middle it's very important
+[07:09] otherwise it will look kind of strange
+[07:12] but if you want yeah you can leave this
+[07:14] on and will mirror your brush
+[07:18] Strokes yeah I'm going to raise a little
+[07:20] bit more on this area and on the
+[07:25] back and then I'm going to decrease its
+[07:31] it's too wide on the perimeter of this
+[07:33] drawing so I'm going to remove here and
+[07:36] also here and on the back too on the
+[07:40] back I'm actually going to create a
+[07:42] cavity a small cavity but I'm going to
+[07:43] use this brush the blender smear it's
+[07:47] very important that you click here to
+[07:49] access the brush settings and say that
+[07:53] the Fate is zero so it's
+[07:56] smooth because with this brush if you
+[07:58] set the opacity which controls the
+[08:00] strength to around 50 we can now drag
+[08:04] these pixels it will look much better
+[08:07] and the idea is to push them to the
+[08:10] back it adds motion and on this area the
+[08:14] beginning of the muzzle I'm going to
+[08:16] push it to the center I'm going to
+[08:18] create this cavity as you can
+[08:21] see you have a lot of freedom here don't
+[08:24] worry about being too perfect because if
+[08:27] you want you can use a motion blur on
+[08:30] filters as you can
+[08:34] see and sometimes that helps a lot so
+[08:37] yeah don't worry that much about being
+[08:39] perfect and then I'm going to erase a
+[08:40] little bit more on the beginning this
+[08:42] cavity and on these extremities and here
+[08:45] we go we have in a couple of minutes A
+[08:48] texture make sure you hide the black
+[08:50] background make sure it's also cented
+[08:53] and to the left as
+[08:55] well and then you can export as a PNG
+[08:58] directly to your project
+[09:09] project to use this in Niagara we're
+[09:12] going to create a very basic
+[09:16] material the right click material open
+[09:22] up I'm going to say the Bland mode is
+[09:26] translucent and then the shedding mode
+[09:32] it now with right click search for
+[09:35] texture we want to use the texture
+[09:37] parameter to D call it the main text and
+[09:41] we can assign here our muzzle flash
+[09:44] texture another thing very
+[09:46] important is if we want nagra to
+[09:49] influence the color of this Shader we
+[09:50] need this node the particle color node
+[09:53] and from here we can
+[09:55] multiply the RGB with the RGB of the
+[10:00] and while holding M you can press left
+[10:02] click and it will create a multiply node
+[10:04] or you can simply right click search for
+[10:07] multiply multiply RGB and then Alpha
+[10:11] connect to emissive color and to opacity
+[10:15] here we
+[10:16] go it's a very straightforward material
+[10:19] which we can then add right here an
+[10:22] override material
+[10:25] yes select the one we created and here
+[10:28] we go
+[10:30] it's the beginning of a nice muzzle
+[10:33] flush as you can see the texture plays
+[10:35] an important part if we move around
+[10:38] probably you won't see anything it
+[10:42] disappears and that's because on the
+[10:44] material let me click here on an empty
+[10:47] space we want to turn on two sided so
+[10:51] the faces can be seen from one side and
+[10:53] from the other and now you can move it
+[10:55] around and it's visible everywhere cool
+[10:58] right let's improve this we are missing
+[11:01] the code shape that comes from the
+[11:04] muzzle of the gun so back to blender for
+[11:08] this one with shift a we want to start
+[11:10] with the cylinder and without clicking
+[11:12] anywhere on this bottom left panel we
+[11:15] want to say the cap field type is
+[11:16] nothing so it's empty like
+[11:19] this you want to go ahead and select all
+[11:21] of these vert and then with s scale it
+[11:25] zero and without un selecting this with
+[11:28] g want to push it a value of minus one
+[11:32] select this Edge Loop and push it up
+[11:34] with G on the Z axis a value of one
+[11:37] don't forget to lock it on the z-axis
+[11:40] great now let's select everything and
+[11:42] take care of the UVS this is very simple
+[11:45] press seven on the N pad to go to the
+[11:47] top orographic view we are going to use
+[11:50] project from view bounds it FS this wall
+[11:54] space another thing we can do is with
+[11:57] contrl r add another Edge Loop press
+[12:00] Escape so it stays right there and
+[12:02] another one but this time push it down
+[12:05] like this and then press enter and now
+[12:08] yeah we need to press Z to see through
+[12:11] and then with B select all of these vert
+[12:14] on the center so we can delete them we
+[12:16] want to create a hole in the middle or
+[12:19] you can leave it as it was anyway back
+[12:21] to object mode and now let's rotate this
+[12:24] on the
+[12:25] xais minus 90 here we go and the ver
+[12:29] important part is that we enter in edit
+[12:31] mode with tab select this Edge loop with
+[12:34] B you can press Z to see True by the way
+[12:38] because now with proportional editing
+[12:39] over for shortcut we want to push you
+[12:42] can control the radius by the way radius
+[12:44] of influence we scroll up and down want
+[12:47] to push this in the back on the Y AIS so
+[12:50] we can create the cone shape right it
+[12:54] doesn't need to be that much this will
+[12:56] influence the aspect of the muzzle so
+[12:58] yeah I don't like it to push it that
+[13:00] much and in object we want to say the
+[13:02] Shaded is smooth and that's
+[13:05] it let's press control a to apply
+[13:08] rotation in scale or go to object and
+[13:10] apply it there rename it to muzzle cone
+[13:14] in my case
+[13:15] tutorial and oh we need to take care of
+[13:18] the pivo first I'm going to move this
+[13:21] with G lock it in the Y AIS by pressing
+[13:25] y right there as you can see right
+[13:29] and then in object we can say set origin
+[13:33] to 3D
+[13:35] curse so it scales exactly in the same
+[13:38] way as the two intersecting planes right
+[13:42] and this is ready to be shipped I mean
+[13:43] to be exported as an
+[13:46] fbx rename it make sure selected object
+[13:49] is on so it only exports the
+[13:52] cone and press
+[13:55] export and then real yes indeed we want
+[13:57] to import import all close this window
+[14:00] and now we can duplicate this but first
+[14:04] let's make sure that we fade this out
+[14:07] with a scale color we can turn off scale
+[14:09] RGB we want to scale only the alpha
+[14:12] which takes care of the transparency but
+[14:14] we want to convert this to a curve
+[14:16] exactly with this curve right here it's
+[14:18] smoother in beginning smoo at the end
+[14:21] and here we go looks much better already
+[14:24] now we can duplicate these muzzle planes
+[14:26] for the muzzle cone
+[14:30] contrl c contrl v or contrl D rename it
+[14:33] muzzle cone let's replace the
+[14:37] mesh with the cone we created in my case
+[14:41] it's the fifth cone that I have on this
+[14:43] project and here we go it's right there
+[14:47] yeah so what's happening now is that the
+[14:50] text applied here is well if you look
+[14:52] closely it's completely horizontal right
+[14:56] and we made the UVS of the code circular
+[14:58] so we could map something a little bit
+[15:00] better right so it's very easy if you
+[15:04] have still the text that you made in
+[15:06] critor in Photoshop I'm going to
+[15:08] duplicate the layer hide the other one
+[15:11] I'm actually going to turn on this
+[15:13] mirror axis so I can see the center of
+[15:16] my canvas right and with contrl t while
+[15:19] holding shift I'm going to rotate this
+[15:23] 90° duplicate it again contrl T but move
+[15:27] the anchor to the center of the canvas
+[15:29] and while holding shift rotate this this
+[15:33] amount duplicate again contrl T move the
+[15:36] anchor and rotate it to the other side
+[15:40] make sure it's mirrored you can try
+[15:42] different angles but it looks better if
+[15:44] it's mirror okay and that's it you can
+[15:47] add black background export as a PNG
+[15:51] call it the muzzle cone in un real we
+[15:54] can say import yes indeed we don't need
+[15:57] to create another material can create an
+[15:59] instance from the one we created with
+[16:02] right click create material instance
+[16:04] double click to open it up and up here
+[16:07] in global texture PR we want to turn on
+[16:09] Main text so we can change it to the
+[16:11] cone texture we just made and here we go
+[16:15] all we are left now to do is assign this
+[16:18] material you can rename the material of
+[16:20] course here we go we have muzzle cone
+[16:23] for our muzzle flash it needs a few
+[16:26] adjustments like random rotation and
+[16:29] maybe could be bigger or in color so for
+[16:33] the size this one can be between 1 2 and
+[16:37] 1.4 for all of the axis yep that looks
+[16:40] better already and if we want random
+[16:42] rotation on the particle Spa we need an
+[16:44] initial mesh
+[16:46] orientation if we leave it as it is it's
+[16:49] going to mess up the wall rotation it's
+[16:50] going to be completely random we don't
+[16:53] want that let's say it's none let's
+[16:55] control the rotation we only want it on
+[16:58] the y AIS let's make sure this is a
+[17:01] range Vector so it's random Z and X are
+[17:04] going to be zero but it's going to be
+[17:06] random on the Y between minus one and
+[17:09] one here we go now that's better let me
+[17:12] see it in the scene I'm going to drag
+[17:14] and drop this nagra system here we go
+[17:18] all right it just needs color yeah maybe
+[17:21] it's a bit too long the muzzle planes
+[17:23] you can shorten that if you
+[17:26] want let's say the color of the muzzle
+[17:28] PL is direct
+[17:30] set I have these very specific colors to
+[17:33] save us some time 50 12 and
+[17:38] 2.5 you can try different colors
+[17:41] obviously I'm going to copy and paste it
+[17:42] to the muzzle
+[17:46] cone on my seam I have a little bit of
+[17:48] Bloom by the way and yeah it looks
+[17:50] pretty intense very Vivid that's very
+[17:54] nice yeah we have a bunch of muzzles
+[17:56] here in case you want to get access to
+[17:58] them they are on on the marketplace and
+[18:00] on my patreon page as well links below
+[18:02] another thing we can add here is a quick
+[18:04] flash I'm going to copy or duplicate the
+[18:06] muzzle code but it's going to be for a
+[18:09] Sprite render we don't need the mesh
+[18:11] render let's delete it I'm going to
+[18:13] delete the scale mesh size because we
+[18:16] want to replace it with a scale Sprite
+[18:18] size it's going to go from Big to
+[18:22] small and we don't need initial mesh
+[18:25] orientation delete it mesh scale mode
+[18:27] unet because because it's a Sprite size
+[18:30] so Sprite size mode it's going to be
+[18:32] random uniform we don't need to distort
+[18:35] this but we need to be random between
+[18:37] 400 and 800 it's very bright because
+[18:40] it's still using the same color a very
+[18:42] quick trick is to decrease Alpha to 0.05
+[18:46] 0.01 and yeah it's still very intense
+[18:49] because of the text we are using it's
+[18:51] the default one that comes with un real
+[18:53] I'm going to decrease it to z01 but it's
+[18:56] still weird so if you can open upgrade
+[18:59] and create something like this it's very
+[19:02] quick make sure it's in the middle click
+[19:05] one time it creas the brush size or you
+[19:08] duplicate the layer basically you want
+[19:10] something like this smooth like this
+[19:15] right and it will look much much better
+[19:18] as you can see it's soft in the eyes
+[19:22] it's easy in the eyes yeah I'm just
+[19:24] going to fade it out you can hold out to
+[19:27] copy this model the color right here
+[19:29] drag and drop and yeah we have a quick
+[19:33] flash another thing we can do is add
+[19:36] some stretched particles some Sparks you
+[19:38] know sometimes if you go look to guns
+[19:40] they fire quick bursts of Sparks we can
+[19:43] mimic that by duplicating The Flash call
+[19:45] it particle
+[19:47] stretch we need to make sure the spawn
+[19:49] burst is 10 more or less it can be
+[19:51] random by the way yeah the the Sprite
+[19:54] size it's going to be random nonuniform
+[19:56] so you can stretch this for example on
+[19:58] the Y AIS we can stretch it 60 and 100
+[20:02] and on the X between 5 and 15 they can
+[20:05] leave a little bit longer 02 04 what
+[20:09] else oh we need to add
+[20:13] velocity you can click fix issue so it
+[20:16] adds the solve forces and velocity on
+[20:19] the particle update and this add
+[20:21] velocity is going to be from a Col it
+[20:24] can be random the speed between 250 and
+[20:30] yeah we can see something they are going
+[20:32] sideways because of the cone axis zero
+[20:35] on the X but one on the Y AIS here we go
+[20:40] as you can see they are vertical the
+[20:42] stretched particles because on the
+[20:44] Sprite render the alignment we want to
+[20:47] change it to Velocity alignment and here
+[20:50] we go we have some quick Sparks in our
+[20:54] muzzle fles yeah you can make them
+[20:56] brighter on the color
+[20:59] but that's essentially you have now a
+[21:02] flash and I would say it's a pretty
+[21:04] interesting one considering time we add
+[21:08] now you know that you can use different
+[21:10] texture to create different feelings and
+[21:12] different meshes as well I hope this was
+[21:14] a valuable tutorial for you if you want
+[21:16] to get access to a huge variety of
+[21:18] muzzle flashes I left links below to the
+[21:21] volume one and volume two they're also
+[21:23] available my patreon page where you can
+[21:24] get access to even more visual effects
+[21:27] for your games it's a huge library and
+[21:30] you keep the channel running I'm going
+[21:31] to say thank you to each Patron that
+[21:32] sport the last month and as usual a
+[21:34] quick shout out to the top tier Patron
+[21:36] which are ashon Kali Chase Callos David
+[21:39] Molina Mar Frosty 40 Gabriel OS rub La
+[21:43] even Jau Jay
+[21:44] jand marel bre Matt
+[21:48] MN static Samurai vcon s very whatever
+[21:52] Mar Will p z barade and MJ Kim thank you
+[21:55] all very much for your support I hope to
+[21:57] see you on the next video thank you all
+[21:59] for watching and bye

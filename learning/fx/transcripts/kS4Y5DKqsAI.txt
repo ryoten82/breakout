@@ -1,0 +1,438 @@
+[00:00] today let's see how these ice attacks
+[00:02] are done in
+[00:05] unreal it's a great exercise to learn
+[00:08] how to use events meshes and time
+[00:11] everything nicely together in niaga as
+[00:15] usual we made quite a few more versions
+[00:17] of these and they are all available on
+[00:19] the marketplace and on my Patron's page
+[00:22] too links below but we are still going
+[00:25] to show you a simplified version of this
+[00:28] so without further Ado let's jump right
+[00:31] into this just want to say these videos
+[00:33] are possible thanks to my patrons and by
+[00:36] supporting me you get access to this and
+[00:38] many many more assets you can use in
+[00:43] project all right so let's get started
+[00:45] just keep in mind that we are going to
+[00:47] focus more on the motion and on the
+[00:49] elements you need rather than materials
+[00:52] themselves so let's begin by in a folder
+[00:56] creating a nagree meter with right click
+[00:58] in effects new emitter yes indeed empty
+[01:02] we are going to see from scratch and
+[01:04] this one is for the spike itself double
+[01:07] click to open this up and in here we
+[01:10] don't want a Sprite render let's remove
+[01:12] it instead on the plus sign let's add a
+[01:17] render and on the meshes we can replace
+[01:20] this with the spike which by the way we
+[01:22] made available for free on the link
+[01:24] below among other elements you are going
+[01:26] to need for this tutorial and like I
+[01:28] said we are not going to focus much on
+[01:30] the material but I can give you a
+[01:32] glimpse of what we did so on the folder
+[01:35] with right click we can create a new
+[01:36] material it's going to be very basic
+[01:38] with fral effect double click to open it
+[01:41] up let's create a vector 4 parameter for
+[01:44] the color which I actually noticed we
+[01:47] don't need only after recording sorry
+[01:49] guys and another node for
+[01:51] Fred this one right
+[01:54] here we want to control this with a
+[01:57] scaler parameter by the way so it's add
+[02:00] one and call it the fral power with a
+[02:02] default value of two for example connect
+[02:04] it here and up there just going to say
+[02:07] this is white and then we can multiply
+[02:10] these two together and the color is
+[02:12] going to come from Niagra so we need the
+[02:15] particle color node by the way so nagra
+[02:19] can communicate with the
+[02:20] material and then we can multiply these
+[02:23] two together and connect to the emissive
+[02:25] so yeah very straightforward material
+[02:27] very basic obviously I would recommend
+[02:30] you to replace this with a cool ice
+[02:33] material anyway let's create a material
+[02:35] instance with right click we want to
+[02:37] keep the original materials separated
+[02:40] from the instance it's a good practice
+[02:42] this one is going to be miore frenal and
+[02:45] I'm going to drag it outside of this
+[02:47] folder and then essentially what we need
+[02:51] is to in the spiky meter add a material
+[02:54] for the override materials and then
+[02:56] select the Mi andore fral we just create
+[03:00] the instance and well we don't see
+[03:02] anything yet because we need to emit
+[03:05] something right first let's say the
+[03:07] meter State the loop cycle mode is to
+[03:10] self instead of following the system
+[03:13] it's going to follow itself which means
+[03:15] we can control its Loop Behavior right
+[03:17] here and then let's add a burst spawn
+[03:20] burst on the meter update with for
+[03:22] example three particles for now you can
+[03:25] try different values and then initialize
+[03:28] particle we can already take of the
+[03:30] lifetime and say it's random we can
+[03:33] convert this to a wrench float or switch
+[03:35] it up there on the lifetime mode between
+[03:37] two and 2.2 seconds for example let's
+[03:41] pick a color for this the one I have
+[03:43] showen is a little bit too bluish by the
+[03:45] way but you can adjust it yourself and
+[03:47] play with this and then down here what's
+[03:49] important is that we say the mesh scale
+[03:52] is uniform arrange float between 0 7 and
+[03:55] one and this is what we have it's
+[03:57] something now let's make sure this power
+[03:59] is certain area with the shape location
+[04:02] module instead of sphere let's select a
+[04:04] taus where the large radius could be 200
+[04:08] and the handle radius three it will
+[04:10] essentially spawn in a circle now if you
+[04:13] want to tilt this we are going to need
+[04:15] the initial mesh orientation in the
+[04:17] particle spound the mode can be none but
+[04:19] we can turn on rotation down here and
+[04:22] make it random arranged Vector so they
+[04:25] all have a little bit of different
+[04:28] rotation this is the is I'm going to use
+[04:30] by the way as you can see they are
+[04:33] now let's work on the way they show up
+[04:37] with a scale mesh size in the particle
+[04:40] plate in here let's convert this to a
+[04:43] curve let's select all of the keys from
+[04:45] all curves and we right click say it's
+[04:48] in auto mode so we can control the bus
+[04:51] curves let's unpin the Z curve so we can
+[04:54] work only on the X and Y let's select
+[04:57] the first key say the value is zero
+[05:01] and then add another key at around 02
+[05:04] and say its value is
+[05:06] one oh and same thing applies to the X
+[05:09] curve by the way and more or less at 0.8
+[05:12] let's add another key also with a value
+[05:14] of one for the Y and the X curve this
+[05:17] way it sustains that size for a little
+[05:20] while before coming down at more or less
+[05:23] 0.85 we can add another key on the X and
+[05:27] Y and say it's 1.1 so it has a little
+[05:29] bump before scaling down let me fix here
+[05:33] the X curve I forgot to add a key I'm
+[05:35] going to select the X and Y curve the
+[05:37] keys up here and say they are in auto
+[05:40] mode so they are a little bit smoother
+[05:42] and finally I'm going to isolate the Z
+[05:45] and say the first key the value it's
+[05:47] zero add another key at around Z One 0
+[05:50] 15 and say it value is one and right in
+[05:53] front of that another key with a value
+[05:55] of 0.9 so it basically has that little B
+[05:59] pump in the beginning and then it
+[06:01] sustains that size and it shrinks
+[06:04] down yeah something like
+[06:08] this oh and by the way let's say the
+[06:11] loop behavior is once will be useful
+[06:14] down the road now the quick way to add
+[06:16] Randomness to their size is in the scale
+[06:19] mesh size the scale curve it can be a
+[06:22] random Vector random ranged Vector the
+[06:25] minimum will be one and the maximum
+[06:27] something like 1.5 for for all of the
+[06:30] axis and you get a really nice
+[06:32] Randomness to each Spike cool now if we
+[06:35] want a mesh at the bottom a bright spot
+[06:38] on the ground as well in the same
+[06:40] position of each Spike we need to
+[06:41] generate an event in this case a
+[06:44] location event on the particle plate we
+[06:47] get a warning basically the Sol forces
+[06:50] and velocity module is missing we can
+[06:52] click fix issue we still have a warning
+[06:55] and it's essentially because we need to
+[06:56] turn on if you select the volim meter we
+[06:59] can turn on the requires persistent IDs
+[07:02] so Niagra can create an ID for each
+[07:05] particle essentially on the generate
+[07:07] location event we want to say the event
+[07:09] send rate is 10 per second each second
+[07:12] is going to send 10 events let's save
+[07:16] this and now let's use this in an nagra
+[07:18] system let's create one with right click
+[07:21] create an empty nagra system I'm going
+[07:23] to rename it to nesor ice attack for
+[07:26] example open it up with double click and
+[07:29] in here on the track plus sign on the
+[07:32] emits we can add the ne Spike great
+[07:35] let's save this and so far this is how
+[07:38] it's looking if you drag and drop this
+[07:39] to your
+[07:40] scene this is how essentially it is
+[07:44] right now let's add a mesh at the bottom
+[07:46] so it looks like snow or something like
+[07:49] that and for that part we are going to
+[07:51] need another nag meter an empty one as
+[07:54] well for the ground
+[07:55] ice double click to open this up and
+[07:59] well well first thing we need is replace
+[08:01] the Sprite render with the mesh
+[08:05] render once again this mesh is also on
+[08:08] the link below and like I said in the
+[08:10] beginning this is all part of the ice
+[08:13] attacks Niagra packs available on the
+[08:16] marketplace links below by the way let's
+[08:19] turn on enable material override so we
+[08:23] assign here the miore frenal the same
+[08:27] material up here the meter state is
+[08:30] going to be self as well and loop viver
+[08:33] is once but with a loop duration of 0 to
+[08:36] one that's very important if we are
+[08:38] emitting on the spike 10 events per
+[08:40] second this one only needs to leave a
+[08:42] tenth of that so it catches only one
+[08:45] event so it spawns only one time let's
+[08:48] take care of Lifetime something random
+[08:50] between two and a half seconds and 2.8
+[08:54] color we can say it's well a bright
+[08:57] white for example
+[08:59] and to have a different rotation to each
+[09:01] one on the particle spound we need the
+[09:03] initial mesh orientation let's say the
+[09:06] mesh orientation mode is none let turn
+[09:08] on rotation make it a range Vector
+[09:11] between zero and all of the
+[09:13] axis except for the Z the maximum let's
+[09:17] leave it at one and let's control the
+[09:19] way it scales up and while making the
+[09:21] tutorial we discovered that the scale
+[09:23] mesh size doesn't work quite well when
+[09:26] it's receiving events so let's use a set
+[09:29] parameter here and on the plus sign we
+[09:32] can control the
+[09:34] scale of the particle itself and then
+[09:37] convert this to a curve it probably is a
+[09:39] bug but that's the work around to use
+[09:42] the scale of the particle instead of
+[09:44] scale mesh size and with this curve now
+[09:46] we can control how it appears I'm going
+[09:48] to unpin the Z curve and for the X and Y
+[09:52] the first curve is going to be zero and
+[09:54] then add another key at 0.1 with a value
+[09:58] of one
+[10:00] do the same for the
+[10:02] X and then add another key at around Z
+[10:06] at s with a value of one for the X and
+[10:09] the Y that's it so it grows up and then
+[10:11] it shrinks down let's hi them and only
+[10:14] show the Z because the first key is
+[10:17] going to be
+[10:19] zero and then we can add another key at
+[10:22] around Z two so it grows up to one and
+[10:25] then it
+[10:26] sustains to around Z 7
+[10:29] and shrinks once again let's show all of
+[10:32] the curves select all of the keys and
+[10:34] turn on auto let me just fix these
+[10:36] handle right here all right like this
+[10:40] looking good now if we want this to
+[10:42] receive events from the spike we need an
+[10:45] event handler up here on the
+[10:48] stage the spawn number is going to be
+[10:50] one and execution mode is spawn
+[10:53] particles and most importantly now we
+[10:55] need the receive location event which we
+[10:58] are going to setup on the nagra
+[11:01] system let's save this and on the nagra
+[11:04] system yeah down here we can add on the
+[11:07] track the ground ice and now we just
+[11:09] need to link these two together by going
+[11:12] to the event handler and the source is
+[11:16] going to be the location event of the
+[11:19] spike and here we go every time now the
+[11:23] spikes spawn they have precisely below
+[11:26] them a little puff of snow and like I
+[11:29] said you can try different meshes
+[11:31] different materials what's most
+[11:32] important is the motion and the way we
+[11:35] set up this in Niagara right let me just
+[11:37] increase a little bit the scale of the
+[11:39] ground ice on the meter in the X and Y
+[11:44] 1.5 yeah something like this you get the
+[11:47] idea right looks awesome you can do so
+[11:50] many cool stuff with this now the
+[11:52] process to add the ground particle is
+[11:54] pretty much the same we are going to
+[11:55] need the new emitter because last one
+[11:57] was for a mesh and it keeps things
+[12:00] organized on this ground particleemitter
+[12:02] theit state needs to be self so it works
+[12:05] properly with generate events as well as
+[12:07] once and a loop duration of 0.1 so it
+[12:10] catches one of those events only one
+[12:13] that comes from the spike and the life
+[12:14] type for example can be 2.4 to color
+[12:17] well we can leave it at 0.2 0.2 for the
+[12:20] RGB and the Sprite size mode could be
+[12:23] random but let's use a new form 6 and
+[12:26] will do just fine and now very
+[12:29] importantly on the Sprite render we
+[12:31] don't want this to face the camera so in
+[12:34] the alignment let's say it's custom
+[12:35] alignment as well as facing mode is
+[12:37] custom facing Vector because now on the
+[12:40] particle spawn we are going to use
+[12:42] Sprite facing and Alignment module that
+[12:45] will help us face this so it's parallel
+[12:48] with the ground you could also use
+[12:49] decals for this but this is fine as long
+[12:52] as you set the Z to one and zero for the
+[12:55] X and
+[12:57] Y and then yeah we can fade it out at
+[13:00] the end with the scale color we can even
+[13:02] create a gradient for example if we set
+[13:04] this to rgba together and then convert
+[13:07] this to a
+[13:08] curve we will get this cool graded where
+[13:10] we can fade in the beginning the keys at
+[13:12] the bottom are the alpha the
+[13:14] transparency and the top is the color
+[13:16] and fade at the end as well and if you
+[13:19] want it can be brighter in the beginning
+[13:22] by setting this key the value to five
+[13:25] that's essentially it again very
+[13:27] important is to add the event
+[13:30] handler up here on the stage and add the
+[13:34] receive location event plus on the event
+[13:37] and the properties we need to say it's
+[13:39] Spa at particles and spound number is
+[13:41] one if you save this all we got to do is
+[13:44] go back to the agress system and Link
+[13:46] this first let's add the meter on the
+[13:49] plus track down here and now we can link
+[13:52] this by saying that the event handler
+[13:55] the source is a location event that
+[13:58] comes from the SP Spike and here we go
+[14:00] we have a Sprite at the bottom a glow it
+[14:04] could be used for a crack on the ground
+[14:05] or something like that again this method
+[14:08] would also work with dickles if you set
+[14:10] up a dickle for this but that's
+[14:12] essentially it now let's see how to
+[14:14] create a Cascade effect from this I'm
+[14:17] sure there's better ways but this is the
+[14:19] easiest one and quickest one so the
+[14:21] trick is to select these three meters
+[14:23] and we contrl c contrl v create the
+[14:26] duplicate of this push them down here
+[14:28] and with right click isolate them and
+[14:30] the most important thing is to go to
+[14:32] each event handler and make sure the
+[14:34] source is now from the new spikes as you
+[14:37] can see Spike 001 location event which
+[14:41] is the one we duplicated let's do the
+[14:42] same for the ground particles exactly
+[14:45] and from here what really matters that
+[14:47] we delay this second spikes we can do it
+[14:50] in the spa burst instantaneous with a
+[14:53] small valid like Zod that one and now
+[14:55] for this to work properly on the meter
+[14:57] state of off the ground
+[14:59] ice as you can see this doesn't show
+[15:02] anything at the bottom because this is
+[15:04] only looping once and it's missing the
+[15:07] first event sent from the spike so on
+[15:10] the loop behavior let's say it's
+[15:12] multiple let's say it has a second loop
+[15:14] loop count is two and the loop duration
+[15:17] could be smaller like 0.05 that's enough
+[15:19] to only grab one event nothing really
+[15:22] shows up because we still need to have a
+[15:25] loop delay here of 0.1 the same value we
+[15:28] have delayed it on the spike and here we
+[15:31] go it only spawns one time the ground
+[15:33] ice let's do the same for the ground
+[15:35] particles it's going to be multiple Loop
+[15:37] count of Two and a loop delay of of 0.
+[15:40] one the same that we have set on the
+[15:41] spike here we go looking good but they
+[15:45] are still probably in the same position
+[15:47] as the first wave of spikes right so for
+[15:50] the second wave of spikes we can go to
+[15:52] the initialized particle of the spike
+[15:55] and in position of set for example in X
+[15:58] say say it's 800 and increase probably a
+[16:00] little bit the size to 1 and 1.5 for the
+[16:03] mesh scale on the scale of the ground
+[16:06] ice we can also increase a little bit
+[16:08] the scale curve to
+[16:10] 1.7 and on the initialized particle of
+[16:12] the ground particle let's say it's 800
+[16:15] and here we go now let's create a d
+[16:17] let's select this and get out of
+[16:19] isolation mode with right click we go to
+[16:22] the beginning and here we go yeah they
+[16:24] are maybe a little bit too far from each
+[16:26] other but we can for example we will see
+[16:30] that in a moment for now let's create
+[16:31] the third wave contrl c contrl v of this
+[16:37] wave and for this third wave we are
+[16:39] going to do the same on the spawn
+[16:42] isolate them on the event handlers let's
+[16:45] say location event is from the spike
+[16:52] 002 and then in spawn burst
+[16:54] instantaneous of the spike we can delay
+[16:56] this something like Z2 for example and
+[16:58] increase the count to five as a matter
+[17:00] of fact we can increase also the count
+[17:02] of the spike 001 on the second wave to
+[17:05] four here we go now on the ground ice on
+[17:09] the Met State the loop delay is going to
+[17:12] be 02 as well so it matches the delay of
+[17:15] of the spike 002 as well as for the
+[17:18] ground particle delay of
+[17:20] 02 and here we go they are working
+[17:24] well just going to increase the spike
+[17:26] the mesh scale to 1.4 and
+[17:28] two and the scale of the ground ice to
+[17:31] 1.9 and that's pretty much it the same
+[17:34] for the ground particle
+[17:36] 1,000 disable isolation mode and here we
+[17:40] go let me see what's happening here oh
+[17:43] yeah we need to have set the third wave
+[17:45] of spikes something like 1,800 for
+[17:49] example oh by the way on the shape
+[17:51] location we can increase the radius to
+[17:53] 400 of the third wave and for the second
+[17:56] Spike you can increase it something like
+[17:58] 3 300 it will look a little bit better
+[18:01] but yeah you get the idea right that's
+[18:03] how you create this Cascade effect of
+[18:05] this Spike attack it looks really
+[18:07] awesome in my opinion so that's it guys
+[18:10] and if you want to get your hands on all
+[18:11] of these ice attacks which they are
+[18:13] available on the marketplace and on my
+[18:16] patreon page as well as on my website
+[18:18] links below if you want to support me on
+[18:20] my patreon you will get access to plenty
+[18:22] more assets that you can use in your
+[18:24] projects links below I want to say thank
+[18:27] you to each Patron that's me last month
+[18:29] and a quick shout out to the top tier
+[18:31] patrons which are Alberto Sager Alex C
+[18:34] alen alad avat tobali cyber credit
+[18:37] Daniel Schmid Del zaku Mar Lu at Frosty
+[18:42] 4 gra Salazar Casey Miller Cals waffer
+[18:45] Leon Matt Mor Mike Bell Mike young Pier
+[18:48] Mayu prips radioactive bullfrog Revenant
+[18:52] games rvr Shan agil stefanic jski Travis
+[18:55] m b whatever Mar Will pum
+[19:00] V and me J thank you all very much for
+[19:03] your support you guys are awesome I hope
+[19:05] you enjoyed this unreal GI tutorials and
+[19:07] I hope to see you on the next one thank

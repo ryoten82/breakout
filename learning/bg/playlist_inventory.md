@@ -38,6 +38,8 @@ URL: https://www.youtube.com/playlist?list=PLuhU4QcoPlCwdd32I8k8fz-4sMoT-Xp78
 | 長さ | video ID | タイトル | 学習状況 |
 |---|---|---|---|
 | 27:54 | ufE0QHwVP8w | NEW Mesh Painting in UE5.5 & 5.6 & 5.7!（Arganian's Puzzle Box） | ✅ 学習済（Fable ペア照合済・doctrine 反映済） |
+| 273:17 | AkDRS7g0LtM | How to create a Sci-Fi Open World in Unreal Engine 5 with KitBash3D（UNF Games・Mission to Minervaフルコース） | ✅ 学習済（2026-07-04・9チャンク並列抽出、Fable監査未実施） |
+| 17:16 | oEQCAnwclTg | Unreal Engine 5 Realistic Sci-fi Level Tutorial - FREE ASSETS + Pro Tips（Dutchman Games） | ✅ 学習済（2026-07-04・単体抽出、Fable監査未実施） |
 
 ## SCRAP BLITZ との関連度メモ
 

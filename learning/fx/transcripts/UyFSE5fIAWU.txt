@@ -1,0 +1,229 @@
+[00:00] Hi guys, I'm Asaly and you're watching
+[00:01] CJ Jaho video. Today we will make this
+[00:03] hit mark effect in Unreal Engine 5.5
+[00:06] and this is all emitters
+[00:09] each and every layer but you can do this
+[00:12] whole thing in the material and if you
+[00:14] want me to create the whole material for
+[00:16] this effect for a single material let me
+[00:19] know in the comments. So I will make a
+[00:20] material tutorial. So let's start this
+[00:23] tutorial. Let's start this. So first I
+[00:26] will make a material
+[00:28] and ring
+[00:32] and there are lots of ways to make a
+[00:34] ring. I have already lots of tutorials
+[00:36] on just ring using texture or nodes. So
+[00:41] I will use two-sided here and
+[00:43] transparent unlit and I'll just take a
+[00:45] radial and this is how it looks. And if
+[00:48] you take the sign, you can make a ring
+[00:51] out of this. If you want fading from
+[00:54] both side because this is sharp from one
+[00:56] side. Just make the sign too. And then
+[00:58] control the thickness. You can use
+[01:01] power. You can use lots of other things.
+[01:03] So let's say I use power or you can use
+[01:05] subtract also. And just a dynamic
+[01:08] parameter. And I'll call this thickness.
+[01:16] And then I'll take the particle color
+[01:18] that will go here. And this will go in
+[01:22] the opacity.
+[01:24] Simple. I'll just save it. Now in the
+[01:28] Niagara, I'll take the Niagara
+[01:31] and it's
+[01:36] I need a single particle. So I'll just
+[01:38] right click take a minimal. It should
+[01:41] spawn once. So in the state self low
+[01:44] behavior once and then there will be one
+[01:46] particle spawn burst one particle it
+[01:49] should never die. So in the particle
+[01:51] state turn this off life will be
+[01:53] infinite whatever value is here doesn't
+[01:56] matter. Okay so this is one particle. So
+[01:59] I'll just use this ring material. I'll
+[02:02] browse this and use it here. Now we have
+[02:04] this ring. If I just stop this and let's
+[02:08] say the size of ring maybe 200.
+[02:12] And then here I need a dynamic parameter
+[02:15] to control the thickness like this.
+[02:20] So like I want maybe
+[02:23] 200. Let's say I'll make this local and
+[02:26] then I'll drag it into the view port.
+[02:29] One thing you will notice this is camera
+[02:30] facing. It should face the ground. So
+[02:33] for that uh it's camera facing. So go to
+[02:35] the sprite render in the alignment
+[02:37] custom alignment in the facing custom
+[02:42] facing vector and then here take this
+[02:45] module align to mesh orientation. By
+[02:48] default it will align this on the
+[02:50] x-axis. So change the x to z. And now it
+[02:53] will face the ground. Now you can put it
+[02:58] uh size maybe I'll increase maybe 400
+[03:06] or maybe even more 600
+[03:10] and the thickness I want to decrease
+[03:12] little bit more so I just make this and
+[03:15] it is it looks little faded so I can
+[03:19] just increase the alpha so in here if I
+[03:22] increase the alpha it will be harder
+[03:24] okay then I can go here even more So
+[03:28] it's a hard ring now. This is how it
+[03:31] looks here. Okay.
+[03:34] So after this uh let's say this I want
+[03:37] to make actually not that hard. Maybe
+[03:48] So now I need one more ring and it still
+[03:51] looks very small. Maybe 800. Cool.
+[03:56] Then I want a ring, a smaller ring. So
+[03:58] I'll just duplicate this. You can do
+[04:00] that in a single emitter if you want. I
+[04:02] have a lots of tutorials covering that
+[04:05] single topic. So in this I'll just
+[04:07] decrease the size maybe this much.
+[04:10] Yeah, I like it. Now I want uh a effect
+[04:13] here also. And in this one, the smaller
+[04:16] one, I will decrease this value. So
+[04:19] thickness will be little bit more and it
+[04:22] will visible properly. Okay.
+[04:25] So as you have seen the thumbnail and
+[04:27] that's why you clicked here. So this is
+[04:28] the thumbnail and if you'll see the
+[04:31] layers I have created this and I have
+[04:33] created this layer. Now I have to create
+[04:35] these. So first I will create from I
+[04:38] will start from outside. So I will
+[04:40] create this layer which is red and
+[04:43] faded. So, I'll duplicate this one more
+[04:48] And this time, I'll just make it red
+[04:54] and maybe
+[04:56] size around here.
+[04:59] And thickness
+[05:02] be this much. Okay. Then I will
+[05:06] duplicate this one more time. It's just
+[05:08] you have to like design your thing. And
+[05:12] in this one, I'll decrease this value to
+[05:14] make the thickness.
+[05:16] And then I will make the size
+[05:20] around here.
+[05:22] And then maybe alpha little more down
+[05:26] like this. Even more.
+[05:29] I can use maybe this much.
+[05:33] And then size here. Cool. Second, uh I
+[05:37] will duplicate this one more time. this
+[05:45] I'll decrease the size of course and it
+[05:48] will be around here. It will be little
+[05:54] like this. Then increase the thickness.
+[05:58] So decrease this value.
+[06:04] And then one more time I'll duplicate
+[06:06] this emitter. And this time I'll
+[06:13] around here. And this time I'll make the
+[06:16] alpha little hard. And this will be a
+[06:18] little more whitish.
+[06:21] Cool. So this is how I'm designing it.
+[06:24] Now I want some particles like uh
+[06:28] streaks like these one. So if you count
+[06:31] these although that doesn't matter 1 2 3
+[06:34] 4 you can add whatever value you want.
+[06:37] So what I'll do let's say I duplicate
+[06:40] the first diameter here and I'll delete
+[06:44] the sprite renderer and I'll take this
+[06:46] again. So it will come with this radial
+[06:49] material. Now I'll do this custom
+[06:51] alignment again.
+[06:53] Okay. And now let's say size I'll
+[06:59] Okay. So this is now I want this here
+[07:02] first. Let's say you have five
+[07:03] particles. Then I'll take the shape
+[07:06] location. I'll take the Taurus instead
+[07:10] of uh uh and I'll make the radius handle
+[07:14] zero. And let's say Taurus size is
+[07:18] around here.
+[07:20] You will notice the particle spawning
+[07:22] randomly on that Taurus. So what you'll
+[07:25] do and one more thing if I show you let
+[07:29] me decrease the size of particles
+[07:32] and make these particles like 200.
+[07:40] This Taurus looks weird.
+[07:44] Taurus not working I think.
+[07:48] Let me just
+[07:55] Yeah, now it's working. It was weird.
+[07:57] Okay, so now it's on the place I want to
+[08:01] just add this point and then these
+[08:04] particles are randomly distributed. I
+[08:06] want a space equally distributed. So in
+[08:09] here instead of random take the direct
+[08:12] and then in the U just add execution
+[08:19] and that's it. I'll turn this off. Let
+[08:22] me save all.
+[08:28] While it's taking time, you can just
+[08:30] subscribe. So I'll now decrease this
+[08:33] maybe six particles. You can see the
+[08:35] side the position. Now if here size
+[08:40] seven. If I take non-uniform and I take
+[08:43] like increase it on one axis. So the
+[08:46] rotation is not it's just one
+[08:49] directional ax. I want to point into the
+[08:51] center. So for that what you can do you
+[08:54] can take initial mesh orientation and
+[08:57] then instead of random take the vector
+[09:00] and then connect here shape vector or
+[09:04] shape normal.
+[09:06] See it's finished. So, I'll just make
+[09:09] this one also red
+[09:14] and maybe
+[09:20] we'll write
+[09:23] like this. And if you want random size
+[09:26] in the length, you can do that with this
+[09:29] value. But let it be. Then I'll
+[09:31] duplicate this. And this time I'll make
+[09:35] this one pure red.
+[09:39] And I'll increase the size on this axis
+[09:42] and on this axis also. And decrease the
+[09:47] just to make it like a glow. Cool. Then
+[09:51] I'll just duplicate these two emitter
+[09:56] And what I'll do in these two emitter,
+[09:59] let's say this is like 50 and 50. And
+[10:05] then I'll change the size for both this
+[10:07] one. Maybe 50 and 50. So you have these
+[10:12] smaller one. And I guess I think I need
+[10:16] to make this little more
+[10:20] like this. But I will make the size
+[10:22] little random. So this is 50 and this is
+[10:25] one. Let's say go here. So I'll make it
+[10:31] 50 and 20.
+[10:34] Okay. And same thing I will do with this
+[10:38] 20 50 1.5.
+[10:41] So size is random in this one. You can
+[10:44] do all random
+[10:54] can go random like this. Cool. I'm not
+[10:58] using very random values but you can use
+[11:03] cool one more thing I'll do again I'll
+[11:06] just duplicate these one which are faded
+[11:13] these one and let's say I use
+[11:17] more size here
+[11:22] more thickness
+[11:24] maybe this much but less alpha
+[11:33] like this.
+[11:35] Cool. So yeah, you have this cool kind
+[11:38] of effect and this whole thing can be
+[11:41] done in the material I'm telling you
+[11:43] again. And if you want me to create a
+[11:46] whole material for this effect with all
+[11:48] the parameters to control everything
+[11:50] like these emitters, I can do that. Just
+[11:53] let me know in the comment below. So
+[11:55] these are all you can do in the material
+[12:01] All you need is just randomization in
+[12:04] this. That's all. Although you can do
+[12:07] something like you can make a material
+[12:10] which has some tricky kind of thing to
+[12:13] make it like that. You can also add a
+[12:16] glowy kind of thing also. So we had a
+[12:19] layer this one. I'll duplicate this one
+[12:22] more time.
+[12:24] And this time I'll increase the
+[12:26] thickness even more like this. And make
+[12:30] the transparency even more less
+[12:36] like this. So it it will look like a
+[12:41] Looks fine. I hope. Thanks for watching.
+[12:43] Keep learning. on the bike.

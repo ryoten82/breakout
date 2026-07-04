@@ -1,0 +1,564 @@
+[00:00] so Niagara has been out there for a
+[00:01] while I even made a course with this
+[00:03] awesome tool a while back and I'm doing
+[00:05] a new one but due to recent events at
+[00:08] Unity at quartis today we are going to
+[00:10] see how to create a Magic Orb in
+[00:14] unreal to be clear Unity tutorials will
+[00:17] still pop up every now and then I just
+[00:18] think it's a great time to do something
+[00:20] I always wanted tutorials with unreal
+[00:22] and G and even go and what better way to
+[00:25] start this new series than with one of
+[00:28] my most video tutorials the magicar in
+[00:30] unity but this time in a real GI with a
+[00:33] few adjustments I even made a few more
+[00:35] orbs and I made them all available on my
+[00:38] patreon's page links below so without
+[00:41] further Ado let's jump right into
+[00:45] this so with the unreal in giant
+[00:48] launcher I have created a new project in
+[00:50] unreal 5.3 and selected a blank project
+[00:54] we get this nice landscape I'm going to
+[00:55] zoom in and from here what really
+[00:57] matters that on the content browser it's
+[00:59] is where we are going to store all of
+[01:02] our elements textures materials and
+[01:04] particle systems and so on as a good
+[01:06] practice I believe it's useful to create
+[01:08] a folder called particles and inside
+[01:10] this folder two new folders one for
+[01:12] nagri meters and another for Niagra
+[01:15] systems because Niagra systems are
+[01:18] composed of Niagra
+[01:20] meters as a matter of fact we can create
+[01:22] one with right click here in effect
+[01:26] nagre meter you can see it as a parent
+[01:29] as a prefa and then we are going to
+[01:30] create instantiations of it on the nagra
+[01:33] systems you can say new emitter and we
+[01:36] have a few templates for this one I like
+[01:39] to start with a simple Sprite burst then
+[01:42] press finish I'm going to rename this to
+[01:45] NE which stands for nagri meter uncore
+[01:48] Sprite burst and if we open this up we
+[01:51] get this window which is pretty much
+[01:53] Niagara you can duck it up here just by
+[01:57] dragging and dropping but still let's go
+[01:59] back back to our level editor and in our
+[02:02] content browser in nagri meter let's
+[02:04] create another nagri meter new meter yes
+[02:08] but this time let's select
+[02:12] burst and we can call it
+[02:15] neore particle
+[02:17] burst so we have these two emitters
+[02:20] basically particle systems and with them
+[02:23] we can create an nagra system we can use
+[02:25] them in an nagra system if we go to our
+[02:27] nagra system folder with right click we
+[02:30] can create exactly that an Agra system
+[02:33] and it says we can create well a new
+[02:35] system from selected emitter and a few
+[02:38] other options the first one is the way
+[02:40] to go and then we can select from the
+[02:43] templates or from the parent meters you
+[02:45] can select both while holding shift and
+[02:48] press this plus icon to add to the nagra
+[02:51] system and then press finish basically
+[02:53] this nagra system is going to be for the
+[02:56] Magic Orb nesor Magic Orb 01
+[03:00] this is where we will build our effects
+[03:02] double click to open it up and as you
+[03:04] can see we have the two emitters that we
+[03:07] have created we can isolate each one on
+[03:11] icon and then there's this third node
+[03:13] third panel which essentially is related
+[03:16] to the system to the Niagra system so
+[03:19] these are Childs of our parent Niagra
+[03:22] emitters for example on the Sprite burst
+[03:25] this one is emiting one particle and
+[03:28] that's pretty much it but on the
+[03:29] particle burst we have something very
+[03:31] different we have these particles
+[03:34] down in our specific case probably we
+[03:37] don't need the Gravity Force so let's
+[03:41] it once you do it if you go back to
+[03:43] nagra system it is still there because
+[03:46] the nag meter hasn't been
+[03:48] saved if we save it if we apply the
+[03:51] changes as you can see it updates here
+[03:53] automatically and for example if we
+[03:56] wanted to add some noise we could do it
+[03:58] in the particle update search for curl
+[04:01] noise increase it to a th000 for
+[04:06] example and this won't affect the parent
+[04:10] meter even if we save the nro system the
+[04:12] parent meter it still as we left
+[04:15] it just to show you this relation
+[04:18] between parent and child and how
+[04:19] emitters and Agro systems work in
+[04:22] here now more specifically to Niagara
+[04:25] itself we have four main parts four
+[04:28] section which is the emitter update
+[04:31] related to the emitter the particle
+[04:33] spawn related to when the particle is
+[04:35] born or created and then the particle
+[04:37] update how do we update the particle and
+[04:39] eventually how do we render the particle
+[04:42] itself that's essentially it but really
+[04:45] matters here is to think what modules
+[04:47] are we going to need for sure for
+[04:50] example in the particle update we are
+[04:52] certainly going to need to scale up or
+[04:55] down our Sprite so let's search for a
+[04:58] scale as you can see the down here we
+[04:59] have scale Sprite size exactly what we
+[05:02] need and now this Sprite is growing
+[05:04] breeding we can expand this graph view
+[05:08] select all of the keys and with right
+[05:11] click say Auto so we can control these
+[05:13] busy curves with their
+[05:15] handles cool if we save this go back to
+[05:18] n system this will update
+[05:22] automatically and now in our particle
+[05:25] burst we have a few different things for
+[05:27] example the sphere location
+[05:30] so the particle start on a specific
+[05:32] location in this case a sphere location
+[05:35] which can control up here and control
+[05:37] the radius and then we have ADD velocity
+[05:40] it adds velocity as soon as the particle
+[05:42] is born a random in this case from a
+[05:45] point then we have drag which is
+[05:47] basically slows down the particles
+[05:49] through time and a few more things
+[05:51] what's important is this solve forces in
+[05:54] velocity without it the drag and the add
+[05:57] velocity won't work it give gives us
+[05:59] immediately a warning saying that it has
+[06:01] a unmet dependencies basically it needs
+[06:04] this solve forces and velocity module so
+[06:08] it can calculate the drag and the add
+[06:12] essentially right so let's build our
+[06:14] effect our Magic Orb attached to this
+[06:17] lesson there's a link below with a few
+[06:19] textes that are made available for free
+[06:22] you can download that zip file open it
+[06:24] up select all of the text as in contrl C
+[06:26] create a copy and now let's navigate to
+[06:29] our content browser and in content
+[06:31] create a new folder for
+[06:34] textur and we right click we want to say
+[06:38] show in Explorer and now we can contrl V
+[06:41] basically paste our text here in and
+[06:44] real this right panel appears we can say
+[06:46] part and here we go we have our textur
+[06:49] don't get me wrong textes are extremely
+[06:51] important but it's a little bit besides
+[06:53] the point of this tutorial which is kind
+[06:54] of an introduction to Niagara if you
+[06:56] want to learn more about text creation I
+[06:58] highly recommend to check out my channel
+[07:00] we do that a lot throughout the
+[07:03] tutorials so now that we have the Texas
+[07:05] we can create a material in a moment for
+[07:07] now let's make a few adjustments to our
+[07:10] nagra system for example we can rename
+[07:12] this with F2 to particles floating and
+[07:17] they are a burst they only spawn one
+[07:19] time what if we want them to loop I made
+[07:21] this on purpose to show that if we go to
+[07:23] AER update we can say the loop behavior
+[07:26] is infinite and now it will Loop to
+[07:27] infinity and beyond it may not seem like
+[07:30] it due to the timeline down here because
+[07:32] the timeline is CED to 10 seconds but it
+[07:36] will Loop forever if you put this in the
+[07:38] scene this is basically a
+[07:41] preview and it's spawning bursts
+[07:44] continuously What If instead we want a
+[07:46] rate a continuous rate well we can do it
+[07:49] right there but as you can see we have
+[07:51] this lock signs which means this belongs
+[07:54] to the pirate and we cannot remove it we
+[07:56] can however disable it and then press
+[07:59] the plus sign and search for a rate we
+[08:01] have the spawn rate and as you can see
+[08:03] this one doesn't have a lock icon which
+[08:05] means it belongs specifically to this
+[08:07] child let's increase the rate to 50 for
+[08:12] example let's make a few adjustments
+[08:14] like decreased lifetime to
+[08:16] 075 and
+[08:19] 1.5 the color we can select something a
+[08:21] little bit more pinkish Violet along
+[08:25] that by the way this value right here if
+[08:27] you increase it to above one the
+[08:29] particle will be brighter basically it
+[08:32] will kind of
+[08:33] glow let's increase their size it's
+[08:35] already random as you can see in this
+[08:37] Sprite size random let's say it's
+[08:40] between 5 and 25 because we are going to
+[08:43] change the text and I already know this
+[08:45] values but what I'm going to really show
+[08:47] you is that we also have random Sprite
+[08:50] in here it's already set to random even
+[08:52] though we don't notice it and then we
+[08:55] have sphere location and add velocity
+[08:57] but what I think it's curious is that
+[08:59] every time you see this Arrow right here
+[09:02] it means you can return to the default
+[09:05] value and most of the properties we have
+[09:07] a drop- down menu an arrow like this one
+[09:10] where you can convert them to something
+[09:12] completely different for example in this
+[09:14] case we can make this random if we
+[09:16] search random range float here we go I'm
+[09:19] going to put it back as it was and this
+[09:21] is available for pretty much any
+[09:23] property you can make random vectors you
+[09:25] can convert vectors to
+[09:26] floats and so on so many cool things
+[09:32] and then we have particle State drags
+[09:35] scale Sprite size something that happens
+[09:37] continuously something that is updating
+[09:39] the particle continuously and the curl
+[09:41] noise which we can increase the force to
+[09:43] 2,100 for example anyway quick
+[09:47] adjustments to the Sprite burst It
+[09:49] suffers from the same problem which is
+[09:51] basically it only shows Once so let's
+[09:54] make sure the loop VOR is
+[09:57] infinite and and add a spound rate of
+[10:01] two for
+[10:04] example oh and let's rename this with F2
+[10:07] let's call it the flare
+[10:10] bright let's say left time is 1 second
+[10:13] want this to be a little bit quicker and
+[10:15] let's make sure the size is random on
+[10:19] this Arrow between something like 500
+[10:22] and 700 for
+[10:26] example let's make sure we use this
+[10:28] curve for the scale Sprite size it grows
+[10:31] quickly in the beginning and then it
+[10:32] slows down creates a nice effect oh and
+[10:35] on the scale color this one it fades in
+[10:38] the beginning and Fades out at the end
+[10:41] fade in and Fade
+[10:42] Out cool
+[10:44] stuff now we have the renderers which we
+[10:48] left them we haven't touched them but
+[10:50] this is essentially how do we want this
+[10:52] partic to look I'm going to save this
+[10:53] nagro system I'm going to go back to the
+[10:55] level editor and let's create a new
+[10:57] folder for material because we need to
+[11:00] create our material from scratch so I'm
+[11:02] going to create an original one folder
+[11:06] inside the
+[11:08] materials and then we right click we
+[11:10] want to create a material we are going
+[11:12] to quickly Overlook the material editor
+[11:15] there's so much to say about this I'm
+[11:17] going to make a very very simple
+[11:19] particle Shader let's call it
+[11:21] mcore particle simple or simple part
+[11:24] double click to open it up and this is
+[11:26] essentially material editor like I said
+[11:29] quick overview of this what's important
+[11:31] is this panel right here on the details
+[11:33] the material section we have material
+[11:35] domain which is set to surface that's
+[11:38] fine then the bled mode is very
+[11:40] important for us it's set to a pack but
+[11:42] we want to translucent our additive or
+[11:45] masked translucent is kind of alpha
+[11:47] Blended and additive is additive well
+[11:50] let's go with translucent and in shading
+[11:52] model we don't want this to be affected
+[11:55] by lights so let's say
+[11:57] unlit and then turn on to two-
+[12:00] sided ultimately what's super important
+[12:02] here is down here the usage let's make
+[12:05] sure we turn on used with Niagara
+[12:08] Sprites Niagara ribbons and Niagara mesh
+[12:11] particles oh and then you have this
+[12:13] stats right here which I think it's
+[12:15] super useful as well right so with right
+[12:18] click now we can add modules and there's
+[12:20] plenty of nodes in here let's search for
+[12:23] a sample texture exactly texture sampler
+[12:26] 2D let's rename it with F2 to Main text
+[12:30] and if we want this to work with Niagra
+[12:33] if we want the color to come from Niagra
+[12:35] and influence the material we are going
+[12:37] to need a note called the particle
+[12:40] color also known as vertex
+[12:44] color and now it's all a matter of
+[12:46] multiplying RGB with RGB copy and paste
+[12:49] this multiply and multiply Alpha with
+[12:52] Alpha so we can for example connect the
+[12:54] RGB multiply to the emissive color
+[12:59] and then the alpha to the opacity and
+[13:02] here we go we have our basic particle
+[13:05] Shader most basic thing you can do in
+[13:08] the material editor and that's it let's
+[13:11] save it because like I said this could
+[13:13] go on forever and ever there's so much
+[13:15] to say about this material editor now
+[13:18] what we want to do is create an instance
+[13:20] of this material this is a Shader and we
+[13:23] want to create a material instance with
+[13:25] right click we can rename it to m e
+[13:28] which which stands for material instance
+[13:30] underscore flare 00 which is going to be
+[13:33] the name of the texture and I'm going to
+[13:35] drag outside of The Originals folder
+[13:38] keep things
+[13:39] organized if we open this up as you can
+[13:42] see the only thing we can do is control
+[13:44] the main text up there which is already
+[13:46] set to flare 0 so that's all right let's
+[13:49] create a few more materials for the
+[13:51] other text that we have imported I'm
+[13:53] going to press contrl D on this one and
+[13:55] rename it to flare 02 open it up
+[13:59] and up here assign flare
+[14:02] 02 save
+[14:05] it let's go back here and with contrl d
+[14:09] this is going to be for the circle
+[14:11] 01 double click assign the circle 01 and
+[14:16] finally for the realistic smoke
+[14:19] underscore 6x6 which is the amount of
+[14:21] frames it has six horizontally six
+[14:24] vertically and assign the texture the
+[14:27] realistic smoke Tex exactly so we have
+[14:30] all of the materials we need quite
+[14:32] straightforward I know but we are having
+[14:34] an overview of Niagara and I want to
+[14:36] give you as much information as possible
+[14:38] in short
+[14:40] tutorial on the Sprite render of the
+[14:43] particles floating we can assign a cool
+[14:45] texture like the flare 02 these little
+[14:47] stars floating around and for the flare
+[14:49] bright now we can assign the flare 0 and
+[14:52] it looks a little bit
+[14:54] better let's adjust their color and now
+[14:57] it's a good time to talk to to you about
+[14:59] user parameters they are super useful
+[15:02] every time you create a parameter here
+[15:03] it's going to be visible on the level
+[15:04] editor for example this plus sign let's
+[15:07] search for a linear color I'm search for
+[15:10] the type of the variable there's floats
+[15:13] vectors and there's linear color which
+[15:16] we can rename to particles color for
+[15:17] example and then add another linear
+[15:20] color and rename it to flare bright
+[15:23] color I'm going to copy these values
+[15:25] manually which will be for example 1.75
+[15:28] 1.1 and two respectively RGB and the
+[15:33] cool thing is that now this color on
+[15:35] initialized particle if you click here
+[15:37] we can search for the linear color we
+[15:39] have created if you search for particles
+[15:41] as you can see here we go we have this
+[15:43] user parameter available and we can
+[15:46] assign it here let's do the same for the
+[15:48] flare bright this time for the flare
+[15:50] bright color exactly and if we go back
+[15:53] to our level editor the cool thing is
+[15:55] that if we drop our nagra system to our
+[15:59] you can press F to focus on the system
+[16:02] as you can see now we have these user
+[16:04] parameters right here and we can control
+[16:06] many many things without opening NRA
+[16:09] system basically essentially quick tip
+[16:12] if you don't like this selection outline
+[16:14] like me you can go on these three dotted
+[16:16] lines and in advanced settings search
+[16:19] for selection out line and then you can
+[16:22] disable use selection
+[16:24] outline much better at least for
+[16:26] developing visual effects this is a must
+[16:28] for me personally another quick tip if
+[16:31] you press G you are going to disable the
+[16:33] gizmos the icons and you can see your
+[16:36] effect clearly let's go back to our
+[16:38] system you can select a color for
+[16:40] the flare bright color or copy mine
+[16:43] which is going to be something like 3.12
+[16:46] 0.5 and four and now let's add a few
+[16:48] more elements for example we can
+[16:50] duplicate with contrl d this flare
+[16:52] bright for the flare dark so it can
+[16:55] creates contrast if we want this to be
+[16:57] dark we need to remove this colar and we
+[17:00] can say 0 0 for the RGB and now let's
+[17:04] increase the size like crazy
+[17:06] 1,8 2,000 for
+[17:09] example as you can see now it is kind of
+[17:12] bleaking and interfering with our flare
+[17:15] bright and it's essentially because in
+[17:17] the Sprite renderer there is this
+[17:18] rendering tab down here and we can
+[17:21] control the Sorting order and we can say
+[17:23] it's minus one so it RS behind the flare
+[17:27] bright cool right
+[17:29] that looks better now let's go ahead and
+[17:31] duplicate again with contr d the flare
+[17:33] bright we want to add the circles now we
+[17:35] can rename it with F2 to Circle and the
+[17:37] first change we need to do is the
+[17:39] material we have the circle 01 material
+[17:42] which is perfect for this for some
+[17:44] hypnotizing circles for
+[17:46] example but we don't need this to fade
+[17:48] in and Fade Out only fading out is
+[17:51] enough in the Sprite size scale we can
+[17:54] say this
+[17:55] grows straightforward like this it's all
+[17:59] right and initialize particle well we
+[18:01] can say the size is fixed not random a
+[18:04] uniform size of 900 so they are
+[18:07] perfectly spaced between each other and
+[18:10] we can say the lifetime is two we can
+[18:13] remove this color and use something like
+[18:17] 0.46 0.1 and 0.9 very specific values
+[18:22] I've already test them I
+[18:24] know in the Sprite render in the
+[18:27] rendering t let's actually try to push
+[18:30] this below the flare bright like minus
+[18:33] one it will look a little bit better as
+[18:35] you can see it Blends in
+[18:37] nicely and that's pretty much it for
+[18:39] this circle particle system let's
+[18:41] duplicate again the flare bright with
+[18:43] contrl d but this time for a star for a
+[18:47] flare in the middle we can change the
+[18:49] material once again in the Sprite render
+[18:51] and use the flare
+[18:53] 02 let's say the rendering the sort
+[18:56] order is one so it is above everything
+[18:58] else it's a good practice for
+[19:00] beginners let's decrease the size to 450
+[19:04] and 500 and increase the lifetime to two
+[19:07] and let's remove this color I'm going to
+[19:08] insert a specific color like 5 0.8 and
+[19:14] 4.3 yeah I'm actually going to decrease
+[19:16] the size 350 and 400 that seems all
+[19:20] right but the rest it's pretty much it
+[19:23] let's duplicate this start because now I
+[19:25] want to show you how to work with flip
+[19:27] books it's very important so this one is
+[19:29] going to be for the smoke and in Sprite
+[19:32] render we can select our realistic
+[19:36] smoke you see I'm going to isolate this
+[19:39] one on this icon it's showing the wall
+[19:42] flip book which is not good the way we
+[19:44] fix it is on the Sprite render on the
+[19:48] sub UV tab we need to specify how we
+[19:51] want this to be tiled and we can say 6X
+[19:54] six and now it shows the first frame
+[19:57] essentially so we need to animate this
+[19:59] and it's something that needs to be
+[20:00] continuously updated right so on the
+[20:03] particle update let's try to search for
+[20:04] a sub UV which is pretty much the same
+[20:07] name and here we go we have sub UV
+[20:09] animation it has a warning and nothing
+[20:11] happens as you can see and a warning is
+[20:13] it cannot find the Sprite render somehow
+[20:17] but let's assign it on this drop down
+[20:19] menu and here we go it's magic it works
+[20:22] out of the box you could specify values
+[20:24] the start frame range here if you want
+[20:27] but we can do now is edit this a little
+[20:30] bit scale color can fade out like this
+[20:34] example and initialize particle we can
+[20:37] say it's bigger like 1,600 for the
+[20:40] maximum and 1,300 for the minimum crazy
+[20:44] values and let's say it's random the
+[20:47] rotation so we break the
+[20:49] pattern and for the call I'm going to
+[20:51] say one one and it will be gray because
+[20:55] that's the color of this smoke
+[20:59] random lifetime between two and
+[21:01] three let's increase the spawn rate to
+[21:04] five and here we go let's get out of
+[21:08] mode and yeah it kind of is above
+[21:12] everything else let me say that the sort
+[21:14] order hint is zero perhaps minus one
+[21:19] yeah I think minus one will look a bit
+[21:20] better this needs to be adjusted it's
+[21:23] too much smoke but you get the idea on
+[21:26] how to use flip books which is what
+[21:28] really matters here that's the intention
+[21:30] let's soften this by decreasing the
+[21:32] alpha to 0.1 or 0.2 something like that
+[21:36] but that's essentially it guys now it's
+[21:39] all a matter of playing a little bit
+[21:41] this for example in the particles
+[21:44] floating let me just increase the size
+[21:46] really quick for example in the render
+[21:49] of the particles floating it's cool
+[21:50] because we can add a ribbon render and
+[21:52] now we have ribbons everywhere and we
+[21:55] can control their wides on the
+[21:57] initialized particle
+[21:58] by the
+[22:00] way yeah very cool stuff if we save this
+[22:03] go back to our scene here we go we have
+[22:07] our ARB not as good as I wanted but yeah
+[22:10] I think oh the problem is because the
+[22:13] flare bright color here in the inspector
+[22:15] I have changed so it doesn't use the one
+[22:18] inside Niagara I need to reset to its
+[22:21] default value on this Arrow yeah it was
+[22:24] kind of looking weird yeah that's better
+[22:27] I just think the flare dark should live
+[22:30] for 2 seconds and be below everything
+[22:33] else really for sure minus two and
+[22:35] that's it you get a nice orb like this
+[22:38] one and besides all of this if you want
+[22:40] something to rotate over time for
+[22:42] example you could go to the part Club
+[22:44] dat of the star and search for rotation
+[22:47] and you will find the Sprite rotation
+[22:49] rate for example it's all a matter of
+[22:51] knowing the key words here we go so we
+[22:55] have come to the conclusion of this
+[22:56] video I think I've showed quite a few
+[22:58] things and I think it's a good
+[23:00] introduction video to Niagara feel free
+[23:03] to leave any comments below any doubts
+[23:04] you have I will try to answer them and
+[23:07] if you want to get your hands on these
+[23:08] orb and many others I made a quick pack
+[23:11] which is available on my patreon's page
+[23:13] and on my site and you help keep the
+[23:15] channel alive and all of this is
+[23:17] possible thanks my Patron which I want
+[23:18] to say big thank you for the support of
+[23:20] the last month and a quick shout out to
+[23:22] the top tier patrons as usual which are
+[23:24] admin lion car Alberto Sager Alexander
+[23:27] brazy alad Alman Apon fire avat tobali
+[23:30] Brian PL cyber cradle Daniel Schmid
+[23:33] daaku Diana
+[23:34] simonan Mar Dian sttle El Sheriff Eric
+[23:37] orner F Striker Frosty 40 George Michael
+[23:40] B gr lab G trindad Jackson Doyle Jared
+[23:43] Billy GC DC Miller toop Leon n Luli Matt
+[23:47] Mor ma reski Mike Bell Nat Sims Nikolai
+[23:50] yov passy 98 pan V pyen radioactive
+[23:55] bullfrog Revenant games Robert rvr the
+[23:58] Gap year Pro Tom Travis M will H will
+[24:01] poon Shan D MD CH and MJ game thank you
+[24:05] all very much for your support it means
+[24:07] really a lot and it keeps this channel
+[24:09] going I hope you have enjoyed this video
+[24:12] and I hope to see you on the next one
+[24:14] thank you

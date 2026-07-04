@@ -1,0 +1,310 @@
+[00:00] today let's see how to create staled
+[00:02] fire in
+[00:07] real we are going to see how to come up
+[00:09] with very interesting Fires for your
+[00:11] games with one simple trick in the
+[00:13] material editor erosion and a couple
+[00:16] more of cool textures as usual we made a
+[00:19] few more variations and they are all
+[00:21] available on the marketplace and on my
+[00:23] patreon page to Links below so without
+[00:27] further Ado let's jump right into this
+[00:30] just want to say these videos are
+[00:32] possible thanks to my patrons and by
+[00:34] supporting me you get access to these
+[00:37] and many more assets you can use in your
+[00:40] games and for this stz fire let's start
+[00:44] with the material instead of the meter
+[00:46] so with right click on a folder new
+[00:48] material call it fire double click to
+[00:51] open this up and in here on the details
+[00:54] panel let's first say the blend mode is
+[00:58] additive from there if we we want this
+[01:00] to work with Niagara colors we are going
+[01:02] to need this module the particle color
+[01:05] so Niagara can basically communicate
+[01:07] with the material from there we need a
+[01:11] texture so let's search for parameter 2D
+[01:13] call it flame and then we just need to
+[01:16] multiply these two together with RGB and
+[01:19] connect it to theive color I also
+[01:22] connected rgba to opacity but only after
+[01:25] recording I realized it was Alpha which
+[01:27] is fine both will work I'm going to
+[01:30] assign this text which is available on
+[01:32] the link below for free it's part of
+[01:34] this nagra stylized fire pack available
+[01:37] on the market place by the way and on my
+[01:39] patreon let's save this material and we
+[01:42] are going to test this out in Niagra but
+[01:44] let's first create a material instance
+[01:46] it's a good practice to keep the
+[01:48] original material separated from the
+[01:50] instance by the way right click material
+[01:54] instance and let's create an agro system
+[01:57] for the sized
+[02:01] double click to open it up and in here
+[02:04] we are going to add an emitter with
+[02:05] right click and start with an empty from
+[02:09] there the first thing we can do is
+[02:10] change the material in the Sprite render
+[02:13] to the one to the instance we created
+[02:16] exactly like this we probably won't see
+[02:18] anything because it isn't spawning this
+[02:21] Emer so on the emiter update let's
+[02:23] search for a spawn rate so it
+[02:26] continuously spawns a value of 20 for
+[02:28] example per second
+[02:30] and now let's play with initialized
+[02:32] particle where we can say lifetime is
+[02:35] random between 1 and 1.7 more or less we
+[02:39] are going to work on the motion we can
+[02:41] also say the color is for example 30 for
+[02:44] the r 3.5 for the G and one for the B
+[02:48] and at this point we have this bright
+[02:50] Flame the process of creating the
+[02:52] texture is very important also I
+[02:54] recommended to check out this tutorial
+[02:56] it's for Unity but you will learn how to
+[02:58] create the textures right back in ag
+[03:01] let's play with the size on the Sprite
+[03:03] size mode let's say it's random uniform
+[03:06] between 15 and 20 and let's also say the
+[03:09] rotation is random so they all spawn
+[03:11] with a different rotation and now let's
+[03:13] make sure they don't spawn in the exact
+[03:14] same position for that we can use a
+[03:17] shape location it can be a sphere the
+[03:20] the shape primitive yes but with a small
+[03:22] radius for example between 4 and 10 it
+[03:25] should be fine for the flames and now we
+[03:27] can add a little bit of motion to this
+[03:29] so they go up you know and on the
+[03:31] particle spawn we can use the add
+[03:33] velocity we get a warning it's basically
+[03:35] saying that we are missing a few modules
+[03:38] we can click fix issue and nag will
+[03:41] automatically add Sol forces and
+[03:43] velocity for the add velocity we can use
+[03:46] it in a cone shape and the velocity is
+[03:48] very important it shouldn't be too much
+[03:51] something between 1 and
+[03:53] 25 I'm going to decrease a little bit
+[03:55] the code angle so they don't spread too
+[03:58] much to the sides like 40 and yeah we
+[04:00] want them to go up so the cone axis is
+[04:02] going to be one on the Z and zero for
+[04:04] the X and Y and here we go we are
+[04:08] starting to have something as you can
+[04:09] see there's room for improvement for
+[04:12] example we can make sure they rotate
+[04:14] throughout their lifetime and that they
+[04:16] shrink towards the end of their lifetime
+[04:18] on the part CL update let's first search
+[04:21] for a Sprite rotation rate which can
+[04:24] also be a random range float between
+[04:27] minus 60 and 60 some will rotate
+[04:30] clockwise and others will rotate
+[04:32] counterclockwise and now with the scale
+[04:34] Sprite size we can make sure that they
+[04:37] start big with this curve right here and
+[04:40] at the end they shrink a little bit
+[04:42] let's select this and say it's
+[04:44] 0.6 and if we select all of the keys we
+[04:47] can say it's Auto So It Isn't So linear
+[04:50] and we can fix the handle like this you
+[04:52] can press a to see the wall curve and
+[04:54] here we go they are rotating and
+[04:56] shrinking looking good now the cool
+[04:58] thing is that since we have a material
+[05:01] of our own we can for example say that
+[05:03] they will erode throughout the end of
+[05:05] the lifetime let's go back to the
+[05:07] material we can do exactly that in a
+[05:10] very simple way there's a few ways to do
+[05:12] it but we can for example use a texture
+[05:15] I'm actually going to create the power
+[05:17] node first and then add a text to sample
+[05:20] it could also be param Tod the
+[05:22] difference is that param Tod will be
+[05:24] exposed and you can control it outside
+[05:26] of the material editor and on this
+[05:28] texture sample we can assign the voro
+[05:32] which is also another text that comes
+[05:33] for free on the link below and if the
+[05:36] Tex sample is connected to the power it
+[05:39] means we can dissolve the voronoi and
+[05:42] why is that important because if we
+[05:44] multiply now the flame with this power
+[05:48] we have a way of controlling how much
+[05:50] vono we want to affect our flame and if
+[05:53] all of this is connected to another
+[05:55] Power node we can control the erosion of
+[05:57] the wall Flame so the first one controls
+[06:00] how much vono is going to affect the
+[06:02] flame and the second one controls how
+[06:04] much the flame is er rolled so how do we
+[06:07] control these true
+[06:09] Niagara well essentially there is this
+[06:12] Dynamic parameter node that will do
+[06:14] exactly that it has four parameters and
+[06:16] we can even rename them for example the
+[06:19] first one can be for the power of the
+[06:21] vori and the second one for the erosion
+[06:23] of the flame now we can connect this to
+[06:26] the power here of the V and the other
+[06:29] one to the erosion of the flame make
+[06:31] sure that default value is 1 one now if
+[06:34] we save this material and go back to our
+[06:35] system we can access those Dynamic
+[06:39] parameters through a dynamic parameter
+[06:41] module and if we add it to the particle
+[06:43] update it means we can animate these
+[06:45] values the power I'm going to say it's Z
+[06:47] to 8 it could be one and for the erosion
+[06:50] of the flame we can use a curve convert
+[06:52] this to a curve and the idea is to
+[06:55] select everything and say their value is
+[06:58] seven so it is is pretty much ered
+[07:01] because now if we add a key at around 0
+[07:03] to2 and say that the value is one is
+[07:06] that the flame will start eroded for a
+[07:08] little while and it will be visible and
+[07:10] then it will erode totally until the end
+[07:12] of its lifetime it could actually be a
+[07:14] 0.1 the key going select all of this
+[07:17] again and say it's auto mode so we can
+[07:19] control these
+[07:20] handles and here we go this is how it
+[07:23] looks as you can see it is eroding away
+[07:26] throughout the end of its lifetime and
+[07:28] it looks much more interesting flame and
+[07:30] in the beginning it's also eroding at
+[07:33] least it doesn't appear out of
+[07:36] nowhere I'm going to rename these with
+[07:38] F2 to flames and now let's create the
+[07:41] smoke which is also a very simple
+[07:43] process we can duplicate these with
+[07:45] control D or copy and paste it with
+[07:46] contrl c contrl v rename it to smoke
+[07:50] F2 I'm going to isolate this on this
+[07:53] icon now let's duplicate this instance
+[07:57] and call it AB which is essentially
+[07:59] alpab BL in other words is translucent
+[08:02] which is exactly what we are going to do
+[08:04] when we open this material in the
+[08:06] material properties over white we want
+[08:08] to say the BL mode is translucent
+[08:10] otherwise we cannot render black colors
+[08:13] with additive let's save
+[08:14] it and on the Sprite render of the smoke
+[08:18] let's add the fire
+[08:19] AB here we go let's decrease a little
+[08:22] bit the rate because we are going to
+[08:24] increase its lifetime so each particle
+[08:26] is going to leave more and there will be
+[08:27] more particles on the scene for example
+[08:29] between 2.3 and 2.7 this is the values
+[08:32] we tested that look all right you can
+[08:35] test different values of course and for
+[08:37] the color completely black let's say the
+[08:40] value is zero it can also be bigger the
+[08:43] Flames between 27 and 32 and the radius
+[08:47] of the sphere can also a bit bigger like
+[08:50] five and well this one could go higher
+[08:53] in terms of velocity like 10 and
+[08:57] 30 and what I'm going to do here on the
+[08:59] the scale Sprite size is push this key
+[09:02] to the front like
+[09:03] 0.2 so we can add another key and say
+[09:06] that it's
+[09:08] zero this way the smoke will start
+[09:11] smaller I'm going to decrease the power
+[09:13] of the voro so the vono becomes a little
+[09:16] bit more persistent more visible in
+[09:18] other words there will be more whites I
+[09:21] actually recommend to test different
+[09:22] vales to better understand what it does
+[09:25] now it's very important that on the
+[09:27] Sprite render down here on the rendering
+[09:29] the sort order hint is minus one so it
+[09:31] renders below the Flames this is
+[09:34] isolated and it's how it looks very very
+[09:36] nice actually if you ask me it's
+[09:39] beautiful Flames with just one texture
+[09:41] and one material we can get a very
+[09:43] interesting stylized fire going
+[09:45] on now one of the last things we can do
+[09:48] is add some ambers flying around by
+[09:51] duplicating the Flames with contrl d
+[09:53] renaming it with have2 to ambers let's
+[09:56] isolate it and for example on the spa
+[09:58] right R we can say it's 10 if you don't
+[10:02] want that many Embers uninitialized
+[10:04] particle they're going to leave more 1.5
+[10:07] 2.5 I'm going to copy with right click
+[10:10] this color so we can say the color mode
+[10:12] is random range and basically paste it
+[10:15] to the maximum color and to the minimum
+[10:18] but on the minimum we can decrease the
+[10:20] value to one this will create a cool
+[10:23] variation between some ERS that are
+[10:25] brighter and others are more dull we
+[10:29] want this to be small like 1 and 1.5 for
+[10:31] the Sprite size on the shape yeah it can
+[10:34] be five as well and on the velocity they
+[10:37] should fly a little bit higher at least
+[10:40] minimum between 8 and 25 I don't want
+[10:43] them to spread too much to the side so
+[10:45] I'm going to decrease the radius the
+[10:47] cone angle to 35 and on this case on the
+[10:50] Sprite size the first key is going to be
+[10:53] zero and then we can add another key at
+[10:55] around 0.2 and say it's 1.5 so the grow
+[10:59] a little bit and then they shrink
+[11:01] towards the end of their lifetime to
+[11:03] zero yeah let me fix this first handle
+[11:07] exactly like this here we go perhaps I
+[11:10] don't need to rotate that much this is
+[11:12] just details let's remove the dynamic
+[11:15] material BR because it won't make that
+[11:17] much of a difference it can have the
+[11:19] default values what we need is a vortex
+[11:22] Force it's like a turbulence so they
+[11:25] don't go in a straight line and the
+[11:27] amount can be I'm not going to
+[11:29] exaggerate I'm going to use a 20 let's
+[11:32] fade them out by the way with scale
+[11:36] collar by simply saying the last key of
+[11:39] the color is black this way it will fade
+[11:43] out that is essentially it as you can
+[11:45] see some are brighter others aren't that
+[11:48] much brighter and we get some nice
+[11:50] ambers flying around it's looking very
+[11:53] good in my opinion I hope this was
+[11:55] helpful to you I'm just going to drag
+[11:57] this to the scene nag system and that's
+[11:59] pretty much it we have done quite a few
+[12:02] variations from these and they are all
+[12:03] available on the marketplace and on my
+[12:06] patreon as well as on my website links
+[12:08] below by supporting me on my patreon you
+[12:11] get access to plenty more assets by the
+[12:13] way that you can use in your games or
+[12:16] study up close I want to say thank you
+[12:18] to each Patron that supported me last
+[12:19] month and as usual a quick shout out to
+[12:21] the top tier patrons which are Alberto
+[12:24] Sager Alexi Alan alad avat tobali cyber
+[12:27] cradle Daniel Schmid Saku di marus Lu
+[12:31] Alma dlea Frosty 40 R BL Jared Billy
+[12:34] Jonathan Carlson Casey Miller K verer
+[12:37] Leon Matt Moren Mike Bell Mike young m o
+[12:41] Pierre Mario pry radioactive bullfrog
+[12:44] Revenant games rvr Shan Aguilar Spence
+[12:48] Stefan chowski tin Travis mullum Veris
+[12:51] whatever Marta will
+[12:54] Po and M Kim so thank you all very much
+[12:57] I hope you are enjoying this new series
+[12:59] of Unreal Engine tutorials and I hope to
+[13:02] see you on the next one
