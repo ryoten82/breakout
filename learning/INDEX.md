@@ -34,9 +34,14 @@
 - [bg/applications/bgtest01_experiment_plan.md](bg/applications/bgtest01_experiment_plan.md) — L_BGTest01 実験 E1〜E6（UE エディタ起動待ち）
 - Fab リスティング「Military Trench」（無料サンプルプロジェクト）: WebFetch 403 + Chrome拡張未接続で今回アクセス不可。ダウンロード+UE MCP直接検査という新経路の実現性はある（要Fabプラグイン経由のGUI操作+エディタ別インスタンス）が未実施
 
-### fx/ — エフェクト（22 本学習済 + 公式サンプル実地検査 60 システム・2026-07-04）
-- **[fx/fx_technique_doctrine.md](fx/fx_technique_doctrine.md)** — 蒸留版 **v2.1**（2026-07-04。動画19本統合のv2に公式Niagara Examples実測を上書き反映: **公式はSort Order HintでなくRendererVisibilityタグ+ブレンドモード分離／Death EventでなくAttributeReader連鎖が推奨形**・System階層=監督パターン・NDC・Stateless(Lightweight)エミッタ・1粒3レンダラー）
+### fx/ — エフェクト（31 本学習済 + 公式サンプル実地検査 60 システム・2026-07-07）
+- **[fx/fx_technique_doctrine.md](fx/fx_technique_doctrine.md)** — 蒸留版 **v2.3**（2026-07-06。原神バーバラシリーズ4部作の実装確認を反映: **UV制御1関数集約（Panner+Add+CustomRotator、7入力+Sort Priority）・BlendMode別実装Tips（Masked=OpacityMask配線／Fresnel=TwoSided外す／Additive2系統並列パン）・RGB白1px差し替えで色分離・Ribbon不使用の光の筋（Sprite Pivot in UV Space）**。中核は引き続きv2.1-2.2の実測反映＝RendererVisibilityタグ+ブレンドモード分離／AttributeReader連鎖・System階層=監督パターン・NDC・Stateless(Lightweight)エミッタ）
 - **[fx/inspections/](fx/inspections/)** — **UE MCP実地検査**（公式Niagara Examples、MyProject sandbox、読み取り専用）。3レポート: [01=カタログ60件+PickUp/Markers/Player](fx/inspections/niagara-examples-01-catalog-pickup-markers-player.md)（Pickup 4部作パターン・Marker収束リング=テレグラフ教科書・Statelessは.uasset直接解析が必要）／[02=Explosions/Smoke/Sparks](fx/inspections/niagara-examples-02-explosions-smoke-sparks.md)（System監督・VisibilityTag分岐・二次火花当選方式・AlphaComposite+DefaultLit煙）／[03=Weapons/Ribbons/NDC](fx/inspections/niagara-examples-03-weapons-ribbons-ndc.md)（MuzzleFlash 6エミッタ・Impact骨格・SimpleRibbonTrail最小形・TeslaCoil・NDC常駐バッチング）。検査ツール一式は [fx/inspections/tools/](fx/inspections/tools/)（mcp_call.py+uassetパーサ、再検査時に再利用）
+- **[fx/videos/mldLcKDpQk0_dmc-slash-vfx-replication.md](fx/videos/mldLcKDpQk0_dmc-slash-vfx-replication.md)** — DMCスラッシュVFX解説（**新ソース種別：字幕なし動画、フレーム目視読み取りが一次情報源**）。**360p初回解析→Deno導入で720p再抽出しSystem名/マテリアルグラフの大半が確定**（NS_Slash=slash1/Refract/Light/Phantom、NS_DMCSlashRock、NS_DMCSphereSlashSingle、NS_Lighting、M_Electric=Radial Gradient Exponential+Particle Color+Multiply+Lerp等）。Post Processing分離（MPC_DMC）、Electric on Skeleton Meshの人型シルエット電撃
+- [fx/videos/-VJZ_doAB14_genshin-barbara-mesh.md](fx/videos/-VJZ_doAB14_genshin-barbara-mesh.md) — 原神バーバラ スキルエフェクト「#1メッシュ編」（**字幕なし動画、フレーム目視読み取り39枚が一次情報源**。同シリーズ#2〜#4は別ノート）。Maya上での円柱側面リング/ディスクメッシュ作成手順（蓋面削除→UV正規化→頂点カラー塗り分け→法線反転バリアント→ピボット調整→`SM_<形状>_<連番>_<バリアント>`命名でFBX書き出し）。doctrineが扱うNiagara/マテリアル層より手前の「メッシュ制作」工程で、頂点カラーをマテリアルのマスクに使う設計・法線反転バリアントの運用は新規性あり
+- [fx/videos/kTkJcDVXs6s_genshin-barbara-texture.md](fx/videos/kTkJcDVXs6s_genshin-barbara-texture.md) — 原神バーバラ スキルエフェクト「#2テクスチャ編」（**字幕なし・BGMのみ動画、フレーム目視読み取り157枚が一次情報源**。同シリーズ#1・#3・#4は別ノート）。Photoshopでのマスク/ノイズ/グラデーション制作。リング状メッシュ前提でUV継ぎ目を2pxはみ出させる設計・透過/非透過2バリアント先読み・雲模様1フィルタでのノイズ生成・音符/五線譜モチーフをマスク形状に直接反映するキャラ固有デザインが新規性あり
+- [fx/videos/tOllr_gjyUw_genshin-barbara-material.md](fx/videos/tOllr_gjyUw_genshin-barbara-material.md) — 原神バーバラ スキルエフェクト「#3マテリアル編」（**字幕なし・BGMのみ動画、フレーム目視読み取り194枚が一次情報源**。同シリーズ#1・#2・#4は別ノート）。5MasterMaterial×17MIのシリーズ設計図。共通MF `UV_Control001_00`（Panner+CustomRotator+Multiply/Add、7入力+Sort Priority整列）・Additive2系統並列パン合成・Masked時DepthFade不可でOpacityMask配線必須・Fresnel時TwoSide外す、等BlendMode別の実装Tipsが新規性あり
+- [fx/videos/9lD1BY4TzZE_genshin-barbara-niagara.md](fx/videos/9lD1BY4TzZE_genshin-barbara-niagara.md) — 原神バーバラ スキルエフェクト「#4完Niagara編」（**字幕なし・BGMのみ動画、フレーム目視読み取り73枚が一次情報源**。同シリーズ#1〜#3は別ノート）。単一System`Nia_Skill_001_00_Lp`に9Emitter積層。Dynamic Material Parameter（NormalizeAgeカーブ駆動）の実写確認・Sprite RendererのDefault Pivot in UV Space/Pivot Coverage Blend（`CoFmCf4z3X0`光の筋ノートと同原理の別実装）・Mesh RendererのUser Param Binding経由Niagara→マテリアル接続・sequencerでの多層タイミング演出が新規性あり
 - [fx/playlist_inventory_toxic-falls-etc.md](fx/playlist_inventory_toxic-falls-etc.md) — 「Toxic Waterfall」等50本のプレイリスト目録。実質チュートリアル14本を全処理（残り35本超はショーケース映像のためスキップ）。**Dynamic Parameter外部化・Generate/Receive Event疎結合・Additive/Translucent使い分け・Sort Order Hint描画順制御**が横断的な共通設計。**2026-07-04 Fableスポット照合済（幻覚なし）**
 - [fx/videos/wceVb5ftmxs_toxic-waterfall.md](fx/videos/wceVb5ftmxs_toxic-waterfall.md) / [graozMcShMA_anime-waterfall-splash.md](fx/videos/graozMcShMA_anime-waterfall-splash.md) — 毒沼/背景水表現。Erosionマテリアル・Voronoi浸食
 - [fx/videos/SGoNF1UTD3I_muzzle-flash-vfx.md](fx/videos/SGoNF1UTD3I_muzzle-flash-vfx.md) — 交差平面+コーンの4層マズルフラッシュ構成
@@ -44,6 +49,7 @@
 - [fx/videos/EXWwZ4F_reA_ground-slash-vfx.md](fx/videos/EXWwZ4F_reA_ground-slash-vfx.md) — 地上SP技。Decal+Light+Follow Ground Blueprint
 - [fx/videos/NbbFytz-JDk_vertical-beam-vfx.md](fx/videos/NbbFytz-JDk_vertical-beam-vfx.md) — 光柱SP技。5層積層（コア/フレネル/暗背景/Voronoi×2）
 - [fx/videos/omkwqdWMB_U_scifi-barrier.md](fx/videos/omkwqdWMB_U_scifi-barrier.md) — ボス/プレイヤーシールド。ドット+ノイズ+ボーダー加算
+- [fx/videos/G0WNZqhkgAU_fragmented-sphere-animation.md](fx/videos/G0WNZqhkgAU_fragmented-sphere-animation.md) — 破片球アニメーション。**前半Unrealパートのみ（後半Houdiniメッシュ作成パートはスコープ外・未視聴）**。Vertex Normal WS×Noise×100→WPO、UV1に破片固有レイアウトを仕込み変位のサンプリング座標に使う新規パターン
 - [fx/videos/HRagD5L-WF8_stylized-smoke-vfx.md](fx/videos/HRagD5L-WF8_stylized-smoke-vfx.md) / [OnxiEY3Khow_stylized-fire-vfx.md](fx/videos/OnxiEY3Khow_stylized-fire-vfx.md) — 爆発煙/炎3層構成（Flames+Smoke+Embers）
 - [fx/videos/kS4Y5DKqsAI_ice-attack-effect.md](fx/videos/kS4Y5DKqsAI_ice-attack-effect.md) — 属性攻撃。Generate/Receive Event同期・多段ウェーブカスケード
 - [fx/videos/-Cdn0_98PXM_meteor-rain-vfx.md](fx/videos/-Cdn0_98PXM_meteor-rain-vfx.md) — 広範囲SP技。Location/Death Event分岐
@@ -58,6 +64,9 @@
 - [fx/videos/UyFSE5fIAWU_perfect-hit-marker.md](fx/videos/UyFSE5fIAWU_perfect-hit-marker.md) — Perfect Hit Marker。多層リング+放射ストリークでコンボヒット/ジャストブロック差別化に応用可、地面向き設定は2.5D固定カメラ向けに要再検討
 - [fx/videos/u1Cm5g0lhVg_force-push-ring.md](fx/videos/u1Cm5g0lhVg_force-push-ring.md) — Force Push Ring。Sine×2両側フェード・Floor+Divide段階化・ColorRamp着色の3層構成、SuperKnockChainノックバック演出への応用
 - [fx/videos/cBc31YcWw_M_impact-burst-effects.md](fx/videos/cBc31YcWw_M_impact-burst-effects.md) — Impact Burst（UE4 Cascade動画、Niagara読み替え注記あり）。リング+グロー+スパーク+星の4層テンプレート、強Dragによる余韻演出
+- [fx/videos/CoFmCf4z3X0_light-streak-niagara.md](fx/videos/CoFmCf4z3X0_light-streak-niagara.md) — 光の筋（宝箱/扉/自爆漏れ光の汎用フラッシュ）。**Sprite Renderer 1枚+Pivot in UV Space移動**で放射状ストリークを作る軽量手法。doctrine v2.2の「ビーム/光の筋」項（Ribbon+Beam Emitter前提）とは別系統の代替パターンとして新規
+- [fx/videos/m0VZwkrG_ZQ_neon-glow-material.md](fx/videos/m0VZwkrG_ZQ_neon-glow-material.md) — ネオン/グロー最小構成（**英語手動字幕、最優先ソース種別**）。Vector Parameter×Scalar Parameter→Multiply→Emissive Colorの基本マテリアル→Material Instanceで色違い量産→**Post Process VolumeのBloom（Infinite Extent+Method/Intensity）**でグロー化。doctrine「グロー勾配」節はマテリアルグラフ内テクニックが中心で、**Post Process Volume側のBloom設定**を補完する新規情報
+- [fx/videos/KdR1Fjsc8Bo_motion-design-shockwave-effector.md](fx/videos/KdR1Fjsc8Bo_motion-design-shockwave-effector.md) — 🆕**新カテゴリ初出：Unreal Motion Design**（Niagaraではなくメッシュ複製ベースのモーショングラフィックス専用ツールセット、UE5.5導入）。英語自動字幕。Cloner+Torus形状Linked Effector(Invert)+Noise Field EffectorでリングShockwave構築、AnimatorのTime/Absoluteモードでキーフレーム無しの0→拡大アニメ、Cycle Mode=Pingpongでループ化。既存fx doctrine（Niagara/マテリアル中心）への直接統合は不要と判断し、独立参照カテゴリとして記録
 
 ### ui/ — ゲーム UI（4 本 + 参照DB 3 件・2026-07-04）
 - **[ui/ui_technique_doctrine.md](ui/ui_technique_doctrine.md)** — 蒸留版 v1（2026-07-04 Fable 蒸留。Fast/Slow Path負荷原理とチェックリスト・機能選定表（CommonUI/ViewModel等）・テーマ管理定型と3つの罠（親Pre Construct/Draw As/Save All）・Size Box vs Scale Box・参照DB観察の要点）
@@ -85,16 +94,18 @@
 - [programming/videos/physics-chaos.md](programming/videos/physics-chaos.md) — Chaos Physics 14サブシステム一覧（Ragdoll/Destruction/PhysicsFields等）。既存の死亡mesh問題・キャラ固有物理パラメータと関連（自己申告：ヘッジ文言が定型と異なるが意味は明確・修正不要と判断）
 - [programming/videos/gameplay-targeting-system.md](programming/videos/gameplay-targeting-system.md) — Targeting Preset・Selection/Filtering/Sorting3分類・同期/非同期実行。**既存マルチロック/comboTarget HUDとの比較検討材料**（自己申告2件ヘッジ確認済）
 - スキップ: Containers in Unreal Engine（ページ本文がほぼ空のスタブ）
-- 関連: ユーザー指定の元コース「C++ Introduction to Unreal Engine for Programmers」（SPA・Chrome拡張復旧待ち）。姉妹コースに「C++ Introduction to Gameplay in Unreal Engine for Programmers」「C++ Introduction to AI in Unreal Engine for Programmers」あり（将来候補）
+- [programming/videos/epic-cpp-intro-for-programmers.md](programming/videos/epic-cpp-intro-for-programmers.md) — Epic公式コース「C++ Introduction to Unreal Engine for Programmers」（UE5.5・配布スライドPDF66ページ、Chrome拡張導入でSPAの壁を越えて取得済み）。UBT/UHTパイプライン順序・Module/Plugin物理構成・`TObjectPtr<T>`詳細・Actor Lifecycle全フロー（EndPlay 6条件+BeginDestroy/FinishDestroy）・Casting 4種の挙動差（IsA/Cast/ExactCast/CastChecked）が既存ノートに無い新規情報
+- 関連: 取得済み（上記ノート参照）。姉妹コースに「C++ Introduction to Gameplay in Unreal Engine for Programmers」「C++ Introduction to AI in Unreal Engine for Programmers」あり（将来候補、いずれもSPA・同じChrome拡張経路で取得可能）
 
-### animation/ — アニメーション・リグ（3 本学習済・2026-07-04 新設）
+### animation/ — アニメーション・リグ（4 本学習済・2026-07-04 新設、2026-07-07 追加）
 - ソース種別・監査方式は programming と同じ（Epic公式documentation・WebFetch再取得照合）
 - **[animation/animation_technique_doctrine.md](animation/animation_technique_doctrine.md)** — 蒸留版 v1（2540B・2026-07-04 Fable 蒸留。Asset 作成 2 方式の使い分け・Editor 要点・Modular CtrlRig は Experimental につき不採用）
 - [animation/videos/animation-system-and-control-rig.md](animation/videos/animation-system-and-control-rig.md) — Skeletal Mesh Animation System全体マップ + Rigging with Control Rig（Control Rig Asset作成2方式）。**project の motion-room の実運用 Control Rig パイプラインと直結**（Fable監査済・自己申告1件ヘッジ確認済）
 - [animation/videos/modular-control-rigs.md](animation/videos/modular-control-rigs.md) — Module/Connector/Socket構造・実行順序（root→leaf・単一スレッド）。**Experimental機能**・現行パイプライン置換は提案しない位置づけ（Fable監査済・Experimental明記+実行順序をWebFetch独立再照合し原文完全一致確認、自己申告1件は修正済）
 - [animation/videos/control-rig-editor.md](animation/videos/control-rig-editor.md) — Control Rig Editor主要パネル（ツールバー/Rig Hierarchy/Details）+ Rig Graphノード操作（Hierarchy参照・Function化）。ユーザー指定コース「Creating and Modifying Control Rig」の実質的な代替（Fable監査済・Compile/SolveDirection原文照合一致確認、自己申告1件は適切にヘッジ確認済）
+- [animation/videos/epic-introduction-for-gameplay-animation-course.md](animation/videos/epic-introduction-for-gameplay-animation-course.md) — Epic公式コース「Introduction for Gameplay Animation」配布スライドPDF（**新ソース種別：Chrome拡張導入でSPAコースページ経由のPDF取得に初成功**）。Root Motionのスケルトン設計ルール・FBXエクスポート(Maya/3DSMax/Blender個別設定)・UEインポート/リターゲット運用・Sequencerでのソケット/アニメーションベイク手順が既存animationノート3本に無い新規領域（監査未実施）
 - スキップ: 「Modular Control Rig - Rigging with Modules」チュートリアル（`/community/learning/tutorials/` もSPA・Chrome拡張復旧待ち。代替探索でも既存 modular-control-rigs.md と同一ページ止まりのためユーザー判断でスキップ）
-- 関連: ユーザー指定の元コース「Introduction for Gameplay Animation」「Skeleton Creation and Body Rigging」（いずれもSPA・Chrome拡張復旧待ち）
+- 関連: ユーザー指定の元コース「Introduction for Gameplay Animation」（**取得済み・2026-07-07**、上記ノート参照）。姉妹コース「Skeleton Creation and Body Rigging」はスライドPDFが存在せず（プロジェクトファイルのみ配布）、動画のみのため要フレーム抽出・未着手
 
 ### lighting/ — ライティング（3 本学習済・2026-07-04）
 - ソース種別・監査方式は programming と同じ
@@ -103,8 +114,9 @@
 - [lighting/videos/lumen-global-illumination.md](lighting/videos/lumen-global-illumination.md) — Lumen概要・Nanite/WorldPartition/VirtualShadowMaps統合（ソースやや薄いと明記、Fable監査済・WebFetch独立再照合で統合関係を原文確認・自己申告なし）
 - [lighting/videos/lighting-tips-unreal-fest-tokyo-2025-sqex.md](lighting/videos/lighting-tips-unreal-fest-tokyo-2025-sqex.md) — スクウェア・エニックス講演（Unreal Fest Tokyo 2025）。Exposureロック・SourceRadius硬軟・「黒で締める」引き算ライティング・Lumen Hit Lightingの4項目を独立再取得ペア照合（3項目一致・Hit Lightingのパラメータ表記のみ曖昧と明記）
 
-### materials/ — マテリアル（4 本学習済・2026-07-04）
+### materials/ — マテリアル（5 本学習済・2026-07-07）
 - [materials/videos/substrate-unreal-fest-bali-2025.md](materials/videos/substrate-unreal-fest-bali-2025.md) — Epic公式Substrate深掘り講演（Unreal Fest Bali 2025・91ページ）。メモリバジェット表（Simple8B/Single24B/Complex36B/Complex Special52B）・`r.Substrate.BytesPerPixel`デフォルト80B・応用事例11種を独立再取得3項目ペア照合（全一致）。既存[substrate-materials.md](materials/videos/substrate-materials.md)（概要）を補完する実践編。**メモリ予算はdoctrineへ昇格済（2026-07-04）**
+- [materials/videos/substrate-internal-structure-gcc2026.md](materials/videos/substrate-internal-structure-gcc2026.md) — Epic公式Substrate講演（GCC2026・73ページ、Chrome拡張経由取得）。上記Bali版のノード/応用事例と重複しない**GBuffer内部実装**が核心: AdaptiveGBuffer(可変テクスチャアレイ・クロージャ1〜4・SM6限定)とBlendableGBuffer(固定20B・クロージャ1・全プラットフォーム)の対比表、UE5.7で新旧マテリアル変換が非破壊化、CitySample実測（Adaptiveは解像度2〜4%低下しうるがBasePass/LumenReflection負荷削減とのトレードオフ）
 - ソース種別・監査方式は programming と同じ
 - **[materials/materials_technique_doctrine.md](materials/materials_technique_doctrine.md)** — 蒸留版 v1（2930B・2026-07-04 Fable 蒸留+Substrate有効化+実機確認を同日反映。必須3設定・プロキットは最小構成・MI量産手順・タイリング適用条件・**本プロジェクトSubstrate有効(Adaptive GBuffer)・実害なし確認済み**・実地検査手法の使い所）
 - **[materials/inspections/](materials/inspections/)** — **新ソース種別：UE MCP実地検査**（動画/ドキュメントとは別経路）。[lower-sector-building-kit-report.md](materials/inspections/lower-sector-building-kit-report.md)：生の検査報告（一次資料）
@@ -114,16 +126,18 @@
 - スキップ: 「Unreal Engine: Environment Basics」チュートリアル（SPA・良い代替documentation無し・bgドメインが既に類似内容を十分カバー済のため見送り）
 - 関連: ユーザー指定の元チュートリアル「Create Realistic Glass Material - Substrate Glass Tutorial」（SPA・Chrome拡張復旧待ち。Substrate材システム自体の公式docで代替、ガラス材の具体的ノード構成手順は未取得）
 - [materials/videos/material-instances.md](materials/videos/material-instances.md) — Parameter作成のS/Vキーショートカット・Convert to Parameter・Parameter Groups。bgドクトリンの「MI化」フレーズの具体的作業手順（Fable監査済・S/VキーをWebFetch独立再照合し原文完全一致確認）
-- 関連: ユーザー指定の元コース「Introduction to Materials」（本セッション冒頭で最初に依頼されたコース・SPA・Chrome拡張復旧待ち）
+- [materials/videos/epic-introduction-to-materials-course.md](materials/videos/epic-introduction-to-materials-course.md) — ユーザー指定の元コース「Introduction to Materials」**取得済み**（2026-07-07。Chrome拡張導入によりSPAコースページ配布のスライドPDFを取得、pdftotextでテキスト抽出）。PannerノードでMetallic/Roughness/Specular/Normal/AOの各PBRチャンネルに個別のUVアニメーション系統を組む水マテリアル実習・Parent Material作成の具体手順（Roughnessレンジ拡張Tips等）・Cloth Shading Model（Fuzz Color/Cloth入力、Masked+TwoSided必須のセットアップ手順）。fxドメインの`UV_Control001_00`（Material Function集約型UV制御）と比較し、本コースは「PBR入力ごとに個別Panner」というその前段の基礎的な組み方と整理
 
 ### general/ — 汎用・システム系（2 本学習済・2026-07-04 新設）
 - doctrine: 未作成。**general はトピックが毛色違い（localization/savegame等）のため、単一 doctrine でなく「同一トピックが2〜3本溜まった時点でそのトピック単位に蒸留」方針
 - [general/videos/Ewr6yGOllBw_localization.md](general/videos/Ewr6yGOllBw_localization.md) — ローカライズ方法 9分（Fable ペア照合済。Localization Dashboard/StringTable/Gather Text→翻訳→Compile、String型は翻訳対象外=表示文字列はText型必須、PIE不可・Standalone必須。project_scrapblitz_i18n の「Unreal移行後」条件成立で着手）
 - [general/videos/-0111fuUPz8_savegame.md](general/videos/-0111fuUPz8_savegame.md) — SaveGame 14分（Fable ペア照合済。Game Instance 経由でレベル跨ぎ永続化・全体/部分保存の使い分け・Async版は本編未使用。CR/機体LV/OC等の永続化データ構造化に直結。現状の実装状況は要現況確認）
 
-### core/ — 汎用エディタ・UE バージョン差分（1 本学習済・2026-07-03）
+### core/ — 汎用エディタ・UE バージョン差分（3 本学習済・2026-07-07）
 - **[core/core_technique_doctrine.md](core/core_technique_doctrine.md)** — 蒸留版（Starter Content 削除・Fab plugin デフォルト無効・Fab アセットのバージョン対応注意）
 - [core/videos/57yLCKqC9m8_ue58-getting-started.md](core/videos/57yLCKqC9m8_ue58-getting-started.md) — UE5.8 Getting Started 1h37m（差分ノート・Fable ペア照合済。9割は既習と重複のためスキップ、5.8 固有差分のみ抽出）
+- [core/videos/unreal-mcp-official-docs.md](core/videos/unreal-mcp-official-docs.md) — **Unreal MCP公式ドキュメント**（Chrome拡張経由取得）。本部屋の「UE MCP実地検査」手法の土台仕様。Tool Search方式（list_toolsets/describe_toolset/call_tool＝実際に使ったパターンと一致）・独自ツールセット作成法（Python/C++）・制限事項（ループバック限定・認証なし・Live Coding非対応）・コンソール変数一覧
+- [core/videos/ue58-ai-agent-plugins-qiita-naotsun.md](core/videos/ue58-ai-agent-plugins-qiita-naotsun.md) — 上記公式docを補完する周辺プラグイン調査記事（Qiita）。**GASToolsets（GameplayAbility観測）・AutomationTestToolset・SlateInspectorToolset・GameplayTagsToolset**等の実装状況とSCRAP BLITZ UEへの応用優先度を整理。認可トークン平文保存という追加のセキュリティ注意点あり
 
 ## 動画追加の手順テンプレート
 
@@ -140,7 +154,7 @@
 - 自動字幕でも工程・判断基準・パラメータの大半は取れる（幻覚はスポットチェックで未検出）。取れないのは画面コピペ操作と視覚センス
 - UE 用語の字幕崩れ（Fage→foliage 等）は Sonnet が文脈復元可能。数値崩れは「※推定」で残し実験時に実値検証
 - 日本語公式字幕は英語自動字幕より高信頼
-- 第 2 段階構想: ffmpeg キーフレーム抽出 → 画像ごと学習（視覚依存分野=モーション・造形で有効）。背景運用が安定してから
+- **字幕なし動画の代替手順（2026-07-05 初実証・同日中に解像度問題を解消）**: `yt-dlp --list-subs`で手動/自動字幕とも0件の場合、ffmpegでのフレーム抽出＋Sonnet目視読み取りに切替。①**解像度は最初から720p以上を狙う**：`python -m yt_dlp --js-runtimes deno -f <298等> -o <name>.mp4 <URL>`（denoが無いと高解像度dash formatがシグネチャ403で失敗する。`winget install DenoLand.Deno`で導入、PATHが通ってなければ`AppData/Local/Microsoft/WinGet/Packages/DenoLand.Deno_.../deno.exe`を直接指定）。format18=360p結合済みはdeno不要で通るが**判読精度が大きく落ちる**ため初回から避けるのが望ましい（実例：360p→720p再解析で System名の誤読が5件訂正された）②`ffmpeg -i <name>.mp4 -vf fps=2 frames/f%04d.jpg`（ffmpegは`winget list --id Gyan.FFmpeg`で既存インストール確認、PATHが通ってなければ`AppData/Local/Microsoft/WinGet/Packages/...`から直接呼ぶ）③フレーム枚数が多い（100枚超）場合はSonnetサブエージェント複数体に時間帯で分担させ並列Read。⚠この経路は「オンスクリーンテキストの目視書き起こし」が一次情報源のため、720pでも判読不能な文字（小さいモジュール名・警告バナー等）は残る。ノート冒頭に情報源の性質差を明記すること
 - コスト実測: 1 本 ≒ Sonnet 5〜7 万トークン + 監査 grep 数回。読み込み側は INDEX + doctrine で頭打ち
 - **完了通知が唯一の完了根拠**: background agent の成果は完了通知の受領後にのみ監査・目録更新・memory 登録する（先走り禁止）
 - **監査はペア照合**: ノートの記述と transcript 原文を同一 grep 出力に並べて確認する。片側だけの「確認済み」を信用しない（2026-07-03 の幻覚事故の教訓）
