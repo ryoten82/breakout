@@ -73,9 +73,9 @@ PS5上のCitySampleデモ（冒頭600フレーム）でSubstrate+Adaptive／Subs
 - 現世代コンソール（SM6世代）以降かつ画面の大半がレガシー/シンプルBSDFならAdaptiveGBufferでもほぼ同等のフレームレートが出せるが、高度な機能使用時のシェーダーサイズ増加・GBuffer拡張によるメモリ消費には注意
 - **複層スラブ（クロージャ）や高度な表現を気軽に盛り込めるのは次世代コンソール以降と考えるのが妥当**という現実的な見解が示されている
 
-## おまけ：Toon BSDF（UE5.8予定、未実装機能のため参考情報）
+## おまけ：Toon BSDF（UE5.8で追加）
 
-UE5.8（TBD）でエンジン組み込みのトゥーンBSDFとToon Profileアセット（諧調・ディザ/ハッチングパターン対応）が追加予定と紹介されている。**現時点では未リリース機能**。
+UE5.8でエンジン組み込みのトゥーンBSDFとToon Profileアセット（諧調・ディザ/ハッチングパターン対応）が追加された。**✅ 実装済み（2026-07-07確認）。実践手順は [iMJJYXHMw4o_toon-shading-ue58.md](iMJJYXHMw4o_toon-shading-ue58.md) 参照**（Toon Profileアセットの作り方・Diffuse/Specular Ramp・Lumen連動パラメータ・Pre-skinned Triplanarパターン投影等）。
 
 ## SCRAP BLITZ UE への応用メモ
 

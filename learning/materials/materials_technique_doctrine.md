@@ -1,7 +1,7 @@
 # マテリアル・ドクトリン（蒸留版）
 
-公式 doc 3 ページ + Fab アセット MCP 実地検査 1 件からの横断抽出。**日常作業ではこのファイルだけ読む**（上限 3KB）。
-出典・詳細は `videos/` の個別ノート（読むときは Sonnet 委譲）。
+公式 doc 3 ページ + Fab アセット MCP 実地検査 1 件 + FXチュートリアル動画 8 本からの横断抽出。**日常作業ではこのファイルだけ読む**（目安 3KB、実用性優先で若干超過）。
+出典・詳細は `videos/`・`fx/videos/` の個別ノート（読むときは Sonnet 委譲）。
 
 ## 基礎の原則
 
@@ -15,6 +15,17 @@
 - パラメータ配置: **S キー=Scalar / V キー=Vector**。既存ノードの後付けは右クリック **Convert to Parameter**（固定値で組む→汎用化、の順で OK）
 - 親 Material 1 枚 + MI 数枚で色違い量産（実測例: `PaintColor` VectorParameter 差し替えのみでパネル 3 色）。再コンパイル不要・軽量。Packed Level Actor 分解より先に検討
 - パラメータが増えたら **Parameter Groups + Sort Priority** で整理
+
+## MPC vs Dynamic Material Parameter（個体別制御の分岐点）
+
+- **MPCはレベル全体で共有されるグローバル値** — 参照する全アクターが同時に反応する。**複数インスタンスが同一マテリアルを個別参照する構成（Pickup複数体・雑魚敵・OCジェム等）はDynamic Material Parameter必須**。MPCを使うと全個体が同時発火する事故になる（実演確認済み）
+- 例外: **同一アクター内でMaterialとNiagara等の異システム間の値同期**にはMPCが適する（ディゾルブ境界のmask値をNiagara側パーティクル発生位置と同期させる等）。「複数アクター間の独立性→DMP」「単一アクター内の複数システム同期→MPC」で住み分ける
+
+## Fresnel の応用（クリスタル/宝石系）
+
+- **Fresnel Exponentを負値にすると発光分布が反転し「内側から光る」表現になる**（通常は縁が強調されるが符号反転で中心発光に）。⚠Planeでは効果が出ずSphereで機能（形状依存、実演確認）
+- Translucency Lighting Mode = Surface Translucency Volumeで半透明立体の陰影が改善（結晶/氷系）
+- Camera VectorをそのままテクスチャUVに使う「疑似環境マップ」も低コストな質感変化の選択肢（World空間のままだと歪みすぎるためTangent空間へ変換してから使う）
 
 ## タイリング対策の適用条件（bg ドクトリンと共有）
 

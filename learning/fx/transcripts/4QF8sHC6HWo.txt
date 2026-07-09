@@ -1,0 +1,153 @@
+[00:00] Hello everyone. In this video, we'll
+[00:02] create a crack and a simple glow to
+[00:05] complement the lightning burst and
+[00:07] strike effects from the previous videos.
+[00:10] With this, the complete lightning effect
+[00:12] is mostly done. We can also add extra
+[00:15] particles to make it look even better.
+[00:17] Okay, we'll focus on the crack effect
+[00:20] since the glow effect is very simple and
+[00:23] doesn't require much work. So, let's get
+[00:25] started. [music]
+[00:26] We'll use three new assets: crack
+[00:28] texture, center shockwave texture, and
+[00:31] glow flare. Now, let's create the
+[00:36] Drag these three textures [music] in and
+[00:39] adjust the blend mode and shading model.
+[00:44] To create an effect that spreads outward
+[00:47] from the center, we can use the material
+[00:49] function vector to radio value, which
+[00:51] turns a regular texture into a radial
+[00:58] We can adjust the tiling. For example,
+[01:01] set a 2D vector with X is 3, Y is 2.
+[01:05] &gt;&gt; Because we are using radio, the texture
+[01:07] is causing some issues at the radial
+[01:09] edges. We can fix it by setting the MIP
+[01:12] level to zero.
+[01:14] Then duplicate this for a blended crack
+[01:16] effect. This time,
+[01:18] &gt;&gt; change the tiling to five and one.
+[01:22] Swap radio coordinates for vector
+[01:24] converted to angle. This gives a
+[01:26] straight outward radiating effect. Blend
+[01:29] these two results using blend overlay.
+[01:35] We get both the twisting outward crack
+[01:37] and a straight radio line.
+[01:40] Next, set up opacity. We'll use the
+[01:42] shockwave texture, multiply it with the
+[01:45] previous blend result as a mask.
+[01:49] We can also use a dynamic material
+[01:51] parameter with power node to control the
+[01:53] crack intensity.
+[01:56] Not multiply, power.
+[02:03] Connect the multiplied result to the
+[02:05] opacity pin. This prevents the crack
+[02:07] from looking too tiled and makes the
+[02:10] effect richer.
+[02:13] Two dynamic material parameters control
+[02:15] when the crack fades and crack shape.
+[02:18] The larger the power value, the more the
+[02:20] crack disappears.
+[02:30] Now for the emissive color part. We need
+[02:32] three different versions of the blended
+[02:34] texture. First, a very intense version.
+[02:38] Apply power five to make it thinner and
+[02:40] brighter as the core lightning emission
+[02:51] Second, a coarser outer crack, and then
+[02:54] multiply by 0.3 to make it darker but
+[03:05] Third, a flowing arc effect that makes
+[03:08] some current spread outward. Duplicate
+[03:11] the previous radio gradient.
+[03:18] Add a panner with X speed 0.1 and
+[03:21] [music] Y speed -0.1.
+[03:24] This gives an outward spreading and
+[03:26] slightly rotating effect.
+[03:29] This flowing layer has the highest
+[03:31] emission intensity, so multiply it by 10
+[03:34] and combine with a dynamic parameter. If
+[03:37] we want random colors, use particle
+[03:39] random to drive a hue shift. Otherwise,
+[03:42] just use particle color directly.
+[03:44] Finally, add all three layers together
+[03:47] and connect to emissive color.
+[03:54] The material is done, simple but
+[03:56] effective. Now, create Niagara system.
+[03:59] Find the Niagara system we created
+[04:03] Add a new emitter, choose empty
+[04:05] template, use mesh renderer, and set the
+[04:08] mesh to the engine's default plane and
+[04:10] base shape. Apply the crack material we
+[04:13] just made.
+[04:17] Set emitter state to self, loop behavior
+[04:20] to once, loop duration to 1 second.
+[04:24] Set spawn count to one. In initialize
+[04:27] particle, set lifetime to 5 seconds,
+[04:30] color to a linear color user parameter,
+[04:33] and size to a random value like two to
+[04:36] three. Add initial mesh orientation to
+[04:39] give each crack a random initial
+[04:41] rotation, avoiding repetition.
+[04:46] In particle update,
+[04:48] &gt;&gt; add scale color and scale mesh size. For
+[04:51] scale color, use a curve template with
+[04:54] intensity 10.
+[05:00] For scale mesh size, use a curve.
+[05:05] Start at 0.5 and scale to one in a very
+[05:08] short time.
+[05:15] Finally, set up the dynamic material
+[05:17] parameters. There are two. One is crack
+[05:20] intensity. When the value is zero, the
+[05:23] crack is very strong. As it increases,
+[05:26] the crack weakens.
+[05:33] Use a curve to fade it over the
+[05:35] particle's lifetime. Set the range from
+[05:38] 0.02 to 1, so the power goes from two up
+[05:42] to 100, making the crack gradually
+[05:54] The other parameter is mask, which can
+[05:56] be set to a random value between one and
+[05:59] three. It doesn't need to fully fade.
+[06:05] Preview the effect. The crack is too
+[06:07] small. Increase the mesh size. We can
+[06:10] also disable scale mesh size if we don't
+[06:13] want scaling or set it from 0.9 to one
+[06:16] for a subtle dynamic effect.
+[06:19] If we don't need extra color variation
+[06:21] and just want to keep the user parameter
+[06:23] color, remove the hue shift from the
+[06:26] color chain and connect directly.
+[06:30] That's the crack effect, very simple.
+[06:34] Now for the glow material. This material
+[06:37] is extremely simple, same blend mode,
+[06:40] shading model, and two-sided as usual.
+[06:43] Use the glow flare texture, multiply it
+[06:46] by a radial exponential as a mask to
+[06:49] control the display range, then multiply
+[06:51] by particle color, and finally multiply
+[06:54] by alpha to control opacity. Done.
+[06:59] Add the glow to Niagara. Use a sprite
+[07:02] renderer with the glow material.
+[07:07] Emitter state, [music]
+[07:08] self, once, spawn count is one.
+[07:14] Lifetime 0.2 to 0.3 seconds, color from
+[07:18] a user parameter.
+[07:23] Particle position can be offset slightly
+[07:28] Set particle size to 1,000.
+[07:33] Scale color with a curve template
+[07:35] intensity two.
+[07:46] Scale sprite size also with a curve.
+[07:54] If the glow is too small, increase the
+[08:03] Duplicate this emitter to make a
+[08:05] brighter version with a smaller range.
+[08:10] Set sprite size to 500.
+[08:18] Color intensity to 10. That's the
+[08:21] complete lightning effect.
+[08:29] If we think the glow is too strong, we
+[08:32] can tone it down. At night, this
+[08:34] intensity is fine. In bright
+[08:36] environments, it won't be too obvious.
+[08:39] Adjust it [music] to we needs. This is a
+[08:41] very simple lightning effect. We can add
+[08:44] more particles to make it even richer.
+[08:51] The crack looks pretty good. Okay,
+[08:53] that's all for this video. Hope you
+[08:55] enjoy it. Bye.

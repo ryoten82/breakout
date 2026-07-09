@@ -1,0 +1,1000 @@
+[00:00] What's up guys? Morriszo from Pitchfork
+[00:02] Academy here. And in this Unreal Engine
+[00:05] Academy here. And in this Unreal Engine
+[00:05] 5 tutorial, I'm going to show you how to
+[00:08] 5 tutorial, I'm going to show you how to
+[00:08] very quickly and very easily set up
+[00:12] very quickly and very easily set up
+[00:12] moving platforms. So perhaps you want
+[00:15] moving platforms. So perhaps you want
+[00:15] some moving platforms in your game like
+[00:17] some moving platforms in your game like
+[00:17] these ones that are just automatic and
+[00:19] these ones that are just automatic and
+[00:19] move from one position to another. Or
+[00:23] move from one position to another. Or
+[00:23] you want a platform like this one that
+[00:25] you want a platform like this one that
+[00:25] when you step on is activated and when
+[00:28] when you step on is activated and when
+[00:28] you step off is deactivated like so. Or
+[00:32] you step off is deactivated like so. Or
+[00:32] perhaps you want a platform like this
+[00:34] perhaps you want a platform like this
+[00:34] one over here where if you press a
+[00:35] one over here where if you press a
+[00:36] switch it will come over to a certain
+[00:38] switch it will come over to a certain
+[00:38] position and then go back to where it
+[00:42] position and then go back to where it
+[00:42] came from and reset and is able to be
+[00:45] came from and reset and is able to be
+[00:45] used over and over again. Or maybe you
+[00:50] used over and over again. Or maybe you
+[00:50] need a platform that goes from one
+[00:51] need a platform that goes from one
+[00:51] position to another and stops at either
+[00:54] position to another and stops at either
+[00:54] end, such as an elevator or something
+[00:57] end, such as an elevator or something
+[00:57] similar to that. Well, all of these are
+[01:01] similar to that. Well, all of these are
+[01:02] very, very easily set up and shown in
+[01:05] very, very easily set up and shown in
+[01:05] this very quick and very easy tutorial
+[01:08] this very quick and very easy tutorial
+[01:08] on moving platforms. But just before we
+[01:12] on moving platforms. But just before we
+[01:12] get started, guys, if you want to
+[01:14] get started, guys, if you want to
+[01:14] supercharge your Unreal Engine learning
+[01:17] supercharge your Unreal Engine learning
+[01:17] experience, our Patreon has three
+[01:19] experience, our Patreon has three
+[01:19] membership tiers for added support,
+[01:22] membership tiers for added support,
+[01:22] ranging from basic access to our private
+[01:25] ranging from basic access to our private
+[01:25] Discord server, Mizo's Dizo, to perks
+[01:28] Discord server, Mizo's Dizo, to perks
+[01:28] such as unlimited use of our integrated
+[01:31] such as unlimited use of our integrated
+[01:32] AI assistant, and even 60-minute
+[01:35] AI assistant, and even 60-minute
+[01:35] one-on-one consultations with myself or
+[01:38] one-on-one consultations with myself or
+[01:38] Velocity on our Deluxe tier. And if
+[01:41] Velocity on our Deluxe tier. And if
+[01:41] you're not in a position to support us
+[01:43] you're not in a position to support us
+[01:43] in that way, you're always welcome to
+[01:45] in that way, you're always welcome to
+[01:45] join our free public Discord server, the
+[01:48] join our free public Discord server, the
+[01:48] Pitchfork Academy. You'll find links to
+[01:51] Pitchfork Academy. You'll find links to
+[01:51] Patreon, as well as an invite link to
+[01:53] Patreon, as well as an invite link to
+[01:53] our free Discord in the description and
+[01:55] our free Discord in the description and
+[01:55] the pinned comment. But without further
+[01:57] the pinned comment. But without further
+[01:57] ado, let me show you how to do this. All
+[02:00] ado, let me show you how to do this. All
+[02:00] righty, guys. So, I'm here in basically
+[02:02] righty, guys. So, I'm here in basically
+[02:02] a blank third person template project.
+[02:05] a blank third person template project.
+[02:05] And for the record, I'm using Unreal
+[02:07] And for the record, I'm using Unreal
+[02:07] Engine 5.7. But everything I show you in
+[02:10] Engine 5.7. But everything I show you in
+[02:10] this video should be applicable in
+[02:12] this video should be applicable in
+[02:12] literally any version of Unreal Engine
+[02:14] literally any version of Unreal Engine
+[02:14] 5. So with all that being said, I'm
+[02:17] 5. So with all that being said, I'm
+[02:17] first going to create a folder for my
+[02:18] first going to create a folder for my
+[02:18] moving platform. So I'm going to
+[02:20] moving platform. So I'm going to
+[02:20] rightclick and create a new folder. And
+[02:22] rightclick and create a new folder. And
+[02:22] let's call this moving platform and open
+[02:26] let's call this moving platform and open
+[02:26] this up. And in here, I'm going to
+[02:28] this up. And in here, I'm going to
+[02:28] rightclick create a new blueprint class
+[02:30] rightclick create a new blueprint class
+[02:30] of type actor. And let's call this bp
+[02:35] of type actor. And let's call this bp
+[02:35] moving platform. and go ahead and open
+[02:39] moving platform. and go ahead and open
+[02:39] this up.
+[02:41] this up.
+[02:41] Now, obviously, we're going to need some
+[02:43] Now, obviously, we're going to need some
+[02:43] kind of platform. And for this, I'm just
+[02:45] kind of platform. And for this, I'm just
+[02:46] going to use a cube. So, I'm just going
+[02:48] going to use a cube. So, I'm just going
+[02:48] to click add and add a cube. And let's
+[02:52] to click add and add a cube. And let's
+[02:52] make sure our scale ratio is unlocked.
+[02:56] make sure our scale ratio is unlocked.
+[02:56] And let's make this something like 1.4x
+[02:59] And let's make this something like 1.4x
+[02:59] 1.4.
+[03:01] 1.4.
+[03:01] And bring the scale on the Z down to
+[03:03] And bring the scale on the Z down to
+[03:03] something like 0.2
+[03:05] something like 0.2
+[03:06] or even lower. 0.1. And just to get an
+[03:09] or even lower. 0.1. And just to get an
+[03:10] idea of the size of this platform, we
+[03:13] idea of the size of this platform, we
+[03:13] can go ahead and drop the platform in on
+[03:17] can go ahead and drop the platform in on
+[03:17] our level just anywhere like so. And I
+[03:20] our level just anywhere like so. And I
+[03:20] might just move my player start over
+[03:23] might just move my player start over
+[03:23] here near the platform.
+[03:27] here near the platform.
+[03:27] And to make our moving platform move, it
+[03:31] And to make our moving platform move, it
+[03:31] is literally just a built-in component
+[03:33] is literally just a built-in component
+[03:33] that we can add to this blueprint. So,
+[03:35] that we can add to this blueprint. So,
+[03:35] what we want to do here is click on add
+[03:38] what we want to do here is click on add
+[03:38] and search for interp.
+[03:41] and search for interp.
+[03:42] And this component that's built into
+[03:44] And this component that's built into
+[03:44] Unreal will uh basically just make this
+[03:47] Unreal will uh basically just make this
+[03:47] platform move around based on what we
+[03:50] platform move around based on what we
+[03:50] define in the details panel here. And
+[03:53] define in the details panel here. And
+[03:53] the first things I want to draw your
+[03:55] the first things I want to draw your
+[03:55] attention to are here in the section
+[03:58] attention to are here in the section
+[03:58] called control. So, we've got the
+[04:00] called control. So, we've got the
+[04:00] duration and then the control points
+[04:02] duration and then the control points
+[04:02] that the platform will move to and from.
+[04:06] that the platform will move to and from.
+[04:06] So, let's just change the duration to
+[04:09] So, let's just change the duration to
+[04:09] something like 2.5. And if we go ahead
+[04:12] something like 2.5. And if we go ahead
+[04:12] and add a control point here, you'll see
+[04:14] and add a control point here, you'll see
+[04:14] that each control point in this array
+[04:17] that each control point in this array
+[04:17] has this option. Position is relative.
+[04:21] has this option. Position is relative.
+[04:21] Now, if you wanted to do this in world
+[04:23] Now, if you wanted to do this in world
+[04:23] space, you could, but uh this is set up
+[04:26] space, you could, but uh this is set up
+[04:26] like this by default for a reason. It is
+[04:28] like this by default for a reason. It is
+[04:28] very very easy to use. For example, if
+[04:31] very very easy to use. For example, if
+[04:31] we put in two control points and we make
+[04:34] we put in two control points and we make
+[04:34] the first one 00 0 because it's
+[04:36] the first one 00 0 because it's
+[04:36] relative, it will just be wherever this
+[04:38] relative, it will just be wherever this
+[04:38] platform is placed in the world. And
+[04:41] platform is placed in the world. And
+[04:41] then let's say we add something like 500
+[04:44] then let's say we add something like 500
+[04:44] on the X to the second control point
+[04:46] on the X to the second control point
+[04:46] here. And then compile and hit play. And
+[04:50] here. And then compile and hit play. And
+[04:50] just like that, we've got a moving
+[04:51] just like that, we've got a moving
+[04:51] platform uh that moves 500 units on the
+[04:55] platform uh that moves 500 units on the
+[04:55] X. And because it is set up to be one
+[05:00] X. And because it is set up to be one
+[05:00] shot here in behavior, it just moved
+[05:03] shot here in behavior, it just moved
+[05:03] once and then stopped. But what we can
+[05:05] once and then stopped. But what we can
+[05:05] do is we can actually have a look at all
+[05:08] do is we can actually have a look at all
+[05:08] of these. So one shot, as you just saw,
+[05:11] of these. So one shot, as you just saw,
+[05:11] just moves to the second control point
+[05:13] just moves to the second control point
+[05:13] and then stops. One shot reverse does
+[05:18] and then stops. One shot reverse does
+[05:18] a trip up and then back again and then
+[05:21] a trip up and then back again and then
+[05:21] it stops.
+[05:23] it stops.
+[05:23] And if we choose loop reset, it will
+[05:27] And if we choose loop reset, it will
+[05:27] move to the second control point and
+[05:29] move to the second control point and
+[05:29] then reset back to the start and do this
+[05:32] then reset back to the start and do this
+[05:32] over and over again.
+[05:36] over and over again.
+[05:36] And the last but certainly not least is
+[05:39] And the last but certainly not least is
+[05:39] pingpong. And this is the one that I
+[05:42] pingpong. And this is the one that I
+[05:42] recommend using even if you want some
+[05:44] recommend using even if you want some
+[05:44] custom behavior in the platforms. uh
+[05:47] custom behavior in the platforms. uh
+[05:47] because these ones here uh they kind of
+[05:50] because these ones here uh they kind of
+[05:50] deactivate this component once they're
+[05:54] deactivate this component once they're
+[05:54] finished. They're literally one shot and
+[05:57] finished. They're literally one shot and
+[05:57] uh I haven't been easily able to figure
+[06:00] uh I haven't been easily able to figure
+[06:00] out a way of sort of resetting them. Uh
+[06:04] out a way of sort of resetting them. Uh
+[06:04] the best results that I've gotten are
+[06:07] the best results that I've gotten are
+[06:07] from using pingpong and sort of
+[06:08] from using pingpong and sort of
+[06:08] manipulating this. So, ping pong, as you
+[06:11] manipulating this. So, ping pong, as you
+[06:11] might imagine, just pingpongs back and
+[06:14] might imagine, just pingpongs back and
+[06:14] forth between the two control points
+[06:17] forth between the two control points
+[06:17] like so. But I'm going to show you a
+[06:20] like so. But I'm going to show you a
+[06:20] very neat trick that will make these
+[06:22] very neat trick that will make these
+[06:22] very scalable and easy to sort of set up
+[06:25] very scalable and easy to sort of set up
+[06:25] in your levels. And that is instead of
+[06:29] in your levels. And that is instead of
+[06:29] setting this second control point here,
+[06:32] setting this second control point here,
+[06:32] I'm going to actually delete this
+[06:34] I'm going to actually delete this
+[06:34] control point. And then I'm going to
+[06:36] control point. And then I'm going to
+[06:36] head to the construction script. I'm
+[06:38] head to the construction script. I'm
+[06:38] going to grab my interpter movement and
+[06:40] going to grab my interpter movement and
+[06:40] I'm going to add a control point
+[06:43] I'm going to add a control point
+[06:43] position here on the construction script
+[06:47] position here on the construction script
+[06:47] and I'll drag off of the position here
+[06:50] and I'll drag off of the position here
+[06:50] and promote this to a variable. And we
+[06:52] and promote this to a variable. And we
+[06:52] can just call this something like move
+[06:55] can just call this something like move
+[06:55] to pause. And this I'm going to make
+[06:59] to pause. And this I'm going to make
+[06:59] instance editable. And I'm also going to
+[07:01] instance editable. And I'm also going to
+[07:01] check show 3D widget. And what this
+[07:05] check show 3D widget. And what this
+[07:05] does, if we hit compile now and go back
+[07:07] does, if we hit compile now and go back
+[07:07] to the level and we select our platform,
+[07:10] to the level and we select our platform,
+[07:10] is you'll see this gizmo here that we
+[07:12] is you'll see this gizmo here that we
+[07:12] can select and then we can move this
+[07:15] can select and then we can move this
+[07:15] gizmo to wherever we want and the
+[07:18] gizmo to wherever we want and the
+[07:18] platform
+[07:19] platform
+[07:19] will move to and from that position. So,
+[07:23] will move to and from that position. So,
+[07:23] this makes setting these up in your
+[07:25] this makes setting these up in your
+[07:25] levels super super easy. I can duplicate
+[07:28] levels super super easy. I can duplicate
+[07:28] this and I can literally just if I reset
+[07:33] this and I can literally just if I reset
+[07:33] that
+[07:35] that
+[07:35] Ah, that's just reset the uh position of
+[07:38] Ah, that's just reset the uh position of
+[07:38] the whole um platform here.
+[07:45] Ah, we've got the move to pause here,
+[07:47] which is relative. So, I reset that one
+[07:49] which is relative. So, I reset that one
+[07:49] and then I can move that, you know,
+[07:52] and then I can move that, you know,
+[07:52] here.
+[07:55] here.
+[07:55] And this makes it super super easy to
+[07:58] And this makes it super super easy to
+[07:58] sort of manipulate these platforms. You
+[08:01] sort of manipulate these platforms. You
+[08:01] can even make the time uh instance
+[08:03] can even make the time uh instance
+[08:03] editable. So we could uh what's this
+[08:06] editable. So we could uh what's this
+[08:06] property called? It is just called
+[08:09] property called? It is just called
+[08:09] duration. So we should be able to set
+[08:12] duration. So we should be able to set
+[08:12] duration
+[08:14] duration
+[08:14] and then this we will also make
+[08:19] and then this we will also make
+[08:19] a variable and we'll make this variable
+[08:22] a variable and we'll make this variable
+[08:22] instance editable. And then that way we
+[08:25] instance editable. And then that way we
+[08:25] could make, you know, this one go for
+[08:28] could make, you know, this one go for
+[08:28] two seconds and make this one go a lot
+[08:31] two seconds and make this one go a lot
+[08:31] slower and take five seconds.
+[08:35] slower and take five seconds.
+[08:35] And there you go. Just like that. You
+[08:37] And there you go. Just like that. You
+[08:37] can whack this moving platform into your
+[08:40] can whack this moving platform into your
+[08:40] level as many times as you want. And you
+[08:42] level as many times as you want. And you
+[08:42] can just visually uh move where you want
+[08:46] can just visually uh move where you want
+[08:46] it to move to and change the duration
+[08:48] it to move to and change the duration
+[08:48] down here, which is super super neat.
+[08:51] down here, which is super super neat.
+[08:52] Like I said, very, very easy to set up.
+[08:54] Like I said, very, very easy to set up.
+[08:54] But now I'm going to show you a couple
+[08:56] But now I'm going to show you a couple
+[08:56] of other ways to sort of customize this
+[08:58] of other ways to sort of customize this
+[08:58] moving platform so that it activates and
+[09:01] moving platform so that it activates and
+[09:01] deactivates when we step on and step
+[09:04] deactivates when we step on and step
+[09:04] off. And also how to flip a switch on
+[09:08] off. And also how to flip a switch on
+[09:08] the wall to turn it on or off and get it
+[09:10] the wall to turn it on or off and get it
+[09:10] to sort of do the typical things you
+[09:12] to sort of do the typical things you
+[09:12] might want a moving platform to do, such
+[09:15] might want a moving platform to do, such
+[09:15] as work as an elevator. So, I'm just
+[09:18] as work as an elevator. So, I'm just
+[09:18] going to go ahead and delete this one
+[09:20] going to go ahead and delete this one
+[09:20] here. And we'll just use this one here
+[09:22] here. And we'll just use this one here
+[09:22] because it's nice and slow and it moves
+[09:24] because it's nice and slow and it moves
+[09:24] sort of just forward and back. Actually,
+[09:26] sort of just forward and back. Actually,
+[09:26] I'll just decrease the duration so it's
+[09:29] I'll just decrease the duration so it's
+[09:29] not doesn't take so long to test. But
+[09:32] not doesn't take so long to test. But
+[09:32] basically, the first thing I want to do
+[09:34] basically, the first thing I want to do
+[09:34] is set this platform up so I can
+[09:37] is set this platform up so I can
+[09:37] activate it and deactivate it as I need.
+[09:41] activate it and deactivate it as I need.
+[09:41] So, if we open up the moving platform
+[09:43] So, if we open up the moving platform
+[09:43] blueprint and we select the interpreter
+[09:46] blueprint and we select the interpreter
+[09:46] movement here, what we want to do is
+[09:48] movement here, what we want to do is
+[09:48] scroll down and take a look at the
+[09:50] scroll down and take a look at the
+[09:50] settings here under component tick and
+[09:54] settings here under component tick and
+[09:54] also auto activivate here. Now, I found
+[09:58] also auto activivate here. Now, I found
+[09:58] this to be quite fiddly, but basically
+[10:01] this to be quite fiddly, but basically
+[10:01] if this is auto activated, it will just
+[10:04] if this is auto activated, it will just
+[10:04] start moving no matter what. So, we want
+[10:08] start moving no matter what. So, we want
+[10:08] to deactivate
+[10:09] to deactivate
+[10:10] autoactivate if we want any kind of
+[10:13] autoactivate if we want any kind of
+[10:13] custom behavior because it makes it uh
+[10:15] custom behavior because it makes it uh
+[10:15] very annoying to play with indeed. And
+[10:18] very annoying to play with indeed. And
+[10:18] the other thing I want to disable here
+[10:21] the other thing I want to disable here
+[10:21] is start with tick enabled. So this is a
+[10:25] is start with tick enabled. So this is a
+[10:25] very very easy trick to basically make
+[10:29] very very easy trick to basically make
+[10:29] this platform switch on and off is to
+[10:32] this platform switch on and off is to
+[10:32] deactivate auto activation and then
+[10:36] deactivate auto activation and then
+[10:36] start without tick enabled and then when
+[10:39] start without tick enabled and then when
+[10:39] we enable tick it will just start
+[10:42] we enable tick it will just start
+[10:42] moving. So basically we're going to need
+[10:44] moving. So basically we're going to need
+[10:44] two custom events here. We'll create one
+[10:47] two custom events here. We'll create one
+[10:47] and we'll call this enable movement.
+[10:52] and we'll call this enable movement.
+[10:52] And we'll create another custom event
+[10:54] And we'll create another custom event
+[10:54] and we'll call this disable
+[10:58] and we'll call this disable
+[10:58] movement.
+[11:01] And on enable movement, we want to
+[11:04] activate this component and also uh set
+[11:08] activate this component and also uh set
+[11:08] tick enabled to true. But first, let's
+[11:11] tick enabled to true. But first, let's
+[11:11] just check if it already is active.
+[11:14] just check if it already is active.
+[11:14] Because if it is, we don't need to
+[11:15] Because if it is, we don't need to
+[11:16] activate it again. So, we'll drag off of
+[11:19] activate it again. So, we'll drag off of
+[11:19] here and get is active.
+[11:22] here and get is active.
+[11:22] Drag off of the return value and press B
+[11:24] Drag off of the return value and press B
+[11:24] to get a branch. Plug this in. And if
+[11:28] to get a branch. Plug this in. And if
+[11:28] this is not active, let's
+[11:32] this is not active, let's
+[11:32] activate.
+[11:34] activate.
+[11:34] And you will want to check reset here.
+[11:37] And you will want to check reset here.
+[11:38] this uh will uh not work if you uncheck
+[11:41] this uh will uh not work if you uncheck
+[11:41] this I believe. So we'll plug that in
+[11:44] this I believe. So we'll plug that in
+[11:44] and then uh once this is activated what
+[11:47] and then uh once this is activated what
+[11:47] we want to do get our interpter movement
+[11:49] we want to do get our interpter movement
+[11:49] again and we will uh set component tick
+[11:55] again and we will uh set component tick
+[11:55] enabled
+[11:56] enabled
+[11:56] to true. Plug this in here and also if
+[12:01] to true. Plug this in here and also if
+[12:01] this is already active we also want to
+[12:03] this is already active we also want to
+[12:03] do it like so. And then we can just
+[12:06] do it like so. And then we can just
+[12:06] duplicate these two down here. And oops.
+[12:12] duplicate these two down here. And oops.
+[12:12] And set this enabled to false.
+[12:17] And set this enabled to false.
+[12:17] And now let's try these out um by just
+[12:21] And now let's try these out um by just
+[12:21] adding a box collision to our platform.
+[12:25] adding a box collision to our platform.
+[12:25] So I'll add a box collision.
+[12:29] So I'll add a box collision.
+[12:29] And this, let's just, you don't want
+[12:33] And this, let's just, you don't want
+[12:33] this to sit too far above the top of the
+[12:36] this to sit too far above the top of the
+[12:36] platform because then the platform will
+[12:39] platform because then the platform will
+[12:39] switch on and off when your character is
+[12:41] switch on and off when your character is
+[12:42] not quite on there yet. So, I'm going to
+[12:44] not quite on there yet. So, I'm going to
+[12:44] make this nice and snug along the
+[12:46] make this nice and snug along the
+[12:46] surface like so. And I'll just make it
+[12:49] surface like so. And I'll just make it
+[12:49] so that it's not sticking out of the
+[12:51] so that it's not sticking out of the
+[12:51] bottom as well. Let's turn off grid
+[12:54] bottom as well. Let's turn off grid
+[12:54] snapping and just make this stick just
+[12:58] snapping and just make this stick just
+[12:58] above the surface like so. And then what
+[13:01] above the surface like so. And then what
+[13:01] we can do is select our box. Let's add
+[13:05] we can do is select our box. Let's add
+[13:05] an on component begin overlap
+[13:09] an on component begin overlap
+[13:09] and also an on component end overlap.
+[13:14] and also an on component end overlap.
+[13:14] And we'll just check if the other actor
+[13:17] And we'll just check if the other actor
+[13:17] is equal to the player character. get
+[13:21] is equal to the player character. get
+[13:21] player character.
+[13:26] And if it is, let's enable movement.
+[13:34] Enable movement. And then we can just
+[13:37] Enable movement. And then we can just
+[13:37] duplicate these three nodes
+[13:40] duplicate these three nodes
+[13:40] down here. Plug this in and plug the
+[13:44] down here. Plug this in and plug the
+[13:44] other actor into the equals. And we can
+[13:49] other actor into the equals. And we can
+[13:49] disable movement.
+[13:52] disable movement.
+[13:52] And that should be all that's required.
+[13:54] And that should be all that's required.
+[13:54] Let's hit compile and play. We jump on.
+[13:58] Let's hit compile and play. We jump on.
+[13:58] H. It is not moving. What's happening
+[14:02] H. It is not moving. What's happening
+[14:02] here? Ah, it was literally just my
+[14:05] here? Ah, it was literally just my
+[14:05] collision was a little too snug against
+[14:08] collision was a little too snug against
+[14:08] the uh against the platform here. So, I
+[14:10] the uh against the platform here. So, I
+[14:10] just shifted that up ever so slightly.
+[14:14] just shifted that up ever so slightly.
+[14:14] Was a little bit too streamlined. But if
+[14:16] Was a little bit too streamlined. But if
+[14:16] I jump on the platform starts moving and
+[14:19] I jump on the platform starts moving and
+[14:19] if I jump off it stops moving like so.
+[14:22] if I jump off it stops moving like so.
+[14:22] So you can see that functionality is
+[14:25] So you can see that functionality is
+[14:25] working well there. Now let's go ahead
+[14:29] working well there. Now let's go ahead
+[14:29] and start sort of manipulating the
+[14:32] and start sort of manipulating the
+[14:32] behavior of this platform to get a few
+[14:35] behavior of this platform to get a few
+[14:35] different results. For example, the
+[14:37] different results. For example, the
+[14:37] first thing I want to do is instead of
+[14:40] first thing I want to do is instead of
+[14:40] using end overlap to disable movement,
+[14:43] using end overlap to disable movement,
+[14:43] what I'm going to do is make the
+[14:45] what I'm going to do is make the
+[14:45] platform stop at each end of its travel.
+[14:50] platform stop at each end of its travel.
+[14:50] And how we can do that is this interp
+[14:53] And how we can do that is this interp
+[14:53] has some built-in event dispatches. And
+[14:56] has some built-in event dispatches. And
+[14:56] what we can do is get our interp to
+[14:58] what we can do is get our interp to
+[14:58] movement and drag off of here and search
+[15:00] movement and drag off of here and search
+[15:00] for assign. And you can see uh the
+[15:03] for assign. And you can see uh the
+[15:03] various event dispatches that are built
+[15:06] various event dispatches that are built
+[15:06] in here. The one I'm most interested in
+[15:09] in here. The one I'm most interested in
+[15:10] is interp to reverse. This fires when
+[15:14] is interp to reverse. This fires when
+[15:14] the platform reverses direction at
+[15:17] the platform reverses direction at
+[15:17] either end of its control points. So if
+[15:20] either end of its control points. So if
+[15:20] we select this one here, uh it will
+[15:22] we select this one here, uh it will
+[15:22] automatically create an event. We can
+[15:24] automatically create an event. We can
+[15:24] bind this on event begin play.
+[15:28] bind this on event begin play.
+[15:28] And what we can do here when it reverses
+[15:31] And what we can do here when it reverses
+[15:31] is just disable our
+[15:35] is just disable our
+[15:35] movement.
+[15:37] movement.
+[15:37] And now uh the platform will activate
+[15:41] And now uh the platform will activate
+[15:42] when we step on and then it will
+[15:44] when we step on and then it will
+[15:44] deactivate uh when it reaches the end of
+[15:47] deactivate uh when it reaches the end of
+[15:47] its travel. So let's try that out. Moves
+[15:51] its travel. So let's try that out. Moves
+[15:51] to one end and then it's off and we can
+[15:53] to one end and then it's off and we can
+[15:54] step off. And if we step back on, it
+[15:57] step off. And if we step back on, it
+[15:57] moves back to the other end and then
+[15:58] moves back to the other end and then
+[15:58] stops. Pretty neat. So, it's kind of
+[16:01] stops. Pretty neat. So, it's kind of
+[16:01] like a oneshot uh except, you know, we
+[16:05] like a oneshot uh except, you know, we
+[16:05] can control when the platform starts
+[16:07] can control when the platform starts
+[16:07] moving again. Really, really nice. And
+[16:11] moving again. Really, really nice. And
+[16:11] if you wanted this to sort of just go up
+[16:14] if you wanted this to sort of just go up
+[16:14] and back kind of like the oneshot
+[16:18] and back kind of like the oneshot
+[16:18] reverse except reusable, what you can do
+[16:21] reverse except reusable, what you can do
+[16:21] is use this time here on the event
+[16:24] is use this time here on the event
+[16:24] dispatcher. Now this is zero at the
+[16:28] dispatcher. Now this is zero at the
+[16:28] start of the platform's travels and when
+[16:30] start of the platform's travels and when
+[16:30] it is at the second control point it
+[16:33] it is at the second control point it
+[16:33] equals one. So what we can do for
+[16:37] equals one. So what we can do for
+[16:37] example is check that this is not equal
+[16:41] example is check that this is not equal
+[16:41] to one and get a branch and if it is not
+[16:47] to one and get a branch and if it is not
+[16:47] equal to one then disable the movement
+[16:49] equal to one then disable the movement
+[16:49] and that will make our platform go sort
+[16:52] and that will make our platform go sort
+[16:52] of up and back
+[16:55] of up and back
+[16:55] and then switch off.
+[16:58] and then switch off.
+[16:58] Very very nice.
+[17:04] All righty. And now the last thing I
+[17:06] want to show you guys is activating a
+[17:09] want to show you guys is activating a
+[17:09] platform with a switch that your player
+[17:13] platform with a switch that your player
+[17:13] can walk over and interact with. So for
+[17:16] can walk over and interact with. So for
+[17:16] this, I'm actually going to delete these
+[17:20] this, I'm actually going to delete these
+[17:20] uh overlaps for the box. And I'm
+[17:23] uh overlaps for the box. And I'm
+[17:23] actually going to um well, the box
+[17:25] actually going to um well, the box
+[17:25] doesn't matter. I don't need to delete
+[17:27] doesn't matter. I don't need to delete
+[17:27] it because nothing is happening with it
+[17:29] it because nothing is happening with it
+[17:29] anyway. But basically uh what I want to
+[17:32] anyway. But basically uh what I want to
+[17:32] do is now enable the movement with a
+[17:34] do is now enable the movement with a
+[17:34] switch. And then uh what we can do is
+[17:39] switch. And then uh what we can do is
+[17:39] just for now disable the movement at
+[17:43] just for now disable the movement at
+[17:43] each end of its travels. So we won't use
+[17:46] each end of its travels. So we won't use
+[17:46] this branch for now. We'll just disable
+[17:48] this branch for now. We'll just disable
+[17:48] the movement when the platform sort of
+[17:50] the movement when the platform sort of
+[17:50] reaches the end. And how we're going to
+[17:56] reaches the end. And how we're going to
+[17:56] switch this platform on is we are going
+[17:59] switch this platform on is we are going
+[17:59] to need a switch. So let's first
+[18:02] to need a switch. So let's first
+[18:02] rightclick create a new blueprint class
+[18:05] rightclick create a new blueprint class
+[18:05] of type actor. And I'm just going to
+[18:08] of type actor. And I'm just going to
+[18:08] call this BP interactable.
+[18:12] call this BP interactable.
+[18:12] Now, if you've got a class of
+[18:14] Now, if you've got a class of
+[18:14] interactables, you might have a switch
+[18:18] interactables, you might have a switch
+[18:18] or a lever as a subclass of your
+[18:21] or a lever as a subclass of your
+[18:21] interactable sort of parent class. Uh,
+[18:24] interactable sort of parent class. Uh,
+[18:24] but for the purposes of demonstrating
+[18:26] but for the purposes of demonstrating
+[18:26] this, I'm just going to make one class
+[18:28] this, I'm just going to make one class
+[18:28] and call it BP interactable. I'll open
+[18:32] and call it BP interactable. I'll open
+[18:32] this up and I'm going to add a cube. and
+[18:36] this up and I'm going to add a cube. and
+[18:36] the cube. I'm just going to lock the
+[18:39] the cube. I'm just going to lock the
+[18:39] ratio here and make this 0.05.
+[18:43] ratio here and make this 0.05.
+[18:43] Something like that. Very, very small.
+[18:45] Something like that. Very, very small.
+[18:46] And this is just going to sort of uh
+[18:49] And this is just going to sort of uh
+[18:49] resemble our switch. I'll also add a box
+[18:53] resemble our switch. I'll also add a box
+[18:53] collision so that we can interact with
+[18:55] collision so that we can interact with
+[18:55] this. And I'm not going to do anything
+[18:58] this. And I'm not going to do anything
+[18:58] else to the components here. Um, that's
+[19:01] else to the components here. Um, that's
+[19:01] literally all I need is this little cube
+[19:03] literally all I need is this little cube
+[19:03] we're going to see on the wall and the
+[19:06] we're going to see on the wall and the
+[19:06] box is so that we can interact with it.
+[19:09] box is so that we can interact with it.
+[19:09] So, let's put the switch. What I might
+[19:12] So, let's put the switch. What I might
+[19:12] do is just
+[19:15] do is just
+[19:15] duplicate one of these objects.
+[19:19] duplicate one of these objects.
+[19:19] And I'll put the switch
+[19:23] And I'll put the switch
+[19:23] on the kind of wall there like so. There
+[19:27] on the kind of wall there like so. There
+[19:27] we go.
+[19:28] we go.
+[19:28] And we are also going to need a
+[19:30] And we are also going to need a
+[19:30] blueprint interface to talk to our
+[19:33] blueprint interface to talk to our
+[19:33] switch and also for the switch to talk
+[19:36] switch and also for the switch to talk
+[19:36] to the platform. So let's rightclick
+[19:40] to the platform. So let's rightclick
+[19:40] here again and go to blueprint and
+[19:43] here again and go to blueprint and
+[19:44] blueprint interface. And I'm going to
+[19:46] blueprint interface. And I'm going to
+[19:46] call this BPI
+[19:49] call this BPI
+[19:49] interact. Now again you might have
+[19:52] interact. Now again you might have
+[19:52] blueprint interfaces in your project
+[19:54] blueprint interfaces in your project
+[19:54] already. I'm just uh you know creating
+[19:57] already. I'm just uh you know creating
+[19:57] this one to demonstrate that this will
+[19:59] this one to demonstrate that this will
+[19:59] work. I'll open up BPI interact and the
+[20:02] work. I'll open up BPI interact and the
+[20:02] first function I'll call BPI
+[20:06] first function I'll call BPI
+[20:06] flip switch or something like that. And
+[20:09] flip switch or something like that. And
+[20:09] I'll also create one called BPI
+[20:14] I'll also create one called BPI
+[20:14] uh activate
+[20:16] uh activate
+[20:16] actor. And this is the one that's going
+[20:19] actor. And this is the one that's going
+[20:19] to activate our platform from the
+[20:22] to activate our platform from the
+[20:22] switch. And now that we've named these,
+[20:24] switch. And now that we've named these,
+[20:24] that's literally all we need to do in
+[20:26] that's literally all we need to do in
+[20:26] here. We can compile and save this
+[20:28] here. We can compile and save this
+[20:28] interface and close it. And what I'm
+[20:31] interface and close it. And what I'm
+[20:31] going to do now is sort of work
+[20:33] going to do now is sort of work
+[20:33] backwards from the platform. This is
+[20:34] backwards from the platform. This is
+[20:34] sort of how I like to work with my sort
+[20:36] sort of how I like to work with my sort
+[20:36] of um my interfaces here. The switch,
+[20:41] of um my interfaces here. The switch,
+[20:41] the player is going to hit the switch,
+[20:43] the player is going to hit the switch,
+[20:43] and the switch is going to activate the
+[20:45] and the switch is going to activate the
+[20:45] platform. So, I'm going to work
+[20:47] platform. So, I'm going to work
+[20:47] backwards from the platform to the
+[20:49] backwards from the platform to the
+[20:49] switch and then the switch to the player
+[20:51] switch and then the switch to the player
+[20:51] and then put the um logic in the player
+[20:54] and then put the um logic in the player
+[20:54] that will make us able to interact with
+[20:57] that will make us able to interact with
+[20:57] the switch. So, let's open up the moving
+[20:59] the switch. So, let's open up the moving
+[20:59] platform here and let's go to the class
+[21:02] platform here and let's go to the class
+[21:02] settings and add our interface here
+[21:04] settings and add our interface here
+[21:04] which is BPI interact. I'll hit compile
+[21:08] which is BPI interact. I'll hit compile
+[21:08] and then under interfaces here I'm going
+[21:11] and then under interfaces here I'm going
+[21:11] to double click activate actor and
+[21:14] to double click activate actor and
+[21:14] activate actor is just going to enable
+[21:17] activate actor is just going to enable
+[21:17] the movement like so compile and save
+[21:21] the movement like so compile and save
+[21:21] that and then in our interactable switch
+[21:25] that and then in our interactable switch
+[21:25] here again class settings add the
+[21:28] here again class settings add the
+[21:28] interface which is BPI interact and in
+[21:32] interface which is BPI interact and in
+[21:32] the event graph let's doubleclick BPI
+[21:35] the event graph let's doubleclick BPI
+[21:35] flip switch And this is going to call
+[21:39] flip switch And this is going to call
+[21:39] activate actor on the platform. And how
+[21:42] activate actor on the platform. And how
+[21:42] it's going to know which platform to
+[21:44] it's going to know which platform to
+[21:44] talk to is we're going to add a variable
+[21:47] talk to is we're going to add a variable
+[21:47] and we'll call it actor to activate.
+[21:52] and we'll call it actor to activate.
+[21:52] And this will be an actor
+[21:56] And this will be an actor
+[21:56] object reference.
+[21:58] object reference.
+[21:58] And this is going to be instance
+[22:00] And this is going to be instance
+[22:00] editable. And that means that when it's
+[22:03] editable. And that means that when it's
+[22:03] in the level here, we can select it. And
+[22:06] in the level here, we can select it. And
+[22:06] we've got this instance editable uh
+[22:09] we've got this instance editable uh
+[22:09] actor reference here. We can hit the
+[22:11] actor reference here. We can hit the
+[22:11] little eyropper and we can select the
+[22:13] little eyropper and we can select the
+[22:13] platform. And then you can see there
+[22:15] platform. And then you can see there
+[22:15] that it's got BP moving platform uh
+[22:18] that it's got BP moving platform uh
+[22:18] referenced here as its actor to
+[22:21] referenced here as its actor to
+[22:21] activate. So then we can get this actor
+[22:25] activate. So then we can get this actor
+[22:25] to activate and call activate actor
+[22:30] to activate and call activate actor
+[22:30] like so.
+[22:34] like so.
+[22:34] And then we just need our player to call
+[22:37] And then we just need our player to call
+[22:37] this uh on the switch. So let's also
+[22:41] this uh on the switch. So let's also
+[22:41] find in third person blueprints BP third
+[22:44] find in third person blueprints BP third
+[22:44] person character. And just down here I'm
+[22:47] person character. And just down here I'm
+[22:47] just going to find the E uh keyboard
+[22:52] just going to find the E uh keyboard
+[22:52] event.
+[22:54] event.
+[22:54] And we can get overlapping
+[22:59] And we can get overlapping
+[22:59] actors.
+[23:00] actors.
+[23:00] I'm going to filter for interactable.
+[23:06] I can get a copy.
+[23:09] Get the first uh BP interactable that
+[23:12] Get the first uh BP interactable that
+[23:12] we're overlapping with. And I will check
+[23:15] we're overlapping with. And I will check
+[23:15] that we are indeed overlapping is
+[23:19] that we are indeed overlapping is
+[23:19] overlapping actor.
+[23:21] overlapping actor.
+[23:21] This will plug into other.
+[23:25] Drag off of here and press B to get a
+[23:26] branch. And if we are overlapping then
+[23:30] branch. And if we are overlapping then
+[23:30] let's call our what do we call it? Flip
+[23:33] let's call our what do we call it? Flip
+[23:33] switch message
+[23:37] switch message
+[23:37] like so.
+[23:40] like so.
+[23:40] And I hope I didn't miss anything. That
+[23:42] And I hope I didn't miss anything. That
+[23:42] should be working. If we go over to the
+[23:44] should be working. If we go over to the
+[23:44] switch and press E, our platform starts
+[23:47] switch and press E, our platform starts
+[23:47] moving and it's going to stop moving at
+[23:49] moving and it's going to stop moving at
+[23:49] the other end. If we press E again, it
+[23:53] the other end. If we press E again, it
+[23:53] will come back like so.
+[23:56] will come back like so.
+[23:56] Nice. So, this could be an elevator. You
+[23:59] Nice. So, this could be an elevator. You
+[23:59] could have a switch at the top and at
+[24:02] could have a switch at the top and at
+[24:02] the bottom, for example. Um, and you
+[24:06] the bottom, for example. Um, and you
+[24:06] know, you can customize this to do
+[24:08] know, you can customize this to do
+[24:08] different stuff. For example, uh, you
+[24:11] different stuff. For example, uh, you
+[24:11] know, we we made this stop at either
+[24:13] know, we we made this stop at either
+[24:13] end, but if we wanted this to go sort of
+[24:16] end, but if we wanted this to go sort of
+[24:16] up and back,
+[24:18] up and back,
+[24:18] we could do this.
+[24:21] we could do this.
+[24:21] And then for example,
+[24:23] And then for example,
+[24:24] uh, if we wanted to make this a sort of,
+[24:26] uh, if we wanted to make this a sort of,
+[24:26] you know, a kind of challenge where
+[24:30] you know, a kind of challenge where
+[24:30] you're trying to get on as it comes
+[24:33] you're trying to get on as it comes
+[24:33] over, I might move the move to pause to
+[24:39] over, I might move the move to pause to
+[24:39] let's put it here.
+[24:41] let's put it here.
+[24:41] And then let's make our duration
+[24:45] And then let's make our duration
+[24:45] 3 seconds. And let's see if I can do
+[24:47] 3 seconds. And let's see if I can do
+[24:47] that. So, this uh will go up and back.
+[24:52] that. So, this uh will go up and back.
+[24:52] It should. And then stop again.
+[24:57] Oh, easily enough time to get over
+[24:59] there.
+[25:02] there.
+[25:02] Nice. And that's working very nicely
+[25:05] Nice. And that's working very nicely
+[25:05] indeed. And guys, that's pretty much it.
+[25:07] indeed. And guys, that's pretty much it.
+[25:07] I wanted to give you an introduction on
+[25:09] I wanted to give you an introduction on
+[25:09] how to make these moving platforms and
+[25:11] how to make these moving platforms and
+[25:12] how to customize them a little bit. And
+[25:15] how to customize them a little bit. And
+[25:15] I think that is job done. If this video
+[25:17] I think that is job done. If this video
+[25:17] has been of any use or value to you
+[25:20] has been of any use or value to you
+[25:20] whatsoever, please hit like and
+[25:22] whatsoever, please hit like and
+[25:22] subscribe and I'll see you on the next
+[25:24] subscribe and I'll see you on the next
+[25:24] one.
