@@ -129,9 +129,10 @@ export const ATTACKS = {
     hitCount:     18,
     partsAnim:    'upper_cut',
     // 打ち上げ属性（強吹っ飛ばし）は撤去：launchVy / attrGroup: LAUNCH_COMBO は使わない。
-    // 代わりに knockback (水平) + knockbackY (垂直) で斜め上の軽い浮きを表現し、
-    // ヒット後に sp_02 等の本格打ち上げ技でキャンセルしてコンボを伸ばす想定。
-    launcher:     false,
+    // 代わりに knockback (水平) + knockbackY (垂直) で斜め上の軽い浮きを表現する。
+    // launcher は 2026-08-14 歪み監査裁定で true に復帰（キャンセルジャンプ可否のみ回復。
+    // launcher はキャンセルジャンプゲート専用フラグで浮かせ量には作用しない — attack-engine.js tryCancelJump）。
+    launcher:     true,
     atk_lv:       2,                // 地上敵：軽フリンチ（knockback02）+ 浮き
     atk_lv_air:   2,                // 空中敵：軽フリンチ（knockback_air01）+ 浮き
   },
